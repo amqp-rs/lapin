@@ -8,6 +8,7 @@ use std::io::{Read,Write,Error};
 use nom::HexDisplay;
 
 use lapin::frame::gen_protocol_header;
+use lapin::connection::*;
 
 #[test]
 fn connection() {
@@ -19,9 +20,11 @@ fn connection() {
       let mut receive_buffer: Vec<u8> = Vec::with_capacity(capacity);
       receive_buffer.extend(repeat(0).take(capacity));
 
-      let (sl, bytes_written) = gen_protocol_header((&mut send_buffer, 0)).unwrap();
+      //let (sl, bytes_written) = gen_protocol_header((&mut send_buffer, 0)).unwrap();
+      //assert_eq!(stream.write(&sl[..bytes_written]).unwrap(), bytes_written);
 
-      assert_eq!(stream.write(&sl[..bytes_written]).unwrap(), bytes_written);
+      let mut conn: Connection = Connection::new();
+      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connected);
 
       let bytes_read = stream.read(&mut receive_buffer).unwrap();
 
