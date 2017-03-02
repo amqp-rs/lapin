@@ -1,0 +1,8 @@
+[package]
+name = "lapin"
+version = "0.1.0"
+authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+
+[dependencies]
+nom = "^2.1"
+rusticata-macros = { git = "https://github.com/rusticata/rusticata-macros" }
