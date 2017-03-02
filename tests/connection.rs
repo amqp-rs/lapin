@@ -7,8 +7,9 @@ use std::io::{Read,Write,Error};
 
 use nom::HexDisplay;
 
-use lapin::frame::gen_protocol_header;
 use lapin::connection::*;
+use lapin::method::*;
+use lapin::frame::*;
 
 #[test]
 fn connection() {
@@ -29,5 +30,15 @@ fn connection() {
       let bytes_read = stream.read(&mut receive_buffer).unwrap();
 
       println!("received:\n{}", (&receive_buffer[..bytes_read]).to_hex(16));
-      assert_eq!(&receive_buffer[..8], &['A' as u8, 'M' as u8, 'Q' as u8, 'P' as u8, 0, 0, 9, 1]);
+      //assert_eq!(&receive_buffer[..8], &['A' as u8, 'M' as u8, 'Q' as u8, 'P' as u8, 0, 0, 9, 1]);
+      let res = frame(&receive_buffer[..bytes_read]);
+      println!("received: {:?}", res);
+
+      let payload = &receive_buffer[7..bytes_read];
+      println!("payload:\n{}", (&receive_buffer[7..bytes_read]).to_hex(16));
+
+      let res2 = method_header(payload);
+      println!("method: {:?}", res2);
+      panic!();
+
 }
