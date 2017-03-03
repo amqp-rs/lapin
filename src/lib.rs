@@ -8,6 +8,7 @@ extern crate rusticata_macros;
 
 pub mod connection;
 pub mod channel;
-mod format;
+pub mod generated;
+pub mod format;
 
 pub use format::*;

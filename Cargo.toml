@@ -2,11 +2,16 @@
 name = "lapin"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
 nom = "^2.1"
 clippy = {version = "*", optional = true}
 rusticata-macros = { git = "https://github.com/rusticata/rusticata-macros" }
+
+
+[build-dependencies]
+amq-protocol-codegen = {git = "https://github.com/Keruspe/amq-protocol/" }
 
 [features]
 default = []
