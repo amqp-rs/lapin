@@ -27,6 +27,7 @@ fn connection() {
       let mut conn: Connection = Connection::new();
       assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connected);
 
+      /*
       let bytes_read = stream.read(&mut receive_buffer).unwrap();
 
       println!("received:\n{}", (&receive_buffer[..bytes_read]).to_hex(16));
@@ -37,8 +38,9 @@ fn connection() {
       let payload = &receive_buffer[7..bytes_read];
       println!("payload:\n{}", (&receive_buffer[7..bytes_read]).to_hex(16));
 
-      let res2 = method_header(payload);
+      let res2 = method(payload);
       println!("method: {:?}", res2);
+      */
+      let state = conn.read(&mut stream).unwrap();
       panic!();
-
 }

@@ -1,5 +1,6 @@
 use rusticata_macros::*;
-use nom::{be_u8,be_u16,be_u32};
+use nom::{be_u8,be_u16,be_u32,IResult};
+use method::{method,Method};
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
@@ -55,25 +56,49 @@ named!(pub channel_id<Channel>,
 
 //FIXME: maybe parse the frame header, and leave the payload for later
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Frame<'a> {
+pub struct RawFrame<'a> {
   frame_type: FrameType,
-  channel:    Channel,
+  channel_id: u16,
   size:       u32,
   payload:    &'a[u8],
 }
 
-named!(pub frame<Frame>,
+named!(pub raw_frame<RawFrame>,
   do_parse!(
     frame:   frame_type    >>
-    channel: channel_id    >>
+    channel: be_u16        >>
     size:    be_u32        >>
     payload: take!(size)   >>
              tag!(&[0xCE]) >>
-    (Frame {
+    (RawFrame {
       frame_type: frame,
-      channel:    channel,
+      channel_id: channel,
       size:       size,
       payload:    payload,
     })
   )
 );
+
+#[derive(Clone,Debug,PartialEq)]
+pub enum Frame<'a> {
+  Method(u16, Method),
+  //content header
+  Header(u16, ()),
+  //content Body
+  Body(u16, &'a[u8]),
+  Heartbeat(u16)
+}
+
+pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
+  let (remaining, raw) = try_parse!(input, raw_frame);
+  match raw.frame_type {
+    FrameType::Header    => IResult::Done(remaining, Frame::Header(raw.channel_id, ())),
+    FrameType::Body      => IResult::Done(remaining, Frame::Body(raw.channel_id, raw.payload)),
+    FrameType::Heartbeat => IResult::Done(remaining, Frame::Heartbeat(raw.channel_id)),
+    FrameType::Method    => {
+      println!("will try to parse a method");
+      let (remaining2, m) = try_parse!(raw.payload, method);
+      IResult::Done(remaining2, Frame::Method(raw.channel_id, m))
+    },
+  }
+}

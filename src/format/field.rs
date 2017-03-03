@@ -51,7 +51,7 @@ pub enum Value {
   None
 }
 
-named!(value<Value>,
+named!(pub value<Value>,
   switch!(map!(be_u8, |u| u as char),
     't' => call!(parse_boolean)          |
     //FIXME: the spec says b for i8, B for u8, but U for i16, u for u16, I for i32, i for u32, etc
@@ -141,6 +141,17 @@ named!(parse_table<Value>,
     quantity: be_u32 >>
     h: map!(count!(field_name_value, quantity as usize), |v:Vec<(String,Value)>| {
       Value::Table(v.iter().cloned().collect())
+    }) >>
+    (h)
+  )
+);
+
+named!(pub field_table<HashMap<String,Value>>,
+  do_parse!(
+    //FIXME: the spec specifies a long uint there, but a long int for the array?
+    quantity: be_u32 >>
+    h: map!(count!(field_name_value, quantity as usize), |v:Vec<(String,Value)>| {
+      v.iter().cloned().collect()
     }) >>
     (h)
   )
