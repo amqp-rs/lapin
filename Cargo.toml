@@ -5,4 +5,10 @@ authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 
 [dependencies]
 nom = "^2.1"
+clippy = {version = "*", optional = true}
 rusticata-macros = { git = "https://github.com/rusticata/rusticata-macros" }
+
+[features]
+default = []
+
+
