@@ -1,8 +1,10 @@
 use std::io::{Error,ErrorKind,Read,Result,Write};
 use std::iter::repeat;
+use std::collections::HashMap;
 use nom::{HexDisplay,IResult,Offset};
 
-use format::frame::{frame,gen_protocol_header};
+use format::frame::{frame,Frame,gen_protocol_header};
+use channel::Channel;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
@@ -11,9 +13,10 @@ pub enum ConnectionState {
   Error,
 }
 
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
   pub state:    ConnectionState,
+  pub channels: HashMap<u16, Channel>,
   pub buffer:   Vec<u8>,
   pub receive_buffer: Vec<u8>,
   pub position: usize,
@@ -29,8 +32,12 @@ impl Connection {
     let mut v2: Vec<u8> = Vec::with_capacity(8192);
     v2.extend(repeat(0).take(8192));
 
+    let mut h = HashMap::new();
+    h.insert(0, Channel::global());
+
     Connection {
       state:    ConnectionState::Initial,
+      channels: h,
       buffer:   v,
       receive_buffer: v2,
       position: 0,
@@ -76,6 +83,14 @@ impl Connection {
           IResult::Done(i, o) => {
             println!("parsed frame: {:?}", o);
             self.receive_position = self.receive_buffer.offset(i);
+            match o {
+              Frame::Header(channel_id, _) => {},
+              Frame::Body(channel_id, _)   => {},
+              Frame::Heartbeat(channel_id) => {},
+              Frame::Method(channel_id, m) => {
+
+              }
+            }
             Ok(ConnectionState::Connected)
           },
           e => {
