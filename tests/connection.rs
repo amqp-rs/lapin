@@ -25,7 +25,7 @@ fn connection() {
       //assert_eq!(stream.write(&sl[..bytes_written]).unwrap(), bytes_written);
 
       let mut conn: Connection = Connection::new();
-      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connected);
+      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting);
 
       /*
       let bytes_read = stream.read(&mut receive_buffer).unwrap();

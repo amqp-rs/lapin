@@ -5,46 +5,35 @@ use nom::{HexDisplay,IResult,Offset};
 
 use format::frame::{frame,Frame,FrameType,gen_protocol_header,raw_frame};
 use channel::Channel;
+use buffer::Buffer;
 use generated::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
   Initial,
+  Connecting,
   Connected,
   Error,
 }
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
-  pub state:    ConnectionState,
-  pub channels: HashMap<u16, Channel>,
-  pub buffer:   Vec<u8>,
-  pub receive_buffer: Vec<u8>,
-  pub position: usize,
-  pub end:      usize,
-  pub receive_position: usize,
-  pub receive_end: usize,
+  pub state:            ConnectionState,
+  pub channels:         HashMap<u16, Channel>,
+  pub send_buffer:      Buffer,
+  pub receive_buffer:   Buffer,
 }
 
 impl Connection {
   pub fn new() -> Connection {
-    let mut v: Vec<u8> = Vec::with_capacity(8192);
-    v.extend(repeat(0).take(8192));
-    let mut v2: Vec<u8> = Vec::with_capacity(8192);
-    v2.extend(repeat(0).take(8192));
-
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
     Connection {
       state:    ConnectionState::Initial,
       channels: h,
-      buffer:   v,
-      receive_buffer: v2,
-      position: 0,
-      end:      0,
-      receive_position: 0,
-      receive_end: 0,
+      send_buffer:    Buffer::with_capacity(8192),
+      receive_buffer: Buffer::with_capacity(8192),
     }
   }
 
@@ -54,13 +43,13 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    let res = gen_protocol_header((&mut self.buffer[self.end..], 0)).map(|tup| tup.1);
+    let res = gen_protocol_header((self.send_buffer.space(), 0)).map(|tup| tup.1);
     if let Ok(sz) = res {
-      self.end += sz;
-      match writer.write(&mut self.buffer[..self.end]) {
-        Ok(sz) => {
-          self.position += sz;
-          self.state = ConnectionState::Connected;
+      self.send_buffer.fill(sz);
+      match writer.write(&mut self.send_buffer.data()) {
+        Ok(sz2) => {
+          self.send_buffer.consume(sz2);
+          self.state = ConnectionState::Connecting;
           Ok(self.state)
         },
         Err(e) => Err(e),
@@ -71,22 +60,22 @@ impl Connection {
   }
 
   pub fn read(&mut self, reader: &mut Read) -> Result<ConnectionState> {
-    if self.state != ConnectionState::Connected {
+    if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    match reader.read(&mut self.receive_buffer[self.receive_end..]) {
+    match reader.read(&mut self.receive_buffer.space()) {
       Ok(sz) => {
-        self.receive_end += sz;
+        self.receive_buffer.fill(sz);
       },
       Err(e) => return Err(e),
     }
-    println!("will parse:\n{}", (&self.receive_buffer[self.receive_position..self.receive_end]).to_hex(16));
-    let (channel_id, method) = {
-      let parsed_frame = raw_frame(&self.receive_buffer[self.receive_position..self.receive_end]);
+    println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
+    let (channel_id, method, consumed) = {
+      let parsed_frame = raw_frame(&self.receive_buffer.data());
       match parsed_frame {
-        IResult::Done(_,_) => {}
+        IResult::Done(i,_) => {}
         e => {
           //FIXME: should probably disconnect on error here
           let err = format!("parse error: {:?}", e);
@@ -97,14 +86,17 @@ impl Connection {
       let (i, f) = parsed_frame.unwrap();
 
       println!("parsed frame: {:?}", f);
-      self.receive_position = self.receive_buffer.offset(i);
+      //FIXME: what happens if we fail to parse a packet in a channel?
+      // do we continue?
+      let consumed = self.receive_buffer.data().offset(i);
+
       match f.frame_type {
         FrameType::Method => {
           let parsed = parse_class(f.payload);
           println!("parsed method: {:?}", parsed);
           match parsed {
             IResult::Done(b"", m) => {
-              (f.channel_id, m)
+              (f.channel_id, m, consumed)
             },
             e => {
               //FIXME: should probably disconnect channel on error here
@@ -120,6 +112,8 @@ impl Connection {
         }
       }
     };
+
+    self.receive_buffer.consume(consumed);
 
     if channel_id == 0 {
       self.handle_global_method(method);
