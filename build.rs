@@ -27,6 +27,7 @@ fn main() {
     handlebars.register_helper("snake", Box::new(snake_helper));
     handlebars.register_helper("camel", Box::new(camel_helper));
     handlebars.register_helper("map_type", Box::new(map_type_helper));
+    handlebars.register_helper("map_parser", Box::new(map_parser_helper));
 
     handlebars.register_template_string("full", full_tpl).expect("Failed to register full template");
 
@@ -76,14 +77,12 @@ fn snake_helper (h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(
 }
 
 fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
+  println!("val1: {:?}", h.param(0));
+  println!("val2: {:?}", h.param(1));
   let val = h.param(0).unwrap().value().clone();
-  println!("val: {:?}", val);
-  let value: Option<AMQPType> = if val == serde_json::Value::String("".to_string()) {
-    None
-  } else {
-    serde_json::from_value(val).unwrap()
-  };
-  let rendered = match value {
+  let arg:AMQPArgument = serde_json::from_value(val).unwrap();
+
+  let rendered = match arg.amqp_type {
     Some(AMQPType::Bit)       => "bool",
     Some(AMQPType::Octet)     => "u8",
     Some(AMQPType::Short)     => "u16",
@@ -91,10 +90,33 @@ fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result
     Some(AMQPType::LongLong)  => "u64",
     Some(AMQPType::ShortStr)  => "String",
     Some(AMQPType::LongStr)   => "String",
-    Some(AMQPType::Table)     => "String",
+    Some(AMQPType::Table)     => "::std::collections::HashMap<String,Value>",
     Some(AMQPType::Timestamp) => "u64",
     None                      => "()",
   };
   try!(rc.writer.write(rendered.as_bytes()));
+
+  Ok(())
+}
+
+fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
+  println!("val1: {:?}", h.param(0));
+  let val = h.param(0).unwrap().value().clone();
+  let arg:AMQPArgument = serde_json::from_value(val).unwrap();
+
+  let rendered = match arg.amqp_type {
+    Some(AMQPType::Bit)       => "map!(be_u8, |u| u != 0)",
+    Some(AMQPType::Octet)     => "be_u8",
+    Some(AMQPType::Short)     => "be_u16",
+    Some(AMQPType::Long)      => "be_u32",
+    Some(AMQPType::LongLong)  => "be_u64",
+    Some(AMQPType::ShortStr)  => "map!(short_string, |s:&str| s.to_string())",
+    Some(AMQPType::LongStr)   => "map!(long_string,  |s:&str| s.to_string())",
+    Some(AMQPType::Table)     => "field_table",
+    Some(AMQPType::Timestamp) => "be_u64",
+    None                      => "value!(())",
+  };
+  try!(rc.writer.write(rendered.as_bytes()));
+
   Ok(())
 }
