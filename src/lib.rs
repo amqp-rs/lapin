@@ -6,6 +6,7 @@ extern crate nom;
 #[macro_use]
 extern crate rusticata_macros;
 
+pub mod buffer;
 pub mod connection;
 pub mod channel;
 pub mod generated;
