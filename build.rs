@@ -1,5 +1,6 @@
 extern crate amq_protocol_codegen;
 extern crate handlebars;
+extern crate serde_json;
 
 use amq_protocol_codegen::*;
 use handlebars::{Handlebars,Helper,HelperDef,RenderContext,RenderError};
@@ -25,6 +26,7 @@ fn main() {
     handlebars.register_escape_fn(handlebars::no_escape);
     handlebars.register_helper("snake", Box::new(snake_helper));
     handlebars.register_helper("camel", Box::new(camel_helper));
+    handlebars.register_helper("map_type", Box::new(map_type_helper));
 
     handlebars.register_template_string("full", full_tpl).expect("Failed to register full template");
 
@@ -73,3 +75,26 @@ fn snake_helper (h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(
     Ok(())
 }
 
+fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
+  let val = h.param(0).unwrap().value().clone();
+  println!("val: {:?}", val);
+  let value: Option<AMQPType> = if val == serde_json::Value::String("".to_string()) {
+    None
+  } else {
+    serde_json::from_value(val).unwrap()
+  };
+  let rendered = match value {
+    Some(AMQPType::Bit)       => "bool",
+    Some(AMQPType::Octet)     => "u8",
+    Some(AMQPType::Short)     => "u16",
+    Some(AMQPType::Long)      => "u32",
+    Some(AMQPType::LongLong)  => "u64",
+    Some(AMQPType::ShortStr)  => "String",
+    Some(AMQPType::LongStr)   => "String",
+    Some(AMQPType::Table)     => "String",
+    Some(AMQPType::Timestamp) => "u64",
+    None                      => "()",
+  };
+  try!(rc.writer.write(rendered.as_bytes()));
+  Ok(())
+}

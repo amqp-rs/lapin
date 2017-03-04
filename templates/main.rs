@@ -2,7 +2,7 @@ pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_vers
 
 pub enum Class {
   {{#each specs.classes as |class| ~}}
-    {{class.name}},
+    {{camel class.name}},
   {{/each ~}}
   None,
 }
@@ -12,12 +12,12 @@ named!(pub parse<Class>,
 );
 
 {{#each specs.classes as |class|}}
-  pub mod {{class.name}} {
+  pub mod {{camel class.name}} {
     use super::Class;
 
     pub enum Methods {
       {{#each class.methods as |method| ~}}
-        {{method.name}},
+        {{camel method.name}},
       {{/each ~}}
     }
 
@@ -26,15 +26,19 @@ named!(pub parse<Class>,
     );
 
     {{#each class.methods as |method|}}
-      pub struct {{method.name}} {
+      pub struct {{camel method.name}} {
         {{#each method.arguments as |argument| ~}}
-          pub {{argument.name}}: {{(argument.amqp_type)}},
+          pub {{camel argument.name}}: {{map_type (argument.amqp_type)}},
         {{/each ~}}
 
       }
 
-      named!(parse_{{method.name}}<{{method.name}}>,
-        value!({{method.name}} {} )
+      named!(parse_{{snake method.name}}<{{camel method.name}}>,
+        value!({{camel method.name}} {
+          {{#each method.arguments as |argument| ~}}
+            {{camel argument.name}}: (),
+          {{/each ~}}
+        } )
       );
     {{/each}}
   }
