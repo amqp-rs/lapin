@@ -12,23 +12,9 @@ fn main() {
     let dest_path    = Path::new(&out_dir).join("generated.rs");
     let mut f        = File::create(&dest_path).expect("Failed to create generated.rs");
     let mut main_tpl = String::new();
-    std::fs::File::open("templates/main.tpl").expect("Failed to open main template").read_to_string(&mut main_tpl).expect("Failed to read main template");
-    let mut class_tpl = String::new();
-    std::fs::File::open("templates/class.tpl").expect("Failed to open class template").read_to_string(&mut class_tpl).expect("Failed to read main template");
-    let mut method_tpl = String::new();
-    std::fs::File::open("templates/method.tpl").expect("Failed to open class template").read_to_string(&mut method_tpl).expect("Failed to read method template");
+    let mut full_tpl = String::new();
+    std::fs::File::open("templates/main.rs").expect("Failed to open main template").read_to_string(&mut full_tpl).expect("Failed to read main template");
 
     let specs     = AMQProtocolDefinition::load();
-    //panic!("specs: {:?}", specs);
-    let templates = AMQPTemplates {
-        main:     main_tpl,
-        domain:   String::new(),
-        constant: String::new(),
-        klass:    class_tpl,
-        method:   method_tpl,
-        argument: String::new(),
-        property: String::new(),
-    };
-
-    writeln!(f, "{}", specs.codegen(&templates)).expect("Failed to generate generated.rs");
+    writeln!(f, "{}", specs.codegen_full(&full_tpl)).expect("Failed to generate generated.rs");
 }
