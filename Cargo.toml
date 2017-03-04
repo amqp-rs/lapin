@@ -11,7 +11,7 @@ rusticata-macros = { git = "https://github.com/rusticata/rusticata-macros" }
 
 
 [build-dependencies]
-amq-protocol-codegen = {git = "https://github.com/Keruspe/amq-protocol/" }
+amq-protocol-codegen = "^0.2.0" #{git = "https://github.com/Keruspe/amq-protocol/" }
 handlebars = "*"
 serde_json = "*"
 
