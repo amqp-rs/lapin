@@ -5,52 +5,61 @@ pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_vers
 
 pub enum Class {
   {{#each specs.classes as |class| ~}}
-    {{camel class.name}},
+    {{camel class.name}}({{camel class.name}}Methods),
   {{/each ~}}
   None,
 }
 
-named!(pub parse<Class>,
-  value!(Class::None)
+macro_rules! call_path (
+  ($i: expr, $p: path) => ($p($i))
+);
+
+named!(pub parse_class<Class>,
+  switch!(be_u16,
+  {{#each specs.classes as |class| ~}}
+    {{class.id}} => call!(parse_class_{{snake class.name}}) |
+  {{/each ~}}
+  _ => value!(Class::None)
+  )
 );
 
 {{#each specs.classes as |class|}}
-  pub mod {{camel class.name}} {
-    use super::Class;
-    use format::field::*;
-    use nom::{be_u8,be_u16,be_u32,be_u64};
+  pub enum {{camel class.name}}Methods {
+    {{#each class.methods as |method| ~}}
+      {{camel method.name}}({{camel class.name}}{{camel method.name}}),
+    {{/each ~}}
+    None,
+  }
 
-    pub enum Methods {
+  named!(pub parse_class_{{snake class.name}}<Class>,
+    switch!(be_u16,
       {{#each class.methods as |method| ~}}
-        {{camel method.name}},
+      {{method.id}} => map!(call!(parse_class_{{snake class.name}}_method_{{snake method.name}}), |m| Class::{{camel class.name}}(m)) |
       {{/each ~}}
+      _  =>  value!(Class::{{camel class.name}}({{camel class.name}}Methods::None))
+    )
+  );
+
+  {{#each class.methods as |method|}}
+    pub struct {{camel class.name}}{{camel method.name}} {
+      {{#each method.arguments as |argument| ~}}
+        pub {{snake argument.name}}: {{map_type argument}},
+      {{/each ~}}
+
     }
 
-    named!(pub parse<Class>,
-      value!(Class::None)
-    );
-
-    {{#each class.methods as |method|}}
-      pub struct {{camel method.name}} {
+    named!(parse_class_{{snake class.name}}_method_{{snake method.name}}<{{camel class.name}}Methods>,
+      do_parse!(
         {{#each method.arguments as |argument| ~}}
-          pub {{snake argument.name}}: {{map_type argument}},
+          {{snake argument.name}}: {{map_parser argument}} >>
         {{/each ~}}
 
-      }
-
-      named!(parse_{{snake method.name}}<{{camel method.name}}>,
-        do_parse!(
+        ({{camel class.name}}Methods::{{camel method.name}}({{camel class.name}}{{camel method.name}} {
           {{#each method.arguments as |argument| ~}}
-            {{snake argument.name}}: {{map_parser argument}} >>
+            {{snake argument.name}}: {{snake argument.name}},
           {{/each ~}}
-
-          ({{camel method.name}} {
-            {{#each method.arguments as |argument| ~}}
-              {{snake argument.name}}: {{snake argument.name}},
-            {{/each ~}}
-          })
-        )
-      );
-    {{/each}}
-  }
+        }))
+      )
+    );
+  {{/each}}
 {{/each}}
