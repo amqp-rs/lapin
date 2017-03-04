@@ -139,7 +139,7 @@ named!(parse_table<Value>,
   do_parse!(
     //FIXME: the spec specifies a long uint there, but a long int for the array?
     quantity: be_u32 >>
-    h: map!(count!(field_name_value, quantity as usize), |v:Vec<(String,Value)>| {
+    h: map!(flat_map!(take!(quantity as usize), many0!(field_name_value)), |v:Vec<(String,Value)>| {
       Value::Table(v.iter().cloned().collect())
     }) >>
     (h)
@@ -150,7 +150,7 @@ named!(pub field_table<HashMap<String,Value>>,
   do_parse!(
     //FIXME: the spec specifies a long uint there, but a long int for the array?
     quantity: be_u32 >>
-    h: map!(count!(field_name_value, quantity as usize), |v:Vec<(String,Value)>| {
+    h: map!(flat_map!(take!(quantity as usize), many0!(complete!(field_name_value))), |v:Vec<(String,Value)>| {
       v.iter().cloned().collect()
     }) >>
     (h)
