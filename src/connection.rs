@@ -79,29 +79,63 @@ impl Connection {
     match reader.read(&mut self.receive_buffer[self.receive_end..]) {
       Ok(sz) => {
         self.receive_end += sz;
-        println!("will parse:\n{}", (&self.receive_buffer[self.receive_position..self.receive_end]).to_hex(16));
-        match raw_frame(&self.receive_buffer[self.receive_position..self.receive_end]) {
-          IResult::Done(i, f) => {
-            println!("parsed frame: {:?}", f);
-            self.receive_position = self.receive_buffer.offset(i);
-            match f.frame_type {
-              FrameType::Method => {
-                println!("parsed method: {:?}", parse_class(f.payload));
-              },
-              t => {
-                println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
-              }
-            }
-            Ok(ConnectionState::Connected)
-          },
-          e => {
-            let err = format!("parse error: {:?}", e);
-            return Err(Error::new(ErrorKind::Other, err))
-          }
-        }
       },
-      Err(e) => Err(e),
+      Err(e) => return Err(e),
     }
+    println!("will parse:\n{}", (&self.receive_buffer[self.receive_position..self.receive_end]).to_hex(16));
+    let (channel_id, method) = {
+      let parsed_frame = raw_frame(&self.receive_buffer[self.receive_position..self.receive_end]);
+      match parsed_frame {
+        IResult::Done(_,_) => {}
+        e => {
+          //FIXME: should probably disconnect on error here
+          let err = format!("parse error: {:?}", e);
+          return Err(Error::new(ErrorKind::Other, err))
+        }
+      }
+
+      let (i, f) = parsed_frame.unwrap();
+
+      println!("parsed frame: {:?}", f);
+      self.receive_position = self.receive_buffer.offset(i);
+      match f.frame_type {
+        FrameType::Method => {
+          let parsed = parse_class(f.payload);
+          println!("parsed method: {:?}", parsed);
+          match parsed {
+            IResult::Done(b"", m) => {
+              (f.channel_id, m)
+            },
+            e => {
+              //FIXME: should probably disconnect channel on error here
+              let err = format!("parse error: {:?}", e);
+              return Err(Error::new(ErrorKind::Other, err))
+            }
+          }
+        },
+        t => {
+          println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
+          let err = format!("parse error: {:?}", t);
+          return Err(Error::new(ErrorKind::Other, err))
+        }
+      }
+    };
+
+    if channel_id == 0 {
+      self.handle_global_method(method);
+    }
+
+    return Ok(ConnectionState::Connected);
+
+
+    unreachable!();
+  }
+
+  pub fn handle_global_method(&mut self, c: Class) {
+    if let Class::Connection(method) = c {
+      println!("handling connection: {:?}", method);
+    }
+
   }
 }
 
