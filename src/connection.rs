@@ -3,8 +3,9 @@ use std::iter::repeat;
 use std::collections::HashMap;
 use nom::{HexDisplay,IResult,Offset};
 
-use format::frame::{frame,Frame,gen_protocol_header};
+use format::frame::{frame,Frame,FrameType,gen_protocol_header,raw_frame};
 use channel::Channel;
+use generated::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
@@ -79,16 +80,16 @@ impl Connection {
       Ok(sz) => {
         self.receive_end += sz;
         println!("will parse:\n{}", (&self.receive_buffer[self.receive_position..self.receive_end]).to_hex(16));
-        match frame(&self.receive_buffer[self.receive_position..self.receive_end]) {
-          IResult::Done(i, o) => {
-            println!("parsed frame: {:?}", o);
+        match raw_frame(&self.receive_buffer[self.receive_position..self.receive_end]) {
+          IResult::Done(i, f) => {
+            println!("parsed frame: {:?}", f);
             self.receive_position = self.receive_buffer.offset(i);
-            match o {
-              Frame::Header(channel_id, _) => {},
-              Frame::Body(channel_id, _)   => {},
-              Frame::Heartbeat(channel_id) => {},
-              Frame::Method(channel_id, m) => {
-
+            match f.frame_type {
+              FrameType::Method => {
+                println!("parsed method: {:?}", parse_class(f.payload));
+              },
+              t => {
+                println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
               }
             }
             Ok(ConnectionState::Connected)

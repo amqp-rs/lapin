@@ -1,6 +1,7 @@
 use rusticata_macros::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use method::{method,Method};
+use generated::*;
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
@@ -57,10 +58,10 @@ named!(pub channel_id<Channel>,
 //FIXME: maybe parse the frame header, and leave the payload for later
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub struct RawFrame<'a> {
-  frame_type: FrameType,
-  channel_id: u16,
-  size:       u32,
-  payload:    &'a[u8],
+  pub frame_type: FrameType,
+  pub channel_id: u16,
+  pub size:       u32,
+  pub payload:    &'a[u8],
 }
 
 named!(pub raw_frame<RawFrame>,

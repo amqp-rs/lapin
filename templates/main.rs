@@ -3,6 +3,7 @@ use nom::{be_u8,be_u16,be_u32,be_u64};
 
 pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_version}}.{{revision}}";
 
+#[derive(Clone,Debug,PartialEq)]
 pub enum Class {
   {{#each specs.classes as |class| ~}}
     {{camel class.name}}({{snake class.name}}::Methods),
@@ -29,6 +30,7 @@ named!(pub parse_class<Class>,
     use format::field::*;
     use nom::{be_u8,be_u16,be_u32,be_u64};
 
+    #[derive(Clone,Debug,PartialEq)]
     pub enum Methods {
       {{#each class.methods as |method| ~}}
         {{camel method.name}}({{camel method.name}}),
@@ -46,6 +48,7 @@ named!(pub parse_class<Class>,
     );
 
     {{#each class.methods as |method|}}
+      #[derive(Clone,Debug,PartialEq)]
       pub struct {{camel method.name}} {
         {{#each method.arguments as |argument| ~}}
           pub {{snake argument.name}}: {{map_type argument}},
