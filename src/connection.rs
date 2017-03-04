@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use nom::{HexDisplay,IResult,Offset};
 
 use format::frame::{frame,Frame,FrameType,gen_protocol_header,raw_frame};
-use channel::Channel;
+use channel::{Channel,ChannelState};
 use buffer::Buffer;
 use generated::*;
 
@@ -75,10 +75,14 @@ impl Connection {
     let (channel_id, method, consumed) = {
       let parsed_frame = raw_frame(&self.receive_buffer.data());
       match parsed_frame {
-        IResult::Done(i,_) => {}
-        e => {
+        IResult::Done(i,_)     => {},
+        IResult::Incomplete(_) => {
+          return Ok(self.state);
+        },
+        IResult::Error(e) => {
           //FIXME: should probably disconnect on error here
           let err = format!("parse error: {:?}", e);
+          self.state = ConnectionState::Error;
           return Err(Error::new(ErrorKind::Other, err))
         }
       }
@@ -99,8 +103,14 @@ impl Connection {
               (f.channel_id, m, consumed)
             },
             e => {
+              //we should not get an incomplete here
               //FIXME: should probably disconnect channel on error here
               let err = format!("parse error: {:?}", e);
+              if f.channel_id == 0 {
+                self.state = ConnectionState::Error;
+              } else {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
+              }
               return Err(Error::new(ErrorKind::Other, err))
             }
           }
@@ -117,7 +127,10 @@ impl Connection {
 
     if channel_id == 0 {
       self.handle_global_method(method);
+    } else {
+      self.channels.get_mut(&channel_id).map(|channel| channel.received_method(method));
     }
+
 
     return Ok(ConnectionState::Connected);
 
@@ -129,7 +142,6 @@ impl Connection {
     if let Class::Connection(method) = c {
       println!("handling connection: {:?}", method);
     }
-
   }
 }
 
