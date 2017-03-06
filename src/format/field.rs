@@ -253,7 +253,7 @@ pub fn gen_value<'a>(x:(&'a mut [u8],usize), v: &Value) -> Result<(&'a mut [u8],
     },
     Value::LongString(ref s) => {
       do_gen!(x,
-        gen_be_u8!('s' as u8) >>
+        gen_be_u8!('S' as u8) >>
         gen_long_string(&s)
       )
     },
