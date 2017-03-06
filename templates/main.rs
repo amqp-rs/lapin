@@ -25,6 +25,17 @@ named!(pub parse_class<Class>,
   )
 );
 
+pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a mut [u8],usize),GenError> {
+  match class {
+  {{#each specs.classes as |class| ~}}
+    &Class::{{camel class.name}}(ref {{snake class.name}}) => {
+      {{snake class.name}}::gen(input, {{snake class.name}})
+    },
+  {{/each ~}}
+    &Class::None => Err(GenError::CustomError(1)),
+  }
+}
+
 {{#each specs.classes as |class|}}
   pub mod {{snake class.name}} {
     use super::Class;
@@ -49,6 +60,20 @@ named!(pub parse_class<Class>,
       )
     );
 
+    pub fn gen<'a>(input:(&'a mut [u8],usize), method: &Methods) -> Result<(&'a mut [u8],usize),GenError> {
+      match method {
+      {{#each class.methods as |method| ~}}
+        &Methods::{{camel method.name}}(ref {{snake method.name}}) => {
+          do_gen!(input,
+            gen_be_u16!({{class.id}}u16) >>
+            gen_{{snake method.name}}({{snake method.name}})
+          )
+        },
+      {{/each ~}}
+        &Methods::None => Err(GenError::CustomError(1)),
+      }
+    }
+
     {{#each class.methods as |method|}}
       #[derive(Clone,Debug,PartialEq)]
       pub struct {{camel method.name}} {
@@ -71,8 +96,9 @@ named!(pub parse_class<Class>,
           }))
         )
       );
-      pub fn gen_{{snake method.name}}<'a>(x:(&'a mut [u8],usize), method: &{{camel method.name}}) -> Result<(&'a mut [u8],usize),GenError> {
-        do_gen!(x,
+
+      pub fn gen_{{snake method.name}}<'a>(input:(&'a mut [u8],usize), method: &{{camel method.name}}) -> Result<(&'a mut [u8],usize),GenError> {
+        do_gen!(input,
           gen_be_u16!({{method.id}}u16)
           {{#each method.arguments as |argument| ~}}
           >> {{map_generator argument}} (&method.{{snake argument.name}})
