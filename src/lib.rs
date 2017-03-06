@@ -5,6 +5,7 @@
 extern crate nom;
 #[macro_use]
 extern crate rusticata_macros;
+extern crate sasl;
 
 pub mod buffer;
 pub mod connection;

@@ -25,7 +25,7 @@ fn connection() {
       //assert_eq!(stream.write(&sl[..bytes_written]).unwrap(), bytes_written);
 
       let mut conn: Connection = Connection::new();
-      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting);
+      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
 
       /*
       let bytes_read = stream.read(&mut receive_buffer).unwrap();
@@ -41,6 +41,9 @@ fn connection() {
       let res2 = method(payload);
       println!("method: {:?}", res2);
       */
-      let state = conn.read(&mut stream).unwrap();
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       panic!();
 }
