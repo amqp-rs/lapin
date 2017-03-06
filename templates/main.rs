@@ -1,4 +1,5 @@
 use format::field::*;
+use rusticata_macros::*;
 use nom::{be_u8,be_u16,be_u32,be_u64};
 
 pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_version}}.{{revision}}";
@@ -28,6 +29,7 @@ named!(pub parse_class<Class>,
   pub mod {{snake class.name}} {
     use super::Class;
     use format::field::*;
+    use rusticata_macros::*;
     use nom::{be_u8,be_u16,be_u32,be_u64};
 
     #[derive(Clone,Debug,PartialEq)]
@@ -69,6 +71,14 @@ named!(pub parse_class<Class>,
           }))
         )
       );
+      pub fn gen_{{snake method.name}}<'a>(x:(&'a mut [u8],usize), method: &{{camel method.name}}) -> Result<(&'a mut [u8],usize),GenError> {
+        do_gen!(x,
+          gen_be_u16!({{method.id}}u16)
+          {{#each method.arguments as |argument| ~}}
+          >> {{map_generator argument}} (&method.{{snake argument.name}})
+          {{/each ~}}
+        )
+      }
     {{/each}}
   }
 {{/each}}

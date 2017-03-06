@@ -28,6 +28,7 @@ fn main() {
     handlebars.register_helper("camel", Box::new(camel_helper));
     handlebars.register_helper("map_type", Box::new(map_type_helper));
     handlebars.register_helper("map_parser", Box::new(map_parser_helper));
+    handlebars.register_helper("map_generator", Box::new(map_generator_helper));
 
     handlebars.register_template_string("full", full_tpl).expect("Failed to register full template");
 
@@ -148,6 +149,45 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
         AMQPType::LongStr   => "map!(long_string,  |s:&str| s.to_string())",
         AMQPType::Table     => "field_table",
         AMQPType::Timestamp => "be_u64",
+      }).unwrap()
+    }
+  };
+  try!(rc.writer.write(rendered.as_bytes()));
+
+  Ok(())
+}
+
+fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
+  println!("val1: {:?}", h.param(0));
+  let val = h.param(0).unwrap().value().clone();
+  let arg:AMQPArgument = serde_json::from_value(val).unwrap();
+
+  let rendered = match arg.amqp_type {
+    Some(AMQPType::Bit)       => "gen_bool",
+    Some(AMQPType::Octet)     => "gen_be_u8",
+    Some(AMQPType::Short)     => "gen_be_u16",
+    Some(AMQPType::Long)      => "gen_be_u32",
+    Some(AMQPType::LongLong)  => "gen_be_u64",
+    Some(AMQPType::ShortStr)  => "gen_short_string",
+    Some(AMQPType::LongStr)   => "gen_long_string",
+    Some(AMQPType::Table)     => "gen_field_table",
+    Some(AMQPType::Timestamp) => "gen_be_u64",
+    None                      => {
+      let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
+      let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
+      let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
+
+      let lookup_domain = arg.domain.clone().unwrap();
+      domains.iter().find(|d| d.0 == lookup_domain).map(|d| match d.1 {
+        AMQPType::Bit       => "gen_bool",
+        AMQPType::Octet     => "gen_be_u8",
+        AMQPType::Short     => "gen_be_u16",
+        AMQPType::Long      => "gen_be_u32",
+        AMQPType::LongLong  => "gen_be_u64",
+        AMQPType::ShortStr  => "gen_short_string",
+        AMQPType::LongStr   => "gen_long_string",
+        AMQPType::Table     => "gen_field_table",
+        AMQPType::Timestamp => "gen_be_u64",
       }).unwrap()
     }
   };

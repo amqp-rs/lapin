@@ -300,10 +300,44 @@ pub fn gen_value<'a>(x:(&'a mut [u8],usize), v: &Value) -> Result<(&'a mut [u8],
   }
 }
 
+pub fn gen_bool<'a>(x:(&'a mut [u8],usize), b: &bool) -> Result<(&'a mut [u8],usize),GenError> {
+  gen_be_u8!(x, if *b {1} else {0})
+}
+
+pub fn gen_be_u8<'a>(x:(&'a mut [u8],usize), i: &u8) -> Result<(&'a mut [u8],usize),GenError> {
+  gen_be_u8!(x, *i)
+}
+
+pub fn gen_be_u16<'a>(x:(&'a mut [u8],usize), i: &u16) -> Result<(&'a mut [u8],usize),GenError> {
+  gen_be_u16!(x, *i)
+}
+pub fn gen_be_u32<'a>(x:(&'a mut [u8],usize), i: &u32) -> Result<(&'a mut [u8],usize),GenError> {
+  gen_be_u32!(x, *i)
+}
+pub fn gen_be_u64<'a>(x:(&'a mut [u8],usize), i: &u64) -> Result<(&'a mut [u8],usize),GenError> {
+  gen_be_u64!(x, *i)
+}
+
 pub fn gen_field_value<'a>(x:(&'a mut [u8],usize), kv: &(&String,&Value)) -> Result<(&'a mut [u8],usize),GenError> {
   do_gen!(x,
     gen_short_string(kv.0) >>
     gen_value(kv.1)
   )
+}
+
+pub fn gen_field_table<'a>(x:(&'a mut [u8],usize), h: &HashMap<String,Value>) -> Result<(&'a mut [u8],usize),GenError> {
+  if let Ok((x2, index2)) = gen_many_ref!((x.0, x.1+4), h, gen_field_value) {
+    if let Ok((x3,_)) = gen_be_u32!((x2, x.1), index2 - x.1 - 4) {
+      Ok((x3, index2))
+    } else {
+      Err(GenError::CustomError(42))
+    }
+  } else {
+    Err(GenError::CustomError(42))
+  }
+}
+
+pub fn gen_nothing<'a>(x:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
+  Ok(x)
 }
 
