@@ -12,5 +12,6 @@ pub mod connection;
 pub mod channel;
 pub mod generated;
 pub mod format;
+pub mod api;
 
 pub use format::*;
