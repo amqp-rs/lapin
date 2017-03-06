@@ -108,8 +108,11 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
   if let Ok(input1) = gen_be_u8!(input, 1u8) {
     if let Ok((sl2, index2)) = gen_be_u16!(input1, channel) {
       if let Ok((sl3, index3)) = gen_class((sl2, index2 + 4), class) {
-        if let Ok(input4) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
-          gen_be_u8!(input4, 0xCE)
+        if let Ok((sl4, index4)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
+          gen_be_u8!((sl4, index3), 0xCE)
+          //if let Ok((sl5, index5)) = gen_be_u8!((sl4, index3), 0xCE)
+          //{
+          //}
         } else {
           Err(GenError::CustomError(42))
         }
