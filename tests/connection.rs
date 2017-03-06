@@ -44,6 +44,7 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       panic!();
 }

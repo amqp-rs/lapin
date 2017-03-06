@@ -32,8 +32,8 @@ pub enum ConnectingState {
   SentSecure,
   ReceivedSecondSecure,
   ReceivedTune,
+  SentTuneOk,
   SentOpen,
-  ReceivedOpenOk,
   Error,
 }
 
@@ -48,11 +48,19 @@ pub enum ClosingState {
 }
 
 #[derive(Clone,Debug,PartialEq)]
+pub struct Configuration {
+  channel_max: u16,
+  frame_max:   u32,
+  heartbeat:   u16,
+}
+
+#[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
   pub state:            ConnectionState,
   pub channels:         HashMap<u16, Channel>,
   pub send_buffer:      Buffer,
   pub receive_buffer:   Buffer,
+  pub configuration:    Configuration,
 }
 
 impl Connection {
@@ -60,11 +68,18 @@ impl Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
+    let configuration = Configuration {
+      channel_max: 0,
+      frame_max:   8192,
+      heartbeat:   60,
+    };
+
     Connection {
-      state:    ConnectionState::Initial,
-      channels: h,
-      send_buffer:    Buffer::with_capacity(8192),
-      receive_buffer: Buffer::with_capacity(8192),
+      state:          ConnectionState::Initial,
+      channels:       h,
+      send_buffer:    Buffer::with_capacity(configuration.frame_max as usize),
+      receive_buffer: Buffer::with_capacity(configuration.frame_max as usize),
+      configuration:  configuration,
     }
   }
 
@@ -176,7 +191,7 @@ impl Connection {
     }
 
 
-    return Ok(ConnectionState::Connected);
+    return Ok(self.state);
 
 
     unreachable!();
@@ -238,15 +253,99 @@ impl Connection {
               self.state = ConnectionState::Error;
             }
           },
-          ConnectingState::ReceivedStart => {},
-          ConnectingState::SentStartOk => {},
-          ConnectingState::ReceivedSecure => {},
-          ConnectingState::SentSecure => {},
-          ConnectingState::ReceivedSecondSecure => {},
-          ConnectingState::ReceivedTune => {},
-          ConnectingState::SentOpen => {},
-          ConnectingState::ReceivedOpenOk => {},
-          ConnectingState::Error => {},
+          /*ConnectingState::ReceivedStart => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },*/
+          ConnectingState::SentStartOk => {
+            if let Class::Connection(connection::Methods::Tune(t)) = c {
+              println!("Server sent Connection::Tune: {:?}", t);
+              self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
+
+              self.configuration.channel_max = t.channel_max;
+              self.configuration.heartbeat   = t.heartbeat;
+
+              if t.frame_max > self.configuration.frame_max {
+                self.send_buffer.grow(t.frame_max as usize);
+                self.receive_buffer.grow(t.frame_max as usize);
+              }
+
+              self.configuration.frame_max = t.frame_max;
+
+              let tune_ok = Class::Connection(connection::Methods::TuneOk(
+                connection::TuneOk {
+                  channel_max : self.configuration.channel_max,
+                  frame_max   : self.configuration.frame_max,
+                  heartbeat   : self.configuration.heartbeat,
+                }
+              ));
+
+              println!("client sending Connection::TuneOk: {:?}", tune_ok);
+
+              match gen_method_frame((&mut self.send_buffer.space(), 0), 0, &tune_ok).map(|tup| tup.1) {
+                Ok(sz) => {
+                  self.send_buffer.fill(sz);
+                  self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
+
+                  let open = Class::Connection(connection::Methods::Open(
+                    connection::Open {
+                      virtual_host: "/".to_string(),
+                      capabilities: "".to_string(),
+                      insist:       false,
+                    }
+                  ));
+
+                  println!("client sending Connection::Open: {:?}", open);
+
+                  match gen_method_frame((&mut self.send_buffer.space(), 0), 0, &open).map(|tup| tup.1) {
+                    Ok(sz) => {
+                      self.send_buffer.fill(sz);
+                      self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
+                    }
+                    Err(e) => {
+                      println!("error generating start-ok frame: {:?}", e);
+                      self.state = ConnectionState::Error;
+                    },
+                  }
+                }
+                Err(e) => {
+                  println!("error generating start-ok frame: {:?}", e);
+                  self.state = ConnectionState::Error;
+                },
+              }
+            } else {
+              println!("waiting for class Connection method Start, got {:?}", c);
+              self.state = ConnectionState::Error;
+            }
+          },
+          ConnectingState::ReceivedSecure => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },
+          ConnectingState::SentSecure => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },
+          ConnectingState::ReceivedSecondSecure => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },
+          ConnectingState::ReceivedTune => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },
+          ConnectingState::SentOpen => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+            if let Class::Connection(connection::Methods::OpenOk(o)) = c {
+              println!("Server sent Connection::OpenOk: {:?}, client now connected", o);
+              self.state = ConnectionState::Connected;
+            } else {
+              println!("waiting for class Connection method Start, got {:?}", c);
+              self.state = ConnectionState::Error;
+            }
+          },
+          ConnectingState::Error => {
+            println!("state {:?}\treceived\t{:?}", self.state, c);
+          },
+          s => {
+            println!("invalid state {:?}", s);
+            self.state = ConnectionState::Error;
+          }
         }
       },
       ConnectionState::Connected => {},
