@@ -1,4 +1,5 @@
 use nom::{be_i8, be_i16, be_i32, be_i64, be_u8, be_u16, be_u32, be_u64, float, double};
+use rusticata_macros::*;
 use std::collections::HashMap;
 
 pub type UOctet    = u8;
@@ -22,6 +23,23 @@ named!(pub long_string<&str>,
         (string)
     )
 );
+
+pub fn gen_short_string<'a>(x:(&'a mut [u8],usize), s: &str) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(
+    x,
+    gen_be_u8!(s.len() as u8) >>
+    gen_slice!(s.as_bytes())
+  )
+}
+
+pub fn gen_long_string<'a>(x:(&'a mut [u8],usize), s: &str) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(
+    x,
+    gen_be_u32!(s.len() as u32) >>
+    gen_slice!(s.as_bytes())
+  )
+}
+
 //a long string is a BE u32 followed by data. Maybe handle this in the state machine?
 
 // Field names MUST start with a letter, '$' or '#' and may continue with letters, '$' or '#', digits, or
@@ -75,6 +93,7 @@ named!(pub value<Value>,
     'V' => value!(Value::None)
   )
 );
+
 named!(pub field_name_value<(String, Value)>,
   tuple!(map!(short_string, |s:&str| s.to_string()), value)
 );
@@ -156,3 +175,135 @@ named!(pub field_table<HashMap<String,Value>>,
     (h)
   )
 );
+
+pub fn gen_value<'a>(x:(&'a mut [u8],usize), v: &Value) -> Result<(&'a mut [u8],usize),GenError> {
+  match *v {
+    Value::Boolean(ref b) => {
+      do_gen!(x,
+        gen_be_u8!('t' as u8) >>
+        gen_be_u8!(*b as u8)
+      )
+    },
+    /*
+    Value::ShortShortInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('b' as u8) >>
+        gen_be_i8!(i)
+      )
+    },
+    */
+    Value::ShortShortUInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('B' as u8) >>
+        gen_be_u8!(*i)
+      )
+    },
+    /*
+    Value::ShortInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('U' as u8) >>
+        gen_be_i16!(i)
+      )
+    },
+    */
+    Value::ShortInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('u' as u8) >>
+        gen_be_u16!(*i)
+      )
+    },
+    /*
+    Value::LongInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('I' as u8) >>
+        gen_be_i32!(*i)
+      )
+    },
+    */
+    Value::LongUInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('i' as u8) >>
+        gen_be_u32!(*i)
+      )
+    },
+    /*
+    Value::LongLongInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('L' as u8) >>
+        gen_be_i64!(*i)
+      )
+    },
+    */
+    Value::LongLongUInt(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('l' as u8) >>
+        gen_be_u64!(*i)
+      )
+    },
+    /*
+    Value::Float(f32),
+    Value::Double(f64),
+    Value::Decimal(f32),
+    */
+    Value::ShortString(ref s) => {
+      do_gen!(x,
+        gen_be_u8!('s' as u8) >>
+        gen_short_string(&s)
+      )
+    },
+    Value::LongString(ref s) => {
+      do_gen!(x,
+        gen_be_u8!('s' as u8) >>
+        gen_long_string(&s)
+      )
+    },
+    Value::Timestamp(ref i) => {
+      do_gen!(x,
+        gen_be_u8!('T' as u8) >>
+        gen_be_u64!(*i)
+      )
+    },
+    Value::Array(ref v) => {
+      if let Ok((x1, index1)) = gen_be_u8!(x, 'A' as u8) {
+        if let Ok((x2, index2)) = gen_many_ref!((x1, index1+4), v, gen_value) {
+          if let Ok((x3,_)) = gen_be_u32!((x2, index1), index2 - index1 - 4) {
+            Ok((x3, index2))
+          } else {
+            Err(GenError::CustomError(42))
+          }
+        } else {
+          Err(GenError::CustomError(42))
+        }
+      } else {
+        Err(GenError::CustomError(42))
+      }
+    },
+    Value::Table(ref h) => {
+      if let Ok((x1, index1)) = gen_be_u8!(x, 'F' as u8) {
+        if let Ok((x2, index2)) = gen_many_ref!((x1, index1+4), h, gen_field_value) {
+          if let Ok((x3,_)) = gen_be_u32!((x2, index1), index2 - index1 - 4) {
+            Ok((x3, index2))
+          } else {
+            Err(GenError::CustomError(42))
+          }
+        } else {
+          Err(GenError::CustomError(42))
+        }
+      } else {
+        Err(GenError::CustomError(42))
+      }
+    },
+    /*
+    Value::None
+    */
+    _ => Err(GenError::CustomError(1))
+  }
+}
+
+pub fn gen_field_value<'a>(x:(&'a mut [u8],usize), kv: &(&String,&Value)) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(x,
+    gen_short_string(kv.0) >>
+    gen_value(kv.1)
+  )
+}
+
