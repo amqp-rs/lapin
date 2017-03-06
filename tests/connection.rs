@@ -27,24 +27,27 @@ fn connection() {
       let mut conn: Connection = Connection::new();
       assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
 
-      /*
-      let bytes_read = stream.read(&mut receive_buffer).unwrap();
-
-      println!("received:\n{}", (&receive_buffer[..bytes_read]).to_hex(16));
-      //assert_eq!(&receive_buffer[..8], &['A' as u8, 'M' as u8, 'Q' as u8, 'P' as u8, 0, 0, 9, 1]);
-      let res = frame(&receive_buffer[..bytes_read]);
-      println!("received: {:?}", res);
-
-      let payload = &receive_buffer[7..bytes_read];
-      println!("payload:\n{}", (&receive_buffer[7..bytes_read]).to_hex(16));
-
-      let res2 = method(payload);
-      println!("method: {:?}", res2);
-      */
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
+      //now connected
+
+      //send channel
+      conn.channel_open(1, "".to_string());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
+      //receive channel
+      conn.channel_open(2, "".to_string());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
+      conn.basic_publish(1, 0, "".to_string(), "".to_string(), false, false);
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
       panic!();
 }
