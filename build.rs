@@ -46,44 +46,6 @@ fn main() {
     //writeln!(f, "{}", specs.codegen_full(&full_tpl)).expect("Failed to generate generated.rs");
 }
 
-fn camel_name(name: &str) -> String {
-    let mut new_word: bool = true;
-    name.chars().fold("".to_string(), |mut result, ch| {
-        if ch == '-' || ch == '_' || ch == ' ' {
-            new_word = true;
-            result
-        } else {
-            result.push(if new_word { ch.to_ascii_uppercase() } else { ch.to_ascii_lowercase() });
-            new_word = false;
-            result
-        }
-    })
-}
-
-fn snake_name(name: &str) -> String {
-    match name {
-        "type"   => "amqp_type".to_string(),
-        "return" => "amqp_return".to_string(),
-        name     => name.replace("-", "_"),
-    }
-}
-
-fn camel_helper (h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
-    // just for example, add error check for unwrap
-    let param = h.param(0).unwrap().value().as_str().unwrap();
-    let rendered = camel_name(param);
-    try!(rc.writer.write(rendered.into_bytes().as_ref()));
-    Ok(())
-}
-
-fn snake_helper (h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
-    // just for example, add error check for unwrap
-    let param = h.param(0).unwrap().value().as_str().unwrap();
-    let rendered = snake_name(param);
-    try!(rc.writer.write(rendered.into_bytes().as_ref()));
-    Ok(())
-}
-
 fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
   println!("val1: {:?}", h.param(0));
   let val = h.param(0).unwrap().value().clone();
