@@ -46,6 +46,20 @@ fn main() {
     //writeln!(f, "{}", specs.codegen_full(&full_tpl)).expect("Failed to generate generated.rs");
 }
 
+fn get_type_and_name(arg: &AMQPArgument, specs: &serde_json::Map<String, serde_json::Value>) -> (AMQPType, String) {
+  match arg.amqp_type {
+    Some(ref ty) => (ty.clone(), arg.name.to_string()),
+    None     => {
+      let domains: Vec<AMQPDomain> = serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
+
+      let arg_domain = arg.domain.as_ref().map(|d| d.to_string()).unwrap();
+      let res = domains.iter().find(|d| d.name == arg_domain).map(|d| d.amqp_type.clone()).unwrap();
+      //println!("key {} => domain gave type: {}", arg.name, res);
+      (res, arg_domain.to_string())
+    },
+  }
+}
+
 fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
   println!("val1: {:?}", h.param(0));
   let val = h.param(0).unwrap().value().clone();
@@ -123,44 +137,25 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
   let val = h.param(0).unwrap().value().clone();
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
-  let rendered = match arg.amqp_type {
-    Some(AMQPType::Boolean)        => "gen_bool",
-    Some(AMQPType::ShortShortInt)  => "gen_be_i8",
-    Some(AMQPType::ShortShortUInt) => "gen_be_u8",
-    Some(AMQPType::ShortInt)       => "gen_be_i16",
-    Some(AMQPType::ShortUInt)      => "gen_be_u16",
-    Some(AMQPType::LongInt)        => "gen_be_i32",
-    Some(AMQPType::LongUInt)       => "gen_be_u32",
-    Some(AMQPType::LongLongInt)    => "gen_be_i64",
-    Some(AMQPType::LongLongUInt)   => "gen_be_u64",
-    Some(AMQPType::ShortString)    => "gen_short_string",
-    Some(AMQPType::LongString)     => "gen_long_string",
-    Some(AMQPType::FieldTable)     => "gen_field_table",
-    Some(AMQPType::Timestamp)      => "gen_be_u64",
-    Some(_)                        => unimplemented!(),
-    None                           => {
-      let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
-      let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
-      let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
+  let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
+  let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
+  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
 
-      let lookup_domain = arg.domain.clone().unwrap();
-      domains.iter().find(|d| d.name == lookup_domain).map(|d| match d.amqp_type {
-        AMQPType::Boolean        => "gen_bool",
-        AMQPType::ShortShortInt  => "gen_be_u8",
-        AMQPType::ShortShortUInt => "gen_be_u8",
-        AMQPType::ShortInt       => "gen_be_u16",
-        AMQPType::ShortUInt      => "gen_be_u16",
-        AMQPType::LongInt        => "gen_be_u32",
-        AMQPType::LongUInt       => "gen_be_u32",
-        AMQPType::LongLongInt    => "gen_be_u64",
-        AMQPType::LongLongUInt   => "gen_be_u64",
-        AMQPType::ShortString    => "gen_short_string",
-        AMQPType::LongString     => "gen_long_string",
-        AMQPType::FieldTable     => "gen_field_table",
-        AMQPType::Timestamp      => "gen_be_u64",
-        _                        => unimplemented!(),
-      }).unwrap()
-    }
+  let rendered = match arg_type {
+    AMQPType::Boolean        => "gen_bool",
+    AMQPType::ShortShortInt  => "gen_be_i8",
+    AMQPType::ShortShortUInt => "gen_be_u8",
+    AMQPType::ShortInt       => "gen_be_i16",
+    AMQPType::ShortUInt      => "gen_be_u16",
+    AMQPType::LongInt        => "gen_be_i32",
+    AMQPType::LongUInt       => "gen_be_u32",
+    AMQPType::LongLongInt    => "gen_be_i64",
+    AMQPType::LongLongUInt   => "gen_be_u64",
+    AMQPType::ShortString    => "gen_short_string",
+    AMQPType::LongString     => "gen_long_string",
+    AMQPType::FieldTable     => "gen_field_table",
+    AMQPType::Timestamp      => "gen_be_u64",
+    _                        => unimplemented!(),
   };
   try!(rc.writer.write(rendered.as_bytes()));
 
