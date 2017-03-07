@@ -2,6 +2,7 @@ use std::io::{Error,ErrorKind,Read,Result,Write};
 use std::str;
 use std::iter::repeat;
 use std::collections::HashMap;
+use amq_protocol_types::AMQPValue;
 use nom::{HexDisplay,IResult,Offset};
 use sasl::{SaslCredentials, SaslSecret, SaslMechanism};
 use sasl::mechanisms::Plain;
@@ -213,7 +214,7 @@ impl Connection {
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
               let mut h = HashMap::new();
-              h.insert("product".to_string(), Value::LongString("lapin".to_string()));
+              h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
               let creds = SaslCredentials {
                 username: "guest".to_owned(),

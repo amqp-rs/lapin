@@ -1,6 +1,7 @@
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
+extern crate amq_protocol_types;
 #[macro_use]
 extern crate nom;
 #[macro_use]

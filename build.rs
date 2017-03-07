@@ -1,8 +1,10 @@
 extern crate amq_protocol_codegen;
+extern crate amq_protocol_types;
 extern crate handlebars;
 extern crate serde_json;
 
 use amq_protocol_codegen::*;
+use amq_protocol_types::*;
 use handlebars::{Handlebars,Helper,HelperDef,RenderContext,RenderError};
 
 use std::collections::BTreeMap;
@@ -88,32 +90,14 @@ fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result
   let arg:AMQPArgument = serde_json::from_value(val.clone()).unwrap();
 
   let rendered = match arg.amqp_type {
-    Some(AMQPType::Bit)       => "bool",
-    Some(AMQPType::Octet)     => "u8",
-    Some(AMQPType::Short)     => "u16",
-    Some(AMQPType::Long)      => "u32",
-    Some(AMQPType::LongLong)  => "u64",
-    Some(AMQPType::ShortStr)  => "String",
-    Some(AMQPType::LongStr)   => "String",
-    Some(AMQPType::Table)     => "::std::collections::HashMap<String,Value>",
-    Some(AMQPType::Timestamp) => "u64",
-    None                      => {
+    Some(ty) => ty.to_string(),
+    None     => {
       let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
       let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
       let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
 
       let lookup_domain = arg.domain.clone().unwrap();
-      let res = domains.iter().find(|d| d.0 == lookup_domain).map(|d| match d.1 {
-        AMQPType::Bit       => "bool",
-        AMQPType::Octet     => "u8",
-        AMQPType::Short     => "u16",
-        AMQPType::Long      => "u32",
-        AMQPType::LongLong  => "u64",
-        AMQPType::ShortStr  => "String",
-        AMQPType::LongStr   => "String",
-        AMQPType::Table     => "::std::collections::HashMap<String,Value>",
-        AMQPType::Timestamp => "u64",
-      }).unwrap();
+      let res = domains.iter().find(|d| d.name == lookup_domain).map(|d| d.amqp_type.to_string()).unwrap();
       println!("key {} => domain gave type: {}", arg.name, res);
       res
     },
@@ -129,31 +113,41 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
   let rendered = match arg.amqp_type {
-    Some(AMQPType::Bit)       => "map!(be_u8, |u| u != 0)",
-    Some(AMQPType::Octet)     => "be_u8",
-    Some(AMQPType::Short)     => "be_u16",
-    Some(AMQPType::Long)      => "be_u32",
-    Some(AMQPType::LongLong)  => "be_u64",
-    Some(AMQPType::ShortStr)  => "map!(short_string, |s:&str| s.to_string())",
-    Some(AMQPType::LongStr)   => "map!(long_string,  |s:&str| s.to_string())",
-    Some(AMQPType::Table)     => "field_table",
-    Some(AMQPType::Timestamp) => "be_u64",
-    None                      => {
-      let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
+    Some(AMQPType::Boolean)        => "map!(be_u8, |u| u != 0)",
+    Some(AMQPType::ShortShortInt)  => "be_i8",
+    Some(AMQPType::ShortShortUInt) => "be_u8",
+    Some(AMQPType::ShortInt)       => "be_i16",
+    Some(AMQPType::ShortUInt)      => "be_u16",
+    Some(AMQPType::LongInt)        => "be_i32",
+    Some(AMQPType::LongUInt)       => "be_u32",
+    Some(AMQPType::LongLongInt)    => "be_i64",
+    Some(AMQPType::LongLongUInt)   => "be_u64",
+    Some(AMQPType::ShortString)    => "map!(short_string, |s:&str| s.to_string())",
+    Some(AMQPType::LongString)     => "map!(long_string,  |s:&str| s.to_string())",
+    Some(AMQPType::FieldTable)     => "field_table",
+    Some(AMQPType::Timestamp)      => "be_u64",
+    Some(_)                        => unimplemented!(),
+    None                           => {
+      let data:  serde_json::Map<String, serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
       let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
       let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
 
       let lookup_domain = arg.domain.clone().unwrap();
-      domains.iter().find(|d| d.0 == lookup_domain).map(|d| match d.1 {
-        AMQPType::Bit       => "map!(be_u8, |u| u != 0)",
-        AMQPType::Octet     => "be_u8",
-        AMQPType::Short     => "be_u16",
-        AMQPType::Long      => "be_u32",
-        AMQPType::LongLong  => "be_u64",
-        AMQPType::ShortStr  => "map!(short_string, |s:&str| s.to_string())",
-        AMQPType::LongStr   => "map!(long_string,  |s:&str| s.to_string())",
-        AMQPType::Table     => "field_table",
-        AMQPType::Timestamp => "be_u64",
+      domains.iter().find(|d| d.name == lookup_domain).map(|d| match d.amqp_type {
+        AMQPType::Boolean        => "map!(be_u8, |u| u != 0)",
+        AMQPType::ShortShortInt  => "be_i8",
+        AMQPType::ShortShortUInt => "be_u8",
+        AMQPType::ShortInt       => "be_i16",
+        AMQPType::ShortUInt      => "be_u16",
+        AMQPType::LongInt        => "be_i32",
+        AMQPType::LongUInt       => "be_u32",
+        AMQPType::LongLongInt    => "be_i64",
+        AMQPType::LongLongUInt   => "be_u64",
+        AMQPType::ShortString    => "map!(short_string, |s:&str| s.to_string())",
+        AMQPType::LongString     => "map!(long_string,  |s:&str| s.to_string())",
+        AMQPType::FieldTable     => "field_table",
+        AMQPType::Timestamp      => "be_u64",
+        _                        => unimplemented!(),
       }).unwrap()
     }
   };
@@ -168,31 +162,41 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
   let rendered = match arg.amqp_type {
-    Some(AMQPType::Bit)       => "gen_bool",
-    Some(AMQPType::Octet)     => "gen_be_u8",
-    Some(AMQPType::Short)     => "gen_be_u16",
-    Some(AMQPType::Long)      => "gen_be_u32",
-    Some(AMQPType::LongLong)  => "gen_be_u64",
-    Some(AMQPType::ShortStr)  => "gen_short_string",
-    Some(AMQPType::LongStr)   => "gen_long_string",
-    Some(AMQPType::Table)     => "gen_field_table",
-    Some(AMQPType::Timestamp) => "gen_be_u64",
-    None                      => {
+    Some(AMQPType::Boolean)        => "gen_bool",
+    Some(AMQPType::ShortShortInt)  => "gen_be_i8",
+    Some(AMQPType::ShortShortUInt) => "gen_be_u8",
+    Some(AMQPType::ShortInt)       => "gen_be_i16",
+    Some(AMQPType::ShortUInt)      => "gen_be_u16",
+    Some(AMQPType::LongInt)        => "gen_be_i32",
+    Some(AMQPType::LongUInt)       => "gen_be_u32",
+    Some(AMQPType::LongLongInt)    => "gen_be_i64",
+    Some(AMQPType::LongLongUInt)   => "gen_be_u64",
+    Some(AMQPType::ShortString)    => "gen_short_string",
+    Some(AMQPType::LongString)     => "gen_long_string",
+    Some(AMQPType::FieldTable)     => "gen_field_table",
+    Some(AMQPType::Timestamp)      => "gen_be_u64",
+    Some(_)                        => unimplemented!(),
+    None                           => {
       let data:  serde_json::Map<String,  serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
       let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
       let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
 
       let lookup_domain = arg.domain.clone().unwrap();
-      domains.iter().find(|d| d.0 == lookup_domain).map(|d| match d.1 {
-        AMQPType::Bit       => "gen_bool",
-        AMQPType::Octet     => "gen_be_u8",
-        AMQPType::Short     => "gen_be_u16",
-        AMQPType::Long      => "gen_be_u32",
-        AMQPType::LongLong  => "gen_be_u64",
-        AMQPType::ShortStr  => "gen_short_string",
-        AMQPType::LongStr   => "gen_long_string",
-        AMQPType::Table     => "gen_field_table",
-        AMQPType::Timestamp => "gen_be_u64",
+      domains.iter().find(|d| d.name == lookup_domain).map(|d| match d.amqp_type {
+        AMQPType::Boolean        => "gen_bool",
+        AMQPType::ShortShortInt  => "gen_be_u8",
+        AMQPType::ShortShortUInt => "gen_be_u8",
+        AMQPType::ShortInt       => "gen_be_u16",
+        AMQPType::ShortUInt      => "gen_be_u16",
+        AMQPType::LongInt        => "gen_be_u32",
+        AMQPType::LongUInt       => "gen_be_u32",
+        AMQPType::LongLongInt    => "gen_be_u64",
+        AMQPType::LongLongUInt   => "gen_be_u64",
+        AMQPType::ShortString    => "gen_short_string",
+        AMQPType::LongString     => "gen_long_string",
+        AMQPType::FieldTable     => "gen_field_table",
+        AMQPType::Timestamp      => "gen_be_u64",
+        _                        => unimplemented!(),
       }).unwrap()
     }
   };

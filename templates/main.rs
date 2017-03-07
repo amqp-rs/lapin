@@ -1,6 +1,7 @@
+use amq_protocol_types::*;
 use format::field::*;
 use cookie_factory::*;
-use nom::{be_u8,be_u16,be_u32,be_u64};
+use nom::{be_i8,be_i16,be_i32,be_i64,be_u8,be_u16,be_u32,be_u64};
 
 pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_version}}.{{revision}}";
 
@@ -39,9 +40,10 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 {{#each specs.classes as |class|}}
   pub mod {{snake class.name}} {
     use super::Class;
+    use amq_protocol_types::*;
     use format::field::*;
     use cookie_factory::*;
-    use nom::{be_u8,be_u16,be_u32,be_u64};
+    use nom::{be_i8,be_i16,be_i32,be_i64,be_u8,be_u16,be_u32,be_u64};
 
     #[derive(Clone,Debug,PartialEq)]
     pub enum Methods {

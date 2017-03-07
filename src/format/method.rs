@@ -1,8 +1,9 @@
+use amq_protocol_types::AMQPValue;
 use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u64};
 
 use std::collections::HashMap;
-use field::{field_table,value,Value};
+use field::{field_table,value};
 // 0          2           4
 // +----------+-----------+-------------- - -
 // | class-id | method-id | arguments...
@@ -13,7 +14,7 @@ use field::{field_table,value,Value};
 pub struct Method {
   class_id:  u16,
   method_id: u16,
-  arguments: Vec<Value>,
+  arguments: Vec<AMQPValue>,
 }
 
 named!(pub method<Method>,
