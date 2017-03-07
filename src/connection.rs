@@ -4,7 +4,7 @@ use std::iter::repeat;
 use std::collections::HashMap;
 use amq_protocol_types::AMQPValue;
 use nom::{HexDisplay,IResult,Offset};
-use sasl::{SaslCredentials, SaslSecret, SaslMechanism};
+use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
 use sasl::mechanisms::Plain;
 
 use format::frame::*;
@@ -231,10 +231,10 @@ impl Connection {
               let mut h = HashMap::new();
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
-              let creds = SaslCredentials {
-                username: "guest".to_owned(),
-                secret: SaslSecret::Password("guest".to_owned()),
-                channel_binding: None,
+              let creds = Credentials {
+                username: Some("guest".to_owned()),
+                secret: Secret::Password("guest".to_owned()),
+                channel_binding: ChannelBinding::None,
               };
 
               let mut mechanism = Plain::from_credentials(creds).unwrap();
