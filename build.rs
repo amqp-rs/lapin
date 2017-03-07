@@ -93,8 +93,8 @@ fn get_specs(rc: &mut RenderContext) ->  serde_json::Map<String, serde_json::Val
 }
 
 fn get_arguments(h: &Helper, rc: &mut RenderContext, class_id_index: usize, method_id_index: usize) -> Vec<AMQPArgument> {
-  let class_id:  u8 = serde_json::from_value(h.param(class_id_index).unwrap().value().clone()).unwrap();
-  let method_id: u8 = serde_json::from_value(h.param(method_id_index).unwrap().value().clone()).unwrap();
+  let class_id:  u16 = serde_json::from_value(h.param(class_id_index).unwrap().value().clone()).unwrap();
+  let method_id: u16 = serde_json::from_value(h.param(method_id_index).unwrap().value().clone()).unwrap();
 
   let specs = get_specs(rc);
 
