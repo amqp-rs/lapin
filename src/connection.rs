@@ -353,4 +353,25 @@ impl Connection {
     };
   }
 
+  //FIXME: no chunking for now
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
+    match gen_content_header_frame((&mut self.send_buffer.space(), 0), channel_id, class_id, slice.len() as u64).map(|tup| tup.1) {
+      Ok(sz) => {
+        self.send_buffer.fill(sz);
+        match gen_content_body_frame((&mut self.send_buffer.space(), 0), channel_id, slice).map(|tup| tup.1) {
+          Ok(sz) => {
+            self.send_buffer.fill(sz);
+          },
+          Err(e) => {
+            println!("error generating frame: {:?}", e);
+            self.state = ConnectionState::Error;
+          }
+        }
+      },
+      Err(e) => {
+        println!("error generating frame: {:?}", e);
+        self.state = ConnectionState::Error;
+      }
+    }
+  }
 }

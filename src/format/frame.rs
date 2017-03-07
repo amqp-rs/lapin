@@ -1,7 +1,10 @@
 use rusticata_macros::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use method::{method,Method};
+use format::field::*;
 use generated::*;
+
+use std::collections::HashMap;
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
@@ -125,4 +128,36 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
   } else {
     Err(GenError::CustomError(42))
   }
+}
+
+pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(input, gen_slice!(&[4, 0, 0, 0xCE]))
+}
+
+pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(input,
+    gen_be_u8!( 2 ) >>
+    gen_be_u16!(channel_id) >>
+
+    gen_be_u32!( 42 ) >> //calculate static size
+
+    gen_be_u16!(class_id) >>
+    gen_be_u16!(0) >> // weight
+    gen_be_u64!(length) >>
+    gen_be_u8!(0) >> // properties
+    gen_field_table(&HashMap::new()) >>
+
+    gen_be_u8!(0xCE)
+  )
+}
+
+pub fn gen_content_body_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, slice: &[u8]) -> Result<(&'a mut [u8],usize),GenError> {
+  do_gen!(input,
+    gen_be_u8!( 3 ) >>
+    gen_be_u16!(channel_id) >>
+
+    gen_slice!(slice) >>
+
+    gen_be_u8!(0xCE)
+  )
 }
