@@ -1,3 +1,4 @@
+use amq_protocol_types::*;
 use format::field::*;
 use format::frame::*;
 use connection::*;
