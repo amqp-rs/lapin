@@ -160,7 +160,7 @@ impl Connection {
           println!("parsed method: {:?}", parsed);
           match parsed {
             IResult::Done(b"", m) => {
-              (f.channel_id, m, consumed)
+              (f.channel_id, Some(m), consumed)
             },
             e => {
               //we should not get an incomplete here
@@ -175,6 +175,19 @@ impl Connection {
             }
           }
         },
+        FrameType::Heartbeat => {
+          match gen_heartbeat_frame((&mut self.send_buffer.space(), 0)).map(|tup| tup.1) {
+            Ok(sz) => {
+              self.send_buffer.fill(sz);
+            }
+            Err(e) => {
+              println!("error generating start-ok frame: {:?}", e);
+              self.state = ConnectionState::Error;
+            },
+          };
+
+          (f.channel_id, None, consumed)
+        },
         t => {
           println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
           let err = format!("parse error: {:?}", t);
@@ -185,10 +198,12 @@ impl Connection {
 
     self.receive_buffer.consume(consumed);
 
-    if channel_id == 0 {
-      self.handle_global_method(method);
-    } else {
-      self.channels.get_mut(&channel_id).map(|channel| channel.received_method(method));
+    if let Some(method) = method {
+      if channel_id == 0 {
+        self.handle_global_method(method);
+      } else {
+        self.channels.get_mut(&channel_id).map(|channel| channel.received_method(method));
+      }
     }
 
 
