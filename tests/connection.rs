@@ -4,6 +4,7 @@ extern crate lapin;
 use std::net::TcpStream;
 use std::iter::repeat;
 use std::io::{Read,Write,Error};
+use std::collections::HashMap;
 
 use nom::HexDisplay;
 
@@ -45,9 +46,25 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
-      conn.basic_publish(1, 0, "".to_string(), "".to_string(), false, false);
+      //create the hello queue
+      conn.queue_declare(1, 0, "hello".to_string(), false, false, false, false, false, HashMap::new());
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
+      conn.queue_declare(2, 0, "hello".to_string(), false, false, false, false, false, HashMap::new());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
+      println!("will consume");
+      conn.basic_consume(2, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new());
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+
+      println!("will publish");
+      conn.basic_publish(1, 0, "".to_string(), "hello".to_string(), false, false);
+      let payload = b"Hello world!";
+      conn.send_content_frames(1, 60, payload);
+      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
       panic!();
 }
