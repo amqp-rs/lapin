@@ -103,7 +103,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         do_gen!(input,
           gen_be_u16!({{method.id}}u16)
           {{#each method.arguments as |argument| ~}}
-          >> {{map_generator argument}} (&method.{{snake argument.name}})
+          {{map_generator argument class.id method.id}}
           {{/each ~}}
         )
       }

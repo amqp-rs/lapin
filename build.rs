@@ -233,19 +233,49 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
   let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
 
   let rendered = match arg_type {
-    AMQPType::Boolean        => "gen_bool",
-    AMQPType::ShortShortInt  => "gen_be_i8",
-    AMQPType::ShortShortUInt => "gen_be_u8",
-    AMQPType::ShortInt       => "gen_be_i16",
-    AMQPType::ShortUInt      => "gen_be_u16",
-    AMQPType::LongInt        => "gen_be_i32",
-    AMQPType::LongUInt       => "gen_be_u32",
-    AMQPType::LongLongInt    => "gen_be_i64",
-    AMQPType::LongLongUInt   => "gen_be_u64",
-    AMQPType::ShortString    => "gen_short_string",
-    AMQPType::LongString     => "gen_long_string",
-    AMQPType::FieldTable     => "gen_field_table",
-    AMQPType::Timestamp      => "gen_be_u64",
+    AMQPType::Boolean        => {
+      let arguments = get_arguments(h, rc, 1, 2);
+      println!("arguments:\n{:?}", arguments);
+
+      //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
+      let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
+      let should_parse_bits = {
+        position == 0 ||
+        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+      };
+
+      if !should_parse_bits {
+        "".to_string()
+      } else {
+        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+
+        let mut handlebars = Handlebars::new();
+        let mut data = BTreeMap::new();
+        let mut bits_tpl = String::new();
+        std::fs::File::open("templates/bits_gen.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
+
+        handlebars.register_escape_fn(handlebars::no_escape);
+        handlebars.register_helper("snake", Box::new(snake_helper));
+        handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
+
+        let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
+        data.insert("arguments".to_string(), args);
+
+        handlebars.render("bits", &data).unwrap()
+      }
+    },
+    AMQPType::ShortShortInt  => format!(">> {}(&method.{})", "gen_be_i8", snake_case(&arg.name)),
+    AMQPType::ShortShortUInt => format!(">> {}(&method.{})", "gen_be_u8", snake_case(&arg.name)),
+    AMQPType::ShortInt       => format!(">> {}(&method.{})", "gen_be_i16", snake_case(&arg.name)),
+    AMQPType::ShortUInt      => format!(">> {}(&method.{})", "gen_be_u16", snake_case(&arg.name)),
+    AMQPType::LongInt        => format!(">> {}(&method.{})", "gen_be_i32", snake_case(&arg.name)),
+    AMQPType::LongUInt       => format!(">> {}(&method.{})", "gen_be_u32", snake_case(&arg.name)),
+    AMQPType::LongLongInt    => format!(">> {}(&method.{})", "gen_be_i64", snake_case(&arg.name)),
+    AMQPType::LongLongUInt   => format!(">> {}(&method.{})", "gen_be_u64", snake_case(&arg.name)),
+    AMQPType::ShortString    => format!(">> {}(&method.{})", "gen_short_string", snake_case(&arg.name)),
+    AMQPType::LongString     => format!(">> {}(&method.{})", "gen_long_string", snake_case(&arg.name)),
+    AMQPType::FieldTable     => format!(">> {}(&method.{})", "gen_field_table", snake_case(&arg.name)),
+    AMQPType::Timestamp      => format!(">> {}(&method.{})", "gen_be_u64", snake_case(&arg.name)),
     _                        => unimplemented!(),
   };
   try!(rc.writer.write(rendered.as_bytes()));
