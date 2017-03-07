@@ -139,13 +139,16 @@ pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16,
     gen_be_u8!( 2 ) >>
     gen_be_u16!(channel_id) >>
 
-    gen_be_u32!( 42 ) >> //calculate static size
+    ofs_len: gen_skip!(4) >>
 
-    gen_be_u16!(class_id) >>
-    gen_be_u16!(0) >> // weight
-    gen_be_u64!(length) >>
-    gen_be_u8!(0) >> // properties
-    gen_field_table(&HashMap::new()) >>
+    start: do_gen!(
+      gen_be_u16!(class_id) >>
+      gen_be_u16!(0) >> // weight
+      gen_be_u64!(length) >>
+      gen_be_u16!(0x2000) >> // property flags. Why this value?
+      gen_field_table(&HashMap::new())
+    ) >>
+    end: gen_at_offset!(ofs_len, gen_be_u32!(end-start)) >>
 
     gen_be_u8!(0xCE)
   )
@@ -155,6 +158,7 @@ pub fn gen_content_body_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, s
   do_gen!(input,
     gen_be_u8!( 3 ) >>
     gen_be_u16!(channel_id) >>
+    gen_be_u32!(slice.len()) >>
 
     gen_slice!(slice) >>
 
