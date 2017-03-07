@@ -1,5 +1,5 @@
 use nom::{be_i8, be_i16, be_i32, be_i64, be_u8, be_u16, be_u32, be_u64, float, double};
-use rusticata_macros::*;
+use cookie_factory::*;
 use std::collections::HashMap;
 
 pub type UOctet    = u8;

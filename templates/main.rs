@@ -1,5 +1,5 @@
 use format::field::*;
-use rusticata_macros::*;
+use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,be_u64};
 
 pub const DESCRIPTION: &'static str = "{{name}} - {{major_version}}.{{minor_version}}.{{revision}}";
@@ -40,7 +40,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
   pub mod {{snake class.name}} {
     use super::Class;
     use format::field::*;
-    use rusticata_macros::*;
+    use cookie_factory::*;
     use nom::{be_u8,be_u16,be_u32,be_u64};
 
     #[derive(Clone,Debug,PartialEq)]

@@ -8,7 +8,7 @@ build = "build.rs"
 nom = "^2.1"
 sasl = "*"
 clippy = {version = "*", optional = true}
-rusticata-macros = { git = "https://github.com/rusticata/rusticata-macros" }
+cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 
 
 [build-dependencies]

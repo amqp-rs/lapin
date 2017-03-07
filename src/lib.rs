@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate nom;
 #[macro_use]
-extern crate rusticata_macros;
+extern crate cookie_factory;
 extern crate sasl;
 
 pub mod buffer;
