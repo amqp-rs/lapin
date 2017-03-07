@@ -1,6 +1,8 @@
 extern crate amq_protocol_codegen;
 extern crate amq_protocol_types;
 extern crate handlebars;
+extern crate serde;
+#[macro_use] extern crate serde_derive;
 extern crate serde_json;
 
 use amq_protocol_codegen::*;
@@ -33,6 +35,7 @@ fn main() {
     handlebars.register_helper("camel", Box::new(camel_helper));
     handlebars.register_helper("map_type", Box::new(map_type_helper));
     handlebars.register_helper("map_parser", Box::new(map_parser_helper));
+    handlebars.register_helper("map_assign", Box::new(map_assignment_helper));
     handlebars.register_helper("map_generator", Box::new(map_generator_helper));
 
     handlebars.register_template_string("full", full_tpl).expect("Failed to register full template");
@@ -103,51 +106,120 @@ fn get_arguments(h: &Helper, rc: &mut RenderContext, class_id_index: usize, meth
 
   arguments
 }
+
 fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
   println!("val1: {:?}", h.param(0));
   let val = h.param(0).unwrap().value().clone();
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
-  let rendered = match arg.amqp_type {
-    Some(AMQPType::Boolean)        => "map!(be_u8, |u| u != 0)",
-    Some(AMQPType::ShortShortInt)  => "be_i8",
-    Some(AMQPType::ShortShortUInt) => "be_u8",
-    Some(AMQPType::ShortInt)       => "be_i16",
-    Some(AMQPType::ShortUInt)      => "be_u16",
-    Some(AMQPType::LongInt)        => "be_i32",
-    Some(AMQPType::LongUInt)       => "be_u32",
-    Some(AMQPType::LongLongInt)    => "be_i64",
-    Some(AMQPType::LongLongUInt)   => "be_u64",
-    Some(AMQPType::ShortString)    => "map!(short_string, |s:&str| s.to_string())",
-    Some(AMQPType::LongString)     => "map!(long_string,  |s:&str| s.to_string())",
-    Some(AMQPType::FieldTable)     => "field_table",
-    Some(AMQPType::Timestamp)      => "be_u64",
-    Some(_)                        => unimplemented!(),
-    None                           => {
-      let data:  serde_json::Map<String, serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
-      let specs: serde_json::Map<String, serde_json::Value> =  serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
-      let domains: Vec<AMQPDomain> =  serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
+  let specs = get_specs(rc);
+  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
 
-      let lookup_domain = arg.domain.clone().unwrap();
-      domains.iter().find(|d| d.name == lookup_domain).map(|d| match d.amqp_type {
-        AMQPType::Boolean        => "map!(be_u8, |u| u != 0)",
-        AMQPType::ShortShortInt  => "be_i8",
-        AMQPType::ShortShortUInt => "be_u8",
-        AMQPType::ShortInt       => "be_i16",
-        AMQPType::ShortUInt      => "be_u16",
-        AMQPType::LongInt        => "be_i32",
-        AMQPType::LongUInt       => "be_u32",
-        AMQPType::LongLongInt    => "be_i64",
-        AMQPType::LongLongUInt   => "be_u64",
-        AMQPType::ShortString    => "map!(short_string, |s:&str| s.to_string())",
-        AMQPType::LongString     => "map!(long_string,  |s:&str| s.to_string())",
-        AMQPType::FieldTable     => "field_table",
-        AMQPType::Timestamp      => "be_u64",
-        _                        => unimplemented!(),
-      }).unwrap()
-    }
+  let rendered = match arg_type {
+    AMQPType::Boolean        => {
+      let arguments = get_arguments(h, rc, 1, 2);
+      println!("arguments:\n{:?}", arguments);
+
+      //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
+      let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
+      let should_parse_bits = {
+        position == 0 ||
+        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+      };
+
+      if !should_parse_bits {
+        "".to_string()
+      } else {
+        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+        bit_args.reverse();
+        //FIXME: assuming there are less than 8 elements
+        let offset = 8 - bit_args.len();
+
+        let mut handlebars = Handlebars::new();
+        let mut data = BTreeMap::new();
+        let mut bits_tpl = String::new();
+        std::fs::File::open("templates/bits_parse.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
+
+        handlebars.register_escape_fn(handlebars::no_escape);
+        handlebars.register_helper("snake", Box::new(snake_helper));
+        handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
+
+        let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
+        data.insert("arguments".to_string(), args);
+        data.insert("offset".to_string(), serde_json::to_value(offset).unwrap());
+
+        handlebars.render("bits", &data).unwrap()
+      }
+    },
+    AMQPType::ShortShortInt  => format!("{} : {} >>", snake_case(&arg.name), "be_i8"),
+    AMQPType::ShortShortUInt => format!("{} : {} >>", snake_case(&arg.name), "be_u8"),
+    AMQPType::ShortInt       => format!("{} : {} >>", snake_case(&arg.name),"be_i16"),
+    AMQPType::ShortUInt      => format!("{} : {} >>", snake_case(&arg.name),"be_u16"),
+    AMQPType::LongInt        => format!("{} : {} >>", snake_case(&arg.name),"be_i32"),
+    AMQPType::LongUInt       => format!("{} : {} >>", snake_case(&arg.name),"be_u32"),
+    AMQPType::LongLongInt    => format!("{} : {} >>", snake_case(&arg.name),"be_i64"),
+    AMQPType::LongLongUInt   => format!("{} : {} >>", snake_case(&arg.name),"be_u64"),
+    AMQPType::ShortString    => format!("{} : {} >>", snake_case(&arg.name),"map!(short_string, |s:&str| s.to_string())"),
+    AMQPType::LongString     => format!("{} : {} >>", snake_case(&arg.name),"map!(long_string,  |s:&str| s.to_string())"),
+    AMQPType::FieldTable     => format!("{} : {} >>", snake_case(&arg.name),"field_table"),
+    AMQPType::Timestamp      => format!("{} : {} >>", snake_case(&arg.name),"be_u64"),
+    _                        => unimplemented!(),
   };
-  try!(rc.writer.write(rendered.as_bytes()));
+  try!(rc.writer.write(&rendered.as_bytes()));
+
+  Ok(())
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NameId {
+  pub name: String,
+  pub id:   usize,
+}
+
+fn map_assignment_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
+  let val = h.param(0).unwrap().value().clone();
+  let arg:AMQPArgument = serde_json::from_value(val).unwrap();
+
+  let specs = get_specs(rc);
+  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
+
+  let rendered = match arg_type {
+    AMQPType::Boolean        => {
+      let arguments = get_arguments(h, rc, 1, 2);
+      println!("arguments:\n{:?}", arguments);
+
+      //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
+      let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
+      let should_parse_bits = {
+        position == 0 ||
+        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+      };
+
+      if !should_parse_bits {
+        "".to_string()
+      } else {
+        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+        bit_args.reverse();
+        let bit_args:Vec<NameId> = bit_args.iter().enumerate().map(|(i,val)| NameId { name: val.name.clone(), id: i }).collect();
+
+        let mut handlebars = Handlebars::new();
+        let mut data = BTreeMap::new();
+        let mut bits_tpl = String::new();
+        std::fs::File::open("templates/bits_assign.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
+
+        handlebars.register_escape_fn(handlebars::no_escape);
+        handlebars.register_helper("snake", Box::new(snake_helper));
+        handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
+
+        let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
+        data.insert("arguments".to_string(), args);
+
+        handlebars.render("bits", &data).unwrap()
+      }
+    },
+    _ => format!("{}: {},", snake_case(&arg.name), snake_case(&arg.name)),
+  };
+  try!(rc.writer.write(&rendered.as_bytes()));
 
   Ok(())
 }

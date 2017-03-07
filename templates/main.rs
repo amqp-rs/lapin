@@ -88,12 +88,12 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
       named!(parse_{{snake method.name}}<Methods>,
         do_parse!(
           {{#each method.arguments as |argument| ~}}
-            {{snake argument.name}}: {{map_parser argument}} >>
+            {{map_parser argument class.id method.id}}
           {{/each ~}}
 
           (Methods::{{camel method.name}}({{camel method.name}} {
             {{#each method.arguments as |argument| ~}}
-              {{snake argument.name}}: {{snake argument.name}},
+            {{map_assign argument class.id method.id}}
             {{/each ~}}
           }))
         )
