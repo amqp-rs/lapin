@@ -41,7 +41,7 @@ named!(pub frame_type<FrameType>,
     1 => value!(FrameType::Method)
   | 2 => value!(FrameType::Header)
   | 3 => value!(FrameType::Body)
-  | 4 => value!(FrameType::Heartbeat)
+  | 8 => value!(FrameType::Heartbeat)
   )
 );
 
@@ -131,7 +131,7 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
 }
 
 pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
-  do_gen!(input, gen_slice!(&[4, 0, 0, 0xCE]))
+  do_gen!(input, gen_slice!(&[8, 0, 0, 0xCE]))
 }
 
 pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64) -> Result<(&'a mut [u8],usize),GenError> {
