@@ -4,6 +4,17 @@ use format::frame::*;
 use connection::*;
 use generated::*;
 
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum ChannelState {
+  Initial,
+  Connected,
+  Error,
+  {{#each specs.classes as |class| ~}}
+  {{#each class.methods as |method| ~}}{{#if method.synchronous }}Awaiting{{camel class.name}}{{camel method.name}}Ok,
+  {{/if}}{{/each ~}}
+  {{/each ~}}
+}
+
 impl Connection {
 
   {{#each specs.classes as |class| ~}}
