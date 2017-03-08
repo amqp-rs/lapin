@@ -87,12 +87,12 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
       named!(parse_{{snake method.name}}<Methods>,
         do_parse!(
           {{#each method.arguments as |argument| ~}}
-            {{map_parser argument class.id method.id}}
+            {{map_parser argument method.arguments}}
           {{/each ~}}
 
           (Methods::{{camel method.name}}({{camel method.name}} {
             {{#each method.arguments as |argument| ~}}
-            {{map_assign argument class.id method.id}}
+            {{map_assign argument method.arguments}}
             {{/each ~}}
           }))
         )
@@ -102,7 +102,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         do_gen!(input,
           gen_be_u16!({{method.id}}u16)
           {{#each method.arguments as |argument| ~}}
-          {{map_generator argument class.id method.id}}
+          {{map_generator argument method.arguments}}
           {{/each ~}}
         )
       }
