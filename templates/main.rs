@@ -80,7 +80,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
       #[derive(Clone,Debug,PartialEq)]
       pub struct {{camel method.name}} {
         {{#each method.arguments as |argument| ~}}
-          pub {{snake argument.name}}: {{map_type argument}},
+          pub {{snake argument.name}}: {{argument.type}},
         {{/each ~}}
 
       }
