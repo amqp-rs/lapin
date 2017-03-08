@@ -390,4 +390,16 @@ impl Connection {
       }
     }
   }
+
+  pub fn send_method_frame(&mut self, channel: u16, method: &Class) {
+    match gen_method_frame((&mut self.send_buffer.space(), 0), channel, &method).map(|tup| tup.1) {
+      Ok(sz) => {
+        self.send_buffer.fill(sz);
+      },
+      Err(e) => {
+        println!("error generating frame: {:?}", e);
+        self.state = ConnectionState::Error;
+      }
+    }
+  }
 }

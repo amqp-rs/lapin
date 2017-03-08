@@ -19,15 +19,7 @@ impl Connection {
         }
       ));
 
-    match gen_method_frame((&mut self.send_buffer.space(), 0), _channel_id, &method).map(|tup| tup.1) {
-      Ok(sz) => {
-        self.send_buffer.fill(sz);
-      },
-      Err(e) => {
-        println!("error generating frame: {:?}", e);
-        self.state = ConnectionState::Error;
-      }
-    }
+    self.send_method_frame(_channel_id, &method);
   }
 
   {{/each ~}}
