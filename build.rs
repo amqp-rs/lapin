@@ -7,14 +7,13 @@ extern crate serde_json;
 
 use amq_protocol_codegen::*;
 use amq_protocol_types::*;
-use handlebars::{Handlebars,Helper,HelperDef,RenderContext,RenderError};
+use handlebars::{Handlebars,Helper,RenderContext,RenderError};
 
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::ascii::AsciiExt;
 
 fn main() {
     let out_dir      = env::var("OUT_DIR").expect("OUT_DIR is not defined");
@@ -27,13 +26,9 @@ fn main() {
     std::fs::File::open("templates/main.rs").expect("Failed to open main template").read_to_string(&mut full_tpl).expect("Failed to read main template");
     std::fs::File::open("templates/api.rs").expect("Failed to open main template").read_to_string(&mut api_tpl).expect("Failed to read main template");
 
-    let mut handlebars = Handlebars::new();
+    let mut handlebars = CodeGenerator::new().register_amqp_helpers();
     let mut data = BTreeMap::new();
 
-    handlebars.register_escape_fn(handlebars::no_escape);
-    handlebars.register_helper("snake", Box::new(snake_helper));
-    handlebars.register_helper("camel", Box::new(camel_helper));
-    handlebars.register_helper("map_type", Box::new(map_type_helper));
     handlebars.register_helper("map_parser", Box::new(map_parser_helper));
     handlebars.register_helper("map_assign", Box::new(map_assignment_helper));
     handlebars.register_helper("map_generator", Box::new(map_generator_helper));
@@ -43,46 +38,8 @@ fn main() {
 
     let specs     = AMQProtocolDefinition::load();
     data.insert("specs".to_string(), specs);
-    writeln!(f, "{}", handlebars.render("full", &data).expect("Failed to render full template"));
-    writeln!(f2, "{}", handlebars.render("api", &data).expect("Failed to render full template"));
-
-    //writeln!(f, "{}", specs.codegen_full(&full_tpl)).expect("Failed to generate generated.rs");
-}
-
-fn get_type_and_name(arg: &AMQPArgument, specs: &serde_json::Map<String, serde_json::Value>) -> (AMQPType, String) {
-  match arg.amqp_type {
-    Some(ref ty) => (ty.clone(), arg.name.to_string()),
-    None     => {
-      let domains: Vec<AMQPDomain> = serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
-
-      let arg_domain = arg.domain.as_ref().map(|d| d.to_string()).unwrap();
-      let res = domains.iter().find(|d| d.name == arg_domain).map(|d| d.amqp_type.clone()).unwrap();
-      //println!("key {} => domain gave type: {}", arg.name, res);
-      (res, arg_domain.to_string())
-    },
-  }
-}
-
-fn map_type_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
-  println!("val1: {:?}", h.param(0));
-  let val = h.param(0).unwrap().value().clone();
-  let arg:AMQPArgument = serde_json::from_value(val.clone()).unwrap();
-
-  let rendered = match arg.amqp_type {
-    Some(ty) => ty.to_string(),
-    None     => {
-      let specs = get_specs(rc);
-      let domains: Vec<AMQPDomain> = serde_json::from_value(specs.get("domains").unwrap().clone()).unwrap();
-
-      let lookup_domain = arg.domain.clone().unwrap();
-      let res = domains.iter().find(|d| d.name == lookup_domain).map(|d| d.amqp_type.to_string()).unwrap();
-      println!("key {} => domain gave type: {}", arg.name, res);
-      res
-    },
-  };
-  try!(rc.writer.write(rendered.as_bytes()));
-
-  Ok(())
+    writeln!(f, "{}", handlebars.render("full", &data).expect("Failed to render full template")).expect("Failed to write generated.rs");
+    writeln!(f2, "{}", handlebars.render("api", &data).expect("Failed to render api template")).expect("Failed to write api.rs");
 }
 
 fn get_specs(rc: &mut RenderContext) ->  serde_json::Map<String, serde_json::Value> {
@@ -112,10 +69,7 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
   let val = h.param(0).unwrap().value().clone();
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
-  let specs = get_specs(rc);
-  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
-
-  let rendered = match arg_type {
+  let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
       let arguments = get_arguments(h, rc, 1, 2);
       println!("arguments:\n{:?}", arguments);
@@ -124,24 +78,22 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
       let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
       let should_parse_bits = {
         position == 0 ||
-        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+        arguments[position-1].amqp_type != AMQPType::Boolean
       };
 
       if !should_parse_bits {
         "".to_string()
       } else {
-        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
         bit_args.reverse();
         //FIXME: assuming there are less than 8 elements
         let offset = 8 - bit_args.len();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_parse.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
@@ -180,10 +132,7 @@ fn map_assignment_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> 
   let val = h.param(0).unwrap().value().clone();
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
-  let specs = get_specs(rc);
-  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
-
-  let rendered = match arg_type {
+  let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
       let arguments = get_arguments(h, rc, 1, 2);
       println!("arguments:\n{:?}", arguments);
@@ -192,23 +141,21 @@ fn map_assignment_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> 
       let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
       let should_parse_bits = {
         position == 0 ||
-        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+        arguments[position-1].amqp_type != AMQPType::Boolean
       };
 
       if !should_parse_bits {
         "".to_string()
       } else {
-        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
         bit_args.reverse();
         let bit_args:Vec<NameId> = bit_args.iter().enumerate().map(|(i,val)| NameId { name: val.name.clone(), id: i }).collect();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_assign.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
@@ -229,10 +176,7 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
   let val = h.param(0).unwrap().value().clone();
   let arg:AMQPArgument = serde_json::from_value(val).unwrap();
 
-  let specs = get_specs(rc);
-  let (arg_type, arg_name) = get_type_and_name(&arg, &specs);
-
-  let rendered = match arg_type {
+  let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
       let arguments = get_arguments(h, rc, 1, 2);
       println!("arguments:\n{:?}", arguments);
@@ -241,21 +185,19 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
       let position = arguments.iter().position(|a| a.name == arg.name).unwrap();
       let should_parse_bits = {
         position == 0 ||
-        arguments[position-1].amqp_type != Some(AMQPType::Boolean)
+        arguments[position-1].amqp_type != AMQPType::Boolean
       };
 
       if !should_parse_bits {
         "".to_string()
       } else {
-        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == Some(AMQPType::Boolean)).cloned().collect();
+        let bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_gen.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
