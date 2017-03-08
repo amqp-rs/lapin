@@ -2,6 +2,7 @@ use format::method::Method;
 use format::frame::Frame;
 use std::collections::VecDeque;
 use generated::Class;
+use api::ChannelState;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Channel {
@@ -10,11 +11,13 @@ pub struct Channel {
   pub queue: VecDeque<LocalFrame>,
 }
 
+/*
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
   Waiting,
   Error,
 }
+*/
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum LocalFrame {
@@ -28,7 +31,7 @@ impl Channel {
   pub fn new(channel_id: u16) -> Channel {
     Channel {
       id: channel_id,
-      state: ChannelState::Waiting,
+      state: ChannelState::Initial,
       queue: VecDeque::new(),
     }
   }
@@ -36,7 +39,7 @@ impl Channel {
   pub fn global() -> Channel {
     Channel {
       id: 0,
-      state: ChannelState::Waiting,
+      state: ChannelState::Initial,
       queue: VecDeque::new(),
     }
   }
