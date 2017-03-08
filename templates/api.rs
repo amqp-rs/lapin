@@ -19,6 +19,17 @@ pub enum ChannelState {
 }
 
 impl Connection {
+  pub fn receive_method(&mut self, channel_id: u16, method: Class) -> Result<(), Error> {
+    match method {
+      {{#each specs.classes as |class| ~}}
+      {{#each class.methods as |method| ~}}
+      Class::{{camel class.name}}({{snake class.name}}::Methods::{{camel method.name}}(m)) => {
+        self.receive_{{snake class.name}}_{{snake method.name}}(channel_id, m)
+      },
+      {{/each ~}}
+      {{/each ~}}
+    }
+  }
 
   {{#each specs.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
@@ -58,6 +69,33 @@ impl Connection {
       {{/if}}
   }
 
+  pub fn receive_{{snake class.name}}_{{snake method.name}}(&mut self,
+    _channel_id: u16, method: {{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
+
+      if {{class.id}} == 10 && _channel_id != 0 {
+        println!("class id = {} and channel id = {}", {{class.id}}, _channel_id);
+        return Err(Error::InvalidChannel);
+      }
+
+      if !self.channels.contains_key(&_channel_id) {
+        println!("key {} not in channels {:?}", _channel_id, self.channels);
+        return Err(Error::InvalidChannel);
+      }
+
+      match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
+        ChannelState::Initial | ChannelState::Connected => {},
+        ChannelState::Error | ChannelState::SendingContent(_) | ChannelState::ReceivingContent(_) => {return Err(Error::InvalidState);},
+        ChannelState::Awaiting{{camel class.name}}{{camel method.name}} => {
+          self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+        }
+        _ => {
+          self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+          return Err(Error::InvalidState);
+        }
+      }
+
+      Ok(())
+  }
   {{/each ~}}
 {{/each ~}}
 }
