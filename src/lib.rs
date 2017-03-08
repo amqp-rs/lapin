@@ -14,5 +14,6 @@ pub mod channel;
 pub mod generated;
 pub mod format;
 pub mod api;
+pub mod error;
 
 pub use format::*;
