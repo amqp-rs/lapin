@@ -7,14 +7,13 @@ extern crate serde_json;
 
 use amq_protocol_codegen::*;
 use amq_protocol_types::*;
-use handlebars::{Handlebars,Helper,HelperDef,RenderContext,RenderError};
+use handlebars::{Handlebars,Helper,RenderContext,RenderError};
 
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::ascii::AsciiExt;
 
 fn main() {
     let out_dir      = env::var("OUT_DIR").expect("OUT_DIR is not defined");
@@ -42,10 +41,8 @@ fn main() {
 
     let specs     = AMQProtocolDefinition::load();
     data.insert("specs".to_string(), specs);
-    writeln!(f, "{}", handlebars.render("full", &data).expect("Failed to render full template"));
-    writeln!(f2, "{}", handlebars.render("api", &data).expect("Failed to render full template"));
-
-    //writeln!(f, "{}", specs.codegen_full(&full_tpl)).expect("Failed to generate generated.rs");
+    writeln!(f, "{}", handlebars.render("full", &data).expect("Failed to render full template")).expect("Failed to write generated.rs");
+    writeln!(f2, "{}", handlebars.render("api", &data).expect("Failed to render api template")).expect("Failed to write api.rs");
 }
 
 fn get_specs(rc: &mut RenderContext) ->  serde_json::Map<String, serde_json::Value> {
@@ -201,7 +198,7 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
       if !should_parse_bits {
         "".to_string()
       } else {
-        let mut bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
+        let bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
 
         let mut handlebars = Handlebars::new();
         let mut data = BTreeMap::new();
