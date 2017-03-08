@@ -9,6 +9,7 @@ use error::*;
 pub enum ChannelState {
   Initial,
   Connected,
+  Closed,
   Error,
   SendingContent(usize),
   ReceivingContent(usize),
@@ -80,7 +81,7 @@ impl Connection {
 
       match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
         ChannelState::Initial | ChannelState::Connected => {},
-        ChannelState::Error | ChannelState::SendingContent(_) | ChannelState::ReceivingContent(_) => {return Err(Error::InvalidState);},
+        ChannelState::Error | ChannelState::Closed | ChannelState::SendingContent(_) | ChannelState::ReceivingContent(_) => {return Err(Error::InvalidState);},
         ChannelState::Awaiting{{camel class.name}}{{camel method.name}} => {
           self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
         }
@@ -89,6 +90,9 @@ impl Connection {
           return Err(Error::InvalidState);
         }
       }
+
+      println!("unimplemented method {}.{}, ignoring packet", {{camel class.name}}, {{camel method.name}});
+
 
       Ok(())
   }
