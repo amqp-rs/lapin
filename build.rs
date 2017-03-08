@@ -26,12 +26,9 @@ fn main() {
     std::fs::File::open("templates/main.rs").expect("Failed to open main template").read_to_string(&mut full_tpl).expect("Failed to read main template");
     std::fs::File::open("templates/api.rs").expect("Failed to open main template").read_to_string(&mut api_tpl).expect("Failed to read main template");
 
-    let mut handlebars = Handlebars::new();
+    let mut handlebars = CodeGenerator::new().register_amqp_helpers();
     let mut data = BTreeMap::new();
 
-    handlebars.register_escape_fn(handlebars::no_escape);
-    handlebars.register_helper("snake", Box::new(snake_helper));
-    handlebars.register_helper("camel", Box::new(camel_helper));
     handlebars.register_helper("map_parser", Box::new(map_parser_helper));
     handlebars.register_helper("map_assign", Box::new(map_assignment_helper));
     handlebars.register_helper("map_generator", Box::new(map_generator_helper));
@@ -92,13 +89,11 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
         //FIXME: assuming there are less than 8 elements
         let offset = 8 - bit_args.len();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_parse.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
@@ -156,13 +151,11 @@ fn map_assignment_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> 
         bit_args.reverse();
         let bit_args:Vec<NameId> = bit_args.iter().enumerate().map(|(i,val)| NameId { name: val.name.clone(), id: i }).collect();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_assign.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
@@ -200,13 +193,11 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
       } else {
         let bit_args: Vec<AMQPArgument> = arguments.iter().skip(position).take_while(|a| a.amqp_type == AMQPType::Boolean).cloned().collect();
 
-        let mut handlebars = Handlebars::new();
+        let mut handlebars = CodeGenerator::new().register_amqp_helpers();
         let mut data = BTreeMap::new();
         let mut bits_tpl = String::new();
         std::fs::File::open("templates/bits_gen.rs").expect("Failed to open bits template").read_to_string(&mut bits_tpl).expect("Failed to read bits template");
 
-        handlebars.register_escape_fn(handlebars::no_escape);
-        handlebars.register_helper("snake", Box::new(snake_helper));
         handlebars.register_template_string("bits", bits_tpl).expect("Failed to register bits template");
 
         let args: serde_json::Value =  serde_json::to_value(bit_args).unwrap();
