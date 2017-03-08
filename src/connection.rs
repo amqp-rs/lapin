@@ -65,6 +65,7 @@ pub struct Connection {
   pub send_buffer:      Buffer,
   pub receive_buffer:   Buffer,
   pub configuration:    Configuration,
+  pub channel_index:    u16,
 }
 
 impl Connection {
@@ -84,7 +85,16 @@ impl Connection {
       send_buffer:    Buffer::with_capacity(configuration.frame_max as usize),
       receive_buffer: Buffer::with_capacity(configuration.frame_max as usize),
       configuration:  configuration,
+      channel_index:  1,
     }
+  }
+
+  pub fn create_channel(&mut self) -> u16 {
+    let c  = Channel::new(self.channel_index);
+    self.channels.insert(self.channel_index, c);
+    self.channel_index += 1;
+
+    self.channel_index - 1
   }
 
   pub fn connect(&mut self, writer: &mut Write) -> Result<ConnectionState> {
