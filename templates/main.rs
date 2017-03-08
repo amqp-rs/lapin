@@ -19,20 +19,20 @@ macro_rules! call_path (
 
 named!(pub parse_class<Class>,
   switch!(be_u16,
-  {{#each specs.classes as |class| ~}}
+    {{#each specs.classes as |class| ~}}
     {{class.id}} => call_path!({{snake class.name}}::parse) |
-  {{/each ~}}
+    {{/each ~}}
   _  => value!(Class::None)
   )
 );
 
 pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a mut [u8],usize),GenError> {
   match class {
-  {{#each specs.classes as |class| ~}}
+    {{#each specs.classes as |class| ~}}
     &Class::{{camel class.name}}(ref {{snake class.name}}) => {
       {{snake class.name}}::gen(input, {{snake class.name}})
     },
-  {{/each ~}}
+    {{/each ~}}
     &Class::None => Err(GenError::CustomError(1)),
   }
 }
@@ -64,14 +64,14 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 
     pub fn gen<'a>(input:(&'a mut [u8],usize), method: &Methods) -> Result<(&'a mut [u8],usize),GenError> {
       match method {
-      {{#each class.methods as |method| ~}}
+        {{#each class.methods as |method| ~}}
         &Methods::{{camel method.name}}(ref {{snake method.name}}) => {
           do_gen!(input,
             gen_be_u16!({{class.id}}u16) >>
             gen_{{snake method.name}}({{snake method.name}})
           )
         },
-      {{/each ~}}
+        {{/each ~}}
         &Methods::None => Err(GenError::CustomError(1)),
       }
     }
@@ -82,7 +82,6 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         {{#each method.arguments as |argument| ~}}
           pub {{snake argument.name}}: {{argument.type}},
         {{/each ~}}
-
       }
 
       named!(parse_{{snake method.name}}<Methods>,
