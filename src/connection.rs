@@ -1,17 +1,20 @@
 use std::io::{Error,ErrorKind,Read,Result,Write};
-use std::str;
+use std::{result,str};
 use std::iter::repeat;
 use std::collections::HashMap;
 use amq_protocol_types::AMQPValue;
 use nom::{HexDisplay,IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
 use sasl::mechanisms::Plain;
+use cookie_factory::GenError;
 
 use format::frame::*;
 use format::field::*;
-use channel::{Channel,ChannelState};
+use channel::Channel;
+use api::ChannelState;
 use buffer::Buffer;
 use generated::*;
+use error;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
@@ -391,14 +394,22 @@ impl Connection {
     }
   }
 
-  pub fn send_method_frame(&mut self, channel: u16, method: &Class) {
+  pub fn send_method_frame(&mut self, channel: u16, method: &Class) -> result::Result<(), error::Error> {
     match gen_method_frame((&mut self.send_buffer.space(), 0), channel, &method).map(|tup| tup.1) {
       Ok(sz) => {
         self.send_buffer.fill(sz);
+        Ok(())
       },
       Err(e) => {
         println!("error generating frame: {:?}", e);
         self.state = ConnectionState::Error;
+        match e {
+          GenError::BufferTooSmall(_) => Err(error::Error::SendBufferTooSmall),
+          GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+            //self.channels.get_mut(&channel).map(|c| c.state = ChannelState::Error);
+            Err(error::Error::GeneratorError)
+          }
+        }
       }
     }
   }
