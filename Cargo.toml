@@ -13,8 +13,8 @@ cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 
 
 [build-dependencies]
-amq-protocol-types   = "^0.4.0"
-amq-protocol-codegen = "^0.9.0" #{git = "https://github.com/Keruspe/amq-protocol/" }
+amq-protocol-types   = "^0.5.0"
+amq-protocol-codegen = "^0.10.0"
 handlebars = "*"
 serde = "*"
 serde_derive = "*"

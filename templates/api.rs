@@ -13,8 +13,10 @@ pub enum ChannelState {
   SendingContent(usize),
   ReceivingContent(usize),
   {{#each specs.classes as |class| ~}}
+  {{#unless class.is_connection}}
   {{#each class.methods as |method| ~}}{{#if method.synchronous }}Awaiting{{camel class.name}}{{camel method.name}}Ok,
   {{/if}}{{/each ~}}
+  {{/unless}}
   {{/each ~}}
 }
 
@@ -22,24 +24,23 @@ impl Connection {
   pub fn receive_method(&mut self, channel_id: u16, method: Class) -> Result<(), Error> {
     match method {
       {{#each specs.classes as |class| ~}}
+      {{#unless class.is_connection}}
       {{#each class.methods as |method| ~}}
       Class::{{camel class.name}}({{snake class.name}}::Methods::{{camel method.name}}(m)) => {
         self.receive_{{snake class.name}}_{{snake method.name}}(channel_id, m)
       },
       {{/each ~}}
+      {{/unless}}
       {{/each ~}}
     }
   }
 
   {{#each specs.classes as |class| ~}}
+  {{#unless class.is_connection}}
   {{#each class.methods as |method| ~}}
   pub fn {{snake class.name}}_{{snake method.name}}(&mut self,
     _channel_id: u16{{#each method.arguments as |argument| ~}},
     {{snake argument.name}}: {{argument.type}}{{/each ~}}) -> Result<(), Error> {
-
-      if {{class.id}} == 10 && _channel_id != 0 {
-        return Err(Error::InvalidChannel);
-      }
 
       if !self.channels.contains_key(&_channel_id) {
         return Err(Error::InvalidChannel);
@@ -72,11 +73,6 @@ impl Connection {
   pub fn receive_{{snake class.name}}_{{snake method.name}}(&mut self,
     _channel_id: u16, method: {{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
 
-      if {{class.id}} == 10 && _channel_id != 0 {
-        println!("class id = {} and channel id = {}", {{class.id}}, _channel_id);
-        return Err(Error::InvalidChannel);
-      }
-
       if !self.channels.contains_key(&_channel_id) {
         println!("key {} not in channels {:?}", _channel_id, self.channels);
         return Err(Error::InvalidChannel);
@@ -97,6 +93,7 @@ impl Connection {
       Ok(())
   }
   {{/each ~}}
+  {{/unless}}
 {{/each ~}}
 }
 
