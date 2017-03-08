@@ -37,31 +37,32 @@ fn connection() {
       //now connected
 
       //send channel
-      conn.channel_open(1, "".to_string());
+      conn.channel_open(1, "".to_string()).expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
       //receive channel
-      conn.channel_open(2, "".to_string());
+      conn.channel_open(2, "".to_string()).expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
       //create the hello queue
-      conn.queue_declare(1, 0, "hello".to_string(), false, false, false, false, false, HashMap::new());
+      conn.queue_declare(1, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
-      conn.queue_declare(2, 0, "hello".to_string(), false, false, false, false, false, HashMap::new());
+      conn.queue_declare(2, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+      panic!();
 
       println!("will consume");
-      conn.basic_consume(2, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new());
+      conn.basic_consume(2, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
       println!("will publish");
-      conn.basic_publish(1, 0, "".to_string(), "hello".to_string(), false, false);
+      conn.basic_publish(1, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
       let payload = b"Hello world!";
       conn.send_content_frames(1, 60, payload);
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());

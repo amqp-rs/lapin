@@ -5,4 +5,5 @@ pub enum Error {
   GeneratorError,
   ParserError,
   InvalidState,
+  InvalidChannel,
 }
