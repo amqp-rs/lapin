@@ -91,7 +91,7 @@ impl Connection {
         }
       }
 
-      println!("unimplemented method {}.{}, ignoring packet", {{camel class.name}}, {{camel method.name}});
+      println!("unimplemented method {{camel class.name}}.{{camel method.name}}, ignoring packet");
 
 
       Ok(())
