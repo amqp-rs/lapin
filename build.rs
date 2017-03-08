@@ -42,28 +42,6 @@ fn main() {
     writeln!(f2, "{}", handlebars.render("api", &data).expect("Failed to render api template")).expect("Failed to write api.rs");
 }
 
-fn get_specs(rc: &mut RenderContext) ->  serde_json::Map<String, serde_json::Value> {
-  let data:  serde_json::Map<String, serde_json::Value> = serde_json::from_value(rc.context().data().clone()).unwrap();
-  let specs: serde_json::Map<String, serde_json::Value> = serde_json::from_value(data.get("specs").unwrap().clone()).unwrap();
-
-  specs
-}
-
-fn get_arguments(h: &Helper, rc: &mut RenderContext, class_id_index: usize, method_id_index: usize) -> Vec<AMQPArgument> {
-  let class_id:  u16 = serde_json::from_value(h.param(class_id_index).unwrap().value().clone()).unwrap();
-  let method_id: u16 = serde_json::from_value(h.param(method_id_index).unwrap().value().clone()).unwrap();
-
-  let specs = get_specs(rc);
-
-  let classes: Vec<AMQPClass> = serde_json::from_value(specs.get("classes").unwrap().clone()).unwrap();
-
-  let arguments:Vec<AMQPArgument> = classes.iter().find(|c| c.id == class_id).and_then(|class| {
-    class.methods.iter().find(|m| m.id == method_id)
-  }).map(|m| m.arguments.clone()).unwrap();
-
-  arguments
-}
-
 fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Result<(), RenderError> {
   println!("val1: {:?}", h.param(0));
   let val = h.param(0).unwrap().value().clone();
@@ -71,7 +49,8 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
 
   let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
-      let arguments = get_arguments(h, rc, 1, 2);
+      let val = h.param(1).unwrap().value().clone();
+      let arguments: Vec<AMQPArgument> = serde_json::from_value(val).unwrap();
       println!("arguments:\n{:?}", arguments);
 
       //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
@@ -134,7 +113,8 @@ fn map_assignment_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> 
 
   let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
-      let arguments = get_arguments(h, rc, 1, 2);
+      let val = h.param(1).unwrap().value().clone();
+      let arguments: Vec<AMQPArgument> = serde_json::from_value(val).unwrap();
       println!("arguments:\n{:?}", arguments);
 
       //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
@@ -178,7 +158,8 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
 
   let rendered = match arg.amqp_type {
     AMQPType::Boolean        => {
-      let arguments = get_arguments(h, rc, 1, 2);
+      let val = h.param(1).unwrap().value().clone();
+      let arguments: Vec<AMQPArgument> = serde_json::from_value(val).unwrap();
       println!("arguments:\n{:?}", arguments);
 
       //if it's the first of a list of booleans, write a bits!( ... ), otherwise do nothing
