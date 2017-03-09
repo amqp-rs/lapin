@@ -97,6 +97,17 @@ impl Connection {
     self.channel_index - 1
   }
 
+  pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
+    self.channels.get_mut(&channel_id).map(|c| c.state = new_state);
+  }
+
+  pub fn check_state(&self, channel_id: u16, state: ChannelState) -> Option<bool> {
+    self.channels
+          .get(&channel_id)
+          .map(|c| c.state == state)
+  }
+
+
   pub fn connect(&mut self, writer: &mut Write) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {
       self.state = ConnectionState::Error;

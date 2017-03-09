@@ -6,9 +6,11 @@ use api::ChannelState;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Channel {
-  pub id:    u16,
-  pub state: ChannelState,
-  pub queue: VecDeque<LocalFrame>,
+  pub id:           u16,
+  pub state:        ChannelState,
+  pub queue:        VecDeque<LocalFrame>,
+  pub send_flow:    bool,
+  pub receive_flow: bool,
 }
 
 /*
@@ -33,15 +35,13 @@ impl Channel {
       id: channel_id,
       state: ChannelState::Initial,
       queue: VecDeque::new(),
+      send_flow: true,
+      receive_flow: true,
     }
   }
 
   pub fn global() -> Channel {
-    Channel {
-      id: 0,
-      state: ChannelState::Initial,
-      queue: VecDeque::new(),
-    }
+    Channel::new(0)
   }
 
   pub fn received_method(&mut self, m: Class) {

@@ -5,7 +5,7 @@ use connection::*;
 use generated::*;
 use error::*;
 
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ChannelState {
     Initial,
     Connected,
@@ -129,8 +129,6 @@ impl Connection {
         }
     }
 
-
-
     pub fn channel_open(&mut self,
                         _channel_id: u16,
                         out_of_band: ShortString)
@@ -140,10 +138,8 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
+            self.set_channel_state(_channel_id, ChannelState::Error);
             return Err(Error::InvalidState);
         }
 
@@ -151,10 +147,7 @@ impl Connection {
             Class::Channel(channel::Methods::Open(channel::Open { out_of_band: out_of_band }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingChannelOpenOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
-            });
+            self.set_channel_state(_channel_id, ChannelState::AwaitingChannelOpenOk);
         })
     }
 
@@ -168,7 +161,7 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
+        match self.channels.get_mut(&_channel_id).map(|c| c.state).unwrap() {
             ChannelState::Initial | ChannelState::Connected => {}
             ChannelState::Error |
             ChannelState::Closed |
@@ -177,10 +170,10 @@ impl Connection {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingChannelOpenOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.set_channel_state(_channel_id, ChannelState::Connected);
             }
             _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+                self.set_channel_state(_channel_id, ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
@@ -208,6 +201,7 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
+                //FIXME: we might still be receiving content here
                 c.state = ChannelState::AwaitingChannelFlowOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
@@ -225,10 +219,9 @@ impl Connection {
         }
 
         match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
+            ChannelState::Connected | ChannelState::SendingContent(_) => {}
+            ChannelState::Error  |
             ChannelState::Closed |
-            ChannelState::SendingContent(_) |
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
@@ -238,10 +231,8 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Channel.Flow, ignoring packet");
-
-
-        Ok(())
+        self.channels.get_mut(&_channel_id).map(|c| c.send_flow = method.active);
+        self.channel_flow_ok(_channel_id, method.active)
     }
 
     pub fn channel_flow_ok(&mut self, _channel_id: u16, active: Boolean) -> Result<(), Error> {
@@ -250,11 +241,17 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
+        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
+            ChannelState::Connected  | ChannelState::SendingContent(_) => {}
+            ChannelState::Error  |
+            ChannelState::Closed |
+            ChannelState::ReceivingContent(_) => {
+                return Err(Error::InvalidState);
+            }
+            _ => {
+                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+                return Err(Error::InvalidState);
+            }
         }
 
         let method = Class::Channel(channel::Methods::FlowOk(channel::FlowOk { active: active }));
@@ -279,17 +276,15 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
+            //FIXME: we might still be receiving content here
             ChannelState::AwaitingChannelFlowOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Channel.FlowOk, ignoring packet");
-
 
         Ok(())
     }
@@ -306,10 +301,7 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.check_state(_channel_id, ChannelState::Connected).unwrap_or(false) {
             return Err(Error::InvalidState);
         }
 
@@ -339,23 +331,14 @@ impl Connection {
         }
 
         match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::Initial | ChannelState::Error => {
                 return Err(Error::InvalidState);
             }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+            _ => {}
         }
 
-        println!("unimplemented method Channel.Close, ignoring packet");
-
-
-        Ok(())
+        self.set_channel_state(_channel_id, ChannelState::Closed);
+        self.channel_close_ok(_channel_id)
     }
 
     pub fn channel_close_ok(&mut self, _channel_id: u16) -> Result<(), Error> {
@@ -364,10 +347,7 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
             return Err(Error::InvalidState);
         }
 
@@ -386,26 +366,15 @@ impl Connection {
         }
 
         match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
-                return Err(Error::InvalidState);
-            }
             ChannelState::AwaitingChannelCloseOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.set_channel_state(_channel_id, ChannelState::Closed);
+                Ok(())
             }
             _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
+                self.set_channel_state(_channel_id, ChannelState::Error);
+                Err(Error::InvalidState)
             }
         }
-
-        println!("unimplemented method Channel.CloseOk, ignoring packet");
-
-
-        Ok(())
     }
 
     pub fn access_request(&mut self,
