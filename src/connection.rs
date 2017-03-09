@@ -59,9 +59,9 @@ pub struct Configuration {
 }
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct Connection {
+pub struct Connection<'a> {
   pub state:            ConnectionState,
-  pub channels:         HashMap<u16, Channel>,
+  pub channels:         HashMap<u16, Channel<'a>>,
   pub send_buffer:      Buffer,
   pub receive_buffer:   Buffer,
   pub configuration:    Configuration,
@@ -70,8 +70,8 @@ pub struct Connection {
   pub prefetch_count:   u16,
 }
 
-impl Connection {
-  pub fn new() -> Connection {
+impl<'a> Connection<'a> {
+  pub fn new() -> Connection<'a> {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 

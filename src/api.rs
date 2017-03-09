@@ -6,6 +6,7 @@ use channel::*;
 use queue::*;
 use generated::*;
 use error::*;
+use callbacks;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -46,7 +47,7 @@ pub enum ChannelState {
     AwaitingConfirmSelectOk,
 }
 
-impl Connection {
+impl<'a> Connection<'a> {
     pub fn receive_method(&mut self, channel_id: u16, method: Class) -> Result<(), Error> {
         match method {
 
@@ -1270,7 +1271,8 @@ impl Connection {
         Ok(())
     }
 
-    pub fn basic_consume(&mut self,
+    pub fn basic_consume<T>(&mut self,
+                         callback: T,
                          _channel_id: u16,
                          ticket: ShortUInt,
                          queue: ShortString,
@@ -1280,7 +1282,8 @@ impl Connection {
                          exclusive: Boolean,
                          nowait: Boolean,
                          arguments: FieldTable)
-                         -> Result<(), Error> {
+                         -> Result<(), Error>
+                         where T: callbacks::Consumer + Clone + Send +'a {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1306,6 +1309,7 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
+                c.queues.get_mut(&queue).map(|q| q.callback_holder = Some(Box::new(callback)));
                 c.state = ChannelState::AwaitingBasicConsumeOk(
                   queue, consumer_tag, no_local, no_ack, exclusive, nowait
                 );
@@ -1336,6 +1340,7 @@ impl Connection {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
                 self.channels.get_mut(&_channel_id).map(|c| {
                   c.queues.get_mut(&queue).map(|q| {
+                    let callback = q.callback_holder.take();
                     q.consumers.insert(
                       method.consumer_tag.clone(),
                       Consumer {
@@ -1344,6 +1349,7 @@ impl Connection {
                         no_ack:    no_ack,
                         exclusive: exclusive,
                         nowait:    nowait,
+                        callback:  callback.unwrap(),
                       }
                     )
                   })
