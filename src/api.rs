@@ -2,6 +2,7 @@ use amq_protocol_types::*;
 use format::field::*;
 use format::frame::*;
 use connection::*;
+use channel::*;
 use generated::*;
 use error::*;
 
@@ -336,6 +337,9 @@ impl Connection {
             }
             _ => {}
         }
+
+        //FIXME: log the error if there is one
+        //FIXME: handle reply codes
 
         self.set_channel_state(_channel_id, ChannelState::Closed);
         self.channel_close_ok(_channel_id)
@@ -847,16 +851,14 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
+        if !self.check_state(_channel_id, ChannelState::Connected)
             .unwrap_or(false) {
             return Err(Error::InvalidState);
         }
 
         let method = Class::Queue(queue::Methods::Declare(queue::Declare {
             ticket: ticket,
-            queue: queue,
+            queue: queue.clone(),
             passive: passive,
             durable: durable,
             exclusive: exclusive,
@@ -868,6 +870,7 @@ impl Connection {
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingQueueDeclareOk;
+                c.queues.insert(queue.clone(), Queue::new(queue, passive, durable, exclusive, auto_delete));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -892,7 +895,13 @@ impl Connection {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueDeclareOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| {
+                  c.queues.get_mut(&method.queue).map(|q| {
+                    q.created        = true;
+                    q.message_count  = method.message_count;
+                    q.consumer_count = method.consumer_count;
+                  });
+                });
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
