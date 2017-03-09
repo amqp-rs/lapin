@@ -58,12 +58,24 @@ impl Channel {
 pub struct Binding {
   pub exchange:    String,
   pub routing_key: String,
+  pub no_wait:     bool,
+  pub active:      bool,
+}
+
+impl Binding {
+  pub fn new(exchange: String, routing_key: String, no_wait: bool) -> Binding {
+    Binding {
+      exchange:    exchange,
+      routing_key: routing_key,
+      no_wait:     no_wait,
+      active:      false,
+    }
+  }
 }
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Queue {
   pub name:           String,
-  pub created:        bool,
   pub passive:        bool,
   pub durable:        bool,
   pub exclusive:      bool,
@@ -71,13 +83,13 @@ pub struct Queue {
   pub bindings:       HashMap<String, Binding>,
   pub message_count:  u32,
   pub consumer_count: u32,
+  pub created:        bool,
 }
 
 impl Queue {
   pub fn new(name: String, passive: bool, durable: bool, exclusive: bool, auto_delete: bool) -> Queue {
     Queue {
       name:           name,
-      created:        false,
       passive:        passive,
       durable:        durable,
       exclusive:      exclusive,
@@ -85,6 +97,7 @@ impl Queue {
       bindings:       HashMap::new(),
       message_count:  0,
       consumer_count: 0,
+      created:        false,
     }
   }
 }

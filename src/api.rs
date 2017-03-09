@@ -942,9 +942,9 @@ impl Connection {
 
         let method = Class::Queue(queue::Methods::Bind(queue::Bind {
             ticket: ticket,
-            queue: queue,
-            exchange: exchange,
-            routing_key: routing_key,
+            queue: queue.clone(),
+            exchange: exchange.clone(),
+            routing_key: routing_key.clone(),
             nowait: nowait,
             arguments: arguments,
         }));
@@ -952,6 +952,12 @@ impl Connection {
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingQueueBindOk;
+                c.queues.get_mut(&queue).map(|q| {
+                  q.bindings.insert(
+                    format!("{}_{}", &exchange, &routing_key),
+                    Binding::new(exchange, routing_key, nowait)
+                  );
+                });
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -976,16 +982,13 @@ impl Connection {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueBindOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.set_channel_state(_channel_id, ChannelState::Connected);
             }
             _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+                self.set_channel_state(_channel_id, ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Queue.BindOk, ignoring packet");
-
 
         Ok(())
     }
