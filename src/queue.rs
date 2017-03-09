@@ -24,6 +24,15 @@ impl Binding {
 }
 
 #[derive(Clone,Debug,PartialEq)]
+pub struct Consumer {
+  pub tag:         String,
+  pub no_local:    bool,
+  pub no_ack:      bool,
+  pub exclusive:   bool,
+  pub nowait:      bool,
+}
+
+#[derive(Clone,Debug,PartialEq)]
 pub struct Queue {
   pub name:           String,
   pub passive:        bool,
@@ -31,6 +40,7 @@ pub struct Queue {
   pub exclusive:      bool,
   pub auto_delete:    bool,
   pub bindings:       HashMap<String, Binding>,
+  pub consumers:      HashMap<String, Consumer>,
   pub message_count:  u32,
   pub consumer_count: u32,
   pub created:        bool,
@@ -45,6 +55,7 @@ impl Queue {
       exclusive:      exclusive,
       auto_delete:    auto_delete,
       bindings:       HashMap::new(),
+      consumers:      HashMap::new(),
       message_count:  0,
       consumer_count: 0,
       created:        false,

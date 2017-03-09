@@ -34,7 +34,7 @@ pub enum ChannelState {
     AwaitingQueueUnbindOk(String),
 
     AwaitingBasicQosOk(u32,u16,bool),
-    AwaitingBasicConsumeOk,
+    AwaitingBasicConsumeOk(String, String, bool, bool, bool, bool),
     AwaitingBasicCancelOk,
     AwaitingBasicGetAnswer,
     AwaitingBasicRecoverOk,
@@ -1295,8 +1295,8 @@ impl Connection {
 
         let method = Class::Basic(basic::Methods::Consume(basic::Consume {
             ticket: ticket,
-            queue: queue,
-            consumer_tag: consumer_tag,
+            queue: queue.clone(),
+            consumer_tag: consumer_tag.clone(),
             no_local: no_local,
             no_ack: no_ack,
             exclusive: exclusive,
@@ -1306,7 +1306,9 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicConsumeOk;
+                c.state = ChannelState::AwaitingBasicConsumeOk(
+                  queue, consumer_tag, no_local, no_ack, exclusive, nowait
+                );
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1330,17 +1332,28 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingBasicConsumeOk => {
+            ChannelState::AwaitingBasicConsumeOk(queue, tag, no_local, no_ack, exclusive, nowait) => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| {
+                  c.queues.get_mut(&queue).map(|q| {
+                    q.consumers.insert(
+                      method.consumer_tag.clone(),
+                      Consumer {
+                        tag:       method.consumer_tag.clone(),
+                        no_local:  no_local,
+                        no_ack:    no_ack,
+                        exclusive: exclusive,
+                        nowait:    nowait,
+                      }
+                    )
+                  })
+                });
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Basic.ConsumeOk, ignoring packet");
-
 
         Ok(())
     }
