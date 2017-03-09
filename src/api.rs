@@ -32,7 +32,7 @@ pub enum ChannelState {
     AwaitingQueueDeleteOk(String),
     AwaitingQueueUnbindOk(String),
 
-    AwaitingBasicQosOk,
+    AwaitingBasicQosOk(u32,u16,bool),
     AwaitingBasicConsumeOk,
     AwaitingBasicCancelOk,
     AwaitingBasicGetAnswer,
@@ -1224,7 +1224,7 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicQosOk;
+                c.state = ChannelState::AwaitingBasicQosOk(prefetch_size, prefetch_count, global);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1248,17 +1248,23 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingBasicQosOk => {
+            ChannelState::AwaitingBasicQosOk(prefetch_size, prefetch_count, global) => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                if global {
+                  self.prefetch_size  = prefetch_size;
+                  self.prefetch_count = prefetch_count;
+                } else {
+                  self.channels.get_mut(&_channel_id).map(|c| {
+                    c.prefetch_size  = prefetch_size;
+                    c.prefetch_count = prefetch_count;
+                  });
+                }
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Basic.QosOk, ignoring packet");
-
 
         Ok(())
     }

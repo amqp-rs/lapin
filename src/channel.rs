@@ -7,12 +7,14 @@ use api::ChannelState;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Channel {
-  pub id:           u16,
-  pub state:        ChannelState,
-  pub frame_queue:  VecDeque<LocalFrame>,
-  pub send_flow:    bool,
-  pub receive_flow: bool,
-  pub queues:       HashMap<String,Queue>,
+  pub id:             u16,
+  pub state:          ChannelState,
+  pub frame_queue:    VecDeque<LocalFrame>,
+  pub send_flow:      bool,
+  pub receive_flow:   bool,
+  pub queues:         HashMap<String,Queue>,
+  pub prefetch_size:  u32,
+  pub prefetch_count: u16,
 }
 
 /*
@@ -34,12 +36,14 @@ pub enum LocalFrame {
 impl Channel {
   pub fn new(channel_id: u16) -> Channel {
     Channel {
-      id:           channel_id,
-      state:        ChannelState::Initial,
-      frame_queue:  VecDeque::new(),
-      send_flow:    true,
-      receive_flow: true,
-      queues:       HashMap::new(),
+      id:             channel_id,
+      state:          ChannelState::Initial,
+      frame_queue:    VecDeque::new(),
+      send_flow:      true,
+      receive_flow:   true,
+      queues:         HashMap::new(),
+      prefetch_size:  0,
+      prefetch_count: 0,
     }
   }
 

@@ -66,6 +66,8 @@ pub struct Connection {
   pub receive_buffer:   Buffer,
   pub configuration:    Configuration,
   pub channel_index:    u16,
+  pub prefetch_size:    u32,
+  pub prefetch_count:   u16,
 }
 
 impl Connection {
@@ -86,6 +88,8 @@ impl Connection {
       receive_buffer: Buffer::with_capacity(configuration.frame_max as usize),
       configuration:  configuration,
       channel_index:  1,
+      prefetch_size:  0,
+      prefetch_count: 0,
     }
   }
 
