@@ -58,17 +58,13 @@ impl Connection {
           {{/each ~}}
         }
       ));
-
       {{#if method.synchronous }}
       self.send_method_frame(_channel_id, &method).map(|_| {
         self.channels.get_mut(&_channel_id).map(|c| {
           c.state = ChannelState::Awaiting{{camel class.name}}{{camel method.name}}Ok;
           println!("channel {} state is now {:?}", _channel_id, c.state);
         });
-      })
-      {{else}}
-      self.send_method_frame(_channel_id, &method)
-      {{/if}}
+      }){{else}}self.send_method_frame(_channel_id, &method){{/if}}
   }
 
   pub fn receive_{{snake class.name}}_{{snake method.name}}(&mut self,
@@ -96,6 +92,7 @@ impl Connection {
 
       Ok(())
   }
+
   {{/each ~}}
   {{/unless}}
 {{/each ~}}
