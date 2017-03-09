@@ -3,6 +3,7 @@ use format::field::*;
 use format::frame::*;
 use connection::*;
 use channel::*;
+use queue::*;
 use generated::*;
 use error::*;
 

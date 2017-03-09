@@ -11,6 +11,7 @@ extern crate sasl;
 pub mod buffer;
 pub mod connection;
 pub mod channel;
+pub mod queue;
 pub mod generated;
 pub mod format;
 pub mod api;
