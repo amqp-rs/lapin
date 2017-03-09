@@ -6,7 +6,7 @@ use channel::*;
 use generated::*;
 use error::*;
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
     Initial,
     Connected,
@@ -27,10 +27,10 @@ pub enum ChannelState {
     AwaitingExchangeUnbindOk,
 
     AwaitingQueueDeclareOk,
-    AwaitingQueueBindOk,
-    AwaitingQueuePurgeOk,
-    AwaitingQueueDeleteOk,
-    AwaitingQueueUnbindOk,
+    AwaitingQueueBindOk(String),
+    AwaitingQueuePurgeOk(String),
+    AwaitingQueueDeleteOk(String),
+    AwaitingQueueUnbindOk(String),
 
     AwaitingBasicQosOk,
     AwaitingBasicConsumeOk,
@@ -162,7 +162,7 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state).unwrap() {
+        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
             ChannelState::Initial | ChannelState::Connected => {}
             ChannelState::Error |
             ChannelState::Closed |
@@ -951,11 +951,10 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueueBindOk;
+                let key = format!("{}_{}", &exchange, &routing_key);
+                c.state = ChannelState::AwaitingQueueBindOk(key.clone());
                 c.queues.get_mut(&queue).map(|q| {
-                  q.bindings.insert(
-                    format!("{}_{}", &exchange, &routing_key),
-                    Binding::new(exchange, routing_key, nowait)
+                  q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
                   );
                 });
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -981,7 +980,12 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingQueueBindOk => {
+            ChannelState::AwaitingQueueBindOk(key) => {
+                self.channels.get_mut(&_channel_id).map(|c| {
+                    c.queues.iter_mut().map(|(_, ref mut q)| {
+                      q.bindings.get_mut(&key).map(|b| b.active = true);
+                    });
+                });
                 self.set_channel_state(_channel_id, ChannelState::Connected);
             }
             _ => {
@@ -1013,13 +1017,13 @@ impl Connection {
 
         let method = Class::Queue(queue::Methods::Purge(queue::Purge {
             ticket: ticket,
-            queue: queue,
+            queue: queue.clone(),
             nowait: nowait,
         }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueuePurgeOk;
+                c.state = ChannelState::AwaitingQueuePurgeOk(queue.clone());
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1043,7 +1047,7 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingQueuePurgeOk => {
+            ChannelState::AwaitingQueuePurgeOk(_) => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
             }
             _ => {
@@ -1051,9 +1055,6 @@ impl Connection {
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Queue.PurgeOk, ignoring packet");
-
 
         Ok(())
     }
@@ -1080,7 +1081,7 @@ impl Connection {
 
         let method = Class::Queue(queue::Methods::Delete(queue::Delete {
             ticket: ticket,
-            queue: queue,
+            queue: queue.clone(),
             if_unused: if_unused,
             if_empty: if_empty,
             nowait: nowait,
@@ -1088,7 +1089,7 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueueDeleteOk;
+                c.state = ChannelState::AwaitingQueueDeleteOk(queue);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1112,17 +1113,15 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingQueueDeleteOk => {
+            ChannelState::AwaitingQueueDeleteOk(key) => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Queue.DeleteOk, ignoring packet");
-
 
         Ok(())
     }
@@ -1150,14 +1149,15 @@ impl Connection {
         let method = Class::Queue(queue::Methods::Unbind(queue::Unbind {
             ticket: ticket,
             queue: queue,
-            exchange: exchange,
-            routing_key: routing_key,
+            exchange: exchange.clone(),
+            routing_key: routing_key.clone(),
             arguments: arguments,
         }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueueUnbindOk;
+                let key = format!("{}_{}", &exchange, &routing_key);
+                c.state = ChannelState::AwaitingQueueUnbindOk(key);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1181,17 +1181,19 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
-            ChannelState::AwaitingQueueUnbindOk => {
+            ChannelState::AwaitingQueueUnbindOk(key) => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| {
+                    c.queues.iter_mut().map(|(_, ref mut q)| {
+                      q.bindings.remove(&key);
+                    });
+                });
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Queue.UnbindOk, ignoring packet");
-
 
         Ok(())
     }
