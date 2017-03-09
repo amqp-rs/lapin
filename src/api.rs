@@ -869,8 +869,10 @@ impl Connection {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
+                let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
+                c.queues.insert(queue.clone(), q);
+                //FIXME: when we set passive, the server might return an error if the queue exists
                 c.state = ChannelState::AwaitingQueueDeclareOk;
-                c.queues.insert(queue.clone(), Queue::new(queue, passive, durable, exclusive, auto_delete));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -892,19 +894,21 @@ impl Connection {
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
             ChannelState::ReceivingContent(_) => {
+                self.set_channel_state(_channel_id, ChannelState::Error);
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueDeclareOk => {
                 self.channels.get_mut(&_channel_id).map(|c| {
                   c.queues.get_mut(&method.queue).map(|q| {
-                    q.created        = true;
                     q.message_count  = method.message_count;
                     q.consumer_count = method.consumer_count;
+                    q.created = true;
                   });
                 });
+                self.set_channel_state(_channel_id, ChannelState::Connected);
             }
             _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+                self.set_channel_state(_channel_id, ChannelState::Error);
                 return Err(Error::InvalidState);
             }
         }
