@@ -1406,8 +1406,14 @@ impl Connection {
             ChannelState::ReceivingContent(_) => {
                 return Err(Error::InvalidState);
             }
+            //FIXME: we can receive messages while waiting for a cancel-ok
             ChannelState::AwaitingBasicCancelOk => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
+                self.channels.get_mut(&_channel_id).map(|c| {
+                  c.queues.iter_mut().map(|(_, ref mut q)| {
+                    q.consumers.remove(&method.consumer_tag);
+                  });
+                });
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
@@ -1476,8 +1482,6 @@ impl Connection {
         }
 
         println!("unimplemented method Basic.Return, ignoring packet");
-
-
         Ok(())
     }
 
@@ -1501,6 +1505,7 @@ impl Connection {
             }
             _ => {
                 self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
+
                 return Err(Error::InvalidState);
             }
         }
