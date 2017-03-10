@@ -15,7 +15,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    ReceivingContent(usize),
+    WillReceiveContent(String),
+    ReceivingContent(String,usize),
 
     AwaitingChannelOpenOk,
     AwaitingChannelFlowOk,
@@ -169,7 +170,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingChannelOpenOk => {
@@ -225,7 +226,7 @@ impl<'a> Connection<'a> {
             ChannelState::Connected | ChannelState::SendingContent(_) => {}
             ChannelState::Error  |
             ChannelState::Closed |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -248,7 +249,7 @@ impl<'a> Connection<'a> {
             ChannelState::Connected  | ChannelState::SendingContent(_) => {}
             ChannelState::Error  |
             ChannelState::Closed |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -276,7 +277,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             //FIXME: we might still be receiving content here
@@ -437,7 +438,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingAccessRequestOk => {
@@ -514,7 +515,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingExchangeDeclareOk => {
@@ -581,7 +582,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingExchangeDeleteOk => {
@@ -652,7 +653,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -699,7 +700,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingExchangeBindOk => {
@@ -770,7 +771,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -817,7 +818,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingExchangeUnbindOk => {
@@ -895,7 +896,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 self.set_channel_state(_channel_id, ChannelState::Error);
                 return Err(Error::InvalidState);
             }
@@ -979,7 +980,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueBindOk(key) => {
@@ -1046,7 +1047,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueuePurgeOk(_) => {
@@ -1112,7 +1113,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueDeleteOk(key) => {
@@ -1180,7 +1181,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingQueueUnbindOk(key) => {
@@ -1247,7 +1248,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingBasicQosOk(prefetch_size, prefetch_count, global) => {
@@ -1333,7 +1334,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingBasicConsumeOk(queue, tag, no_local, no_ack, exclusive, nowait) => {
@@ -1409,7 +1410,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             //FIXME: we can receive messages while waiting for a cancel-ok
@@ -1478,7 +1479,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -1506,7 +1507,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             _ => {
@@ -1516,9 +1517,15 @@ impl<'a> Connection<'a> {
             }
         }
 
-        println!("unimplemented method Basic.Deliver, ignoring packet");
-
-
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.state = ChannelState::WillReceiveContent(method.consumer_tag.to_string());
+            c.queues.iter_mut().map(|(_, ref mut q)| {
+              q.consumers.get_mut(&method.consumer_tag).map(|cs| {
+                (*cs.callback).start_deliver(_channel_id, &method);
+              });
+            });
+            println!("channel {} state is now {:?}", _channel_id, c.state);
+        });
         Ok(())
     }
 
@@ -1569,7 +1576,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingBasicGetAnswer => {
@@ -1602,7 +1609,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingBasicGetAnswer => {
@@ -1724,7 +1731,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingBasicRecoverOk => {
@@ -1806,7 +1813,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingTxSelectOk => {
@@ -1862,7 +1869,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingTxCommitOk => {
@@ -1918,7 +1925,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingTxRollbackOk => {
@@ -1976,7 +1983,7 @@ impl<'a> Connection<'a> {
             ChannelState::Error |
             ChannelState::Closed |
             ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_) => {
+            ChannelState::ReceivingContent(_,_) => {
                 return Err(Error::InvalidState);
             }
             ChannelState::AwaitingConfirmSelectOk => {
