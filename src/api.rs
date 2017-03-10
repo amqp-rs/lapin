@@ -151,6 +151,7 @@ impl<'a> Connection<'a> {
             Class::Channel(channel::Methods::Open(channel::Open { out_of_band: out_of_band }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
+            println!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
             self.set_channel_state(_channel_id, ChannelState::AwaitingChannelOpenOk);
         })
     }
@@ -915,9 +916,6 @@ impl<'a> Connection<'a> {
                 return Err(Error::InvalidState);
             }
         }
-
-        println!("unimplemented method Queue.DeclareOk, ignoring packet");
-
 
         Ok(())
     }

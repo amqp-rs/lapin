@@ -7,19 +7,26 @@ pub trait BasicConsumer: Send {
     method:     &Deliver);
 
   fn receive_content(&mut self, data: &[u8]);
+
+  fn done(&mut self);
 }
 
 #[derive(Clone)]
-pub struct LoggingConsumer {}
+pub struct LoggingConsumer {
+}
 
 impl BasicConsumer for LoggingConsumer {
   fn start_deliver(&mut self,
     channel_id: u16,
     method:     &Deliver) {
-    println!("channel {} starts delivering: {:?}", channel_id, method);
+    println!("LOG channel {} starts delivering: {:?}", channel_id, method);
   }
 
   fn receive_content(&mut self, data: &[u8]) {
-    println!("consumer got data:\n{}", data.to_hex(16));
+    println!("LOG consumer got data:\n{}", data.to_hex(16));
+  }
+
+  fn done(&mut self) {
+    println!("LOG end of delivery");
   }
 }

@@ -136,7 +136,7 @@ impl<'a> Connection<'a> {
   }
 
   pub fn write(&mut self, writer: &mut Write) -> Result<ConnectionState> {
-    println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
+    //println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
     match writer.write(&mut self.send_buffer.data()) {
       Ok(sz) => {
         println!("wrote {} bytes", sz);
@@ -164,7 +164,7 @@ impl<'a> Connection<'a> {
   }
 
   pub fn parse(&mut self) -> Result<ConnectionState> {
-    println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
+    //println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
     let (channel_id, method, consumed) = {
       let parsed_frame = raw_frame(&self.receive_buffer.data());
       match parsed_frame {
@@ -334,6 +334,7 @@ impl<'a> Connection<'a> {
               let s = str::from_utf8(&initial_data).unwrap();
 
               //FIXME: fill with user configured data
+              //we need to handle the server properties, and have some client properties
               let start_ok = Class::Connection(connection::Methods::StartOk(
                 connection::StartOk {
                   client_properties: h,

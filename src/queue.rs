@@ -90,8 +90,9 @@ impl<'a> Clone for Queue<'a> {
 
 impl<'a> Debug for Queue<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-      write!(f, "Queue {{ name: {}, passive: {}, durable: {}, exclusive: {}, auto_delete: {}, bindings: {:?}, consumers: {:?}, message_count: {}, consumer_count: {}, created: {},  }}", self.name, self.passive, self.durable, self.exclusive, self.auto_delete, self.bindings.len(),
-        self.consumers.len(), self.message_count, self.consumer_count, self.created)
+      let keys: Vec<&String> = self.consumers.keys().collect();
+      write!(f, "Queue {{ name: {}, passive: {}, durable: {}, exclusive: {}, auto_delete: {}, bindings: {:?}, consumers: {:?}, message_count: {}, consumer_count: {}, created: {}, consumers: {:?} }}", self.name, self.passive, self.durable, self.exclusive, self.auto_delete, self.bindings.len(),
+        self.consumers.len(), self.message_count, self.consumer_count, self.created, keys)
   }
 }
 impl<'a> PartialEq for Queue<'a> {
