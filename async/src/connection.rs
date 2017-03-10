@@ -135,6 +135,15 @@ impl<'a> Connection<'a> {
     }
   }
 
+  pub fn run<T>(&mut self, stream: &mut T) ->Result<ConnectionState>
+    where T: Read + Write {
+    loop {
+      try!(self.write(stream));
+      try!(self.read(stream));
+      try!(self.parse());
+    }
+  }
+
   pub fn write(&mut self, writer: &mut Write) -> Result<ConnectionState> {
     //println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
     match writer.write(&mut self.send_buffer.data()) {

@@ -1,4 +1,4 @@
-extern crate lapin;
+extern crate lapin_async as lapin;
 #[macro_use] extern crate nom;
 
 use std::net::TcpStream;
