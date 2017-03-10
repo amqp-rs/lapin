@@ -4,3 +4,11 @@ version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 
 [dependencies]
+futures = "0.1"
+lapin-async = {path = "../async"}
+
+[dev-dependencies]
+tokio-core = "*"
+futures-cpupool = "*"
+futures = "0.1"
+nom = "*"
