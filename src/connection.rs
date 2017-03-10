@@ -10,6 +10,7 @@ use cookie_factory::GenError;
 
 use format::frame::*;
 use format::field::*;
+use format::content::*;
 use channel::Channel;
 use api::ChannelState;
 use buffer::Buffer;
@@ -220,6 +221,35 @@ impl<'a> Connection<'a> {
 
           (f.channel_id, None, consumed)
         },
+        FrameType::Header => {
+          let parsed = content_header(f.payload);
+          println!("parsed method: {:?}", parsed);
+          match parsed {
+            IResult::Done(b"", m) => {
+              let state = self.channels.get_mut(&f.channel_id).map(|channel| {
+                channel.state.clone()
+              }).unwrap();
+              if let ChannelState::WillReceiveContent(consumer_tag) = state {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag.clone(), m.body_size as usize));
+              } else {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
+              }
+              (f.channel_id, None, consumed)
+            },
+            e => {
+              //we should not get an incomplete here
+              //FIXME: should probably disconnect channel on error here
+              let err = format!("parse error: {:?}", e);
+              if f.channel_id == 0 {
+                self.state = ConnectionState::Error;
+              } else {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
+              }
+              return Err(Error::new(ErrorKind::Other, err));
+            }
+          }
+
+        }
         t => {
           println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
           let err = format!("parse error: {:?}", t);
