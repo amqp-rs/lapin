@@ -5,12 +5,14 @@ use std::net::TcpStream;
 use std::iter::repeat;
 use std::io::{Read,Write,Error};
 use std::collections::HashMap;
+use std::{thread,time};
 
 use nom::HexDisplay;
 
 use lapin::connection::*;
 use lapin::method::*;
 use lapin::frame::*;
+use lapin::callbacks::*;
 
 #[test]
 fn connection() {
@@ -41,11 +43,13 @@ fn connection() {
       //send channel
       conn.channel_open(channel_a, "".to_string()).expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
       //receive channel
       conn.channel_open(channel_b, "".to_string()).expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
+      thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
       //create the hello queue
@@ -56,10 +60,10 @@ fn connection() {
       conn.queue_declare(channel_b, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-      panic!();
 
       println!("will consume");
-      conn.basic_consume(channel_b, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
+      let consumer = LoggingConsumer{};
+      conn.basic_consume(consumer, channel_b, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
 
@@ -69,5 +73,7 @@ fn connection() {
       conn.send_content_frames(channel_a, 60, payload);
       println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
       println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
+      println!("[{}] state: {:?}", line!(), conn.parse().unwrap());
+      println!("[{}] state: {:?}", line!(), conn.parse().unwrap());
       panic!();
 }
