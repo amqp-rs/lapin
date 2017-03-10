@@ -1,18 +1,36 @@
 use lapin_async::connection::*;
-use std::io::{Error,ErrorKind,Read,Write};
+use std::io::{Error,ErrorKind,Read,Result,Write};
 use futures::{Async,Poll};
 use futures::future::Future;
+use std::rc::Rc;
+use std::cell::RefCell;
 
-pub struct Client<'consumer, T:Read+Write+Send> {
+pub struct InnerClient<'consumer, T:Read+Write> {
   pub connection: Connection<'consumer>,
   pub stream:     T,
 }
 
-impl<'consumer, T:Read+Write+Send+'consumer> Client<'consumer, T> {
+impl<'consumer, T:Read+Write> InnerClient<'consumer, T> {
+  pub fn run(&mut self) -> Result<ConnectionState> {
+    self.connection.run(&mut self.stream)
+  }
+
+  pub fn connect(&mut self) {
+    self.connection.connect(&mut self.stream);
+  }
+}
+
+pub struct Client<'consumer, T:Read+Write> {
+  pub inner: Rc<RefCell<InnerClient<'consumer, T>>>
+}
+
+impl<'consumer, T:Read+Write+'consumer> Client<'consumer, T> {
   pub fn new(stream: T) -> Box<Future<Item=Client<'consumer, T>, Error=Error>+'consumer> {
     let mut client = Client {
-      connection: Connection::new(),
-      stream:     stream,
+        inner: Rc::new(RefCell::new(InnerClient {
+        connection: Connection::new(),
+        stream:     stream,
+      }))
     };
 
     let connector = Connector { client: Some(client) };
@@ -21,26 +39,30 @@ impl<'consumer, T:Read+Write+Send+'consumer> Client<'consumer, T> {
   }
 }
 
-pub struct Connector<'consumer, T:Read+Write+Send> {
+pub struct Connector<'consumer, T:Read+Write> {
   client: Option<Client<'consumer, T>>,
 }
 
-impl<'consumer, T:Read+Write+Send> Future for Connector<'consumer, T> {
+impl<'consumer, T:Read+Write> Future for Connector<'consumer, T> {
   type Item  = Client<'consumer, T>;
   type Error = Error;
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
     let mut client = self.client.take().unwrap();
 
-    let state = client.connection.state;
+    let state = client.inner.borrow().connection.state;
 
     println!("POLL state = {:?}", state);
     match state {
       ConnectionState::Initial => {
-        client.connection.connect(&mut client.stream);
-        match client.connection.run(&mut client.stream) {
+        let res = {
+          let mut inner = client.inner.borrow_mut();
+          inner.connect();
+          inner.run()
+        };
+        match res {
           Ok(ConnectionState::Connected) => {
-            Ok(Async::Ready(client))
+            return Ok(Async::Ready(client));
           },
           Ok(_) => {
             self.client = Some(client);
@@ -50,15 +72,19 @@ impl<'consumer, T:Read+Write+Send> Future for Connector<'consumer, T> {
         }
       }
       ConnectionState::Connecting(_) => {
-        match client.connection.run(&mut client.stream) {
+        let res = {
+          let mut inner = client.inner.borrow_mut();
+          inner.run()
+        };
+        match res {
           Ok(ConnectionState::Connected) => {
-            Ok(Async::Ready(client))
+            return Ok(Async::Ready(client));
           },
           Ok(_) => {
             self.client = Some(client);
             Ok(Async::NotReady)
           },
-          Err(e) => Err(e),
+          Err(e) => {return Err(e);},
         }
       }
       s => {
