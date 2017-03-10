@@ -6,7 +6,7 @@ use channel::*;
 use queue::*;
 use generated::*;
 use error::*;
-use callbacks;
+use callbacks::*;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -1283,7 +1283,7 @@ impl<'a> Connection<'a> {
                          nowait: Boolean,
                          arguments: FieldTable)
                          -> Result<(), Error>
-                         where T: callbacks::Consumer + Clone + Send +'a {
+                         where T: BasicConsumer + Clone + Send +'a {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);

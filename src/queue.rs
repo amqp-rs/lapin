@@ -34,7 +34,7 @@ pub struct Consumer<'a> {
   pub no_ack:      bool,
   pub exclusive:   bool,
   pub nowait:      bool,
-  pub callback:    Box<callbacks::Consumer + 'a>,
+  pub callback:    Box<callbacks::BasicConsumer + 'a>,
 }
 
 //#[derive(PartialEq)]
@@ -49,7 +49,7 @@ pub struct Queue<'a> {
   pub message_count:  u32,
   pub consumer_count: u32,
   pub created:        bool,
-  pub callback_holder: Option<Box<callbacks::Consumer + 'a>>,
+  pub callback_holder: Option<Box<callbacks::BasicConsumer + 'a>>,
 }
 
 impl<'a> Queue<'a> {

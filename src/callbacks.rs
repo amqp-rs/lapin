@@ -1,20 +1,21 @@
 use generated::basic::Deliver;
 use nom::HexDisplay;
 
-pub trait Consumer: Send {
+pub trait BasicConsumer: Send {
   fn start_deliver(&mut self,
     channel_id: u16,
-    method:     Deliver);
+    method:     &Deliver);
 
   fn receive_content(&mut self, data: &[u8]);
 }
 
+#[derive(Clone)]
 pub struct LoggingConsumer {}
 
-impl Consumer for LoggingConsumer {
+impl BasicConsumer for LoggingConsumer {
   fn start_deliver(&mut self,
     channel_id: u16,
-    method:     Deliver) {
+    method:     &Deliver) {
     println!("channel {} starts delivering: {:?}", channel_id, method);
   }
 
