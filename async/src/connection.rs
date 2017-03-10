@@ -135,28 +135,94 @@ impl<'a> Connection<'a> {
     }
   }
 
-  pub fn run<T>(&mut self, stream: &mut T) ->Result<ConnectionState>
+  pub fn run<T>(&mut self, stream: &mut T) -> Result<ConnectionState>
     where T: Read + Write {
+
+    let mut write_would_block = false;
+    let mut read_would_block  = false;
+
     loop {
-      try!(self.write(stream));
-      try!(self.read(stream));
-      try!(self.parse());
+      let continue_writing = !write_would_block && self.can_write();
+      let continue_reading = !read_would_block && self.can_read();
+      let continue_parsing = self.can_parse();
+
+      if !continue_writing && !continue_reading && !continue_parsing {
+        return Ok(self.state);
+      }
+
+      if continue_writing {
+        match self.write(stream) {
+          Ok((sz,_)) => {
+
+          },
+          Err(e) => {
+            match e.kind() {
+              ErrorKind::WouldBlock => {
+                write_would_block = true;
+              },
+              k => {
+                println!("error writing: {:?}", k);
+                self.state = ConnectionState::Error;
+                return Err(e);
+              }
+            }
+          }
+        }
+      }
+
+      if continue_reading {
+        match self.read(stream) {
+          Ok(_) => {},
+          Err(e) => {
+            match e.kind() {
+              ErrorKind::WouldBlock => {
+                read_would_block = true;
+              },
+              k => {
+                println!("error reading: {:?}", k);
+                self.state = ConnectionState::Error;
+                return Err(e);
+              }
+            }
+          }
+        }
+      }
+
+      if continue_parsing {
+        //FIXME: handle the Incomplete case. We need a WantRead and WantWrite signal
+        self.parse();
+      }
     }
+
+    let res:Result<ConnectionState> = Ok(self.state);
+    res
   }
 
-  pub fn write(&mut self, writer: &mut Write) -> Result<ConnectionState> {
+  pub fn can_write(&self) -> bool {
+    self.send_buffer.available_data() > 0
+  }
+
+  pub fn can_read(&self) -> bool {
+    self.receive_buffer.available_space() > 0
+  }
+
+  pub fn can_parse(&self) -> bool {
+    self.receive_buffer.available_data() > 0
+  }
+
+  pub fn write(&mut self, writer: &mut Write) -> Result<(usize, ConnectionState)> {
     //println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
     match writer.write(&mut self.send_buffer.data()) {
       Ok(sz) => {
         println!("wrote {} bytes", sz);
         self.send_buffer.consume(sz);
-        Ok(self.state)
+        Ok((sz, self.state))
       },
       Err(e) => Err(e),
     }
   }
 
-  pub fn read(&mut self, reader: &mut Read) -> Result<ConnectionState> {
+  pub fn read(&mut self, reader: &mut Read) -> Result<(usize, ConnectionState)> {
     if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))
@@ -166,20 +232,20 @@ impl<'a> Connection<'a> {
       Ok(sz) => {
         println!("read {} bytes", sz);
         self.receive_buffer.fill(sz);
+        Ok((sz, self.state))
       },
-      Err(e) => return Err(e),
+      Err(e) => Err(e),
     }
-    self.parse()
   }
 
-  pub fn parse(&mut self) -> Result<ConnectionState> {
+  pub fn parse(&mut self) -> Result<(usize,ConnectionState)> {
     //println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
     let (channel_id, method, consumed) = {
       let parsed_frame = raw_frame(&self.receive_buffer.data());
       match parsed_frame {
         IResult::Done(i,_)     => {},
         IResult::Incomplete(_) => {
-          return Ok(self.state);
+          return Ok((0,self.state));
         },
         IResult::Error(e) => {
           //FIXME: should probably disconnect on error here
@@ -310,7 +376,7 @@ impl<'a> Connection<'a> {
     }
 
 
-    return Ok(self.state);
+    return Ok((consumed, self.state));
   }
 
   pub fn handle_global_method(&mut self, c: Class) {
