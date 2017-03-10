@@ -159,6 +159,10 @@ impl<'a> Connection<'a> {
       },
       Err(e) => return Err(e),
     }
+    self.parse()
+  }
+
+  pub fn parse(&mut self) -> Result<ConnectionState> {
     println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
     let (channel_id, method, consumed) = {
       let parsed_frame = raw_frame(&self.receive_buffer.data());
@@ -230,15 +234,12 @@ impl<'a> Connection<'a> {
       if channel_id == 0 {
         self.handle_global_method(method);
       } else {
-        self.channels.get_mut(&channel_id).map(|channel| channel.received_method(method));
+        self.receive_method(channel_id, method);
       }
     }
 
 
     return Ok(self.state);
-
-
-    unreachable!();
   }
 
   pub fn handle_global_method(&mut self, c: Class) {
