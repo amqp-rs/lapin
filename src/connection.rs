@@ -248,7 +248,39 @@ impl<'a> Connection<'a> {
               return Err(Error::new(ErrorKind::Other, err));
             }
           }
+        }
+        FrameType::Body => {
+          let state = self.channels.get_mut(&f.channel_id).map(|channel| {
+            channel.state.clone()
+          }).unwrap();
 
+          if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
+            if remaining_size >= f.payload.len() {
+
+              self.channels.get_mut(&f.channel_id).map(|c| {
+                for (_, ref mut q) in &mut c.queues {
+                  q.consumers.get_mut(&consumer_tag).map(| cs| {
+                    (*cs.callback).receive_content(f.payload);
+                      if remaining_size == f.payload.len() {
+                        (*cs.callback).done();
+                      }
+                  });
+                }
+              });
+
+              if remaining_size == f.payload.len() {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Connected);
+              } else {
+                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag, remaining_size - f.payload.len()));
+              }
+            } else {
+              println!("body frame too large");
+              self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
+            }
+          } else {
+            self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
+          }
+          (f.channel_id, None, consumed)
         }
         t => {
           println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
