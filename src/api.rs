@@ -1310,7 +1310,9 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.queues.get_mut(&queue).map(|q| q.callback_holder = Some(Box::new(callback)));
+                c.queues.get_mut(&queue).map(|q| {
+                  q.callback_holder = Some(Box::new(callback))
+                });
                 c.state = ChannelState::AwaitingBasicConsumeOk(
                   queue, consumer_tag, no_local, no_ack, exclusive, nowait
                 );
@@ -1342,16 +1344,17 @@ impl<'a> Connection<'a> {
                 self.channels.get_mut(&_channel_id).map(|c| {
                   c.queues.get_mut(&queue).map(|q| {
                     let callback = q.callback_holder.take();
-                    q.consumers.insert(
-                      method.consumer_tag.clone(),
-                      Consumer {
+                    let consumer = Consumer {
                         tag:       method.consumer_tag.clone(),
                         no_local:  no_local,
                         no_ack:    no_ack,
                         exclusive: exclusive,
                         nowait:    nowait,
                         callback:  callback.unwrap(),
-                      }
+                    };
+                    q.consumers.insert(
+                      method.consumer_tag.clone(),
+                      consumer
                     )
                   })
                 });
@@ -1519,11 +1522,11 @@ impl<'a> Connection<'a> {
 
         self.channels.get_mut(&_channel_id).map(|c| {
             c.state = ChannelState::WillReceiveContent(method.consumer_tag.to_string());
-            c.queues.iter_mut().map(|(_, ref mut q)| {
+            for (_, ref mut q) in &mut c.queues {
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
                 (*cs.callback).start_deliver(_channel_id, &method);
               });
-            });
+            }
             println!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(())
