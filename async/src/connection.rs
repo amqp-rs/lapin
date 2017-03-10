@@ -112,6 +112,12 @@ impl<'a> Connection<'a> {
           .map(|c| c.state == state)
   }
 
+  pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
+    self.channels
+          .get(&channel_id)
+          .map(|c| c.state.clone())
+  }
+
 
   pub fn connect(&mut self, writer: &mut Write) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {

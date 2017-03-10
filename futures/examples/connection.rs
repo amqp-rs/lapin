@@ -21,13 +21,16 @@ use tokio_core::net::TcpStream;
 
 fn main() {
   let mut core = Core::new().unwrap();
-  let mut stream = TcpStream::connect(&"127.0.0.1:5672".parse::<SocketAddr>().unwrap(),  &core.handle());
+  //let mut stream = TcpStream::connect(&"127.0.0.1:5672".parse::<SocketAddr>().unwrap(),  &core.handle());
 
   let client_future = TcpStream::connect(&"127.0.0.1:5672".parse::<SocketAddr>().unwrap(),  &core.handle()).then(|stream| {
     let stream =stream.unwrap();
     Client::new(stream)
+  }).and_then(|mut client| {
+    client.create_channel()
   });
 
-  let mut client = core.run(client_future).unwrap();
-  println!("got client with connection state: {:?}", client.connection.state);
+  let mut channel = core.run(client_future).unwrap();
+  println!("channel id: {}", channel.id);
+
 }
