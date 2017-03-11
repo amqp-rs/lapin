@@ -63,8 +63,6 @@ pub struct Configuration {
 pub struct Connection<'a> {
   pub state:            ConnectionState,
   pub channels:         HashMap<u16, Channel<'a>>,
-  pub send_buffer:      Buffer,
-  pub receive_buffer:   Buffer,
   pub configuration:    Configuration,
   pub channel_index:    u16,
   pub prefetch_size:    u32,
@@ -86,8 +84,6 @@ impl<'a> Connection<'a> {
     Connection {
       state:          ConnectionState::Initial,
       channels:       h,
-      send_buffer:    Buffer::with_capacity(configuration.frame_max as usize),
-      receive_buffer: Buffer::with_capacity(configuration.frame_max as usize),
       configuration:  configuration,
       channel_index:  1,
       prefetch_size:  0,
@@ -155,23 +151,23 @@ impl<'a> Connection<'a> {
     Ok(self.state)
   }
 
-  pub fn run<T>(&mut self, stream: &mut T) -> Result<ConnectionState>
+  pub fn run<T>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState>
     where T: Read + Write {
 
     let mut write_would_block = false;
     let mut read_would_block  = false;
 
     loop {
-      let continue_writing = !write_would_block && self.can_write();
-      let continue_reading = !read_would_block && self.can_read();
-      let continue_parsing = self.can_parse();
+      let continue_writing = !write_would_block && self.can_write(send_buffer);
+      let continue_reading = !read_would_block && self.can_read(receive_buffer);
+      let continue_parsing = self.can_parse(receive_buffer);
 
       if !continue_writing && !continue_reading && !continue_parsing {
         return Ok(self.state);
       }
 
       if continue_writing {
-        match self.write(stream) {
+        match self.write(stream, send_buffer) {
           Ok((sz,_)) => {
 
           },
@@ -191,7 +187,7 @@ impl<'a> Connection<'a> {
       }
 
       if continue_reading {
-        match self.read(stream) {
+        match self.read(stream, receive_buffer) {
           Ok(_) => {},
           Err(e) => {
             match e.kind() {
@@ -210,7 +206,9 @@ impl<'a> Connection<'a> {
 
       if continue_parsing {
         //FIXME: handle the Incomplete case. We need a WantRead and WantWrite signal
-        self.parse();
+        if let Ok((sz, state)) = self.parse(receive_buffer.data()) {
+          receive_buffer.consume(sz);
+        }
       }
     }
 
@@ -218,19 +216,19 @@ impl<'a> Connection<'a> {
     res
   }
 
-  pub fn can_write(&self) -> bool {
-    self.send_buffer.available_data() > 0 || !self.frame_queue.is_empty()
+  pub fn can_write(&self, send_buffer: &Buffer) -> bool {
+    send_buffer.available_data() > 0 || !self.frame_queue.is_empty()
   }
 
-  pub fn can_read(&self) -> bool {
-    self.receive_buffer.available_space() > 0
+  pub fn can_read(&self, receive_buffer: &Buffer) -> bool {
+    receive_buffer.available_space() > 0
   }
 
-  pub fn can_parse(&self) -> bool {
-    self.receive_buffer.available_data() > 0
+  pub fn can_parse(&self, receive_buffer: &Buffer) -> bool {
+    receive_buffer.available_data() > 0
   }
 
-  pub fn write(&mut self, writer: &mut Write) -> Result<(usize, ConnectionState)> {
+  pub fn write(&mut self, writer: &mut Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
     let next_msg = self.frame_queue.pop_front();
     if next_msg == None {
       return Err(Error::new(ErrorKind::WouldBlock, "no new message"));
@@ -241,25 +239,25 @@ impl<'a> Connection<'a> {
 
     let gen_res = match &next_msg {
       &LocalFrame::ProtocolHeader => {
-        gen_protocol_header((self.send_buffer.space(), 0)).map(|tup| tup.1)
+        gen_protocol_header((&mut send_buffer.space(), 0)).map(|tup| tup.1)
       },
       &LocalFrame::HeartBeat => {
-        gen_heartbeat_frame((&mut self.send_buffer.space(), 0)).map(|tup| tup.1)
+        gen_heartbeat_frame((&mut send_buffer.space(), 0)).map(|tup| tup.1)
       },
       &LocalFrame::Method(channel, ref method) => {
-        gen_method_frame((&mut self.send_buffer.space(), 0), channel, method).map(|tup| tup.1)
+        gen_method_frame((&mut send_buffer.space(), 0), channel, method).map(|tup| tup.1)
       },
       &LocalFrame::Header(channel_id, class_id, size) => {
-        gen_content_header_frame((&mut self.send_buffer.space(), 0), channel_id, class_id, size).map(|tup| tup.1)
+        gen_content_header_frame((&mut send_buffer.space(), 0), channel_id, class_id, size).map(|tup| tup.1)
       },
       &LocalFrame::Body(channel_id, ref data) => {
-        gen_content_body_frame((&mut self.send_buffer.space(), 0), channel_id, data).map(|tup| tup.1)
+        gen_content_body_frame((&mut send_buffer.space(), 0), channel_id, data).map(|tup| tup.1)
       }
     };
 
     match gen_res {
       Ok(sz) => {
-        self.send_buffer.fill(sz);
+        send_buffer.fill(sz);
       },
       Err(e) => {
         println!("error generating frame: {:?}", e);
@@ -276,37 +274,36 @@ impl<'a> Connection<'a> {
       }
     }
 
-    //println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
-    match writer.write(&mut self.send_buffer.data()) {
+    match writer.write(&mut send_buffer.data()) {
       Ok(sz) => {
         println!("wrote {} bytes", sz);
-        self.send_buffer.consume(sz);
+        send_buffer.consume(sz);
         Ok((sz, self.state))
       },
       Err(e) => Err(e),
     }
   }
 
-  pub fn read(&mut self, reader: &mut Read) -> Result<(usize, ConnectionState)> {
+  pub fn read(&mut self, reader: &mut Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
     if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    match reader.read(&mut self.receive_buffer.space()) {
+    match reader.read(&mut receive_buffer.space()) {
       Ok(sz) => {
         println!("read {} bytes", sz);
-        self.receive_buffer.fill(sz);
+        receive_buffer.fill(sz);
         Ok((sz, self.state))
       },
       Err(e) => Err(e),
     }
   }
 
-  pub fn parse(&mut self) -> Result<(usize,ConnectionState)> {
+  pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     //println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
     let (channel_id, method, consumed) = {
-      let parsed_frame = raw_frame(&self.receive_buffer.data());
+      let parsed_frame = raw_frame(data);
       match parsed_frame {
         IResult::Done(i,_)     => {},
         IResult::Incomplete(_) => {
@@ -325,7 +322,7 @@ impl<'a> Connection<'a> {
       //println!("parsed frame: {:?}", f);
       //FIXME: what happens if we fail to parse a packet in a channel?
       // do we continue?
-      let consumed = self.receive_buffer.data().offset(i);
+      let consumed = data.offset(i);
 
       let method = match f.frame_type {
         FrameType::Method => {
@@ -424,7 +421,7 @@ impl<'a> Connection<'a> {
       (f.channel_id, method, consumed)
     };
 
-    self.receive_buffer.consume(consumed);
+    //self.receive_buffer.consume(consumed);
 
     if let Some(method) = method {
       if channel_id == 0 {
@@ -498,8 +495,9 @@ impl<'a> Connection<'a> {
               self.configuration.heartbeat   = t.heartbeat;
 
               if t.frame_max > self.configuration.frame_max {
-                self.send_buffer.grow(t.frame_max as usize);
-                self.receive_buffer.grow(t.frame_max as usize);
+                //FIXME: what do we do without the buffers available?
+                //self.send_buffer.grow(t.frame_max as usize);
+                //self.receive_buffer.grow(t.frame_max as usize);
               }
 
               self.configuration.frame_max = t.frame_max;
