@@ -313,134 +313,120 @@ impl<'a> Connection<'a> {
 
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     //println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
-    let (channel_id, method, consumed) = {
-      let parsed_frame = raw_frame(data);
-      match parsed_frame {
-        IResult::Done(i,_)     => {},
-        IResult::Incomplete(_) => {
-          return Ok((0,self.state));
-        },
-        IResult::Error(e) => {
-          //FIXME: should probably disconnect on error here
-          let err = format!("parse error: {:?}", e);
-          self.state = ConnectionState::Error;
-          return Err(Error::new(ErrorKind::Other, err))
-        }
-      }
-
-      let (i, f) = parsed_frame.unwrap();
-
-      //println!("parsed frame: {:?}", f);
-      //FIXME: what happens if we fail to parse a packet in a channel?
-      // do we continue?
-      let consumed = data.offset(i);
-
-      let method = match f.frame_type {
-        FrameType::Method => {
-          let parsed = parse_class(f.payload);
-          println!("parsed method: {:?}", parsed);
-          match parsed {
-            IResult::Done(b"", m) => {
-              Some(m)
-            },
-            e => {
-              //we should not get an incomplete here
-              //FIXME: should probably disconnect channel on error here
-              let err = format!("parse error: {:?}", e);
-              if f.channel_id == 0 {
-                self.state = ConnectionState::Error;
-              } else {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
-              }
-              return Err(Error::new(ErrorKind::Other, err))
-            }
-          }
-        },
-        FrameType::Heartbeat => {
-          self.frame_queue.push_back(LocalFrame::HeartBeat);
-
-          None
-        },
-        FrameType::Header => {
-          let parsed = content_header(f.payload);
-          println!("parsed method: {:?}", parsed);
-          match parsed {
-            IResult::Done(b"", m) => {
-              let state = self.channels.get_mut(&f.channel_id).map(|channel| {
-                channel.state.clone()
-              }).unwrap();
-              if let ChannelState::WillReceiveContent(consumer_tag) = state {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag.clone(), m.body_size as usize));
-              } else {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
-              }
-              None
-            },
-            e => {
-              //we should not get an incomplete here
-              //FIXME: should probably disconnect channel on error here
-              let err = format!("parse error: {:?}", e);
-              if f.channel_id == 0 {
-                self.state = ConnectionState::Error;
-              } else {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
-              }
-              return Err(Error::new(ErrorKind::Other, err));
-            }
-          }
-        }
-        FrameType::Body => {
-          let state = self.channels.get_mut(&f.channel_id).map(|channel| {
-            channel.state.clone()
-          }).unwrap();
-
-          if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
-            if remaining_size >= f.payload.len() {
-
-              self.channels.get_mut(&f.channel_id).map(|c| {
-                for (_, ref mut q) in &mut c.queues {
-                  q.consumers.get_mut(&consumer_tag).map(| cs| {
-                    (*cs.callback).receive_content(f.payload);
-                      if remaining_size == f.payload.len() {
-                        (*cs.callback).done();
-                      }
-                  });
-                }
-              });
-
-              if remaining_size == f.payload.len() {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Connected);
-              } else {
-                self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag, remaining_size - f.payload.len()));
-              }
-            } else {
-              println!("body frame too large");
-              self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
-            }
-          } else {
-            self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
-          }
-          None
-        }
-        t => {
-          println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
-          let err = format!("parse error: {:?}", t);
-          return Err(Error::new(ErrorKind::Other, err))
-        }
-      };
-
-      (f.channel_id, method, consumed)
-    };
-
-    //self.receive_buffer.consume(consumed);
-
-    if let Some(method) = method {
-      if channel_id == 0 {
-        self.handle_global_method(method);
-      } else {
-        self.receive_method(channel_id, method);
+    let parsed_frame = raw_frame(data);
+    match parsed_frame {
+      IResult::Done(i,_)     => {},
+      IResult::Incomplete(_) => {
+        return Ok((0,self.state));
+      },
+      IResult::Error(e) => {
+        //FIXME: should probably disconnect on error here
+        let err = format!("parse error: {:?}", e);
+        self.state = ConnectionState::Error;
+        return Err(Error::new(ErrorKind::Other, err))
       }
     }
+
+    let (i, f) = parsed_frame.unwrap();
+
+    //println!("parsed frame: {:?}", f);
+    //FIXME: what happens if we fail to parse a packet in a channel?
+    // do we continue?
+    let consumed = data.offset(i);
+
+    match f.frame_type {
+      FrameType::Method => {
+        let parsed = parse_class(f.payload);
+        println!("parsed method: {:?}", parsed);
+        match parsed {
+          IResult::Done(b"", method) => {
+            if f.channel_id == 0 {
+              self.handle_global_method(method);
+            } else {
+              self.receive_method(f.channel_id, method);
+            }
+          },
+          e => {
+            //we should not get an incomplete here
+            //FIXME: should probably disconnect channel on error here
+            let err = format!("parse error: {:?}", e);
+            if f.channel_id == 0 {
+              self.state = ConnectionState::Error;
+            } else {
+              self.set_channel_state(f.channel_id, ChannelState::Error);
+            }
+            return Err(Error::new(ErrorKind::Other, err))
+          }
+        }
+      },
+      FrameType::Heartbeat => {
+        self.frame_queue.push_back(LocalFrame::HeartBeat);
+      },
+      FrameType::Header => {
+        let parsed = content_header(f.payload);
+        println!("parsed method: {:?}", parsed);
+        match parsed {
+          IResult::Done(b"", m) => {
+            let state = self.channels.get_mut(&f.channel_id).map(|channel| {
+              channel.state.clone()
+            }).unwrap();
+            if let ChannelState::WillReceiveContent(consumer_tag) = state {
+              self.set_channel_state(f.channel_id, ChannelState::ReceivingContent(consumer_tag.clone(), m.body_size as usize));
+            } else {
+              self.set_channel_state(f.channel_id, ChannelState::Error);
+            }
+          },
+          e => {
+            //we should not get an incomplete here
+            //FIXME: should probably disconnect channel on error here
+            let err = format!("parse error: {:?}", e);
+            if f.channel_id == 0 {
+              self.state = ConnectionState::Error;
+            } else {
+              self.set_channel_state(f.channel_id, ChannelState::Error);
+            }
+            return Err(Error::new(ErrorKind::Other, err));
+          }
+        }
+      }
+      FrameType::Body => {
+        let state = self.channels.get_mut(&f.channel_id).map(|channel| {
+          channel.state.clone()
+        }).unwrap();
+
+        if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
+          if remaining_size >= f.payload.len() {
+
+            self.channels.get_mut(&f.channel_id).map(|c| {
+              for (_, ref mut q) in &mut c.queues {
+                q.consumers.get_mut(&consumer_tag).map(| cs| {
+                  (*cs.callback).receive_content(f.payload);
+                  if remaining_size == f.payload.len() {
+                    (*cs.callback).done();
+                  }
+                });
+              }
+            });
+
+            if remaining_size == f.payload.len() {
+              self.set_channel_state(f.channel_id, ChannelState::Connected);
+            } else {
+              self.set_channel_state(f.channel_id, ChannelState::ReceivingContent(consumer_tag, remaining_size - f.payload.len()));
+            }
+          } else {
+            println!("body frame too large");
+            self.set_channel_state(f.channel_id, ChannelState::Error);
+          }
+        } else {
+          self.set_channel_state(f.channel_id, ChannelState::Error);
+        }
+      }
+      t => {
+        println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
+        let err = format!("parse error: {:?}", t);
+        return Err(Error::new(ErrorKind::Other, err))
+      }
+    };
 
 
     return Ok((consumed, self.state));
