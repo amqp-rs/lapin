@@ -140,7 +140,7 @@ impl<'a> Connection<'a> {
           .map(|c| c.is_connected()).unwrap_or(false)
   }
 
-  pub fn connect(&mut self, writer: &mut Write) -> Result<ConnectionState> {
+  pub fn connect(&mut self) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))

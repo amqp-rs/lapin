@@ -25,7 +25,7 @@ fn connection() {
       let mut receive_buffer = Buffer::with_capacity(capacity as usize);
 
       let mut conn: Connection = Connection::new();
-      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
+      assert_eq!(conn.connect().unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
       loop {
         match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
           Err(e) => panic!("could not connect: {:?}", e),
