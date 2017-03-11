@@ -167,7 +167,7 @@ impl<'a> Connection<'a> {
       }
 
       if continue_writing {
-        match self.write(stream, send_buffer) {
+        match self.write_to_stream(stream, send_buffer) {
           Ok((sz,_)) => {
 
           },
@@ -187,7 +187,7 @@ impl<'a> Connection<'a> {
       }
 
       if continue_reading {
-        match self.read(stream, receive_buffer) {
+        match self.read_from_stream(stream, receive_buffer) {
           Ok(_) => {},
           Err(e) => {
             match e.kind() {
@@ -228,7 +228,43 @@ impl<'a> Connection<'a> {
     receive_buffer.available_data() > 0
   }
 
-  pub fn write(&mut self, writer: &mut Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  pub fn write_to_stream(&mut self, writer: &mut Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+    match self.serialize(send_buffer.space()) {
+      Ok((sz, _)) => {
+        send_buffer.fill(sz);
+      },
+      Err(e) => {
+        return Err(e);
+      }
+    }
+
+    match writer.write(&mut send_buffer.data()) {
+      Ok(sz) => {
+        println!("wrote {} bytes", sz);
+        send_buffer.consume(sz);
+        Ok((sz, self.state))
+      },
+      Err(e) => Err(e),
+    }
+  }
+
+  pub fn read_from_stream(&mut self, reader: &mut Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+    if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
+      self.state = ConnectionState::Error;
+      return Err(Error::new(ErrorKind::Other, "invalid state"))
+    }
+
+    match reader.read(&mut receive_buffer.space()) {
+      Ok(sz) => {
+        println!("read {} bytes", sz);
+        receive_buffer.fill(sz);
+        Ok((sz, self.state))
+      },
+      Err(e) => Err(e),
+    }
+  }
+
+  pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
     let next_msg = self.frame_queue.pop_front();
     if next_msg == None {
       return Err(Error::new(ErrorKind::WouldBlock, "no new message"));
@@ -239,25 +275,25 @@ impl<'a> Connection<'a> {
 
     let gen_res = match &next_msg {
       &LocalFrame::ProtocolHeader => {
-        gen_protocol_header((&mut send_buffer.space(), 0)).map(|tup| tup.1)
+        gen_protocol_header((send_buffer, 0)).map(|tup| tup.1)
       },
       &LocalFrame::HeartBeat => {
-        gen_heartbeat_frame((&mut send_buffer.space(), 0)).map(|tup| tup.1)
+        gen_heartbeat_frame((send_buffer, 0)).map(|tup| tup.1)
       },
       &LocalFrame::Method(channel, ref method) => {
-        gen_method_frame((&mut send_buffer.space(), 0), channel, method).map(|tup| tup.1)
+        gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
       },
       &LocalFrame::Header(channel_id, class_id, size) => {
-        gen_content_header_frame((&mut send_buffer.space(), 0), channel_id, class_id, size).map(|tup| tup.1)
+        gen_content_header_frame((send_buffer, 0), channel_id, class_id, size).map(|tup| tup.1)
       },
       &LocalFrame::Body(channel_id, ref data) => {
-        gen_content_body_frame((&mut send_buffer.space(), 0), channel_id, data).map(|tup| tup.1)
+        gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
       }
     };
 
     match gen_res {
       Ok(sz) => {
-        send_buffer.fill(sz);
+        Ok((sz, self.state))
       },
       Err(e) => {
         println!("error generating frame: {:?}", e);
@@ -272,31 +308,6 @@ impl<'a> Connection<'a> {
           }
         }
       }
-    }
-
-    match writer.write(&mut send_buffer.data()) {
-      Ok(sz) => {
-        println!("wrote {} bytes", sz);
-        send_buffer.consume(sz);
-        Ok((sz, self.state))
-      },
-      Err(e) => Err(e),
-    }
-  }
-
-  pub fn read(&mut self, reader: &mut Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
-    if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
-      self.state = ConnectionState::Error;
-      return Err(Error::new(ErrorKind::Other, "invalid state"))
-    }
-
-    match reader.read(&mut receive_buffer.space()) {
-      Ok(sz) => {
-        println!("read {} bytes", sz);
-        receive_buffer.fill(sz);
-        Ok((sz, self.state))
-      },
-      Err(e) => Err(e),
     }
   }
 
