@@ -17,7 +17,10 @@ pub enum ChannelState {
     SendingContent(usize),
     WillReceiveContent(String),
     ReceivingContent(String,usize),
+}
 
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum Answer {
     AwaitingChannelOpenOk,
     AwaitingChannelFlowOk,
     AwaitingChannelCloseOk,
@@ -64,6 +67,7 @@ impl<'a> Connection<'a> {
                 self.receive_channel_close_ok(channel_id, m)
             }
 
+            /*
             Class::Access(access::Methods::RequestOk(m)) => {
                 self.receive_access_request_ok(channel_id, m)
             }
@@ -86,6 +90,7 @@ impl<'a> Connection<'a> {
             Class::Exchange(exchange::Methods::UnbindOk(m)) => {
                 self.receive_exchange_unbind_ok(channel_id, m)
             }
+            */
 
             Class::Queue(queue::Methods::DeclareOk(m)) => {
                 self.receive_queue_declare_ok(channel_id, m)
@@ -118,6 +123,7 @@ impl<'a> Connection<'a> {
                 self.receive_basic_recover_ok(channel_id, m)
             }
 
+            /*
             Class::Tx(tx::Methods::SelectOk(m)) => self.receive_tx_select_ok(channel_id, m),
             Class::Tx(tx::Methods::CommitOk(m)) => self.receive_tx_commit_ok(channel_id, m),
             Class::Tx(tx::Methods::RollbackOk(m)) => self.receive_tx_rollback_ok(channel_id, m),
@@ -125,6 +131,7 @@ impl<'a> Connection<'a> {
             Class::Confirm(confirm::Methods::SelectOk(m)) => {
                 self.receive_confirm_select_ok(channel_id, m)
             }
+            */
 
             m => {
                 println!("the client should not receive this method: {:?}", m);
@@ -152,7 +159,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             println!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
-            self.set_channel_state(_channel_id, ChannelState::AwaitingChannelOpenOk);
+            self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk);
         })
     }
 
@@ -166,26 +173,19 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingChannelOpenOk => {
-                self.set_channel_state(_channel_id, ChannelState::Connected);
-            }
-            _ => {
-                self.set_channel_state(_channel_id, ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if ! self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Channel.OpenOk, ignoring packet");
+        if ! self.check_next_answer(_channel_id, Answer::AwaitingChannelOpenOk) {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          return Err(Error::UnexpectedAnswer);
+        }
 
 
+        self.set_channel_state(_channel_id, ChannelState::Connected);
+        self.get_next_answer(_channel_id);
         Ok(())
     }
 
@@ -195,21 +195,14 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
         let method = Class::Channel(channel::Methods::Flow(channel::Flow { active: active }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                //FIXME: we might still be receiving content here
-                c.state = ChannelState::AwaitingChannelFlowOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
-            });
+            self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk);
         })
     }
 
@@ -223,17 +216,8 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Connected | ChannelState::SendingContent(_) => {}
-            ChannelState::Error  |
-            ChannelState::Closed |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
         self.channels.get_mut(&_channel_id).map(|c| c.send_flow = method.active);
@@ -246,17 +230,8 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Connected  | ChannelState::SendingContent(_) => {}
-            ChannelState::Error  |
-            ChannelState::Closed |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
         let method = Class::Channel(channel::Methods::FlowOk(channel::FlowOk { active: active }));
@@ -273,22 +248,16 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            //FIXME: we might still be receiving content here
-            ChannelState::AwaitingChannelFlowOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        if self.check_next_answer(_channel_id, Answer::AwaitingChannelFlowOk) {
+              self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
+              self.get_next_answer(_channel_id);
+        } else {
+              self.set_channel_state(_channel_id, ChannelState::Error);
+              return Err(Error::UnexpectedAnswer);
         }
 
         Ok(())
@@ -306,7 +275,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.check_state(_channel_id, ChannelState::Connected).unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -318,10 +287,7 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, &method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingChannelCloseOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
-            });
+          self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
         })
     }
 
@@ -335,16 +301,19 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Error => {
-                return Err(Error::InvalidState);
-            }
-            _ => {}
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        if !self.check_next_answer(_channel_id, Answer::AwaitingChannelFlowOk) {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
         }
 
         //FIXME: log the error if there is one
         //FIXME: handle reply codes
 
+        self.get_next_answer(_channel_id);
         self.set_channel_state(_channel_id, ChannelState::Closed);
         self.channel_close_ok(_channel_id)
     }
@@ -355,11 +324,12 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
+        if ! self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
         let method = Class::Channel(channel::Methods::CloseOk(channel::CloseOk {}));
+        self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
         self.send_method_frame(_channel_id, &method)
     }
 
@@ -373,18 +343,20 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::AwaitingChannelCloseOk => {
-                self.set_channel_state(_channel_id, ChannelState::Closed);
-                Ok(())
-            }
-            _ => {
-                self.set_channel_state(_channel_id, ChannelState::Error);
-                Err(Error::InvalidState)
-            }
+        if ! self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        if let Some(Answer::AwaitingChannelCloseOk) = self.get_next_answer(_channel_id) {
+            self.set_channel_state(_channel_id, ChannelState::Closed);
+            Ok(())
+        } else {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            Err(Error::UnexpectedAnswer)
         }
     }
 
+    /*
     pub fn access_request(&mut self,
                           _channel_id: u16,
                           realm: ShortString,
@@ -837,7 +809,7 @@ impl<'a> Connection<'a> {
         Ok(())
     }
 
-
+*/
 
     pub fn queue_declare(&mut self,
                          _channel_id: u16,
@@ -855,8 +827,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.check_state(_channel_id, ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -876,7 +847,7 @@ impl<'a> Connection<'a> {
                 let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
                 c.queues.insert(queue.clone(), q);
                 //FIXME: when we set passive, the server might return an error if the queue exists
-                c.state = ChannelState::AwaitingQueueDeclareOk;
+                c.awaiting.push_back(Answer::AwaitingQueueDeclareOk);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -892,32 +863,23 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                self.set_channel_state(_channel_id, ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingQueueDeclareOk => {
-                self.channels.get_mut(&_channel_id).map(|c| {
-                  c.queues.get_mut(&method.queue).map(|q| {
-                    q.message_count  = method.message_count;
-                    q.consumer_count = method.consumer_count;
-                    q.created = true;
-                  });
-                });
-                self.set_channel_state(_channel_id, ChannelState::Connected);
-            }
-            _ => {
-                self.set_channel_state(_channel_id, ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingQueueDeclareOk) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| {
+            c.queues.get_mut(&method.queue).map(|q| {
+              q.message_count  = method.message_count;
+              q.consumer_count = method.consumer_count;
+              q.created = true;
+            });
+          });
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn queue_bind(&mut self,
@@ -934,10 +896,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -953,7 +912,7 @@ impl<'a> Connection<'a> {
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 let key = format!("{}_{}", &exchange, &routing_key);
-                c.state = ChannelState::AwaitingQueueBindOk(key.clone());
+                c.awaiting.push_back(Answer::AwaitingQueueBindOk(key.clone()));
                 c.queues.get_mut(&queue).map(|q| {
                   q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
                   );
@@ -973,29 +932,21 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingQueueBindOk(key) => {
-                self.channels.get_mut(&_channel_id).map(|c| {
-                    c.queues.iter_mut().map(|(_, ref mut q)| {
-                      q.bindings.get_mut(&key).map(|b| b.active = true);
-                    });
-                });
-                self.set_channel_state(_channel_id, ChannelState::Connected);
-            }
-            _ => {
-                self.set_channel_state(_channel_id, ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingQueueBindOk(key)) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| {
+            c.queues.iter_mut().map(|(_, ref mut q)| {
+              q.bindings.get_mut(&key).map(|b| b.active = true);
+            });
+          });
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn queue_purge(&mut self,
@@ -1009,10 +960,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1024,7 +972,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueuePurgeOk(queue.clone());
+                c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(queue.clone()));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1040,24 +988,16 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingQueuePurgeOk(_) => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingQueuePurgeOk(key)) = self.get_next_answer(_channel_id) {
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn queue_delete(&mut self,
@@ -1073,10 +1013,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1090,7 +1027,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingQueueDeleteOk(queue);
+                c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(queue));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1106,25 +1043,17 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingQueueDeleteOk(key) => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-                self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingQueueDeleteOk(key)) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn queue_unbind(&mut self,
@@ -1140,10 +1069,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1158,7 +1084,7 @@ impl<'a> Connection<'a> {
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 let key = format!("{}_{}", &exchange, &routing_key);
-                c.state = ChannelState::AwaitingQueueUnbindOk(key);
+                c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(key));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1174,29 +1100,21 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingQueueUnbindOk(key) => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-                self.channels.get_mut(&_channel_id).map(|c| {
-                    c.queues.iter_mut().map(|(_, ref mut q)| {
-                      q.bindings.remove(&key);
-                    });
-                });
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingQueueUnbindOk(key)) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| {
+            c.queues.iter_mut().map(|(_, ref mut q)| {
+              q.bindings.remove(&key);
+            });
+          });
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_qos(&mut self,
@@ -1210,10 +1128,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1225,7 +1140,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicQosOk(prefetch_size, prefetch_count, global);
+                c.awaiting.push_back(Answer::AwaitingBasicQosOk(prefetch_size, prefetch_count, global));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1241,33 +1156,25 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingBasicQosOk(prefetch_size, prefetch_count, global) => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-                if global {
-                  self.prefetch_size  = prefetch_size;
-                  self.prefetch_count = prefetch_count;
-                } else {
-                  self.channels.get_mut(&_channel_id).map(|c| {
-                    c.prefetch_size  = prefetch_size;
-                    c.prefetch_count = prefetch_count;
-                  });
-                }
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingBasicQosOk(prefetch_size, prefetch_count, global)) = self.get_next_answer(_channel_id) {
+          if global {
+            self.prefetch_size  = prefetch_size;
+            self.prefetch_count = prefetch_count;
+          } else {
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.prefetch_size  = prefetch_size;
+              c.prefetch_count = prefetch_count;
+            });
+          }
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_consume<T>(&mut self,
@@ -1288,10 +1195,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1311,9 +1215,9 @@ impl<'a> Connection<'a> {
                 c.queues.get_mut(&queue).map(|q| {
                   q.callback_holder = Some(Box::new(callback))
                 });
-                c.state = ChannelState::AwaitingBasicConsumeOk(
+                c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
                   queue, consumer_tag, no_local, no_ack, exclusive, nowait
-                );
+                ));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1329,41 +1233,33 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingBasicConsumeOk(queue, tag, no_local, no_ack, exclusive, nowait) => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-                self.channels.get_mut(&_channel_id).map(|c| {
-                  c.queues.get_mut(&queue).map(|q| {
-                    let callback = q.callback_holder.take();
-                    let consumer = Consumer {
-                        tag:       method.consumer_tag.clone(),
-                        no_local:  no_local,
-                        no_ack:    no_ack,
-                        exclusive: exclusive,
-                        nowait:    nowait,
-                        callback:  callback.unwrap(),
-                    };
-                    q.consumers.insert(
-                      method.consumer_tag.clone(),
-                      consumer
-                    )
-                  })
-                });
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        Ok(())
+        if let Some(Answer::AwaitingBasicConsumeOk(queue, tag, no_local, no_ack, exclusive, nowait)) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| {
+            c.queues.get_mut(&queue).map(|q| {
+              let callback = q.callback_holder.take();
+              let consumer = Consumer {
+                tag:       method.consumer_tag.clone(),
+                no_local:  no_local,
+                no_ack:    no_ack,
+                exclusive: exclusive,
+                nowait:    nowait,
+                callback:  callback.unwrap(),
+              };
+              q.consumers.insert(
+                method.consumer_tag.clone(),
+                consumer
+                )
+            })
+          });
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_cancel(&mut self,
@@ -1376,10 +1272,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1390,7 +1283,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicCancelOk;
+                c.awaiting.push_back(Answer::AwaitingBasicCancelOk);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1406,33 +1299,21 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            //FIXME: we can receive messages while waiting for a cancel-ok
-            ChannelState::AwaitingBasicCancelOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-                self.channels.get_mut(&_channel_id).map(|c| {
-                  c.queues.iter_mut().map(|(_, ref mut q)| {
-                    q.consumers.remove(&method.consumer_tag);
-                  });
-                });
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Basic.CancelOk, ignoring packet");
-
-
-        Ok(())
+        if let Some(Answer::AwaitingBasicCancelOk) = self.get_next_answer(_channel_id) {
+          self.channels.get_mut(&_channel_id).map(|c| {
+            c.queues.iter_mut().map(|(_, ref mut q)| {
+              q.consumers.remove(&method.consumer_tag);
+            });
+          });
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_publish(&mut self,
@@ -1448,10 +1329,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1475,21 +1353,10 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Basic.Return, ignoring packet");
         Ok(())
     }
 
@@ -1503,19 +1370,8 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
         self.channels.get_mut(&_channel_id).map(|c| {
@@ -1541,10 +1397,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1556,7 +1409,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicGetAnswer;
+                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1572,27 +1425,17 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingBasicGetAnswer => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Basic.GetOk, ignoring packet");
-
-
-        Ok(())
+        if let Some(Answer::AwaitingBasicGetAnswer) = self.get_next_answer(_channel_id) {
+          println!("unimplemented method Basic.GetOk, ignoring packet");
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn receive_basic_get_empty(&mut self,
@@ -1605,27 +1448,17 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingBasicGetAnswer => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Basic.GetEmpty, ignoring packet");
-
-
-        Ok(())
+        if let Some(Answer::AwaitingBasicGetAnswer) = self.get_next_answer(_channel_id) {
+          println!("unimplemented method Basic.GetEmpty, ignoring packet");
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_ack(&mut self,
@@ -1638,10 +1471,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1662,10 +1492,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1682,10 +1509,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1700,10 +1524,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1711,7 +1532,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, &method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingBasicRecoverOk;
+                c.awaiting.push_back(Answer::AwaitingBasicRecoverOk);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1727,27 +1548,17 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingBasicRecoverOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        println!("unimplemented method Basic.RecoverOk, ignoring packet");
-
-
-        Ok(())
+        if let Some(Answer::AwaitingBasicRecoverOk) = self.get_next_answer(_channel_id) {
+          println!("unimplemented method Basic.RecoverOk, ignoring packet");
+          Ok(())
+        } else {
+          self.set_channel_state(_channel_id, ChannelState::Error);
+          Err(Error::UnexpectedAnswer)
+        }
     }
 
     pub fn basic_nack(&mut self,
@@ -1761,10 +1572,7 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
@@ -1776,6 +1584,7 @@ impl<'a> Connection<'a> {
         self.send_method_frame(_channel_id, &method)
     }
 
+    /*
     pub fn tx_select(&mut self, _channel_id: u16) -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -2001,4 +1810,5 @@ impl<'a> Connection<'a> {
 
         Ok(())
     }
+    */
 }

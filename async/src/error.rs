@@ -6,4 +6,5 @@ pub enum Error {
   ParserError,
   InvalidState,
   InvalidChannel,
+  UnexpectedAnswer,
 }

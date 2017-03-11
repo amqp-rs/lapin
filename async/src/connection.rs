@@ -12,7 +12,7 @@ use format::frame::*;
 use format::field::*;
 use format::content::*;
 use channel::Channel;
-use api::ChannelState;
+use api::{Answer,ChannelState};
 use buffer::Buffer;
 use generated::*;
 use error;
@@ -118,6 +118,29 @@ impl<'a> Connection<'a> {
           .map(|c| c.state.clone())
   }
 
+  pub fn push_back_answer(&mut self, channel_id: u16, answer: Answer) {
+    self.channels
+      .get_mut(&channel_id)
+      .map(|c| c.awaiting.push_back(answer));
+  }
+
+  pub fn check_next_answer(&self, channel_id: u16, answer: Answer) -> bool {
+    self.channels
+          .get(&channel_id)
+          .map(|c| c.awaiting.front() == Some(&answer)).unwrap_or(false)
+  }
+
+  pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
+    self.channels
+          .get_mut(&channel_id)
+          .and_then(|c| c.awaiting.pop_front())
+  }
+
+  pub fn is_connected(&self, channel_id: u16) -> bool {
+    self.channels
+          .get(&channel_id)
+          .map(|c| c.is_connected()).unwrap_or(false)
+  }
 
   pub fn connect(&mut self, writer: &mut Write) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {

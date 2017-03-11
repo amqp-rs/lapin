@@ -2,7 +2,7 @@ use format::method::Method;
 use format::frame::Frame;
 use std::collections::{HashMap,VecDeque};
 use generated::Class;
-use api::ChannelState;
+use api::{Answer,ChannelState};
 use queue::*;
 
 #[derive(Clone,Debug,PartialEq)]
@@ -15,6 +15,7 @@ pub struct Channel<'a> {
   pub queues:         HashMap<String,Queue<'a>>,
   pub prefetch_size:  u32,
   pub prefetch_count: u16,
+  pub awaiting:       VecDeque<Answer>,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -36,6 +37,7 @@ impl<'a> Channel<'a> {
       queues:         HashMap::new(),
       prefetch_size:  0,
       prefetch_count: 0,
+      awaiting:       VecDeque::new()
     }
   }
 
@@ -47,5 +49,9 @@ impl<'a> Channel<'a> {
     println!("channel[{}] received {:?}", self.id, m);
     //FIXME: handle method here instead of queuing
     self.frame_queue.push_back(LocalFrame::Method(m));
+  }
+
+  pub fn is_connected(&self) -> bool {
+    self.state != ChannelState::Initial && self.state != ChannelState::Closed && self.state != ChannelState::Error
   }
 }
