@@ -367,14 +367,7 @@ impl<'a> Connection<'a> {
         println!("parsed method: {:?}", parsed);
         match parsed {
           IResult::Done(b"", m) => {
-            let state = self.channels.get_mut(&f.channel_id).map(|channel| {
-              channel.state.clone()
-            }).unwrap();
-            if let ChannelState::WillReceiveContent(consumer_tag) = state {
-              self.set_channel_state(f.channel_id, ChannelState::ReceivingContent(consumer_tag.clone(), m.body_size as usize));
-            } else {
-              self.set_channel_state(f.channel_id, ChannelState::Error);
-            }
+            self.handle_content_header_frame(f.channel_id, m.body_size);
           },
           e => {
             //we should not get an incomplete here
@@ -390,36 +383,7 @@ impl<'a> Connection<'a> {
         }
       }
       FrameType::Body => {
-        let state = self.channels.get_mut(&f.channel_id).map(|channel| {
-          channel.state.clone()
-        }).unwrap();
-
-        if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
-          if remaining_size >= f.payload.len() {
-
-            self.channels.get_mut(&f.channel_id).map(|c| {
-              for (_, ref mut q) in &mut c.queues {
-                q.consumers.get_mut(&consumer_tag).map(| cs| {
-                  (*cs.callback).receive_content(f.payload);
-                  if remaining_size == f.payload.len() {
-                    (*cs.callback).done();
-                  }
-                });
-              }
-            });
-
-            if remaining_size == f.payload.len() {
-              self.set_channel_state(f.channel_id, ChannelState::Connected);
-            } else {
-              self.set_channel_state(f.channel_id, ChannelState::ReceivingContent(consumer_tag, remaining_size - f.payload.len()));
-            }
-          } else {
-            println!("body frame too large");
-            self.set_channel_state(f.channel_id, ChannelState::Error);
-          }
-        } else {
-          self.set_channel_state(f.channel_id, ChannelState::Error);
-        }
+        self.handle_body_frame(f.channel_id, f.payload);
       }
       t => {
         println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
@@ -563,6 +527,17 @@ impl<'a> Connection<'a> {
       ConnectionState::Connected => {},
       ConnectionState::Closing(ClosingState) => {},
     };
+  }
+
+  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64) {
+    let state = self.channels.get_mut(&channel_id).map(|channel| {
+      channel.state.clone()
+    }).unwrap();
+    if let ChannelState::WillReceiveContent(consumer_tag) = state {
+      self.set_channel_state(channel_id, ChannelState::ReceivingContent(consumer_tag.clone(), size as usize));
+    } else {
+      self.set_channel_state(channel_id, ChannelState::Error);
+    }
   }
 
   pub fn handle_body_frame(&mut self, channel_id: u16, payload: &[u8]) {
