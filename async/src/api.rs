@@ -157,7 +157,7 @@ impl<'a> Connection<'a> {
         let method =
             Class::Channel(channel::Methods::Open(channel::Open { out_of_band: out_of_band }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             println!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
             self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk);
         })
@@ -201,7 +201,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Channel(channel::Methods::Flow(channel::Flow { active: active }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk);
         })
     }
@@ -235,7 +235,7 @@ impl<'a> Connection<'a> {
         }
 
         let method = Class::Channel(channel::Methods::FlowOk(channel::FlowOk { active: active }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_channel_flow_ok(&mut self,
@@ -286,7 +286,7 @@ impl<'a> Connection<'a> {
             method_id: method_id,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
           self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
         })
     }
@@ -330,7 +330,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Channel(channel::Methods::CloseOk(channel::CloseOk {}));
         self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_channel_close_ok(&mut self,
@@ -387,7 +387,7 @@ impl<'a> Connection<'a> {
             read: read,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingAccessRequestOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -465,7 +465,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeDeclareOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -532,7 +532,7 @@ impl<'a> Connection<'a> {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeDeleteOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -603,7 +603,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeBindOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -655,7 +655,7 @@ impl<'a> Connection<'a> {
         }
 
         let method = Class::Exchange(exchange::Methods::BindOk(exchange::BindOk {}));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_exchange_bind_ok(&mut self,
@@ -721,7 +721,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeUnbindOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -773,7 +773,7 @@ impl<'a> Connection<'a> {
         }
 
         let method = Class::Exchange(exchange::Methods::UnbindOk(exchange::UnbindOk {}));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_exchange_unbind_ok(&mut self,
@@ -842,7 +842,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
                 c.queues.insert(queue.clone(), q);
@@ -909,7 +909,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 let key = format!("{}_{}", &exchange, &routing_key);
                 c.awaiting.push_back(Answer::AwaitingQueueBindOk(key.clone()));
@@ -970,7 +970,7 @@ impl<'a> Connection<'a> {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(queue.clone()));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1025,7 +1025,7 @@ impl<'a> Connection<'a> {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(queue));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1081,7 +1081,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 let key = format!("{}_{}", &exchange, &routing_key);
                 c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(key));
@@ -1138,7 +1138,7 @@ impl<'a> Connection<'a> {
             global: global,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicQosOk(prefetch_size, prefetch_count, global));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1210,7 +1210,7 @@ impl<'a> Connection<'a> {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.queues.get_mut(&queue).map(|q| {
                   q.callback_holder = Some(Box::new(callback))
@@ -1281,7 +1281,7 @@ impl<'a> Connection<'a> {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicCancelOk);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1340,7 +1340,7 @@ impl<'a> Connection<'a> {
             mandatory: mandatory,
             immediate: immediate,
         }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_basic_amqp_return(&mut self,
@@ -1407,7 +1407,7 @@ impl<'a> Connection<'a> {
             no_ack: no_ack,
         }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicGetAnswer);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1479,7 +1479,7 @@ impl<'a> Connection<'a> {
             delivery_tag: delivery_tag,
             multiple: multiple,
         }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn basic_reject(&mut self,
@@ -1500,7 +1500,7 @@ impl<'a> Connection<'a> {
             delivery_tag: delivery_tag,
             requeue: requeue,
         }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn basic_recover_async(&mut self, _channel_id: u16, requeue: Boolean) -> Result<(), Error> {
@@ -1515,7 +1515,7 @@ impl<'a> Connection<'a> {
 
         let method =
             Class::Basic(basic::Methods::RecoverAsync(basic::RecoverAsync { requeue: requeue }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<(), Error> {
@@ -1530,7 +1530,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Basic(basic::Methods::Recover(basic::Recover { requeue: requeue }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicRecoverOk);
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1581,7 +1581,7 @@ impl<'a> Connection<'a> {
             multiple: multiple,
             requeue: requeue,
         }));
-        self.send_method_frame(_channel_id, &method)
+        self.send_method_frame(_channel_id, method)
     }
 
     /*
@@ -1600,7 +1600,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Tx(tx::Methods::Select(tx::Select {}));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxSelectOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1656,7 +1656,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Tx(tx::Methods::Commit(tx::Commit {}));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxCommitOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1712,7 +1712,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Tx(tx::Methods::Rollback(tx::Rollback {}));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxRollbackOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1770,7 +1770,7 @@ impl<'a> Connection<'a> {
 
         let method = Class::Confirm(confirm::Methods::Select(confirm::Select { nowait: nowait }));
 
-        self.send_method_frame(_channel_id, &method).map(|_| {
+        self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingConfirmSelectOk;
                 println!("channel {} state is now {:?}", _channel_id, c.state);

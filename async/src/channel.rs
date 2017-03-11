@@ -20,10 +20,10 @@ pub struct Channel<'a> {
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum LocalFrame {
-  Method(Class),
-  Header,
-  Heartbeat,
-  Body(Vec<u8>)
+  Method(u16,Class),
+  HeartBeat,
+  Header(u16,u16,u64),
+  Body(u16,Vec<u8>)
 }
 
 impl<'a> Channel<'a> {
@@ -48,7 +48,7 @@ impl<'a> Channel<'a> {
   pub fn received_method(&mut self, m: Class) {
     println!("channel[{}] received {:?}", self.id, m);
     //FIXME: handle method here instead of queuing
-    self.frame_queue.push_back(LocalFrame::Method(m));
+    self.frame_queue.push_back(LocalFrame::Method(self.id,m));
   }
 
   pub fn is_connected(&self) -> bool {

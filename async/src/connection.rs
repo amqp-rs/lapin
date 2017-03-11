@@ -1,7 +1,7 @@
 use std::io::{Error,ErrorKind,Read,Result,Write};
 use std::{result,str};
 use std::iter::repeat;
-use std::collections::HashMap;
+use std::collections::{HashMap,VecDeque};
 use amq_protocol_types::AMQPValue;
 use nom::{HexDisplay,IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
@@ -11,7 +11,7 @@ use cookie_factory::GenError;
 use format::frame::*;
 use format::field::*;
 use format::content::*;
-use channel::Channel;
+use channel::{Channel,LocalFrame};
 use api::{Answer,ChannelState};
 use buffer::Buffer;
 use generated::*;
@@ -69,6 +69,7 @@ pub struct Connection<'a> {
   pub channel_index:    u16,
   pub prefetch_size:    u32,
   pub prefetch_count:   u16,
+  pub frame_queue:      VecDeque<LocalFrame>,
 }
 
 impl<'a> Connection<'a> {
@@ -91,6 +92,7 @@ impl<'a> Connection<'a> {
       channel_index:  1,
       prefetch_size:  0,
       prefetch_count: 0,
+      frame_queue:    VecDeque::new(),
     }
   }
 
@@ -228,7 +230,7 @@ impl<'a> Connection<'a> {
   }
 
   pub fn can_write(&self) -> bool {
-    self.send_buffer.available_data() > 0
+    self.send_buffer.available_data() > 0 || !self.frame_queue.is_empty()
   }
 
   pub fn can_read(&self) -> bool {
@@ -240,6 +242,48 @@ impl<'a> Connection<'a> {
   }
 
   pub fn write(&mut self, writer: &mut Write) -> Result<(usize, ConnectionState)> {
+    let next_msg = self.frame_queue.pop_front();
+    if next_msg == None {
+      return Err(Error::new(ErrorKind::WouldBlock, "no new message"));
+    }
+
+    let next_msg = next_msg.unwrap();
+    println!("will write to buffer: {:?}", next_msg);
+
+    let gen_res = match &next_msg {
+      &LocalFrame::HeartBeat => {
+        gen_heartbeat_frame((&mut self.send_buffer.space(), 0)).map(|tup| tup.1)
+      },
+      &LocalFrame::Method(channel, ref method) => {
+        gen_method_frame((&mut self.send_buffer.space(), 0), channel, method).map(|tup| tup.1)
+      },
+      &LocalFrame::Header(channel_id, class_id, size) => {
+        gen_content_header_frame((&mut self.send_buffer.space(), 0), channel_id, class_id, size).map(|tup| tup.1)
+      },
+      &LocalFrame::Body(channel_id, ref data) => {
+        gen_content_body_frame((&mut self.send_buffer.space(), 0), channel_id, data).map(|tup| tup.1)
+      }
+    };
+
+    match gen_res {
+      Ok(sz) => {
+        self.send_buffer.fill(sz);
+      },
+      Err(e) => {
+        println!("error generating frame: {:?}", e);
+        self.state = ConnectionState::Error;
+        match e {
+          GenError::BufferTooSmall(_) => {
+            self.frame_queue.push_front(next_msg);
+            return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
+          },
+          GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+            return Err(Error::new(ErrorKind::InvalidData, "could not generate"));
+          }
+        }
+      }
+    }
+
     //println!("will write:\n{}", (&self.send_buffer.data()).to_hex(16));
     match writer.write(&mut self.send_buffer.data()) {
       Ok(sz) => {
@@ -313,15 +357,7 @@ impl<'a> Connection<'a> {
           }
         },
         FrameType::Heartbeat => {
-          match gen_heartbeat_frame((&mut self.send_buffer.space(), 0)).map(|tup| tup.1) {
-            Ok(sz) => {
-              self.send_buffer.fill(sz);
-            }
-            Err(e) => {
-              println!("error generating start-ok frame: {:?}", e);
-              self.state = ConnectionState::Error;
-            },
-          };
+          self.frame_queue.push_back(LocalFrame::HeartBeat);
 
           None
         },
@@ -451,17 +487,8 @@ impl<'a> Connection<'a> {
               ));
 
               println!("client sending Connection::StartOk: {:?}", start_ok);
-
-              match gen_method_frame((&mut self.send_buffer.space(), 0), 0, &start_ok).map(|tup| tup.1) {
-                Ok(sz) => {
-                  self.send_buffer.fill(sz);
-                  self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
-                }
-                Err(e) => {
-                  println!("error generating start-ok frame: {:?}", e);
-                  self.state = ConnectionState::Error;
-                },
-              }
+              self.frame_queue.push_back(LocalFrame::Method(0, start_ok));
+              self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
               println!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
@@ -495,37 +522,21 @@ impl<'a> Connection<'a> {
 
               println!("client sending Connection::TuneOk: {:?}", tune_ok);
 
-              match gen_method_frame((&mut self.send_buffer.space(), 0), 0, &tune_ok).map(|tup| tup.1) {
-                Ok(sz) => {
-                  self.send_buffer.fill(sz);
-                  self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
+              self.frame_queue.push_back(LocalFrame::Method(0, tune_ok));
+              self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
 
-                  let open = Class::Connection(connection::Methods::Open(
-                    connection::Open {
-                      virtual_host: "/".to_string(),
-                      capabilities: "".to_string(),
-                      insist:       false,
-                    }
+              let open = Class::Connection(connection::Methods::Open(
+                  connection::Open {
+                    virtual_host: "/".to_string(),
+                    capabilities: "".to_string(),
+                    insist:       false,
+                  }
                   ));
 
-                  println!("client sending Connection::Open: {:?}", open);
+              println!("client sending Connection::Open: {:?}", open);
+              self.frame_queue.push_back(LocalFrame::Method(0,open));
+              self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
 
-                  match gen_method_frame((&mut self.send_buffer.space(), 0), 0, &open).map(|tup| tup.1) {
-                    Ok(sz) => {
-                      self.send_buffer.fill(sz);
-                      self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
-                    }
-                    Err(e) => {
-                      println!("error generating start-ok frame: {:?}", e);
-                      self.state = ConnectionState::Error;
-                    },
-                  }
-                }
-                Err(e) => {
-                  println!("error generating start-ok frame: {:?}", e);
-                  self.state = ConnectionState::Error;
-                },
-              }
             } else {
               println!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
@@ -567,45 +578,47 @@ impl<'a> Connection<'a> {
     };
   }
 
-  //FIXME: no chunking for now
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
-    match gen_content_header_frame((&mut self.send_buffer.space(), 0), channel_id, class_id, slice.len() as u64).map(|tup| tup.1) {
-      Ok(sz) => {
-        self.send_buffer.fill(sz);
-        match gen_content_body_frame((&mut self.send_buffer.space(), 0), channel_id, slice).map(|tup| tup.1) {
-          Ok(sz) => {
-            self.send_buffer.fill(sz);
-          },
-          Err(e) => {
-            println!("error generating frame: {:?}", e);
-            self.state = ConnectionState::Error;
+  pub fn handle_body_frame(&mut self, channel_id: u16, payload: &[u8]) {
+    let state = self.channels.get_mut(&channel_id).map(|channel| {
+      channel.state.clone()
+    }).unwrap();
+
+    if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
+      if remaining_size >= payload.len() {
+
+        self.channels.get_mut(&channel_id).map(|c| {
+          for (_, ref mut q) in &mut c.queues {
+            q.consumers.get_mut(&consumer_tag).map(| cs| {
+              (*cs.callback).receive_content(payload);
+              if remaining_size == payload.len() {
+                (*cs.callback).done();
+              }
+            });
           }
+        });
+
+        if remaining_size == payload.len() {
+          self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Connected);
+        } else {
+          self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag, remaining_size - payload.len()));
         }
-      },
-      Err(e) => {
-        println!("error generating frame: {:?}", e);
-        self.state = ConnectionState::Error;
+      } else {
+        println!("body frame too large");
+        self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Error);
       }
+    } else {
+      self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Error);
     }
   }
 
-  pub fn send_method_frame(&mut self, channel: u16, method: &Class) -> result::Result<(), error::Error> {
-    match gen_method_frame((&mut self.send_buffer.space(), 0), channel, &method).map(|tup| tup.1) {
-      Ok(sz) => {
-        self.send_buffer.fill(sz);
-        Ok(())
-      },
-      Err(e) => {
-        println!("error generating frame: {:?}", e);
-        self.state = ConnectionState::Error;
-        match e {
-          GenError::BufferTooSmall(_) => Err(error::Error::SendBufferTooSmall),
-          GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
-            //self.channels.get_mut(&channel).map(|c| c.state = ChannelState::Error);
-            Err(error::Error::GeneratorError)
-          }
-        }
-      }
-    }
+  //FIXME: no chunking for now
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
+    self.frame_queue.push_back(LocalFrame::Header(channel_id, class_id, slice.len() as u64));
+    self.frame_queue.push_back(LocalFrame::Body(channel_id,Vec::from(slice)));
+  }
+
+  pub fn send_method_frame(&mut self, channel: u16, method: Class) -> result::Result<(), error::Error> {
+    self.frame_queue.push_back(LocalFrame::Method(channel,method));
+    Ok(())
   }
 }
