@@ -150,20 +150,9 @@ impl<'a> Connection<'a> {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    let res = gen_protocol_header((self.send_buffer.space(), 0)).map(|tup| tup.1);
-    if let Ok(sz) = res {
-      self.send_buffer.fill(sz);
-      match writer.write(&mut self.send_buffer.data()) {
-        Ok(sz2) => {
-          self.send_buffer.consume(sz2);
-          self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader);
-          Ok(self.state)
-        },
-        Err(e) => Err(e),
-      }
-    } else {
-      Err(Error::new(ErrorKind::WouldBlock, "could not write protocol header"))
-    }
+    self.frame_queue.push_back(LocalFrame::ProtocolHeader);
+    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader);
+    Ok(self.state)
   }
 
   pub fn run<T>(&mut self, stream: &mut T) -> Result<ConnectionState>
@@ -251,6 +240,9 @@ impl<'a> Connection<'a> {
     println!("will write to buffer: {:?}", next_msg);
 
     let gen_res = match &next_msg {
+      &LocalFrame::ProtocolHeader => {
+        gen_protocol_header((self.send_buffer.space(), 0)).map(|tup| tup.1)
+      },
       &LocalFrame::HeartBeat => {
         gen_heartbeat_frame((&mut self.send_buffer.space(), 0)).map(|tup| tup.1)
       },

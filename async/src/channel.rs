@@ -20,6 +20,7 @@ pub struct Channel<'a> {
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum LocalFrame {
+  ProtocolHeader,
   Method(u16,Class),
   HeartBeat,
   Header(u16,u16,u64),
