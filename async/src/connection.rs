@@ -291,13 +291,13 @@ impl<'a> Connection<'a> {
       // do we continue?
       let consumed = self.receive_buffer.data().offset(i);
 
-      match f.frame_type {
+      let method = match f.frame_type {
         FrameType::Method => {
           let parsed = parse_class(f.payload);
           println!("parsed method: {:?}", parsed);
           match parsed {
             IResult::Done(b"", m) => {
-              (f.channel_id, Some(m), consumed)
+              Some(m)
             },
             e => {
               //we should not get an incomplete here
@@ -323,7 +323,7 @@ impl<'a> Connection<'a> {
             },
           };
 
-          (f.channel_id, None, consumed)
+          None
         },
         FrameType::Header => {
           let parsed = content_header(f.payload);
@@ -338,7 +338,7 @@ impl<'a> Connection<'a> {
               } else {
                 self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
               }
-              (f.channel_id, None, consumed)
+              None
             },
             e => {
               //we should not get an incomplete here
@@ -384,14 +384,16 @@ impl<'a> Connection<'a> {
           } else {
             self.channels.get_mut(&f.channel_id).map(|channel| channel.state = ChannelState::Error);
           }
-          (f.channel_id, None, consumed)
+          None
         }
         t => {
           println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
           let err = format!("parse error: {:?}", t);
           return Err(Error::new(ErrorKind::Other, err))
         }
-      }
+      };
+
+      (f.channel_id, method, consumed)
     };
 
     self.receive_buffer.consume(consumed);
