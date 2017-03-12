@@ -10,7 +10,7 @@ use std::{thread,time};
 
 use nom::HexDisplay;
 use lapin::*;
-use lapin::client::Client;
+//use lapin::client::Client;
 use futures::future::{self,Future};
 
 #[test]
