@@ -9,6 +9,7 @@ extern crate cookie_factory;
 extern crate sasl;
 
 pub mod buffer;
+pub mod io;
 pub mod connection;
 pub mod channel;
 pub mod queue;
