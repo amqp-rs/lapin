@@ -332,6 +332,12 @@ impl<'a> Connection<'a> {
     // do we continue?
     let consumed = data.offset(i);
 
+    self.handle_frame(f);
+
+    return Ok((consumed, self.state));
+  }
+
+  pub fn handle_frame(&mut self, f: Frame) {
     match f {
       Frame::Method(channel_id, method) => {
         if channel_id == 0 {
@@ -345,18 +351,11 @@ impl<'a> Connection<'a> {
       },
       Frame::Header(channel_id, header) => {
         self.handle_content_header_frame(channel_id, header.body_size);
-      }
+      },
       Frame::Body(channel_id, payload) => {
         self.handle_body_frame(channel_id, payload);
       }
-      t => {
-        println!("unknown frame type: {:?}", t);
-        let err = format!("parse error: {:?}", t);
-        return Err(Error::new(ErrorKind::Other, err))
-      }
     };
-
-    return Ok((consumed, self.state));
   }
 
   pub fn handle_global_method(&mut self, c: Class) {
