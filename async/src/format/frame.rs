@@ -2,6 +2,7 @@ use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use method::{method,Method};
 use format::field::*;
+use format::content::*;
 use generated::*;
 
 use std::collections::HashMap;
@@ -85,24 +86,27 @@ named!(pub raw_frame<RawFrame>,
 
 #[derive(Clone,Debug,PartialEq)]
 pub enum Frame<'a> {
-  Method(u16, Method),
+  Method(u16, Class),
   //content header
-  Header(u16, ()),
+  Header(u16, ContentHeader),
   //content Body
   Body(u16, &'a[u8]),
   Heartbeat(u16)
 }
 
 pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
+  use nom::HexDisplay;
   let (remaining, raw) = try_parse!(input, raw_frame);
   match raw.frame_type {
-    FrameType::Header    => IResult::Done(remaining, Frame::Header(raw.channel_id, ())),
+    FrameType::Header    => {
+       let (remaining2, h) = try_parse!(raw.payload, content_header);
+      IResult::Done(remaining, Frame::Header(raw.channel_id, h))
+    },
     FrameType::Body      => IResult::Done(remaining, Frame::Body(raw.channel_id, raw.payload)),
     FrameType::Heartbeat => IResult::Done(remaining, Frame::Heartbeat(raw.channel_id)),
     FrameType::Method    => {
-      println!("will try to parse a method");
-      let (remaining2, m) = try_parse!(raw.payload, method);
-      IResult::Done(remaining2, Frame::Method(raw.channel_id, m))
+      let (remaining2, m) = try_parse!(raw.payload, parse_class);
+      IResult::Done(remaining, Frame::Method(raw.channel_id, m))
     },
   }
 }

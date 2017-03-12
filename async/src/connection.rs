@@ -312,8 +312,7 @@ impl<'a> Connection<'a> {
   }
 
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
-    //println!("will parse:\n{}", (&self.receive_buffer.data()).to_hex(16));
-    let parsed_frame = raw_frame(data);
+    let parsed_frame = frame(data);
     match parsed_frame {
       IResult::Done(i,_)     => {},
       IResult::Incomplete(_) => {
@@ -329,69 +328,33 @@ impl<'a> Connection<'a> {
 
     let (i, f) = parsed_frame.unwrap();
 
-    //println!("parsed frame: {:?}", f);
     //FIXME: what happens if we fail to parse a packet in a channel?
     // do we continue?
     let consumed = data.offset(i);
 
-    match f.frame_type {
-      FrameType::Method => {
-        let parsed = parse_class(f.payload);
-        println!("parsed method: {:?}", parsed);
-        match parsed {
-          IResult::Done(b"", method) => {
-            if f.channel_id == 0 {
-              self.handle_global_method(method);
-            } else {
-              self.receive_method(f.channel_id, method);
-            }
-          },
-          e => {
-            //we should not get an incomplete here
-            //FIXME: should probably disconnect channel on error here
-            let err = format!("parse error: {:?}", e);
-            if f.channel_id == 0 {
-              self.state = ConnectionState::Error;
-            } else {
-              self.set_channel_state(f.channel_id, ChannelState::Error);
-            }
-            return Err(Error::new(ErrorKind::Other, err))
-          }
+    match f {
+      Frame::Method(channel_id, method) => {
+        if channel_id == 0 {
+          self.handle_global_method(method);
+        } else {
+          self.receive_method(channel_id, method);
         }
       },
-      FrameType::Heartbeat => {
+      Frame::Heartbeat(channel_id) => {
         self.frame_queue.push_back(LocalFrame::HeartBeat);
       },
-      FrameType::Header => {
-        let parsed = content_header(f.payload);
-        println!("parsed method: {:?}", parsed);
-        match parsed {
-          IResult::Done(b"", m) => {
-            self.handle_content_header_frame(f.channel_id, m.body_size);
-          },
-          e => {
-            //we should not get an incomplete here
-            //FIXME: should probably disconnect channel on error here
-            let err = format!("parse error: {:?}", e);
-            if f.channel_id == 0 {
-              self.state = ConnectionState::Error;
-            } else {
-              self.set_channel_state(f.channel_id, ChannelState::Error);
-            }
-            return Err(Error::new(ErrorKind::Other, err));
-          }
-        }
+      Frame::Header(channel_id, header) => {
+        self.handle_content_header_frame(channel_id, header.body_size);
       }
-      FrameType::Body => {
-        self.handle_body_frame(f.channel_id, f.payload);
+      Frame::Body(channel_id, payload) => {
+        self.handle_body_frame(channel_id, payload);
       }
       t => {
-        println!("frame type: {:?} -> unknown payload:\n{}", t, f.payload.to_hex(16));
+        println!("unknown frame type: {:?}", t);
         let err = format!("parse error: {:?}", t);
         return Err(Error::new(ErrorKind::Other, err))
       }
     };
-
 
     return Ok((consumed, self.state));
   }

@@ -79,4 +79,3 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       panic!();
 }
-
