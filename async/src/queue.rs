@@ -44,7 +44,7 @@ pub struct Queue<'a> {
   pub durable:        bool,
   pub exclusive:      bool,
   pub auto_delete:    bool,
-  pub bindings:       HashMap<String, Binding>,
+  pub bindings:       HashMap<(String, String), Binding>,
   pub consumers:      HashMap<String, Consumer<'a>>,
   pub message_count:  u32,
   pub consumer_count: u32,
