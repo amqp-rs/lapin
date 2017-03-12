@@ -85,12 +85,13 @@ named!(pub raw_frame<RawFrame>,
 );
 
 #[derive(Clone,Debug,PartialEq)]
-pub enum Frame<'a> {
+pub enum Frame {
+  ProtocolHeader,
   Method(u16, Class),
   //content header
-  Header(u16, ContentHeader),
+  Header(u16, u16, ContentHeader),
   //content Body
-  Body(u16, &'a[u8]),
+  Body(u16, Vec<u8>),
   Heartbeat(u16)
 }
 
@@ -100,9 +101,9 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
   match raw.frame_type {
     FrameType::Header    => {
        let (remaining2, h) = try_parse!(raw.payload, content_header);
-      IResult::Done(remaining, Frame::Header(raw.channel_id, h))
+      IResult::Done(remaining, Frame::Header(raw.channel_id, h.class_id, h))
     },
-    FrameType::Body      => IResult::Done(remaining, Frame::Body(raw.channel_id, raw.payload)),
+    FrameType::Body      => IResult::Done(remaining, Frame::Body(raw.channel_id, Vec::from(raw.payload))),
     FrameType::Heartbeat => IResult::Done(remaining, Frame::Heartbeat(raw.channel_id)),
     FrameType::Method    => {
       let (remaining2, m) = try_parse!(raw.payload, parse_class);

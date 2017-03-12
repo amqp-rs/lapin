@@ -9,22 +9,13 @@ use queue::*;
 pub struct Channel<'a> {
   pub id:             u16,
   pub state:          ChannelState,
-  pub frame_queue:    VecDeque<LocalFrame>,
+  pub frame_queue:    VecDeque<Frame>,
   pub send_flow:      bool,
   pub receive_flow:   bool,
   pub queues:         HashMap<String,Queue<'a>>,
   pub prefetch_size:  u32,
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
-}
-
-#[derive(Clone,Debug,PartialEq)]
-pub enum LocalFrame {
-  ProtocolHeader,
-  Method(u16,Class),
-  HeartBeat,
-  Header(u16,u16,u64),
-  Body(u16,Vec<u8>)
 }
 
 impl<'a> Channel<'a> {
@@ -49,7 +40,7 @@ impl<'a> Channel<'a> {
   pub fn received_method(&mut self, m: Class) {
     println!("channel[{}] received {:?}", self.id, m);
     //FIXME: handle method here instead of queuing
-    self.frame_queue.push_back(LocalFrame::Method(self.id,m));
+    self.frame_queue.push_back(Frame::Method(self.id,m));
   }
 
   pub fn is_connected(&self) -> bool {

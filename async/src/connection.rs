@@ -11,7 +11,7 @@ use cookie_factory::GenError;
 use format::frame::*;
 use format::field::*;
 use format::content::*;
-use channel::{Channel,LocalFrame};
+use channel::Channel;
 use api::{Answer,ChannelState};
 use buffer::Buffer;
 use generated::*;
@@ -67,7 +67,7 @@ pub struct Connection<'a> {
   pub channel_index:    u16,
   pub prefetch_size:    u32,
   pub prefetch_count:   u16,
-  pub frame_queue:      VecDeque<LocalFrame>,
+  pub frame_queue:      VecDeque<Frame>,
 }
 
 impl<'a> Connection<'a> {
@@ -146,7 +146,7 @@ impl<'a> Connection<'a> {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    self.frame_queue.push_back(LocalFrame::ProtocolHeader);
+    self.frame_queue.push_back(Frame::ProtocolHeader);
     self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader);
     Ok(self.state)
   }
@@ -161,19 +161,19 @@ impl<'a> Connection<'a> {
     println!("will write to buffer: {:?}", next_msg);
 
     let gen_res = match &next_msg {
-      &LocalFrame::ProtocolHeader => {
+      &Frame::ProtocolHeader => {
         gen_protocol_header((send_buffer, 0)).map(|tup| tup.1)
       },
-      &LocalFrame::HeartBeat => {
+      &Frame::Heartbeat(_) => {
         gen_heartbeat_frame((send_buffer, 0)).map(|tup| tup.1)
       },
-      &LocalFrame::Method(channel, ref method) => {
+      &Frame::Method(channel, ref method) => {
         gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
       },
-      &LocalFrame::Header(channel_id, class_id, size) => {
-        gen_content_header_frame((send_buffer, 0), channel_id, class_id, size).map(|tup| tup.1)
+      &Frame::Header(channel_id, class_id, ref header) => {
+        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
       },
-      &LocalFrame::Body(channel_id, ref data) => {
+      &Frame::Body(channel_id, ref data) => {
         gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
       }
     };
@@ -226,6 +226,10 @@ impl<'a> Connection<'a> {
 
   pub fn handle_frame(&mut self, f: Frame) {
     match f {
+      Frame::ProtocolHeader => {
+        println!("error: the client should not receive a protocol header");
+        self.state = ConnectionState::Error;
+      },
       Frame::Method(channel_id, method) => {
         if channel_id == 0 {
           self.handle_global_method(method);
@@ -234,9 +238,9 @@ impl<'a> Connection<'a> {
         }
       },
       Frame::Heartbeat(channel_id) => {
-        self.frame_queue.push_back(LocalFrame::HeartBeat);
+        self.frame_queue.push_back(Frame::Heartbeat(0));
       },
-      Frame::Header(channel_id, header) => {
+      Frame::Header(channel_id, class_id, header) => {
         self.handle_content_header_frame(channel_id, header.body_size);
       },
       Frame::Body(channel_id, payload) => {
@@ -286,7 +290,7 @@ impl<'a> Connection<'a> {
               ));
 
               println!("client sending Connection::StartOk: {:?}", start_ok);
-              self.frame_queue.push_back(LocalFrame::Method(0, start_ok));
+              self.frame_queue.push_back(Frame::Method(0, start_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
               println!("waiting for class Connection method Start, got {:?}", c);
@@ -322,7 +326,7 @@ impl<'a> Connection<'a> {
 
               println!("client sending Connection::TuneOk: {:?}", tune_ok);
 
-              self.frame_queue.push_back(LocalFrame::Method(0, tune_ok));
+              self.frame_queue.push_back(Frame::Method(0, tune_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
 
               let open = Class::Connection(connection::Methods::Open(
@@ -334,7 +338,7 @@ impl<'a> Connection<'a> {
                   ));
 
               println!("client sending Connection::Open: {:?}", open);
-              self.frame_queue.push_back(LocalFrame::Method(0,open));
+              self.frame_queue.push_back(Frame::Method(0,open));
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
 
             } else {
@@ -382,54 +386,63 @@ impl<'a> Connection<'a> {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
     }).unwrap();
-    if let ChannelState::WillReceiveContent(consumer_tag) = state {
-      self.set_channel_state(channel_id, ChannelState::ReceivingContent(consumer_tag.clone(), size as usize));
+    if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = state {
+      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag.clone(), size as usize));
     } else {
       self.set_channel_state(channel_id, ChannelState::Error);
     }
   }
 
-  pub fn handle_body_frame(&mut self, channel_id: u16, payload: &[u8]) {
+  pub fn handle_body_frame(&mut self, channel_id: u16, payload: Vec<u8>) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
     }).unwrap();
 
-    if let ChannelState::ReceivingContent(consumer_tag, remaining_size) = state {
-      if remaining_size >= payload.len() {
+    let payload_size = payload.len();
 
-        self.channels.get_mut(&channel_id).map(|c| {
-          for (_, ref mut q) in &mut c.queues {
-            q.consumers.get_mut(&consumer_tag).map(| cs| {
+    if let ChannelState::ReceivingContent(queue_name, consumer_tag, remaining_size) = state {
+      if remaining_size >= payload_size {
+
+        if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
+          if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
+            if let Some(ref mut cs) = q.consumers.get_mut(&consumer_tag) {
               (*cs.callback).receive_content(payload);
-              if remaining_size == payload.len() {
+              if remaining_size == payload_size {
                 (*cs.callback).done();
               }
-            });
+            }
           }
-        });
+        }
 
-        if remaining_size == payload.len() {
-          self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Connected);
+        if remaining_size == payload_size {
+          self.set_channel_state(channel_id, ChannelState::Connected);
         } else {
-          self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::ReceivingContent(consumer_tag, remaining_size - payload.len()));
+          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag, remaining_size - payload_size));
         }
       } else {
         println!("body frame too large");
-        self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Error);
+        self.set_channel_state(channel_id, ChannelState::Error);
       }
     } else {
-      self.channels.get_mut(&channel_id).map(|channel| channel.state = ChannelState::Error);
+      self.set_channel_state(channel_id, ChannelState::Error);
     }
   }
 
   //FIXME: no chunking for now
   pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
-    self.frame_queue.push_back(LocalFrame::Header(channel_id, class_id, slice.len() as u64));
-    self.frame_queue.push_back(LocalFrame::Body(channel_id,Vec::from(slice)));
+    let header = ContentHeader {
+      class_id:       class_id,
+      weight:         0,
+      body_size:      slice.len() as u64,
+      property_flags: 0x2000,
+      property_list:  HashMap::new(),
+    };
+    self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
+    self.frame_queue.push_back(Frame::Body(channel_id,Vec::from(slice)));
   }
 
   pub fn send_method_frame(&mut self, channel: u16, method: Class) -> result::Result<(), error::Error> {
-    self.frame_queue.push_back(LocalFrame::Method(channel,method));
+    self.frame_queue.push_back(Frame::Method(channel,method));
     Ok(())
   }
 }

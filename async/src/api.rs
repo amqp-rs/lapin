@@ -15,8 +15,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(String),
-    ReceivingContent(String,usize),
+    WillReceiveContent(String,String),
+    ReceivingContent(String,String,usize),
 }
 
 #[derive(Clone,Debug,PartialEq,Eq)]
@@ -1375,8 +1375,8 @@ impl<'a> Connection<'a> {
         }
 
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.state = ChannelState::WillReceiveContent(method.consumer_tag.to_string());
-            for (_, ref mut q) in &mut c.queues {
+            for (ref queue_name, ref mut q) in &mut c.queues {
+              c.state = ChannelState::WillReceiveContent(queue_name.to_string(), method.consumer_tag.to_string());
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
                 (*cs.callback).start_deliver(_channel_id, &method);
               });

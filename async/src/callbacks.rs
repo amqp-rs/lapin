@@ -6,7 +6,7 @@ pub trait BasicConsumer: Send {
     channel_id: u16,
     method:     &Deliver);
 
-  fn receive_content(&mut self, data: &[u8]);
+  fn receive_content(&mut self, data: Vec<u8>);
 
   fn done(&mut self);
 }
@@ -22,8 +22,8 @@ impl BasicConsumer for LoggingConsumer {
     println!("LOG channel {} starts delivering: {:?}", channel_id, method);
   }
 
-  fn receive_content(&mut self, data: &[u8]) {
-    println!("LOG consumer got data:\n{}", data.to_hex(16));
+  fn receive_content(&mut self, data: Vec<u8>) {
+    println!("LOG consumer got data:\n{}", (&data).to_hex(16));
   }
 
   fn done(&mut self) {
