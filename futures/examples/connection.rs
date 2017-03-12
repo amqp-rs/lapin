@@ -15,13 +15,14 @@ use std::net::SocketAddr;
 
 use nom::HexDisplay;
 use lapin::*;
-use lapin::client::Client;
+//use lapin::client::Client;
 use futures::future::{self,Future};
 use futures_cpupool::CpuPool;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
 fn main() {
+  /*
   env_logger::init().unwrap();
   let mut core = Core::new().unwrap();
   //let mut stream = TcpStream::connect(&"127.0.0.1:5672".parse::<SocketAddr>().unwrap(),  &core.handle());
@@ -39,5 +40,5 @@ fn main() {
 
   let mut channel = core.run(client_future).unwrap();
   //println!("channel id: {}", channel.id);
-
+  */
 }

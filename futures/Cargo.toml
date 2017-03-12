@@ -6,6 +6,8 @@ authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 [dependencies]
 futures = "0.1"
 tokio-core = "*"
+tokio-proto = "*"
+tokio-service = "*"
 nom = "*"
 cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 lapin-async = {path = "../async"}

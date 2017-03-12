@@ -6,11 +6,17 @@ use lapin_async::format::frame::*;
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
 use std::io::{self,Error,ErrorKind,Read,Write};
-use futures::{Async,Poll};
-use futures::future::Future;
+use futures::{Async,Poll,Sink,Stream,StartSend,Future};
+use futures::future;
 use std::rc::Rc;
 use std::cell::RefCell;
-use tokio_core::io::{Codec,EasyBuf,Io};
+use tokio_core::io::{Codec,EasyBuf,Framed,Io};
+use tokio_service::Service;
+use tokio_proto::pipeline::{ClientProto, ClientService};
+use tokio_proto::TcpClient;
+use tokio_core::reactor::Handle;
+use tokio_core::net::TcpStream;
+use std::net::SocketAddr;
 
 pub struct AMQPCodec;
 
@@ -31,11 +37,13 @@ impl Codec for AMQPCodec {
           }
         };
 
+        println!("decoded frame: {:?}", f);
         buf.drain_to(consumed);
         Ok(Some(f))
     }
 
     fn encode(&mut self, frame: Frame, buf: &mut Vec<u8>) -> io::Result<()> {
+      println!("will send frame: {:?}", frame);
       loop {
         let gen_res = match &frame {
           &Frame::ProtocolHeader => {
@@ -58,6 +66,7 @@ impl Codec for AMQPCodec {
         match gen_res {
           Ok(sz) => {
             buf.truncate(sz);
+            println!("serialized frame: {} bytes", sz);
             return Ok(());
           },
           Err(e) => {
@@ -65,7 +74,7 @@ impl Codec for AMQPCodec {
             match e {
               GenError::BufferTooSmall(sz) => {
                 buf.resize(sz, 0);
-                return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
+                //return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
               },
               GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
                 return Err(Error::new(ErrorKind::InvalidData, "could not generate"));
@@ -77,6 +86,184 @@ impl Codec for AMQPCodec {
     }
 }
 
+pub struct AMQPProto {
+  //pub conn: Connection<'static>
+}
+
+impl AMQPProto {
+  pub fn new() -> AMQPProto {
+    AMQPProto {
+      //conn: Connection::new(),
+    }
+  }
+}
+
+impl<T: Io + 'static> ClientProto<T> for AMQPProto {
+    type Request  = Frame;
+    type Response = Frame;
+
+    /// `Framed<T, LineCodec>` is the return value of `io.framed(LineCodec)`
+    type Transport = AMQPTransport<Framed<T, AMQPCodec>>;
+    type BindTransport = Result<Self::Transport, io::Error>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+      let mut t = AMQPTransport {
+        upstream: io.framed(AMQPCodec),
+        conn: Connection::new(),
+      };
+      t.connect();
+      Ok(t)
+    }
+}
+
+pub struct AMQPTransport<T> {
+  pub upstream: T,
+  pub conn: Connection<'static>,
+}
+
+impl<T> AMQPTransport<T>
+  where T: Sink<SinkItem = Frame, SinkError = io::Error> {
+  pub fn connect(&mut self) {
+    self.conn.connect();
+    let frame = self.conn.frame_queue.pop_front().unwrap();
+    self.start_send(frame);
+  }
+}
+
+impl<T> Stream for AMQPTransport<T>
+    where T: Stream<Item = Frame, Error = io::Error>,
+          T: Sink<SinkItem = Frame, SinkError = io::Error>,
+{
+    type Item = Frame;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
+        println!("stream poll");
+        loop {
+            // Poll the upstream transport. `try_ready!` will bubble up errors
+            // and Async::NotReady.
+            match try_ready!(self.upstream.poll()) {
+                Some(ref frame) => {
+                  println!("AMQPTransport received frame: {:?}", frame);
+                  try!(self.poll_complete());
+                },
+                None => {
+                  return Ok(Async::NotReady)
+                }
+                /*if msg == "[ping]" => {
+                    // Intercept [ping] messages
+                    self.pongs_remaining += 1;
+
+                    // Try flushing the pong, only bubble up errors
+                    try!(self.poll_complete());
+                }
+                m => return Ok(Async::Ready(m)),
+                */
+            }
+        }
+    }
+}
+
+impl<T> Sink for AMQPTransport<T>
+    where T: Sink<SinkItem = Frame, SinkError = io::Error>,
+{
+    type SinkItem = Frame;
+    type SinkError = io::Error;
+
+    fn start_send(&mut self, item: Frame) -> StartSend<Frame, io::Error> {
+        println!("sink start send");
+        // Only accept the write if there are no pending pongs
+        /*if self.pongs_remaining > 0 {
+            return Ok(AsyncSink::NotReady(item));
+        }
+        */
+
+        // If there are no pending pongs, then send the item upstream
+        self.upstream.start_send(item)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), io::Error> {
+        println!("sink poll_complete");
+        /*
+        while self.pongs_remaining > 0 {
+            // Try to send the pong upstream
+            let res = try!(self.upstream.start_send("[pong]".to_string()));
+
+            if !res.is_ready() {
+                // The upstream is not ready to accept new items
+                break;
+            }
+
+            // The pong has been sent upstream
+            self.pongs_remaining -= 1;
+        }
+        */
+
+        // Call poll_complete on the upstream
+        //
+        // If there are remaining pongs to send, this call may create additional
+        // capacity. One option could be to attempt to send the pongs again.
+        // However, if a `start_send` returned NotReady, and this poll_complete
+        // *did* create additional capacity in the upstream, then *our*
+        // `poll_complete` will get called again shortly.
+        //
+        // Hopefully this makes sense... it probably doesn't, so please ask
+        // questions in the Gitter channel and help me explain this better :)
+        self.upstream.poll_complete()
+    }
+}
+/*
+impl<T: Io + 'static> ClientProto<T> for AMQPProto {
+    type Request  = Frame;
+    type Response = Frame;
+
+    /// `Framed<T, LineCodec>` is the return value of `io.framed(LineCodec)`
+    type Transport = Framed<T, AMQPCodec>;
+    type BindTransport = Box<Future<Item = Self::Transport,
+                                    Error = io::Error>>;
+//Result<Self::Transport, io::Error>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        let transport = io.framed(AMQPCodec);
+
+        //self.conn.connect();
+        //let handshake = transport.send(self.conn.frame_queue.pop_front().unwrap())
+        let handshake = transport.into_future()
+        .map_err(|(e, _)| e)
+        .and_then(|(frame,transport)| {
+          let mut conn = Connection::new();
+          conn.connect();
+          let t = Box::new(transport.send(conn.frame_queue.pop_front().unwrap()))
+                            as Self::BindTransport;
+          Box::new((frame,t,conn))
+        })
+        .and_then(|(frame, transport, conn)| {
+          println!("AMQPPRoto received frame: {:?}", frame);
+
+          let err = io::Error::new(io::ErrorKind::Other,
+                                                 "STOPPING");
+          Box::new(future::err(err)) as Self::BindTransport
+        });
+
+        Box::new(handshake)
+    }
+}
+*/
+pub struct Client {
+    inner: ClientService<TcpStream, AMQPProto>,
+}
+
+impl Client {
+    pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
+        let ret = TcpClient::new(AMQPProto::new())
+            .connect(addr, handle)
+            .map(|client_service| {
+                Client { inner: client_service }
+            });
+
+        Box::new(ret)
+    }
+}
 /*
 pub struct InnerClient<'consumer, T:Read+Write+Io> {
   pub connection: Connection<'consumer>,
