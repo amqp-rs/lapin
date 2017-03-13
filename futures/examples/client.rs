@@ -2,6 +2,7 @@ extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_proto;
+extern crate env_logger;
 #[macro_use] extern crate nom;
 
 use std::net::TcpStream;
@@ -18,8 +19,8 @@ use futures::future::{self,Future};
 use tokio_core::reactor::{Core,Handle};
 use tokio_proto::TcpClient;
 
-//#[test]
-fn connection() {
+fn main() {
+      env_logger::init().unwrap();
       //let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
       let mut core = Core::new().unwrap();
 
@@ -29,7 +30,9 @@ fn connection() {
       core.run(
         lapin::client::Client::connect(&addr, &handle)
             .and_then(|client| {
+//              thread::sleep_ms(3000);
               println!("client exists");
+              //client.ping()
               //panic!();
               future::ok(1)
               /*

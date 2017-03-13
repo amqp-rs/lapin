@@ -6,8 +6,8 @@ use lapin_async::format::frame::*;
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
 use std::io::{self,Error,ErrorKind,Read,Write};
-use futures::{Async,Poll,Sink,Stream,StartSend,Future};
-use futures::future;
+use futures::{Async,AsyncSink,Poll,Sink,Stream,StartSend,Future};
+use futures::future::{self, FutureResult,Loop};
 use std::rc::Rc;
 use std::cell::RefCell;
 use tokio_core::io::{Codec,EasyBuf,Framed,Io};
@@ -104,6 +104,7 @@ impl<T: Io + 'static> ClientProto<T> for AMQPProto {
 
     /// `Framed<T, LineCodec>` is the return value of `io.framed(LineCodec)`
     type Transport = AMQPTransport<Framed<T, AMQPCodec>>;
+    //type BindTransport = Box<Future<Item = Self::Transport, Error = io::Error>>;//Result<Self::Transport, io::Error>;
     type BindTransport = Result<Self::Transport, io::Error>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
@@ -122,11 +123,13 @@ pub struct AMQPTransport<T> {
 }
 
 impl<T> AMQPTransport<T>
-  where T: Sink<SinkItem = Frame, SinkError = io::Error> {
+    where T: Stream<Item = Frame, Error = io::Error>,
+          T: Sink<SinkItem = Frame, SinkError = io::Error> {
   pub fn connect(&mut self) {
     self.conn.connect();
     let frame = self.conn.frame_queue.pop_front().unwrap();
-    self.start_send(frame);
+    self.start_send(frame);//.unwrap().wait();
+    self.upstream.poll_complete();
   }
 }
 
@@ -139,6 +142,18 @@ impl<T> Stream for AMQPTransport<T>
 
     fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
         println!("stream poll");
+        // and Async::NotReady.
+        match try_ready!(self.upstream.poll()) {
+            Some(frame) => {
+              println!("AMQPTransport received frame: {:?}", frame);
+              //try!(self.poll_complete());
+              return Ok(Async::Ready(Some(frame)))
+            },
+            None => {
+              return Ok(Async::NotReady)
+            }
+        }
+            /*
         loop {
             // Poll the upstream transport. `try_ready!` will bubble up errors
             // and Async::NotReady.
@@ -150,17 +165,9 @@ impl<T> Stream for AMQPTransport<T>
                 None => {
                   return Ok(Async::NotReady)
                 }
-                /*if msg == "[ping]" => {
-                    // Intercept [ping] messages
-                    self.pongs_remaining += 1;
-
-                    // Try flushing the pong, only bubble up errors
-                    try!(self.poll_complete());
-                }
-                m => return Ok(Async::Ready(m)),
-                */
             }
         }
+        */
     }
 }
 
@@ -212,45 +219,128 @@ impl<T> Sink for AMQPTransport<T>
         self.upstream.poll_complete()
     }
 }
+
+
 /*
-impl<T: Io + 'static> ClientProto<T> for AMQPProto {
-    type Request  = Frame;
-    type Response = Frame;
-
-    /// `Framed<T, LineCodec>` is the return value of `io.framed(LineCodec)`
-    type Transport = Framed<T, AMQPCodec>;
-    type BindTransport = Box<Future<Item = Self::Transport,
-                                    Error = io::Error>>;
-//Result<Self::Transport, io::Error>;
-
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        let transport = io.framed(AMQPCodec);
-
-        //self.conn.connect();
-        //let handshake = transport.send(self.conn.frame_queue.pop_front().unwrap())
-        let handshake = transport.into_future()
-        .map_err(|(e, _)| e)
-        .and_then(|(frame,transport)| {
-          let mut conn = Connection::new();
-          conn.connect();
-          let t = Box::new(transport.send(conn.frame_queue.pop_front().unwrap()))
-                            as Self::BindTransport;
-          Box::new((frame,t,conn))
-        })
-        .and_then(|(frame, transport, conn)| {
-          println!("AMQPPRoto received frame: {:?}", frame);
-
-          let err = io::Error::new(io::ErrorKind::Other,
-                                                 "STOPPING");
-          Box::new(future::err(err)) as Self::BindTransport
-        });
-
-        Box::new(handshake)
+      let mut t = AMQPTransport {
+        upstream: io.framed(AMQPCodec),
+        conn: Connection::new(),
+      };
+      t.connect();
+      Ok(t)
     }
-}
 */
 pub struct Client {
+    upstream: Framed<TcpStream, AMQPCodec>, //AMQPTransport<TcpStream>,
+    conn:  Connection<'static>,
+}
+
+impl Client {
+  pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
+    let ret = TcpStream::connect(addr, handle)
+      .map(|stream| {
+        stream.framed(AMQPCodec)
+      }).and_then(|transport| {
+        println!("got client service");
+        let mut client = Client {
+          upstream: transport,
+          conn:     Connection::new(),
+        };
+
+        future::ok(client)
+      });
+
+    Box::new(ret)
+
+  }
+  /*
+  pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
+    let ret = TcpStream::connect(addr, handle)
+      .map(|stream| {
+        stream.framed(AMQPCodec)
+      }).and_then(|transport| {
+        println!("got client service");
+        let mut client = Client {
+          upstream: transport,
+          conn:     Connection::new(),
+        };
+
+        client.conn.connect();
+        let f = future::loop_fn(
+          client, |mut cl| {
+            let Client { upstream: upstream, conn: conn } = cl;
+
+            println!("loop[{}]", line!());
+            let next_frame = conn.frame_queue.pop_front();
+
+            println!("loop[{}] will poll", line!());
+            //future::ok(f).then(|_| {
+            //upstream.poll().map(|frame| {
+            upstream.map(|frame| {
+              println!("loop[{}] polling got frame: {:?}", line!(), frame);
+              //if let Async::Ready(Some(fr)) = frame {
+                conn.handle_frame(frame);
+              //}
+              upstream
+            }).map(|upstream| {
+              next_frame.map(|frame| upstream.send(frame)).unwrap_or(upstream)
+              /*if let Some(frame) = next_frame {
+                println!("loop[{}] got frame {:?}", line!(), frame);
+                upstream.send(frame)
+              }*/
+            }).map(|upstream| {
+
+            let client = Client { upstream: upstream, conn: conn };
+            let res : FutureResult<Loop<Client,Client>,Error> = future::ok(if client.conn.state == ConnectionState::Connected {
+              Loop::Break(client)
+            } else {
+              Loop::Continue(client)
+            });
+            res
+            })
+        });
+        f
+          //client.handshake().map(|_| future::ok(client))
+      });
+
+      println!("ending Client::connect");
+      Box::new(ret)
+      //ret
+    }
+        */
+
+    pub fn run(&mut self) {
+      
+    }
+
+    pub fn handshake(&mut self) -> Box<Future<Item = (), Error = io::Error>> {
+      Box::new(future::ok(()))
+    }
+
+    /*
+    pub fn ping(&self) -> Box<Future<Item = (), Error = io::Error>> {
+        // The `call` response future includes the string, but since this is a
+        // "ping" request, we don't really need to include the "pong" response
+        // string.
+        println!("IN PING");
+        let resp = self.call(Frame::Heartbeat(0))
+            .and_then(|resp| {
+                println!("got response: {:?}", resp);
+                Ok(())
+            });
+
+        // Box the response future because we are lazy and don't want to define
+        // a new future type and `impl T` isn't stable yet...
+        Box::new(resp)
+    }
+    */
+}
+
+/*
+pub struct Client {
     inner: ClientService<TcpStream, AMQPProto>,
+    conn:  Connection<'static>,
 }
 
 impl Client {
@@ -258,12 +348,59 @@ impl Client {
         let ret = TcpClient::new(AMQPProto::new())
             .connect(addr, handle)
             .map(|client_service| {
-                Client { inner: client_service }
+                println!("got client service");
+                let client = Client {
+                  inner: client_service,
+                  conn:  Connection::new(),
+                };
+
+                client.conn.connect();
+                futures::loop_fn(
+                  client, |client| {
+
+                  })
+                client.handshake().map(|_| future::ok(client))
             });
 
+        println!("ending Client::connect");
         Box::new(ret)
     }
+
+    pub fn handshake(&mut self) -> Box<Future<Item = (), Error = io::Error>> {
+      future::ok(())
+    }
+
+    pub fn ping(&self) -> Box<Future<Item = (), Error = io::Error>> {
+        // The `call` response future includes the string, but since this is a
+        // "ping" request, we don't really need to include the "pong" response
+        // string.
+        println!("IN PING");
+        let resp = self.call(Frame::Heartbeat(0))
+            .and_then(|resp| {
+                println!("got response: {:?}", resp);
+                Ok(())
+            });
+
+        // Box the response future because we are lazy and don't want to define
+        // a new future type and `impl T` isn't stable yet...
+        Box::new(resp)
+    }
 }
+*/
+
+/*
+impl Service for Client {
+    type Request  = Frame;
+    type Response = Frame;
+    type Error = io::Error;
+    // For simplicity, box the future.
+    type Future = Box<Future<Item = Frame, Error = io::Error>>;
+
+    fn call(&self, req: Frame) -> Self::Future {
+        Box::new(self.inner.call(req))
+    }
+}
+*/
 /*
 pub struct InnerClient<'consumer, T:Read+Write+Io> {
   pub connection: Connection<'consumer>,
