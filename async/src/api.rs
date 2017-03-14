@@ -33,10 +33,10 @@ pub enum Answer {
     AwaitingExchangeUnbindOk,
 
     AwaitingQueueDeclareOk,
-    AwaitingQueueBindOk(String),
+    AwaitingQueueBindOk(String, String),
     AwaitingQueuePurgeOk(String),
     AwaitingQueueDeleteOk(String),
-    AwaitingQueueUnbindOk(String),
+    AwaitingQueueUnbindOk(String, String),
 
     AwaitingBasicQosOk(u32,u16,bool),
     AwaitingBasicConsumeOk(String, String, bool, bool, bool, bool),
@@ -911,8 +911,8 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                let key = format!("{}_{}", &exchange, &routing_key);
-                c.awaiting.push_back(Answer::AwaitingQueueBindOk(key.clone()));
+                let key = (exchange.clone(), routing_key.clone());
+                c.awaiting.push_back(Answer::AwaitingQueueBindOk(exchange.clone(), routing_key.clone()));
                 c.queues.get_mut(&queue).map(|q| {
                   q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
                   );
@@ -936,7 +936,8 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueBindOk(key)) = self.get_next_answer(_channel_id) {
+        if let Some(Answer::AwaitingQueueBindOk(exchange, routing_key)) = self.get_next_answer(_channel_id) {
+          let key = (exchange, routing_key);
           self.channels.get_mut(&_channel_id).map(|c| {
             c.queues.iter_mut().map(|(_, ref mut q)| {
               q.bindings.get_mut(&key).map(|b| b.active = true);
@@ -1083,8 +1084,7 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
-                let key = format!("{}_{}", &exchange, &routing_key);
-                c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(key));
+                c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(exchange, routing_key));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1104,7 +1104,8 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueUnbindOk(key)) = self.get_next_answer(_channel_id) {
+        if let Some(Answer::AwaitingQueueUnbindOk(exchange, routing_key)) = self.get_next_answer(_channel_id) {
+          let key = (exchange, routing_key);
           self.channels.get_mut(&_channel_id).map(|c| {
             c.queues.iter_mut().map(|(_, ref mut q)| {
               q.bindings.remove(&key);
