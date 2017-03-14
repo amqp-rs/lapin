@@ -113,7 +113,10 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
 }
 
 pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Class) -> Result<(&'a mut [u8],usize),GenError> {
-  if let Ok(input1) = gen_be_u8!(input, 1u8) {
+  //FIXME: this does not take into account the BufferTooSmall errors
+  let r = gen_be_u8!(input, 1u8);
+  //println!("r: {:?}", r);
+  if let Ok(input1) = r {
     if let Ok((sl2, index2)) = gen_be_u16!(input1, channel) {
       if let Ok((sl3, index3)) = gen_class((sl2, index2 + 4), class) {
         if let Ok((sl4, index4)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
@@ -122,16 +125,16 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
           //{
           //}
         } else {
-          Err(GenError::CustomError(42))
+          Err(GenError::CustomError(1))
         }
       } else {
-        Err(GenError::CustomError(42))
+        Err(GenError::CustomError(2))
       }
     } else {
-      Err(GenError::CustomError(42))
+      Err(GenError::CustomError(3))
     }
   } else {
-    Err(GenError::CustomError(42))
+    Err(GenError::CustomError(4))
   }
 }
 

@@ -250,13 +250,13 @@ pub fn gen_value<'a>(x:(&'a mut [u8],usize), v: &AMQPValue) -> Result<(&'a mut [
           if let Ok((x3,_)) = gen_be_u32!((x2, index1), index2 - index1 - 4) {
             Ok((x3, index2))
           } else {
-            Err(GenError::CustomError(42))
+            Err(GenError::CustomError(5))
           }
         } else {
-          Err(GenError::CustomError(42))
+          Err(GenError::CustomError(6))
         }
       } else {
-        Err(GenError::CustomError(42))
+        Err(GenError::CustomError(7))
       }
     },
     AMQPValue::FieldTable(ref h) => {
@@ -265,19 +265,19 @@ pub fn gen_value<'a>(x:(&'a mut [u8],usize), v: &AMQPValue) -> Result<(&'a mut [
           if let Ok((x3,_)) = gen_be_u32!((x2, index1), index2 - index1 - 4) {
             Ok((x3, index2))
           } else {
-            Err(GenError::CustomError(42))
+            Err(GenError::CustomError(8))
           }
         } else {
-          Err(GenError::CustomError(42))
+          Err(GenError::CustomError(9))
         }
       } else {
-        Err(GenError::CustomError(42))
+        Err(GenError::CustomError(10))
       }
     },
     /*
     AMQPValue::Void
     */
-    _ => Err(GenError::CustomError(1))
+    _ => Err(GenError::CustomError(11))
   }
 }
 
@@ -311,10 +311,10 @@ pub fn gen_field_table<'a>(x:(&'a mut [u8],usize), h: &HashMap<String,AMQPValue>
     if let Ok((x3,_)) = gen_be_u32!((x2, x.1), index2 - x.1 - 4) {
       Ok((x3, index2))
     } else {
-      Err(GenError::CustomError(42))
+      Err(GenError::CustomError(12))
     }
   } else {
-    Err(GenError::CustomError(42))
+    Err(GenError::CustomError(13))
   }
 }
 

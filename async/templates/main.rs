@@ -33,7 +33,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
       {{snake class.name}}::gen(input, {{snake class.name}})
     },
     {{/each ~}}
-    &Class::None => Err(GenError::CustomError(1)),
+    &Class::None => Err(GenError::CustomError(14)),
   }
 }
 
@@ -72,7 +72,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
           )
         },
         {{/each ~}}
-        &Methods::None => Err(GenError::CustomError(1)),
+        &Methods::None => Err(GenError::CustomError(15)),
       }
     }
 
