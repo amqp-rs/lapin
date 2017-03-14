@@ -1,5 +1,5 @@
 use lapin_async::connection::*;
-use lapin_async::api::ChannelState;
+use lapin_async::api::{ChannelState,RequestId};
 use lapin_async::format::*;
 use lapin_async::format::frame::*;
 
@@ -304,41 +304,13 @@ impl Client {
         Ok(request_id) => {
           println!("request id: {}", request_id);
           transport.send_frames();
-
-          let channel = Channel {
-            id:        channel_id,
-            transport: channel_transport,
-          };
           transport.handle_frames();
 
-          Box::new(future::poll_fn(move || {
-            println!("polling create_channel closure");
-            let connected = if let Ok(mut tr) = channel.transport.try_lock() {
-              println!("finished reqs: {:?}", tr.conn.finished_reqs);
-              if ! tr.conn.is_finished(request_id) { // ! tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false) {
-                //retry because we might have obtained a new frame
-                println!("channel {} not connected before handle_frames", channel.id);
-                tr.handle_frames();
-                println!("finished reqs: {:?}", tr.conn.finished_reqs);
-                let b = tr.conn.is_finished(request_id); //tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false);
-                println!("channel {} openOk received? {} connected? {}", channel.id, b, tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false));
-                b
-              } else {
-                println!("channel {} connected? {}", channel.id, true);
-                true
-              }
-            } else {
-              return Ok(Async::NotReady);
-            };
-
-            if connected {
-              println!("create_channel closure returning ready");
-              //FIXME: if we don't clone, we get the error 'cannot move out of captured outer variable in an `FnMut` closure'
-              // if we clone, the previous temporary channel will be dropped at some point, right?
-              Ok(Async::Ready(channel.clone()))
-            } else {
-              println!("create_channel closure returning not ready");
-              Ok(Async::NotReady)
+          //FIXME: very afterwards that the state is Connected and not error
+          Box::new(wait_for_answer(channel_transport.clone(), request_id).map(move |_| {
+            Channel {
+              id:        channel_id,
+              transport: channel_transport,
             }
           }))
         }
@@ -375,30 +347,7 @@ impl Channel {
           transport.handle_frames();
 
           println!("queue_declare returning closure");
-          Box::new(future::poll_fn(move || {
-            println!("polling queue_declare closure");
-            let connected = if let Ok(mut tr) = cl_transport.try_lock() {
-              println!("finished reqs: {:?}", tr.conn.finished_reqs);
-              if ! tr.conn.is_finished(request_id) {
-                //retry because we might have obtained a new frame
-                tr.handle_frames();
-                println!("finished reqs: {:?}", tr.conn.finished_reqs);
-                tr.conn.is_finished(request_id)
-              } else {
-                true
-              }
-            } else {
-              return Ok(Async::NotReady);
-            };
-
-            if connected {
-              println!("queue_declare closure returning ready");
-              Ok(Async::Ready(()))
-            } else {
-              println!("queue_declare closure returning not ready");
-              Ok(Async::NotReady)
-            }
-          }))
+          wait_for_answer(cl_transport, request_id)
         },
       }
     } else {
@@ -410,3 +359,30 @@ impl Channel {
   }
 }
 
+pub fn wait_for_answer(transport: Arc<Mutex<AMQPTransport<TcpStream>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
+  Box::new(future::poll_fn(move || {
+    //println!("polling queue_declare closure");
+    let connected = if let Ok(mut tr) = transport.try_lock() {
+      println!("finished reqs: {:?}", tr.conn.finished_reqs);
+      if ! tr.conn.is_finished(request_id) {
+        //retry because we might have obtained a new frame
+        tr.handle_frames();
+        println!("finished reqs: {:?}", tr.conn.finished_reqs);
+        tr.conn.is_finished(request_id)
+      } else {
+        true
+      }
+    } else {
+      return Ok(Async::NotReady);
+    };
+
+    if connected {
+      //println!("queue_declare closure returning ready");
+      Ok(Async::Ready(()))
+    } else {
+      //println!("queue_declare closure returning not ready");
+      Ok(Async::NotReady)
+    }
+  }))
+
+}
