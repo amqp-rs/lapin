@@ -18,6 +18,7 @@ use tokio_core::reactor::Handle;
 use tokio_core::net::TcpStream;
 use std::net::SocketAddr;
 use std::thread;
+use std::sync::{Arc,Mutex};
 
 pub struct AMQPCodec;
 
@@ -157,6 +158,34 @@ impl<T> AMQPTransport<T>
 
     Box::new(connector)
   }
+
+  pub fn send_frames(&mut self) {
+    while let Some(f) = self.conn.next_frame() {
+      self.upstream.start_send(f);
+      //self.upstream.poll_complete();
+    }
+    self.upstream.poll_complete();
+  }
+
+  pub fn handle_frames(&mut self) {
+    println!("handle frames");
+    match self.poll() {
+      Ok(Async::Ready(Some(frame))) => {
+        println!("handle frames: AMQPTransport received frame: {:?}", frame);
+        self.conn.handle_frame(frame);
+      },
+      Ok(Async::Ready(None)) => {
+        println!("handle frames: upstream poll gave Ready(None)");
+      },
+      Ok(Async::NotReady) => {
+        println!("handle frames: upstream poll gave NotReady");
+        self.upstream.get_mut().poll_read();
+      },
+      Err(e) => {
+        println!("handle frames: upstream poll got error: {:?}", e);
+      },
+    };
+  }
 }
 
 pub struct AMQPTransportConnector<T> {
@@ -222,7 +251,6 @@ impl<T> Future for AMQPTransportConnector<T>
         return Ok(Async::NotReady)
       }
     }
-
   }
 }
 
@@ -312,25 +340,16 @@ impl<T> Sink for AMQPTransport<T>
       Ok(t)
     }
 */
+
+#[derive(Clone)]
 pub struct Client {
-    //upstream: Framed<TcpStream, AMQPCodec>, //AMQPTransport<TcpStream>,
-    conn:  Connection<'static>,
+    transport: Arc<Mutex<AMQPTransport<TcpStream>>>,
 }
 
 impl Client {
   pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
     let ret = TcpStream::connect(addr, handle)
       .and_then(|stream| {
-        //stream.framed(AMQPCodec)
-        /*
-        println!("will create AMQPTransport");
-        let mut t = AMQPTransport {
-          upstream: stream.framed(AMQPCodec),
-          conn: Connection::new(),
-        };
-
-        t.connect();
-        */
         println!("will connect AMQPTransport");
         AMQPTransport::connect(stream.framed(AMQPCodec))
       }).and_then(|transport| {
@@ -339,80 +358,75 @@ impl Client {
 
         //transport.connect();
         let mut client = Client {
-          //upstream: transport,
-
-          conn:     Connection::new(),
+          transport: Arc::new(Mutex::new(transport)),
         };
 
         future::ok(client)
       });
 
     Box::new(ret)
-
   }
-  /*
-  pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
-    let ret = TcpStream::connect(addr, handle)
-      .map(|stream| {
-        stream.framed(AMQPCodec)
-      }).and_then(|transport| {
-        println!("got client service");
-        let mut client = Client {
-          upstream: transport,
-          conn:     Connection::new(),
-        };
 
-        client.conn.connect();
-        let f = future::loop_fn(
-          client, |mut cl| {
-            let Client { upstream: upstream, conn: conn } = cl;
+  pub fn create_channel(&self) -> Box<Future<Item = Channel, Error = io::Error>> {
+    let channel_transport = self.transport.clone();
 
-            println!("loop[{}]", line!());
-            let next_frame = conn.frame_queue.pop_front();
+    if let Ok(mut transport) = self.transport.lock() {
+      let channel_id: u16 = transport.conn.create_channel();
+      match transport.conn.channel_open(channel_id, "".to_string()) {
+        //FIXME: should use errors from underlying library here
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel")))
+        ),
+        Ok(()) => {
+          transport.send_frames();
 
-            println!("loop[{}] will poll", line!());
-            //future::ok(f).then(|_| {
-            //upstream.poll().map(|frame| {
-            upstream.map(|frame| {
-              println!("loop[{}] polling got frame: {:?}", line!(), frame);
-              //if let Async::Ready(Some(fr)) = frame {
-                conn.handle_frame(frame);
-              //}
-              upstream
-            }).map(|upstream| {
-              next_frame.map(|frame| upstream.send(frame)).unwrap_or(upstream)
-              //if let Some(frame) = next_frame {
-              //  println!("loop[{}] got frame {:?}", line!(), frame);
-              //  upstream.send(frame)
-              //}
-            }).map(|upstream| {
+          let channel = Channel {
+            id:        channel_id,
+            transport: channel_transport,
+          };
+          transport.handle_frames();
 
-            let client = Client { upstream: upstream, conn: conn };
-            let res : FutureResult<Loop<Client,Client>,Error> = future::ok(if client.conn.state == ConnectionState::Connected {
-              Loop::Break(client)
+          Box::new(future::poll_fn(move || {
+            println!("polling create_channel closure");
+            let connected = if let Ok(mut tr) = channel.transport.try_lock() {
+              if ! tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false) {
+                //retry because we might have obtained a new frame
+                println!("channel {} not connected before handle_frames", channel.id);
+                tr.handle_frames();
+                let b = tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false);
+                println!("channel {} connected? {}", channel.id, b);
+                b
+              } else {
+                println!("channel {} connected? {}", channel.id, true);
+                true
+              }
             } else {
-              Loop::Continue(client)
-            });
-            res
-            })
-        });
-        f
-          //client.handshake().map(|_| future::ok(client))
-      });
+              return Ok(Async::NotReady);
+            };
 
-      println!("ending Client::connect");
-      Box::new(ret)
-      //ret
+            if connected {
+              println!("create_channel closure returning ready");
+              //FIXME: if we don't clone, we get the error 'cannot move out of captured outer variable in an `FnMut` closure'
+              // if we clone, the previous temporary channel will be dropped at some point, right?
+              Ok(Async::Ready(channel.clone()))
+            } else {
+              println!("create_channel closure returning not ready");
+              Ok(Async::NotReady)
+            }
+          }))
+        }
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
     }
-        */
+  }
 
-    pub fn run(&mut self) {
-      
-    }
-
-    pub fn handshake(&mut self) -> Box<Future<Item = (), Error = io::Error>> {
-      Box::new(future::ok(()))
-    }
+  pub fn run(&mut self) {
+    
+  }
 
     /*
     pub fn ping(&self) -> Box<Future<Item = (), Error = io::Error>> {
@@ -432,6 +446,17 @@ impl Client {
     }
     */
 }
+
+#[derive(Clone)]
+pub struct Channel {
+  pub transport: Arc<Mutex<AMQPTransport<TcpStream>>>,
+  pub id:    u16,
+}
+
+impl Channel {
+
+}
+
 
 /*
 pub struct Client {

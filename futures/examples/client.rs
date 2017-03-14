@@ -32,9 +32,12 @@ fn main() {
             .and_then(|client| {
 //              thread::sleep_ms(3000);
               println!("client exists");
+              client.create_channel().map(|channel| {
+                println!("created channel with id: {}", channel.id);
+              })
               //client.ping()
               //panic!();
-              future::ok(1)
+              //future::ok(1)
               /*
                 client.call("Hello".to_string())
                     .and_then(move |response| {
