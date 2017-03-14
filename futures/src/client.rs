@@ -17,6 +17,7 @@ use tokio_proto::TcpClient;
 use tokio_core::reactor::Handle;
 use tokio_core::net::TcpStream;
 use std::net::SocketAddr;
+use std::thread;
 
 pub struct AMQPCodec;
 
@@ -43,6 +44,11 @@ impl Codec for AMQPCodec {
     }
 
     fn encode(&mut self, frame: Frame, buf: &mut Vec<u8>) -> io::Result<()> {
+      println!("buf capacity: {:?}", buf.capacity());
+      if buf.len() < 8192 {
+        buf.resize(8192, 0);
+      }
+      println!("buf len: {:?}", buf.len());
       println!("will send frame: {:?}", frame);
       loop {
         let gen_res = match &frame {
@@ -98,6 +104,7 @@ impl AMQPProto {
   }
 }
 
+/*
 impl<T: Io + 'static> ClientProto<T> for AMQPProto {
     type Request  = Frame;
     type Response = Frame;
@@ -116,26 +123,113 @@ impl<T: Io + 'static> ClientProto<T> for AMQPProto {
       Ok(t)
     }
 }
+*/
 
 pub struct AMQPTransport<T> {
-  pub upstream: T,
+  pub upstream: Framed<T,AMQPCodec>,
   pub conn: Connection<'static>,
 }
 
 impl<T> AMQPTransport<T>
-    where T: Stream<Item = Frame, Error = io::Error>,
-          T: Sink<SinkItem = Frame, SinkError = io::Error> {
-  pub fn connect(&mut self) {
-    self.conn.connect();
-    let frame = self.conn.frame_queue.pop_front().unwrap();
-    self.start_send(frame);//.unwrap().wait();
-    self.upstream.poll_complete();
+    where //T: Stream<Item = Frame, Error = io::Error>,
+          //T: Sink<SinkItem = Frame, SinkError = io::Error>,
+          T : Io,
+          T: 'static {
+  pub fn connect(upstream: Framed<T,AMQPCodec>) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
+    let mut t = AMQPTransport {
+      upstream: upstream,
+      conn:     Connection::new(),
+    };
+
+    t.conn.connect();
+    let f = t.conn.next_frame().unwrap();
+    t.upstream.start_send(f);
+    t.upstream.poll_complete();
+    t.upstream.get_mut().poll_read();
+
+    let mut connector = AMQPTransportConnector {
+      transport: Some(t)
+    };
+
+    println!("pre-poll");
+    connector.poll();
+    println!("post-poll");
+
+    Box::new(connector)
+  }
+}
+
+pub struct AMQPTransportConnector<T> {
+  pub transport: Option<AMQPTransport<T>>,
+}
+
+impl<T> Future for AMQPTransportConnector<T>
+    where //T: Stream<Item = Frame, Error = io::Error>,
+          //T: Sink<SinkItem = Frame, SinkError = io::Error> {
+          T : Io {
+
+  type Item  = AMQPTransport<T>;
+  type Error = io::Error;
+
+  fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    println!("AMQPTransportConnector poll transport is none? {}", self.transport.is_none());
+    let mut transport = self.transport.take().unwrap();
+    println!("conn state: {:?}", transport.conn.state);
+    if transport.conn.state == ConnectionState::Connected {
+      println!("already connected");
+      return Ok(Async::Ready(transport))
+    }
+
+    println!("waiting before poll");
+    //thread::sleep_ms(2000);
+   
+    let value = match transport.upstream.poll() {
+      Ok(Async::Ready(t)) => t,
+      Ok(Async::NotReady) => {
+        println!("upstream poll gave NotReady");
+        thread::sleep_ms(100);
+        //continue;
+        transport.upstream.get_mut().poll_read();
+        self.transport = Some(transport);
+        return Ok(Async::NotReady);
+      },
+      Err(e) => {
+        println!("upstream poll got error: {:?}", e);
+        return Err(From::from(e));
+      },
+    };
+
+    match value {
+    //match try_ready!(transport.upstream.poll()) {
+      Some(frame) => {
+        println!("got frame: {:?}", frame);
+        transport.conn.handle_frame(frame);
+        while let Some(f) = transport.conn.next_frame() {
+          transport.upstream.start_send(f);
+          transport.upstream.poll_complete();
+        }
+        transport.upstream.poll_complete();
+        if transport.conn.state == ConnectionState::Connected {
+          return Ok(Async::Ready(transport))
+        } else {
+          self.transport = Some(transport);
+          return Ok(Async::NotReady)
+        }
+      },
+      e => {
+        println!("did not get a frame? -> {:?}", e);
+        self.transport = Some(transport);
+        return Ok(Async::NotReady)
+      }
+    }
+
   }
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T: Stream<Item = Frame, Error = io::Error>,
-          T: Sink<SinkItem = Frame, SinkError = io::Error>,
+    where //T: Stream<Item = Frame, Error = io::Error>,
+          //T: Sink<SinkItem = Frame, SinkError = io::Error>,
+          T : Io,
 {
     type Item = Frame;
     type Error = io::Error;
@@ -150,29 +244,16 @@ impl<T> Stream for AMQPTransport<T>
               return Ok(Async::Ready(Some(frame)))
             },
             None => {
+              println!("AMQPTransport returned NotReady");
               return Ok(Async::NotReady)
             }
         }
-            /*
-        loop {
-            // Poll the upstream transport. `try_ready!` will bubble up errors
-            // and Async::NotReady.
-            match try_ready!(self.upstream.poll()) {
-                Some(ref frame) => {
-                  println!("AMQPTransport received frame: {:?}", frame);
-                  try!(self.poll_complete());
-                },
-                None => {
-                  return Ok(Async::NotReady)
-                }
-            }
-        }
-        */
     }
 }
 
 impl<T> Sink for AMQPTransport<T>
-    where T: Sink<SinkItem = Frame, SinkError = io::Error>,
+    where //T: Sink<SinkItem = Frame, SinkError = io::Error>,
+          T : Io,
 {
     type SinkItem = Frame;
     type SinkError = io::Error;
@@ -232,19 +313,34 @@ impl<T> Sink for AMQPTransport<T>
     }
 */
 pub struct Client {
-    upstream: Framed<TcpStream, AMQPCodec>, //AMQPTransport<TcpStream>,
+    //upstream: Framed<TcpStream, AMQPCodec>, //AMQPTransport<TcpStream>,
     conn:  Connection<'static>,
 }
 
 impl Client {
   pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
     let ret = TcpStream::connect(addr, handle)
-      .map(|stream| {
-        stream.framed(AMQPCodec)
+      .and_then(|stream| {
+        //stream.framed(AMQPCodec)
+        /*
+        println!("will create AMQPTransport");
+        let mut t = AMQPTransport {
+          upstream: stream.framed(AMQPCodec),
+          conn: Connection::new(),
+        };
+
+        t.connect();
+        */
+        println!("will connect AMQPTransport");
+        AMQPTransport::connect(stream.framed(AMQPCodec))
       }).and_then(|transport| {
         println!("got client service");
+
+
+        //transport.connect();
         let mut client = Client {
-          upstream: transport,
+          //upstream: transport,
+
           conn:     Connection::new(),
         };
 
@@ -285,10 +381,10 @@ impl Client {
               upstream
             }).map(|upstream| {
               next_frame.map(|frame| upstream.send(frame)).unwrap_or(upstream)
-              /*if let Some(frame) = next_frame {
-                println!("loop[{}] got frame {:?}", line!(), frame);
-                upstream.send(frame)
-              }*/
+              //if let Some(frame) = next_frame {
+              //  println!("loop[{}] got frame {:?}", line!(), frame);
+              //  upstream.send(frame)
+              //}
             }).map(|upstream| {
 
             let client = Client { upstream: upstream, conn: conn };

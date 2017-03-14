@@ -46,7 +46,7 @@ fn main() {
                         Ok(())
                     })
                     */
-            })
+            }).map_err(|e| println!("got error: {:?}", e))
     ).unwrap();
     panic!();
 
