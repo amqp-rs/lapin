@@ -1,7 +1,7 @@
 use std::io::{Error,ErrorKind,Read,Result,Write};
 use std::{result,str};
 use std::iter::repeat;
-use std::collections::{HashMap,VecDeque};
+use std::collections::{HashSet,HashMap,VecDeque};
 use amq_protocol_types::AMQPValue;
 use nom::{HexDisplay,IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
@@ -12,7 +12,7 @@ use format::frame::*;
 use format::field::*;
 use format::content::*;
 use channel::Channel;
-use api::{Answer,ChannelState};
+use api::{Answer,ChannelState,RequestId};
 use buffer::Buffer;
 use generated::*;
 use error;
@@ -68,6 +68,8 @@ pub struct Connection<'a> {
   pub prefetch_size:    u32,
   pub prefetch_count:   u16,
   pub frame_queue:      VecDeque<Frame>,
+  pub request_index:    RequestId,
+  pub finished_reqs:    HashSet<RequestId>,
 }
 
 impl<'a> Connection<'a> {
@@ -89,6 +91,8 @@ impl<'a> Connection<'a> {
       prefetch_size:  0,
       prefetch_count: 0,
       frame_queue:    VecDeque::new(),
+      request_index:  0,
+      finished_reqs:  HashSet::new(),
     }
   }
 
@@ -138,6 +142,16 @@ impl<'a> Connection<'a> {
     self.channels
           .get(&channel_id)
           .map(|c| c.is_connected()).unwrap_or(false)
+  }
+
+  pub fn next_request_id(&mut self) -> RequestId {
+    let id = self.request_index;
+    self.request_index += 1;
+    id
+  }
+
+  pub fn is_finished(&mut self, id: RequestId) -> bool {
+    self.finished_reqs.remove(&id)
   }
 
   pub fn connect(&mut self) -> Result<ConnectionState> {

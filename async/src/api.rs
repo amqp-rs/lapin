@@ -19,36 +19,38 @@ pub enum ChannelState {
     ReceivingContent(String,String,usize),
 }
 
+pub type RequestId = u64;
+
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum Answer {
-    AwaitingChannelOpenOk,
-    AwaitingChannelFlowOk,
-    AwaitingChannelCloseOk,
+    AwaitingChannelOpenOk(RequestId),
+    AwaitingChannelFlowOk(RequestId),
+    AwaitingChannelCloseOk(RequestId),
 
-    AwaitingAccessRequestOk,
+    AwaitingAccessRequestOk(RequestId),
 
-    AwaitingExchangeDeclareOk,
-    AwaitingExchangeDeleteOk,
-    AwaitingExchangeBindOk,
-    AwaitingExchangeUnbindOk,
+    AwaitingExchangeDeclareOk(RequestId),
+    AwaitingExchangeDeleteOk(RequestId),
+    AwaitingExchangeBindOk(RequestId),
+    AwaitingExchangeUnbindOk(RequestId),
 
-    AwaitingQueueDeclareOk,
-    AwaitingQueueBindOk(String, String),
-    AwaitingQueuePurgeOk(String),
-    AwaitingQueueDeleteOk(String),
-    AwaitingQueueUnbindOk(String, String),
+    AwaitingQueueDeclareOk(RequestId),
+    AwaitingQueueBindOk(RequestId, String, String),
+    AwaitingQueuePurgeOk(RequestId, String),
+    AwaitingQueueDeleteOk(RequestId, String),
+    AwaitingQueueUnbindOk(RequestId, String, String),
 
-    AwaitingBasicQosOk(u32,u16,bool),
-    AwaitingBasicConsumeOk(String, String, bool, bool, bool, bool),
-    AwaitingBasicCancelOk,
-    AwaitingBasicGetAnswer,
-    AwaitingBasicRecoverOk,
+    AwaitingBasicQosOk(RequestId, u32,u16,bool),
+    AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool),
+    AwaitingBasicCancelOk(RequestId),
+    AwaitingBasicGetAnswer(RequestId),
+    AwaitingBasicRecoverOk(RequestId),
 
-    AwaitingTxSelectOk,
-    AwaitingTxCommitOk,
-    AwaitingTxRollbackOk,
+    AwaitingTxSelectOk(RequestId),
+    AwaitingTxCommitOk(RequestId),
+    AwaitingTxRollbackOk(RequestId),
 
-    AwaitingConfirmSelectOk,
+    AwaitingConfirmSelectOk(RequestId),
 }
 
 impl<'a> Connection<'a> {
@@ -143,7 +145,7 @@ impl<'a> Connection<'a> {
     pub fn channel_open(&mut self,
                         _channel_id: u16,
                         out_of_band: ShortString)
-                        -> Result<(), Error> {
+                        -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -159,7 +161,9 @@ impl<'a> Connection<'a> {
 
         self.send_method_frame(_channel_id, method).map(|_| {
             println!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
-            self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk);
+            let request_id = self.next_request_id();
+            self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk(request_id));
+            request_id
         })
     }
 
@@ -178,18 +182,22 @@ impl<'a> Connection<'a> {
           return Err(Error::InvalidState);
         }
 
-        if ! self.check_next_answer(_channel_id, Answer::AwaitingChannelOpenOk) {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          return Err(Error::UnexpectedAnswer);
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingChannelOpenOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
-
 
         self.set_channel_state(_channel_id, ChannelState::Connected);
         self.get_next_answer(_channel_id);
         Ok(())
     }
 
-    pub fn channel_flow(&mut self, _channel_id: u16, active: Boolean) -> Result<(), Error> {
+    pub fn channel_flow(&mut self, _channel_id: u16, active: Boolean) -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -202,7 +210,9 @@ impl<'a> Connection<'a> {
         let method = Class::Channel(channel::Methods::Flow(channel::Flow { active: active }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-            self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk);
+            let request_id = self.next_request_id();
+            self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk(request_id));
+            request_id
         })
     }
 
@@ -252,12 +262,16 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if self.check_next_answer(_channel_id, Answer::AwaitingChannelFlowOk) {
-              self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
-              self.get_next_answer(_channel_id);
-        } else {
-              self.set_channel_state(_channel_id, ChannelState::Error);
-              return Err(Error::UnexpectedAnswer);
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingChannelFlowOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
+            self.get_next_answer(_channel_id);
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
 
         Ok(())
@@ -269,7 +283,7 @@ impl<'a> Connection<'a> {
                          reply_text: ShortString,
                          class_id: ShortUInt,
                          method_id: ShortUInt)
-                         -> Result<(), Error> {
+                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -287,7 +301,9 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-          self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
+          let request_id = self.next_request_id();
+          self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk(request_id));
+          request_id
         })
     }
 
@@ -303,11 +319,6 @@ impl<'a> Connection<'a> {
 
         if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
-        }
-
-        if !self.check_next_answer(_channel_id, Answer::AwaitingChannelFlowOk) {
-            self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
         }
 
         //FIXME: log the error if there is one
@@ -329,7 +340,6 @@ impl<'a> Connection<'a> {
         }
 
         let method = Class::Channel(channel::Methods::CloseOk(channel::CloseOk {}));
-        self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk);
         self.send_method_frame(_channel_id, method)
     }
 
@@ -347,13 +357,18 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingChannelCloseOk) = self.get_next_answer(_channel_id) {
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingChannelCloseOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
             self.set_channel_state(_channel_id, ChannelState::Closed);
-            Ok(())
-        } else {
+          },
+          _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            Err(Error::UnexpectedAnswer)
+            return Err(Error::UnexpectedAnswer);
+          }
         }
+
+        Ok(())
     }
 
     /*
@@ -821,7 +836,7 @@ impl<'a> Connection<'a> {
                          auto_delete: Boolean,
                          nowait: Boolean,
                          arguments: FieldTable)
-                         -> Result<(), Error> {
+                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -843,13 +858,15 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
-                c.queues.insert(queue.clone(), q);
-                //FIXME: when we set passive, the server might return an error if the queue exists
-                c.awaiting.push_back(Answer::AwaitingQueueDeclareOk);
-                println!("channel {} state is now {:?}", _channel_id, c.state);
-            });
+          let request_id = self.next_request_id();
+          self.channels.get_mut(&_channel_id).map(|c| {
+              let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
+              c.queues.insert(queue.clone(), q);
+              //FIXME: when we set passive, the server might return an error if the queue exists
+              c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
+              println!("channel {} state is now {:?}", _channel_id, c.state);
+          });
+          request_id
         })
     }
 
@@ -867,18 +884,22 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueDeclareOk) = self.get_next_answer(_channel_id) {
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.queues.get_mut(&method.queue).map(|q| {
-              q.message_count  = method.message_count;
-              q.consumer_count = method.consumer_count;
-              q.created = true;
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingQueueDeclareOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.get_mut(&method.queue).map(|q| {
+                q.message_count  = method.message_count;
+                q.consumer_count = method.consumer_count;
+                q.created = true;
+              });
             });
-          });
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -890,7 +911,7 @@ impl<'a> Connection<'a> {
                       routing_key: ShortString,
                       nowait: Boolean,
                       arguments: FieldTable)
-                      -> Result<(), Error> {
+                      -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -910,15 +931,17 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 let key = (exchange.clone(), routing_key.clone());
-                c.awaiting.push_back(Answer::AwaitingQueueBindOk(exchange.clone(), routing_key.clone()));
+                c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id, exchange.clone(), routing_key.clone()));
                 c.queues.get_mut(&queue).map(|q| {
                   q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
                   );
                 });
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -936,17 +959,21 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueBindOk(exchange, routing_key)) = self.get_next_answer(_channel_id) {
-          let key = (exchange, routing_key);
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.queues.iter_mut().map(|(_, ref mut q)| {
-              q.bindings.get_mut(&key).map(|b| b.active = true);
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingQueueBindOk(request_id, exchange, routing_key)) => {
+            self.finished_reqs.insert(request_id);
+            let key = (exchange, routing_key);
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.iter_mut().map(|(_, ref mut q)| {
+                q.bindings.get_mut(&key).map(|b| b.active = true);
+              });
             });
-          });
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -955,7 +982,7 @@ impl<'a> Connection<'a> {
                        ticket: ShortUInt,
                        queue: ShortString,
                        nowait: Boolean)
-                       -> Result<(), Error> {
+                       -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -972,10 +999,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(queue.clone()));
+                c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id, queue.clone()));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -993,11 +1022,16 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueuePurgeOk(key)) = self.get_next_answer(_channel_id) {
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingQueuePurgeOk(request_id, queue)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1008,7 +1042,7 @@ impl<'a> Connection<'a> {
                         if_unused: Boolean,
                         if_empty: Boolean,
                         nowait: Boolean)
-                        -> Result<(), Error> {
+                        -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1027,10 +1061,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(queue));
+                c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(request_id, queue));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1048,12 +1084,16 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueDeleteOk(key)) = self.get_next_answer(_channel_id) {
-          self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingQueueDeleteOk(request_id, key)) => {
+            self.finished_reqs.insert(request_id);
+            self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1064,7 +1104,7 @@ impl<'a> Connection<'a> {
                         exchange: ShortString,
                         routing_key: ShortString,
                         arguments: FieldTable)
-                        -> Result<(), Error> {
+                        -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1083,10 +1123,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(exchange, routing_key));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+              c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key));
+              println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1104,17 +1146,21 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingQueueUnbindOk(exchange, routing_key)) = self.get_next_answer(_channel_id) {
-          let key = (exchange, routing_key);
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.queues.iter_mut().map(|(_, ref mut q)| {
-              q.bindings.remove(&key);
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key)) => {
+            self.finished_reqs.insert(request_id);
+            let key = (exchange, routing_key);
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.iter_mut().map(|(_, ref mut q)| {
+                q.bindings.remove(&key);
+              });
             });
-          });
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1123,7 +1169,7 @@ impl<'a> Connection<'a> {
                      prefetch_size: LongUInt,
                      prefetch_count: ShortUInt,
                      global: Boolean)
-                     -> Result<(), Error> {
+                     -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1140,10 +1186,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicQosOk(prefetch_size, prefetch_count, global));
+                c.awaiting.push_back(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1161,20 +1209,24 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicQosOk(prefetch_size, prefetch_count, global)) = self.get_next_answer(_channel_id) {
-          if global {
-            self.prefetch_size  = prefetch_size;
-            self.prefetch_count = prefetch_count;
-          } else {
-            self.channels.get_mut(&_channel_id).map(|c| {
-              c.prefetch_size  = prefetch_size;
-              c.prefetch_count = prefetch_count;
-            });
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global)) => {
+            self.finished_reqs.insert(request_id);
+            if global {
+              self.prefetch_size  = prefetch_size;
+              self.prefetch_count = prefetch_count;
+            } else {
+              self.channels.get_mut(&_channel_id).map(|c| {
+                c.prefetch_size  = prefetch_size;
+                c.prefetch_count = prefetch_count;
+              });
+            }
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
           }
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
         }
     }
 
@@ -1189,7 +1241,7 @@ impl<'a> Connection<'a> {
                          exclusive: Boolean,
                          nowait: Boolean,
                          arguments: FieldTable)
-                         -> Result<(), Error>
+                         -> Result<RequestId, Error>
                          where T: BasicConsumer + Clone + Send +'a {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1212,15 +1264,17 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.queues.get_mut(&queue).map(|q| {
                   q.callback_holder = Some(Box::new(callback))
                 });
                 c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
-                  queue, consumer_tag, no_local, no_ack, exclusive, nowait
+                  request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait
                 ));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1238,28 +1292,31 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicConsumeOk(queue, tag, no_local, no_ack, exclusive, nowait)) = self.get_next_answer(_channel_id) {
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.queues.get_mut(&queue).map(|q| {
-              let callback = q.callback_holder.take();
-              let consumer = Consumer {
-                tag:       method.consumer_tag.clone(),
-                no_local:  no_local,
-                no_ack:    no_ack,
-                exclusive: exclusive,
-                nowait:    nowait,
-                callback:  callback.unwrap(),
-              };
-              q.consumers.insert(
-                method.consumer_tag.clone(),
-                consumer
-                )
-            })
-          });
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicConsumeOk(request_id, queue, tag, no_local, no_ack, exclusive, nowait)) => {
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.get_mut(&queue).map(|q| {
+                let callback = q.callback_holder.take();
+                let consumer = Consumer {
+                  tag:       method.consumer_tag.clone(),
+                  no_local:  no_local,
+                  no_ack:    no_ack,
+                  exclusive: exclusive,
+                  nowait:    nowait,
+                  callback:  callback.unwrap(),
+                };
+                q.consumers.insert(
+                  method.consumer_tag.clone(),
+                  consumer
+                  )
+              })
+            });
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1267,7 +1324,7 @@ impl<'a> Connection<'a> {
                         _channel_id: u16,
                         consumer_tag: ShortString,
                         nowait: Boolean)
-                        -> Result<(), Error> {
+                        -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1283,10 +1340,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicCancelOk);
+                c.awaiting.push_back(Answer::AwaitingBasicCancelOk(request_id));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1304,16 +1363,19 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicCancelOk) = self.get_next_answer(_channel_id) {
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.queues.iter_mut().map(|(_, ref mut q)| {
-              q.consumers.remove(&method.consumer_tag);
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicCancelOk(request_id)) => {
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.iter_mut().map(|(_, ref mut q)| {
+                q.consumers.remove(&method.consumer_tag);
+              });
             });
-          });
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1392,7 +1454,7 @@ impl<'a> Connection<'a> {
                      ticket: ShortUInt,
                      queue: ShortString,
                      no_ack: Boolean)
-                     -> Result<(), Error> {
+                     -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1409,10 +1471,12 @@ impl<'a> Connection<'a> {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer);
+                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1430,12 +1494,15 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicGetAnswer) = self.get_next_answer(_channel_id) {
-          println!("unimplemented method Basic.GetOk, ignoring packet");
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
+            println!("unimplemented method Basic.GetOk, ignoring packet");
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1453,12 +1520,15 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicGetAnswer) = self.get_next_answer(_channel_id) {
-          println!("unimplemented method Basic.GetEmpty, ignoring packet");
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
+            println!("unimplemented method Basic.GetEmpty, ignoring packet");
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
@@ -1519,7 +1589,7 @@ impl<'a> Connection<'a> {
         self.send_method_frame(_channel_id, method)
     }
 
-    pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<(), Error> {
+    pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1532,10 +1602,12 @@ impl<'a> Connection<'a> {
         let method = Class::Basic(basic::Methods::Recover(basic::Recover { requeue: requeue }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicRecoverOk);
+                c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
                 println!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
@@ -1553,12 +1625,15 @@ impl<'a> Connection<'a> {
             return Err(Error::InvalidState);
         }
 
-        if let Some(Answer::AwaitingBasicRecoverOk) = self.get_next_answer(_channel_id) {
-          println!("unimplemented method Basic.RecoverOk, ignoring packet");
-          Ok(())
-        } else {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          Err(Error::UnexpectedAnswer)
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingBasicRecoverOk(request_id)) => {
+            println!("unimplemented method Basic.RecoverOk, ignoring packet");
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
         }
     }
 
