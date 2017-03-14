@@ -10,6 +10,7 @@ use futures::{Async,AsyncSink,Poll,Sink,Stream,StartSend,Future};
 use futures::future::{self, FutureResult,Loop};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use tokio_core::io::{Codec,EasyBuf,Framed,Io};
 use tokio_service::Service;
 use tokio_proto::pipeline::{ClientProto, ClientService};
@@ -135,7 +136,6 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn handle_frames(&mut self) {
-    println!("handle frames");
     match self.poll() {
       Ok(Async::Ready(Some(frame))) => {
         println!("handle frames: AMQPTransport received frame: {:?}", frame);
@@ -301,7 +301,8 @@ impl Client {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel")))
         ),
-        Ok(()) => {
+        Ok(request_id) => {
+          println!("request id: {}", request_id);
           transport.send_frames();
 
           let channel = Channel {
@@ -313,12 +314,14 @@ impl Client {
           Box::new(future::poll_fn(move || {
             println!("polling create_channel closure");
             let connected = if let Ok(mut tr) = channel.transport.try_lock() {
-              if ! tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false) {
+              println!("finished reqs: {:?}", tr.conn.finished_reqs);
+              if ! tr.conn.is_finished(request_id) { // ! tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false) {
                 //retry because we might have obtained a new frame
                 println!("channel {} not connected before handle_frames", channel.id);
                 tr.handle_frames();
-                let b = tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false);
-                println!("channel {} connected? {}", channel.id, b);
+                println!("finished reqs: {:?}", tr.conn.finished_reqs);
+                let b = tr.conn.is_finished(request_id); //tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false);
+                println!("channel {} openOk received? {} connected? {}", channel.id, b, tr.conn.check_state(channel.id, ChannelState::Connected).unwrap_or(false));
                 b
               } else {
                 println!("channel {} connected? {}", channel.id, true);
@@ -357,6 +360,53 @@ pub struct Channel {
 }
 
 impl Channel {
+  pub fn declare_queue(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
 
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.queue_declare(self.id, 0, name.to_string(), false, false, false, false, false, HashMap::new()) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue")))
+        ),
+        Ok(request_id) => {
+          println!("queue_declare request id: {}", request_id);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          println!("queue_declare returning closure");
+          Box::new(future::poll_fn(move || {
+            println!("polling queue_declare closure");
+            let connected = if let Ok(mut tr) = cl_transport.try_lock() {
+              println!("finished reqs: {:?}", tr.conn.finished_reqs);
+              if ! tr.conn.is_finished(request_id) {
+                //retry because we might have obtained a new frame
+                tr.handle_frames();
+                println!("finished reqs: {:?}", tr.conn.finished_reqs);
+                tr.conn.is_finished(request_id)
+              } else {
+                true
+              }
+            } else {
+              return Ok(Async::NotReady);
+            };
+
+            if connected {
+              println!("queue_declare closure returning ready");
+              Ok(Async::Ready(()))
+            } else {
+              println!("queue_declare closure returning not ready");
+              Ok(Async::NotReady)
+            }
+          }))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
 }
 
