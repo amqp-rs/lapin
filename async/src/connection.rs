@@ -151,6 +151,10 @@ impl<'a> Connection<'a> {
     Ok(self.state)
   }
 
+  pub fn next_frame(&mut self) -> Option<Frame> {
+    self.frame_queue.pop_front()
+  }
+
   pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
     let next_msg = self.frame_queue.pop_front();
     if next_msg == None {
