@@ -46,11 +46,9 @@ impl Codec for AMQPCodec {
     }
 
     fn encode(&mut self, frame: Frame, buf: &mut Vec<u8>) -> io::Result<()> {
-      println!("buf capacity: {:?}", buf.capacity());
       if buf.len() < 8192 {
         buf.resize(8192, 0);
       }
-      println!("buf len: {:?}", buf.len());
       println!("will send frame: {:?}", frame);
       loop {
         let gen_res = match &frame {
@@ -390,11 +388,9 @@ pub fn wait_for_answer(transport: Arc<Mutex<AMQPTransport<TcpStream>>>, request_
   Box::new(future::poll_fn(move || {
     //println!("polling queue_declare closure");
     let connected = if let Ok(mut tr) = transport.try_lock() {
-      println!("finished reqs: {:?}", tr.conn.finished_reqs);
       if ! tr.conn.is_finished(request_id) {
         //retry because we might have obtained a new frame
         tr.handle_frames();
-        println!("finished reqs: {:?}", tr.conn.finished_reqs);
         tr.conn.is_finished(request_id)
       } else {
         true
