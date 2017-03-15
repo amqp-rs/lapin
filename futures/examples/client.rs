@@ -7,6 +7,7 @@ extern crate env_logger;
 use futures::future::Future;
 use futures::Stream;
 use tokio_core::reactor::Core;
+use tokio_core::net::TcpStream;
 
 fn main() {
       env_logger::init().unwrap();
@@ -16,7 +17,8 @@ fn main() {
       let addr = "127.0.0.1:5672".parse().unwrap();
 
       core.run(
-        lapin::client::Client::connect(&addr, &handle)
+        TcpStream::connect(&addr, &handle).and_then(|stream| {
+          lapin::client::Client::connect(stream)
             .and_then(|client| {
               println!("client exists");
               client.create_channel().and_then(|channel| {
@@ -45,6 +47,7 @@ fn main() {
                 })
               })
             })
-    ).unwrap();
-    panic!();
+        })
+      ).unwrap();
+      panic!();
 }

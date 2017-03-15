@@ -92,9 +92,7 @@ pub struct AMQPTransport<T> {
 }
 
 impl<T> AMQPTransport<T>
-    where //T: Stream<Item = Frame, Error = io::Error>,
-          //T: Sink<SinkItem = Frame, SinkError = io::Error>,
-          T : Io,
+    where T: Io,
           T: 'static {
   pub fn connect(upstream: Framed<T,AMQPCodec>) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut t = AMQPTransport {
@@ -158,9 +156,7 @@ pub struct AMQPTransportConnector<T> {
 }
 
 impl<T> Future for AMQPTransportConnector<T>
-    where //T: Stream<Item = Frame, Error = io::Error>,
-          //T: Sink<SinkItem = Frame, SinkError = io::Error> {
-          T : Io {
+    where T : Io {
 
   type Item  = AMQPTransport<T>;
   type Error = io::Error;
@@ -175,14 +171,10 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     println!("waiting before poll");
-    //thread::sleep_ms(2000);
-   
     let value = match transport.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         println!("upstream poll gave NotReady");
-        //thread::sleep_ms(100);
-        //continue;
         transport.upstream.get_mut().poll_read();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
@@ -194,7 +186,6 @@ impl<T> Future for AMQPTransportConnector<T>
     };
 
     match value {
-    //match try_ready!(transport.upstream.poll()) {
       Some(frame) => {
         println!("got frame: {:?}", frame);
         transport.conn.handle_frame(frame);
@@ -220,10 +211,7 @@ impl<T> Future for AMQPTransportConnector<T>
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where //T: Stream<Item = Frame, Error = io::Error>,
-          //T: Sink<SinkItem = Frame, SinkError = io::Error>,
-          T : Io,
-{
+    where T : Io {
     type Item = Frame;
     type Error = io::Error;
 
@@ -245,9 +233,7 @@ impl<T> Stream for AMQPTransport<T>
 }
 
 impl<T> Sink for AMQPTransport<T>
-    where //T: Sink<SinkItem = Frame, SinkError = io::Error>,
-          T : Io,
-{
+    where T : Io {
     type SinkItem = Frame;
     type SinkError = io::Error;
 
@@ -264,32 +250,24 @@ impl<T> Sink for AMQPTransport<T>
 
 
 #[derive(Clone)]
-pub struct Client {
-    transport: Arc<Mutex<AMQPTransport<TcpStream>>>,
+pub struct Client<T> {
+    transport: Arc<Mutex<AMQPTransport<T>>>,
 }
 
-impl Client {
-  pub fn connect(addr: &SocketAddr, handle: &Handle) -> Box<Future<Item = Client, Error = io::Error>> {
-    let ret = TcpStream::connect(addr, handle)
-      .and_then(|stream| {
-        println!("will connect AMQPTransport");
-        AMQPTransport::connect(stream.framed(AMQPCodec))
-      }).and_then(|transport| {
-        println!("got client service");
+impl<T: Io+'static> Client<T> {
+  pub fn connect(stream: T) -> Box<Future<Item = Client<T>, Error = io::Error>> {
+    Box::new(AMQPTransport::connect(stream.framed(AMQPCodec)).and_then(|transport| {
+      println!("got client service");
+      let client = Client {
+        transport: Arc::new(Mutex::new(transport)),
+      };
 
+      future::ok(client)
+    }))
 
-        //transport.connect();
-        let client = Client {
-          transport: Arc::new(Mutex::new(transport)),
-        };
-
-        future::ok(client)
-      });
-
-    Box::new(ret)
   }
 
-  pub fn create_channel(&self) -> Box<Future<Item = Channel, Error = io::Error>> {
+  pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
     let channel_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
@@ -324,12 +302,12 @@ impl Client {
 }
 
 #[derive(Clone)]
-pub struct Channel {
-  pub transport: Arc<Mutex<AMQPTransport<TcpStream>>>,
+pub struct Channel<T> {
+  pub transport: Arc<Mutex<AMQPTransport<T>>>,
   pub id:    u16,
 }
 
-impl Channel {
+impl<T: Io+'static> Channel<T> {
   pub fn queue_declare(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
@@ -380,7 +358,7 @@ impl Channel {
     }
   }
 
-  pub fn basic_consume(&self, queue: &str, consumer_tag: &str) -> Box<Future<Item = Consumer, Error = io::Error>> {
+  pub fn basic_consume(&self, queue: &str, consumer_tag: &str) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
@@ -417,14 +395,14 @@ impl Channel {
 }
 
 #[derive(Clone)]
-pub struct Consumer {
-  pub transport:    Arc<Mutex<AMQPTransport<TcpStream>>>,
+pub struct Consumer<T> {
+  pub transport:    Arc<Mutex<AMQPTransport<T>>>,
   pub channel_id:   u16,
   pub queue:        String,
   pub consumer_tag: String,
 }
 
-impl Stream for Consumer {
+impl<T: Io+'static> Stream for Consumer<T> {
   type Item = Message;
   type Error = io::Error;
 
@@ -448,9 +426,8 @@ impl Stream for Consumer {
   }
 }
 
-pub fn wait_for_answer(transport: Arc<Mutex<AMQPTransport<TcpStream>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
+pub fn wait_for_answer<T: Io+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
   Box::new(future::poll_fn(move || {
-    //println!("polling queue_declare closure");
     let connected = if let Ok(mut tr) = transport.try_lock() {
       if ! tr.conn.is_finished(request_id) {
         //retry because we might have obtained a new frame
@@ -464,10 +441,8 @@ pub fn wait_for_answer(transport: Arc<Mutex<AMQPTransport<TcpStream>>>, request_
     };
 
     if connected {
-      //println!("queue_declare closure returning ready");
       Ok(Async::Ready(()))
     } else {
-      //println!("queue_declare closure returning not ready");
       Ok(Async::NotReady)
     }
   }))

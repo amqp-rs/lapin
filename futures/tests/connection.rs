@@ -5,6 +5,7 @@ extern crate tokio_proto;
 
 use futures::future::{self,Future};
 use tokio_core::reactor::Core;
+use tokio_core::net::TcpStream;
 
 //#[test]
 fn connection() {
@@ -15,7 +16,8 @@ fn connection() {
       let addr = "127.0.0.1:5672".parse().unwrap();
 
       core.run(
-        lapin::client::Client::connect(&addr, &handle)
+        TcpStream::connect(&addr, &handle).and_then(|stream| {
+          lapin::client::Client::connect(stream)
             .and_then(|client| {
               println!("client exists");
               //panic!();
@@ -31,7 +33,8 @@ fn connection() {
                         Ok(())
                     })
                     */
-            })
+          })
+        })
     ).unwrap();
     panic!();
 
