@@ -16,6 +16,7 @@ use nom::HexDisplay;
 use lapin::*;
 //use lapin::client::Client;
 use futures::future::{self,Future};
+use futures::Stream;
 use tokio_core::reactor::{Core,Handle};
 use tokio_proto::TcpClient;
 
@@ -35,7 +36,7 @@ fn main() {
               client.create_channel().and_then(|channel| {
                 let id = channel.id;
                 println!("created channel with id: {}", id);
-                channel.queue_declare("hello").map(move |_| {
+                channel.queue_declare("hello").and_then(move |_| {
                   println!("channel {} declared queue {}", id, "hello");
                   channel.basic_publish("hello", b"hello from tokio")
                 })
@@ -43,26 +44,22 @@ fn main() {
                 client.create_channel().and_then(|channel| {
                   let id = channel.id;
                   println!("created channel with id: {}", id);
-                  channel.queue_declare("hello").map(move |_| {
+                  channel.queue_declare("hello").and_then(move |_| {
                     println!("channel {} declared queue {}", id, "hello");
+                    channel.basic_consume("hello", "my_consumer").map(|stream| {
+                      println!("got consumer stream");
+                      stream.map(|message| {
+                        println!("got message: {:?}", message);
+                      })
+                    })
                   })
                 })
               })
               //client.ping()
               //panic!();
               //future::ok(1)
-              /*
-                client.call("Hello".to_string())
-                    .and_then(move |response| {
-                        println!("CLIENT: {:?}", response);
-                        client.call("Goodbye".to_string())
-                    })
-                    .and_then(|response| {
-                        println!("CLIENT: {:?}", response);
-                        Ok(())
-                    })
-                    */
-            }).map_err(|e| println!("got error: {:?}", e))
+            })
+            //}).map_err(|e| println!("got error: {:?}", e))
     ).unwrap();
     panic!();
 }

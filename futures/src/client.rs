@@ -1,5 +1,6 @@
 use lapin_async::connection::*;
 use lapin_async::api::{ChannelState,RequestId};
+use lapin_async::queue::Message;
 use lapin_async::format::*;
 use lapin_async::format::frame::*;
 
@@ -182,7 +183,7 @@ impl<T> Future for AMQPTransportConnector<T>
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         println!("upstream poll gave NotReady");
-        thread::sleep_ms(100);
+        //thread::sleep_ms(100);
         //continue;
         transport.upstream.get_mut().poll_read();
         self.transport = Some(transport);
@@ -380,6 +381,73 @@ impl Channel {
       Box::new(future::err(
         Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
       ))
+    }
+  }
+
+  pub fn basic_consume(&self, queue: &str, consumer_tag: &str) -> Box<Future<Item = Consumer, Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.basic_consume(self.id, 0, queue.to_string(), consumer_tag.to_string(), false, true, false, false, HashMap::new()) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
+        ),
+        Ok(request_id) => {
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          let consumer = Consumer {
+            transport:    cl_transport.clone(),
+            channel_id:   self.id,
+            queue:        queue.to_string(),
+            consumer_tag: consumer_tag.to_string(),
+          };
+
+          println!("basic_consume returning closure");
+          Box::new(wait_for_answer(cl_transport, request_id).map(move |_| {
+            println!("basic_consume received response, returning consumer");
+            consumer
+          }))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
+}
+
+#[derive(Clone)]
+pub struct Consumer {
+  pub transport:    Arc<Mutex<AMQPTransport<TcpStream>>>,
+  pub channel_id:   u16,
+  pub queue:        String,
+  pub consumer_tag: String,
+}
+
+impl Stream for Consumer {
+  type Item = Message;
+  type Error = io::Error;
+
+  fn poll(&mut self) -> Poll<Option<Message>, io::Error> {
+    println!("consumer[{}] poll", self.consumer_tag);
+    if let Ok(mut transport) = self.transport.try_lock() {
+      //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
+      if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
+        transport.upstream.get_mut().poll_read();
+        println!("consumer[{}] ready", self.consumer_tag);
+        Ok(Async::Ready(Some(message)))
+      } else {
+        transport.upstream.get_mut().poll_read();
+        println!("consumer[{}] not ready", self.consumer_tag);
+        Ok(Async::NotReady)
+      }
+    } else {
+      //FIXME: return an error in case of mutex failure
+      return Ok(Async::NotReady);
     }
   }
 }
