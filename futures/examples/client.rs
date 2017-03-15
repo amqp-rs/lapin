@@ -22,7 +22,6 @@ use tokio_proto::TcpClient;
 
 fn main() {
       env_logger::init().unwrap();
-      //let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
       let mut core = Core::new().unwrap();
 
       let handle = core.handle();
@@ -31,7 +30,6 @@ fn main() {
       core.run(
         lapin::client::Client::connect(&addr, &handle)
             .and_then(|client| {
-//              thread::sleep_ms(3000);
               println!("client exists");
               client.create_channel().and_then(|channel| {
                 let id = channel.id;
@@ -46,20 +44,19 @@ fn main() {
                   println!("created channel with id: {}", id);
                   channel.queue_declare("hello").and_then(move |_| {
                     println!("channel {} declared queue {}", id, "hello");
-                    channel.basic_consume("hello", "my_consumer").map(|stream| {
+                    channel.basic_consume("hello", "my_consumer").and_then(|stream| {
                       println!("got consumer stream");
-                      stream.map(|message| {
+                      stream.for_each(|message| {
                         println!("got message: {:?}", message);
+                        println!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
+                        Ok(())
                       })
+
                     })
                   })
                 })
               })
-              //client.ping()
-              //panic!();
-              //future::ok(1)
             })
-            //}).map_err(|e| println!("got error: {:?}", e))
     ).unwrap();
     panic!();
 }

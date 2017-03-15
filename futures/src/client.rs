@@ -136,22 +136,27 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn handle_frames(&mut self) {
-    match self.poll() {
-      Ok(Async::Ready(Some(frame))) => {
-        println!("handle frames: AMQPTransport received frame: {:?}", frame);
-        self.conn.handle_frame(frame);
-      },
-      Ok(Async::Ready(None)) => {
-        println!("handle frames: upstream poll gave Ready(None)");
-      },
-      Ok(Async::NotReady) => {
-        println!("handle frames: upstream poll gave NotReady");
-        self.upstream.get_mut().poll_read();
-      },
-      Err(e) => {
-        println!("handle frames: upstream poll got error: {:?}", e);
-      },
-    };
+    loop {
+      match self.poll() {
+        Ok(Async::Ready(Some(frame))) => {
+          println!("handle frames: AMQPTransport received frame: {:?}", frame);
+          self.conn.handle_frame(frame);
+        },
+        Ok(Async::Ready(None)) => {
+          println!("handle frames: upstream poll gave Ready(None)");
+          break;
+        },
+        Ok(Async::NotReady) => {
+          println!("handle frames: upstream poll gave NotReady");
+          self.upstream.get_mut().poll_read();
+          break;
+        },
+        Err(e) => {
+          println!("handle frames: upstream poll got error: {:?}", e);
+          break;
+        },
+      };
+    }
   }
 }
 
