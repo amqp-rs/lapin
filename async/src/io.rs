@@ -21,7 +21,7 @@ impl Connection {
 
       if continue_writing {
         match self.write_to_stream(stream, send_buffer) {
-          Ok((sz,_)) => {
+          Ok((_,_)) => {
 
           },
           Err(e) => {
@@ -59,14 +59,11 @@ impl Connection {
 
       if continue_parsing {
         //FIXME: handle the Incomplete case. We need a WantRead and WantWrite signal
-        if let Ok((sz, state)) = self.parse(receive_buffer.data()) {
+        if let Ok((sz, _)) = self.parse(receive_buffer.data()) {
           receive_buffer.consume(sz);
         }
       }
     }
-
-    let res:Result<ConnectionState> = Ok(self.state);
-    res
   }
 
   pub fn can_write(&self, send_buffer: &Buffer) -> bool {

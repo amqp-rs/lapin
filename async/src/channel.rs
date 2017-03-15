@@ -1,4 +1,3 @@
-use format::method::Method;
 use format::frame::Frame;
 use std::collections::{HashMap,VecDeque};
 use generated::Class;

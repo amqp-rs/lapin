@@ -323,7 +323,6 @@ pub fn gen_nothing<'a>(x:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),Ge
 }
 
 pub fn make_bit_field(data: &[bool]) -> u8 {
-  let offset = 8 - data.len();
   let mut res: u8 = 0;
   for (i, &val) in data.iter().enumerate() {
     if val {

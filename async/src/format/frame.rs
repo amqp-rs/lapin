@@ -98,13 +98,13 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
   let (remaining, raw) = try_parse!(input, raw_frame);
   match raw.frame_type {
     FrameType::Header    => {
-       let (remaining2, h) = try_parse!(raw.payload, content_header);
+       let (_, h) = try_parse!(raw.payload, content_header);
       IResult::Done(remaining, Frame::Header(raw.channel_id, h.class_id, h))
     },
     FrameType::Body      => IResult::Done(remaining, Frame::Body(raw.channel_id, Vec::from(raw.payload))),
     FrameType::Heartbeat => IResult::Done(remaining, Frame::Heartbeat(raw.channel_id)),
     FrameType::Method    => {
-      let (remaining2, m) = try_parse!(raw.payload, parse_class);
+      let (_, m) = try_parse!(raw.payload, parse_class);
       IResult::Done(remaining, Frame::Method(raw.channel_id, m))
     },
   }
@@ -117,7 +117,7 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
   if let Ok(input1) = r {
     if let Ok((sl2, index2)) = gen_be_u16!(input1, channel) {
       if let Ok((sl3, index3)) = gen_class((sl2, index2 + 4), class) {
-        if let Ok((sl4, index4)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
+        if let Ok((sl4, _)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
           gen_be_u8!((sl4, index3), 0xCE)
           //if let Ok((sl5, index5)) = gen_be_u8!((sl4, index3), 0xCE)
           //{

@@ -1,13 +1,5 @@
-use format::method::Method;
-use format::frame::Frame;
 use std::collections::{HashMap,VecDeque};
-use std::fmt::{Debug,Formatter};
-use std::fmt::Error;
-use std::clone::Clone;
-use generated::Class;
-use api::ChannelState;
 use amq_protocol_types::*;
-use nom::HexDisplay;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Binding {

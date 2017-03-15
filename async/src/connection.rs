@@ -1,20 +1,17 @@
-use std::io::{Error,ErrorKind,Read,Result,Write};
+use std::io::{Error,ErrorKind,Result};
 use std::{result,str};
-use std::iter::repeat;
 use std::collections::{HashSet,HashMap,VecDeque};
 use amq_protocol_types::AMQPValue;
-use nom::{HexDisplay,IResult,Offset};
+use nom::{IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
 use sasl::mechanisms::Plain;
 use cookie_factory::GenError;
 
 use format::frame::*;
-use format::field::*;
 use format::content::*;
 use channel::Channel;
 use queue::Message;
 use api::{Answer,ChannelState,RequestId};
-use buffer::Buffer;
 use generated::*;
 use error;
 
@@ -226,7 +223,7 @@ impl Connection {
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     let parsed_frame = frame(data);
     match parsed_frame {
-      IResult::Done(i,_)     => {},
+      IResult::Done(_,_)     => {},
       IResult::Incomplete(_) => {
         return Ok((0,self.state));
       },
@@ -262,10 +259,10 @@ impl Connection {
           self.receive_method(channel_id, method);
         }
       },
-      Frame::Heartbeat(channel_id) => {
+      Frame::Heartbeat(_) => {
         self.frame_queue.push_back(Frame::Heartbeat(0));
       },
-      Frame::Header(channel_id, class_id, header) => {
+      Frame::Header(channel_id, _, header) => {
         self.handle_content_header_frame(channel_id, header.body_size);
       },
       Frame::Body(channel_id, payload) => {
@@ -403,7 +400,7 @@ impl Connection {
         }
       },
       ConnectionState::Connected => {},
-      ConnectionState::Closing(ClosingState) => {},
+      ConnectionState::Closing(_) => {},
     };
   }
 
