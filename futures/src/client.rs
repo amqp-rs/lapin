@@ -392,6 +392,44 @@ impl<T: Io+'static> Channel<T> {
       ))
     }
   }
+
+  pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error>> {
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.basic_ack(self.id, delivery_tag, false) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
+        ),
+        Ok(_) => {
+          transport.send_frames();
+          Box::new(future::ok(()))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
+
+  pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.basic_reject(self.id, delivery_tag, requeue) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
+        ),
+        Ok(_) => {
+          transport.send_frames();
+          Box::new(future::ok(()))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
 }
 
 #[derive(Clone)]
