@@ -961,9 +961,9 @@ impl Connection {
             self.finished_reqs.insert(request_id);
             let key = (exchange, routing_key);
             self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.iter_mut().map(|(_, ref mut q)| {
+              for ref mut q in c.queues.values_mut() {
                 q.bindings.get_mut(&key).map(|b| b.active = true);
-              });
+              }
             });
             Ok(())
           },
@@ -1021,7 +1021,7 @@ impl Connection {
 
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingQueuePurgeOk(request_id, queue)) => {
+          Some(Answer::AwaitingQueuePurgeOk(request_id, _)) => {
             self.finished_reqs.insert(request_id);
             Ok(())
           },
@@ -1148,9 +1148,9 @@ impl Connection {
             self.finished_reqs.insert(request_id);
             let key = (exchange, routing_key);
             self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.iter_mut().map(|(_, ref mut q)| {
+              for ref mut q in c.queues.values_mut() {
                 q.bindings.remove(&key);
-              });
+              }
             });
             Ok(())
           },
@@ -1360,9 +1360,9 @@ impl Connection {
           Some(Answer::AwaitingBasicCancelOk(request_id)) => {
             self.finished_reqs.insert(request_id);
             self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.iter_mut().map(|(_, ref mut q)| {
+              for ref mut q in c.queues.values_mut() {
                 q.consumers.remove(&method.consumer_tag);
-              });
+              }
             });
             Ok(())
           },
