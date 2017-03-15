@@ -17,6 +17,5 @@ pub mod generated;
 pub mod format;
 pub mod api;
 pub mod error;
-pub mod callbacks;
 
 pub use format::*;

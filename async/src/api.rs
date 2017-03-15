@@ -6,7 +6,7 @@ use channel::*;
 use queue::*;
 use generated::*;
 use error::*;
-use callbacks::*;
+use std::collections::VecDeque;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -53,7 +53,7 @@ pub enum Answer {
     AwaitingConfirmSelectOk(RequestId),
 }
 
-impl<'a> Connection<'a> {
+impl Connection {
     pub fn receive_method(&mut self, channel_id: u16, method: Class) -> Result<(), Error> {
         match method {
 
@@ -1230,8 +1230,7 @@ impl<'a> Connection<'a> {
         }
     }
 
-    pub fn basic_consume<T>(&mut self,
-                         callback: T,
+    pub fn basic_consume(&mut self,
                          _channel_id: u16,
                          ticket: ShortUInt,
                          queue: ShortString,
@@ -1241,8 +1240,7 @@ impl<'a> Connection<'a> {
                          exclusive: Boolean,
                          nowait: Boolean,
                          arguments: FieldTable)
-                         -> Result<RequestId, Error>
-                         where T: BasicConsumer + Clone + Send +'a {
+                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1266,9 +1264,6 @@ impl<'a> Connection<'a> {
         self.send_method_frame(_channel_id, method).map(|_| {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.queues.get_mut(&queue).map(|q| {
-                  q.callback_holder = Some(Box::new(callback))
-                });
                 c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
                   request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait
                 ));
@@ -1296,14 +1291,14 @@ impl<'a> Connection<'a> {
           Some(Answer::AwaitingBasicConsumeOk(request_id, queue, tag, no_local, no_ack, exclusive, nowait)) => {
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
-                let callback = q.callback_holder.take();
                 let consumer = Consumer {
-                  tag:       method.consumer_tag.clone(),
-                  no_local:  no_local,
-                  no_ack:    no_ack,
-                  exclusive: exclusive,
-                  nowait:    nowait,
-                  callback:  callback.unwrap(),
+                  tag:             method.consumer_tag.clone(),
+                  no_local:        no_local,
+                  no_ack:          no_ack,
+                  exclusive:       exclusive,
+                  nowait:          nowait,
+                  current_message: None,
+                  messages:        VecDeque::new(),
                 };
                 q.consumers.insert(
                   method.consumer_tag.clone(),
@@ -1441,7 +1436,12 @@ impl<'a> Connection<'a> {
             for (ref queue_name, ref mut q) in &mut c.queues {
               c.state = ChannelState::WillReceiveContent(queue_name.to_string(), method.consumer_tag.to_string());
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
-                (*cs.callback).start_deliver(_channel_id, &method);
+                cs.current_message = Some(Message::new(
+                  method.delivery_tag,
+                  method.exchange.to_string(),
+                  method.routing_key.to_string(),
+                  method.redelivered
+                ));
               });
             }
             println!("channel {} state is now {:?}", _channel_id, c.state);

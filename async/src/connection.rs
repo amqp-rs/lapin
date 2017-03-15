@@ -12,6 +12,7 @@ use format::frame::*;
 use format::field::*;
 use format::content::*;
 use channel::Channel;
+use queue::Message;
 use api::{Answer,ChannelState,RequestId};
 use buffer::Buffer;
 use generated::*;
@@ -60,9 +61,9 @@ pub struct Configuration {
 }
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct Connection<'a> {
+pub struct Connection {
   pub state:            ConnectionState,
-  pub channels:         HashMap<u16, Channel<'a>>,
+  pub channels:         HashMap<u16, Channel>,
   pub configuration:    Configuration,
   pub channel_index:    u16,
   pub prefetch_size:    u32,
@@ -72,8 +73,8 @@ pub struct Connection<'a> {
   pub finished_reqs:    HashSet<RequestId>,
 }
 
-impl<'a> Connection<'a> {
-  pub fn new() -> Connection<'a> {
+impl Connection {
+  pub fn new() -> Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
@@ -152,6 +153,12 @@ impl<'a> Connection<'a> {
 
   pub fn is_finished(&mut self, id: RequestId) -> bool {
     self.finished_reqs.remove(&id)
+  }
+
+  pub fn next_message(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Message> {
+    self.channels.get_mut(&channel_id)
+      .and_then(|channel| channel.queues.get_mut(queue_name))
+      .and_then(|queue| queue.next_message(consumer_tag))
   }
 
   pub fn connect(&mut self) -> Result<ConnectionState> {
@@ -424,9 +431,10 @@ impl<'a> Connection<'a> {
         if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
           if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
             if let Some(ref mut cs) = q.consumers.get_mut(&consumer_tag) {
-              (*cs.callback).receive_content(payload);
+              cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
               if remaining_size == payload_size {
-                (*cs.callback).done();
+                let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
+                cs.messages.push_back(message);
               }
             }
           }

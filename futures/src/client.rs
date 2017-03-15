@@ -94,7 +94,7 @@ impl Codec for AMQPCodec {
 
 pub struct AMQPTransport<T> {
   pub upstream: Framed<T,AMQPCodec>,
-  pub conn: Connection<'static>,
+  pub conn: Connection,
 }
 
 impl<T> AMQPTransport<T>

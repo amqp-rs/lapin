@@ -6,20 +6,20 @@ use api::{Answer,ChannelState};
 use queue::*;
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct Channel<'a> {
+pub struct Channel {
   pub id:             u16,
   pub state:          ChannelState,
   pub frame_queue:    VecDeque<Frame>,
   pub send_flow:      bool,
   pub receive_flow:   bool,
-  pub queues:         HashMap<String,Queue<'a>>,
+  pub queues:         HashMap<String,Queue>,
   pub prefetch_size:  u32,
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
 }
 
-impl<'a> Channel<'a> {
-  pub fn new(channel_id: u16) -> Channel<'a> {
+impl Channel {
+  pub fn new(channel_id: u16) -> Channel {
     Channel {
       id:             channel_id,
       state:          ChannelState::Initial,
@@ -33,7 +33,7 @@ impl<'a> Channel<'a> {
     }
   }
 
-  pub fn global() -> Channel<'a> {
+  pub fn global() -> Channel {
     Channel::new(0)
   }
 

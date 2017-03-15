@@ -3,7 +3,7 @@ use buffer::Buffer;
 
 use std::io::{Error,ErrorKind,Read,Result,Write};
 
-impl<'a> Connection<'a> {
+impl Connection {
   pub fn run<T>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState>
     where T: Read + Write {
 

@@ -12,7 +12,6 @@ use nom::HexDisplay;
 use lapin::connection::*;
 use lapin::method::*;
 use lapin::frame::*;
-use lapin::callbacks::*;
 use lapin::buffer::Buffer;
 
 #[test]
@@ -64,8 +63,7 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       println!("will consume");
-      let consumer = LoggingConsumer{};
-      conn.basic_consume(consumer, channel_b, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
+      conn.basic_consume(channel_b, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -77,5 +75,8 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
+      let msg = conn.next_message(channel_b, "hello", "my_consumer").unwrap();
+      println!("received message: {:?}", msg);
+      println!("data: {}", std::str::from_utf8(&msg.data).unwrap());
       panic!();
 }
