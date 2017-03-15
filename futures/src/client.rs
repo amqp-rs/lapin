@@ -357,6 +357,32 @@ impl Channel {
       ))
     }
   }
+
+  pub fn basic_publish(&self, queue: &str, payload: &[u8]) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.basic_publish(self.id, 0, "".to_string(), queue.to_string(), false, false) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish")))
+        ),
+        Ok(_) => {
+          transport.send_frames();
+          transport.conn.send_content_frames(self.id, 60, payload);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          Box::new(future::ok(()))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
 }
 
 pub fn wait_for_answer(transport: Arc<Mutex<AMQPTransport<TcpStream>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
