@@ -128,11 +128,12 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn send_frames(&mut self) {
+    //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
       self.upstream.start_send(f);
-      //self.upstream.poll_complete();
+      self.upstream.poll_complete();
     }
-    self.upstream.poll_complete();
+    //self.upstream.poll_complete();
   }
 
   pub fn handle_frames(&mut self) {
