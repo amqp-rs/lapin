@@ -35,7 +35,7 @@ fn main() {
               client.create_channel().and_then(|channel| {
                 let id = channel.id;
                 println!("created channel with id: {}", id);
-                channel.declare_queue("hello").map(move |_| {
+                channel.queue_declare("hello").map(move |_| {
                   println!("channel {} declared queue {}", id, "hello");
                   channel.basic_publish("hello", b"hello from tokio")
                 })
@@ -43,7 +43,7 @@ fn main() {
                 client.create_channel().and_then(|channel| {
                   let id = channel.id;
                   println!("created channel with id: {}", id);
-                  channel.declare_queue("hello").map(move |_| {
+                  channel.queue_declare("hello").map(move |_| {
                     println!("channel {} declared queue {}", id, "hello");
                   })
                 })

@@ -331,7 +331,7 @@ pub struct Channel {
 }
 
 impl Channel {
-  pub fn declare_queue(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_declare(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
