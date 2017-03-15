@@ -1358,6 +1358,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicCancelOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.iter_mut().map(|(_, ref mut q)| {
                 q.consumers.remove(&method.consumer_tag);
@@ -1496,6 +1497,7 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
             println!("unimplemented method Basic.GetOk, ignoring packet");
+            self.finished_reqs.insert(request_id);
             Ok(())
           },
           _ => {
@@ -1522,6 +1524,7 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
             println!("unimplemented method Basic.GetEmpty, ignoring packet");
+            self.finished_reqs.insert(request_id);
             Ok(())
           },
           _ => {
@@ -1626,6 +1629,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicRecoverOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
             println!("unimplemented method Basic.RecoverOk, ignoring packet");
             Ok(())
           },
