@@ -166,7 +166,7 @@ impl Connection {
 
     pub fn receive_channel_open_ok(&mut self,
                                    _channel_id: u16,
-                                   method: channel::OpenOk)
+                                   _: channel::OpenOk)
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -306,7 +306,7 @@ impl Connection {
 
     pub fn receive_channel_close(&mut self,
                                  _channel_id: u16,
-                                 method: channel::Close)
+                                 _: channel::Close)
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -342,7 +342,7 @@ impl Connection {
 
     pub fn receive_channel_close_ok(&mut self,
                                     _channel_id: u16,
-                                    method: channel::CloseOk)
+                                    _: channel::CloseOk)
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -944,7 +944,7 @@ impl Connection {
 
     pub fn receive_queue_bind_ok(&mut self,
                                  _channel_id: u16,
-                                 method: queue::BindOk)
+                                 _: queue::BindOk)
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1007,7 +1007,7 @@ impl Connection {
 
     pub fn receive_queue_purge_ok(&mut self,
                                   _channel_id: u16,
-                                  method: queue::PurgeOk)
+                                  _: queue::PurgeOk)
                                   -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1069,7 +1069,7 @@ impl Connection {
 
     pub fn receive_queue_delete_ok(&mut self,
                                    _channel_id: u16,
-                                   method: queue::DeleteOk)
+                                   _: queue::DeleteOk)
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1131,7 +1131,7 @@ impl Connection {
 
     pub fn receive_queue_unbind_ok(&mut self,
                                    _channel_id: u16,
-                                   method: queue::UnbindOk)
+                                   _: queue::UnbindOk)
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1194,7 +1194,7 @@ impl Connection {
 
     pub fn receive_basic_qos_ok(&mut self,
                                 _channel_id: u16,
-                                method: basic::QosOk)
+                                _: basic::QosOk)
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1285,7 +1285,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicConsumeOk(request_id, queue, tag, no_local, no_ack, exclusive, nowait)) => {
+          Some(Answer::AwaitingBasicConsumeOk(request_id, queue, _, no_local, no_ack, exclusive, nowait)) => {
             self.finished_reqs.insert(request_id);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
@@ -1401,7 +1401,7 @@ impl Connection {
 
     pub fn receive_basic_amqp_return(&mut self,
                                      _channel_id: u16,
-                                     method: basic::Return)
+                                     _: basic::Return)
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1413,6 +1413,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
+        println!("receive_basic_amqp_return unimplemented");
         Ok(())
     }
 
@@ -1480,7 +1481,7 @@ impl Connection {
 
     pub fn receive_basic_get_ok(&mut self,
                                 _channel_id: u16,
-                                method: basic::GetOk)
+                                _: basic::GetOk)
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1506,7 +1507,7 @@ impl Connection {
 
     pub fn receive_basic_get_empty(&mut self,
                                    _channel_id: u16,
-                                   method: basic::GetEmpty)
+                                   _: basic::GetEmpty)
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1611,7 +1612,7 @@ impl Connection {
 
     pub fn receive_basic_recover_ok(&mut self,
                                     _channel_id: u16,
-                                    method: basic::RecoverOk)
+                                    _: basic::RecoverOk)
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
