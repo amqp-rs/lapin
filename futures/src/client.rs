@@ -1,25 +1,18 @@
 use lapin_async::connection::*;
-use lapin_async::api::{ChannelState,RequestId};
+use lapin_async::api::RequestId;
 use lapin_async::queue::Message;
-use lapin_async::format::*;
 use lapin_async::format::frame::*;
 
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
-use std::io::{self,Error,ErrorKind,Read,Write};
-use futures::{Async,AsyncSink,Poll,Sink,Stream,StartSend,Future};
-use futures::future::{self, FutureResult,Loop};
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::io::{self,Error,ErrorKind};
+use futures::{Async,Poll,Sink,Stream,StartSend,Future};
+use futures::future;
 use std::collections::HashMap;
 use tokio_core::io::{Codec,EasyBuf,Framed,Io};
-use tokio_service::Service;
-use tokio_proto::pipeline::{ClientProto, ClientService};
-use tokio_proto::TcpClient;
 use tokio_core::reactor::Handle;
 use tokio_core::net::TcpStream;
 use std::net::SocketAddr;
-use std::thread;
 use std::sync::{Arc,Mutex};
 
 pub struct AMQPCodec;
@@ -286,7 +279,7 @@ impl Client {
 
 
         //transport.connect();
-        let mut client = Client {
+        let client = Client {
           transport: Arc::new(Mutex::new(transport)),
         };
 
@@ -304,7 +297,7 @@ impl Client {
       match transport.conn.channel_open(channel_id, "".to_string()) {
         //FIXME: should use errors from underlying library here
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel: {:?}", e)))
         ),
         Ok(request_id) => {
           println!("request id: {}", request_id);
@@ -343,7 +336,7 @@ impl Channel {
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_declare(self.id, 0, name.to_string(), false, false, false, false, false, HashMap::new()) {
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
         Ok(request_id) => {
           println!("queue_declare request id: {}", request_id);
@@ -364,12 +357,10 @@ impl Channel {
   }
 
   pub fn basic_publish(&self, queue: &str, payload: &[u8]) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.basic_publish(self.id, 0, "".to_string(), queue.to_string(), false, false) {
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(_) => {
           transport.send_frames();

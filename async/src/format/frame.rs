@@ -1,6 +1,5 @@
 use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
-use method::{method,Method};
 use format::field::*;
 use format::content::*;
 use generated::*;
@@ -96,7 +95,6 @@ pub enum Frame {
 }
 
 pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
-  use nom::HexDisplay;
   let (remaining, raw) = try_parse!(input, raw_frame);
   match raw.frame_type {
     FrameType::Header    => {

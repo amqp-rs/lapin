@@ -2,21 +2,9 @@ extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_proto;
-#[macro_use] extern crate nom;
 
-use std::net::TcpStream;
-use std::iter::repeat;
-use std::io::{Read,Write,Error};
-use std::collections::HashMap;
-use std::{thread,time};
-use std::net::SocketAddr;
-
-use nom::HexDisplay;
-use lapin::*;
-//use lapin::client::Client;
 use futures::future::{self,Future};
-use tokio_core::reactor::{Core,Handle};
-use tokio_proto::TcpClient;
+use tokio_core::reactor::Core;
 
 //#[test]
 fn connection() {

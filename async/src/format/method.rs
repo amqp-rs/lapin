@@ -1,9 +1,7 @@
 use amq_protocol_types::AMQPValue;
-use cookie_factory::*;
-use nom::{be_u8,be_u16,be_u64};
+use nom::be_u16;
 
-use std::collections::HashMap;
-use field::{field_table,value};
+use field::value;
 // 0          2           4
 // +----------+-----------+-------------- - -
 // | class-id | method-id | arguments...
