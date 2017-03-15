@@ -1289,6 +1289,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicConsumeOk(request_id, queue, tag, no_local, no_ack, exclusive, nowait)) => {
+            self.finished_reqs.insert(request_id);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
                 let consumer = Consumer {
