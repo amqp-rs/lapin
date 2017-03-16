@@ -5,16 +5,13 @@ authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 
 [dependencies]
 futures = "0.1"
-tokio-core = "*"
-tokio-proto = "*"
-tokio-service = "*"
-nom = "*"
+tokio-core = "^0.1"
+nom = "^2.1"
 cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 lapin-async = {path = "../async"}
 
 [dev-dependencies]
-env_logger = "*"
-tokio-core = "*"
-futures-cpupool = "*"
+env_logger = "^0.4"
+tokio-core = "^0.1"
 futures = "0.1"
-nom = "*"
+nom = "^2.1"

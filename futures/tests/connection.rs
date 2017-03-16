@@ -1,7 +1,6 @@
 extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio_core;
-extern crate tokio_proto;
 
 use futures::future::{self,Future};
 use tokio_core::reactor::Core;

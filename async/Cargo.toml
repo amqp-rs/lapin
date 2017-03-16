@@ -7,7 +7,7 @@ build = "build.rs"
 [dependencies]
 amq-protocol-types = "^0.4.0"
 nom = "^2.1"
-sasl = "*"
+sasl = "^0.3"
 clippy = {version = "*", optional = true}
 cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 
@@ -15,10 +15,10 @@ cookie-factory = { git = "https://github.com/geal/cookie-factory" }
 [build-dependencies]
 amq-protocol-types   = "^0.5.0"
 amq-protocol-codegen = "^0.10.0"
-handlebars = "*"
-serde = "*"
-serde_derive = "*"
-serde_json = "*"
+handlebars = "^0.25"
+serde = "^0.9"
+serde_derive = "^0.9"
+serde_json = "^0.9"
 
 [features]
 default = []
