@@ -430,6 +430,32 @@ impl<T: Io+'static> Channel<T> {
       ))
     }
   }
+
+  pub fn queue_purge(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.queue_purge(self.id, 0, name.to_string(), false) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          println!("purge request id: {}", request_id);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          println!("purge returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue {}", name))
+      ))
+    }
+  }
 }
 
 #[derive(Clone)]
