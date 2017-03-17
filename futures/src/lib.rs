@@ -122,6 +122,7 @@
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate futures;
+extern crate amq_protocol_types;
 extern crate nom;
 extern crate bytes;
 extern crate tokio_io;

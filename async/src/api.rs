@@ -1,4 +1,4 @@
-use amq_protocol_types::*;
+use amq_protocol_types::types::*;
 use connection::*;
 use queue::*;
 use generated::*;

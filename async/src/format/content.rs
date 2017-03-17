@@ -1,7 +1,6 @@
 use nom::{be_u16,be_u64};
-use std::collections::HashMap;
-use amq_protocol_types::AMQPValue;
-use field::*;
+use amq_protocol_types::parsing::*;
+use amq_protocol_types::types::*;
 
 // 0 2 4 12 14
 // +----------+--------+-----------+----------------+------------- - -
@@ -15,7 +14,7 @@ pub struct ContentHeader {
   pub weight:         u16,
   pub body_size:      u64,
   pub property_flags: u16,
-  pub property_list:  HashMap<String,AMQPValue>,
+  pub property_list:  FieldTable,
 }
 
 named!(pub content_header<ContentHeader>,
@@ -24,7 +23,7 @@ named!(pub content_header<ContentHeader>,
     weight: be_u16 >>
     size:   be_u64 >>
     flags:  be_u16 >>
-    list:   field_table >> //ignore the property list for now
+    list:   parse_field_table >> //ignore the property list for now
     (ContentHeader {
       class_id:       class,
       weight:         weight,

@@ -1,9 +1,10 @@
 extern crate lapin_async as lapin;
+extern crate amq_protocol_types;
 
 use std::net::TcpStream;
-use std::collections::HashMap;
 use std::{thread,time};
 
+use amq_protocol_types::types::*;
 
 use lapin::connection::*;
 use lapin::buffer::Buffer;
@@ -46,18 +47,18 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //create the hello queue
-      conn.queue_declare(channel_a, 0, "hello-async".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
+      conn.queue_declare(channel_a, 0, "hello-async".to_string(), false, false, false, false, false, FieldTable::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      conn.queue_declare(channel_b, 0, "hello-async".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
+      conn.queue_declare(channel_b, 0, "hello-async".to_string(), false, false, false, false, false, FieldTable::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       println!("will consume");
-      conn.basic_consume(channel_b, 0, "hello-async".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
+      conn.basic_consume(channel_b, 0, "hello-async".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new()).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
