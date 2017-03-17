@@ -3,6 +3,7 @@ name = "lapin-async"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 description = "AMQP client library with a low level API designed for use with mio"
+repository = "https://github.com/Geal/lapin/async"
 keywords = ["amqp, rabbitmq", "mio"]
 categories = ["database"]
 license = "MIT"
