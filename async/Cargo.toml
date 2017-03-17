@@ -2,6 +2,8 @@
 name = "lapin-async"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+description = "AMQP client library with a low level API designed for use with mio"
+license = "MIT"
 build = "build.rs"
 
 [dependencies]
@@ -9,7 +11,7 @@ amq-protocol-types = "^0.4.0"
 nom = "^2.1"
 sasl = "^0.3"
 clippy = {version = "*", optional = true}
-cookie-factory = { git = "https://github.com/geal/cookie-factory" }
+cookie-factory = "^0.1"
 
 
 [build-dependencies]

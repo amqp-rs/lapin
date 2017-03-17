@@ -2,12 +2,14 @@
 name = "lapin-futures"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+description = "AMQP client library with a futures based API"
+license = "MIT"
 
 [dependencies]
 futures = "0.1"
 tokio-core = "^0.1"
 nom = "^2.1"
-cookie-factory = { git = "https://github.com/geal/cookie-factory" }
+cookie-factory = "^0.1"
 lapin-async = {path = "../async"}
 
 [dev-dependencies]
