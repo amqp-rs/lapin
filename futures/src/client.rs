@@ -35,7 +35,7 @@ impl Decoder for AMQPCodec {
           }
         };
 
-        println!("decoded frame: {:?}", f);
+        trace!("decoded frame: {:?}", f);
 
         buf.split_to(consumed);
 
@@ -53,7 +53,8 @@ impl Encoder for AMQPCodec {
         //reserve more capacity and intialize it
         buf.extend(repeat(0).take(8192 - length));
       }
-      println!("will send frame: {:?}", frame);
+      trace!("will send frame: {:?}", frame);
+
       loop {
         let gen_res = match &frame {
           &Frame::ProtocolHeader => {
@@ -76,11 +77,11 @@ impl Encoder for AMQPCodec {
         match gen_res {
           Ok(sz) => {
             buf.truncate(sz);
-            println!("serialized frame: {} bytes", sz);
+            trace!("serialized frame: {} bytes", sz);
             return Ok(());
           },
           Err(e) => {
-            println!("error generating frame: {:?}", e);
+            error!("error generating frame: {:?}", e);
             match e {
               GenError::BufferTooSmall(sz) => {
                 buf.extend(repeat(0).take(sz - length));
@@ -121,9 +122,9 @@ impl<T> AMQPTransport<T>
       transport: Some(t)
     };
 
-    println!("pre-poll");
+    trace!("pre-poll");
     connector.poll();
-    println!("post-poll");
+    trace!("post-poll");
 
     Box::new(connector)
   }
@@ -141,20 +142,20 @@ impl<T> AMQPTransport<T>
     loop {
       match self.poll() {
         Ok(Async::Ready(Some(frame))) => {
-          println!("handle frames: AMQPTransport received frame: {:?}", frame);
+          trace!("handle frames: AMQPTransport received frame: {:?}", frame);
           self.conn.handle_frame(frame);
         },
         Ok(Async::Ready(None)) => {
-          println!("handle frames: upstream poll gave Ready(None)");
+          trace!("handle frames: upstream poll gave Ready(None)");
           break;
         },
         Ok(Async::NotReady) => {
-          println!("handle frames: upstream poll gave NotReady");
+          trace!("handle frames: upstream poll gave NotReady");
           self.upstream.poll();
           break;
         },
         Err(e) => {
-          println!("handle frames: upstream poll got error: {:?}", e);
+          error!("handle frames: upstream poll got error: {:?}", e);
           break;
         },
       };
@@ -173,32 +174,32 @@ impl<T> Future for AMQPTransportConnector<T>
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-    println!("AMQPTransportConnector poll transport is none? {}", self.transport.is_none());
+    debug!("AMQPTransportConnector poll transport is none? {}", self.transport.is_none());
     let mut transport = self.transport.take().unwrap();
-    println!("conn state: {:?}", transport.conn.state);
+    debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
-      println!("already connected");
+      debug!("already connected");
       return Ok(Async::Ready(transport))
     }
 
-    println!("waiting before poll");
+    trace!("waiting before poll");
     let value = match transport.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
-        println!("upstream poll gave NotReady");
+        trace!("upstream poll gave NotReady");
         transport.upstream.poll();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
       Err(e) => {
-        println!("upstream poll got error: {:?}", e);
+        error!("upstream poll got error: {:?}", e);
         return Err(From::from(e));
       },
     };
 
     match value {
       Some(frame) => {
-        println!("got frame: {:?}", frame);
+        trace!("got frame: {:?}", frame);
         transport.conn.handle_frame(frame);
         while let Some(f) = transport.conn.next_frame() {
           transport.upstream.start_send(f);
@@ -214,7 +215,7 @@ impl<T> Future for AMQPTransportConnector<T>
         }
       },
       e => {
-        println!("did not get a frame? -> {:?}", e);
+        error!("did not get a frame? -> {:?}", e);
         self.transport = Some(transport);
         return Ok(Async::NotReady)
       }
@@ -228,16 +229,16 @@ impl<T> Stream for AMQPTransport<T>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
-        println!("stream poll");
+        trace!("stream poll");
         // and Async::NotReady.
         match try_ready!(self.upstream.poll()) {
             Some(frame) => {
-              println!("AMQPTransport received frame: {:?}", frame);
+              debug!("AMQPTransport received frame: {:?}", frame);
               //try!(self.poll_complete());
               return Ok(Async::Ready(Some(frame)))
             },
             None => {
-              println!("AMQPTransport returned NotReady");
+              trace!("AMQPTransport returned NotReady");
               return Ok(Async::NotReady)
             }
         }
@@ -250,12 +251,12 @@ impl<T> Sink for AMQPTransport<T>
     type SinkError = io::Error;
 
     fn start_send(&mut self, item: Frame) -> StartSend<Frame, io::Error> {
-        println!("sink start send");
+        trace!("sink start send");
         self.upstream.start_send(item)
     }
 
     fn poll_complete(&mut self) -> Poll<(), io::Error> {
-        println!("sink poll_complete");
+        trace!("sink poll_complete");
         self.upstream.poll_complete()
     }
 }
@@ -269,7 +270,7 @@ pub struct Client<T> {
 impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   pub fn connect(stream: T) -> Box<Future<Item = Client<T>, Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream.framed(AMQPCodec)).and_then(|transport| {
-      println!("got client service");
+      debug!("got client service");
       let client = Client {
         transport: Arc::new(Mutex::new(transport)),
       };
@@ -290,7 +291,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel: {:?}", e)))
         ),
         Ok(request_id) => {
-          println!("request id: {}", request_id);
+          trace!("request id: {}", request_id);
           transport.send_frames();
           transport.handle_frames();
 
@@ -329,12 +330,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          println!("queue_declare request id: {}", request_id);
+          trace!("queue_declare request id: {}", request_id);
           transport.send_frames();
 
           transport.handle_frames();
 
-          println!("queue_declare returning closure");
+          trace!("queue_declare returning closure");
           wait_for_answer(cl_transport, request_id)
         },
       }
@@ -390,9 +391,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
             consumer_tag: consumer_tag.to_string(),
           };
 
-          println!("basic_consume returning closure");
+          trace!("basic_consume returning closure");
           Box::new(wait_for_answer(cl_transport, request_id).map(move |_| {
-            println!("basic_consume received response, returning consumer");
+            trace!("basic_consume received response, returning consumer");
             consumer
           }))
         },
@@ -452,12 +453,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          println!("purge request id: {}", request_id);
+          trace!("purge request id: {}", request_id);
           transport.send_frames();
 
           transport.handle_frames();
 
-          println!("purge returning closure");
+          trace!("purge returning closure");
           wait_for_answer(cl_transport, request_id)
         },
       }
@@ -483,16 +484,16 @@ impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Option<Message>, io::Error> {
-    println!("consumer[{}] poll", self.consumer_tag);
+    trace!("consumer[{}] poll", self.consumer_tag);
     if let Ok(mut transport) = self.transport.try_lock() {
       //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
       if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
         transport.upstream.poll();
-        println!("consumer[{}] ready", self.consumer_tag);
+        debug!("consumer[{}] ready", self.consumer_tag);
         Ok(Async::Ready(Some(message)))
       } else {
         transport.upstream.poll();
-        println!("consumer[{}] not ready", self.consumer_tag);
+        trace!("consumer[{}] not ready", self.consumer_tag);
         Ok(Async::NotReady)
       }
     } else {

@@ -37,7 +37,7 @@ impl Channel {
   }
 
   pub fn received_method(&mut self, m: Class) {
-    println!("channel[{}] received {:?}", self.id, m);
+    trace!("channel[{}] received {:?}", self.id, m);
     //FIXME: handle method here instead of queuing
     self.frame_queue.push_back(Frame::Method(self.id,m));
   }

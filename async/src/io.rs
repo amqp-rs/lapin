@@ -30,7 +30,7 @@ impl Connection {
                 write_would_block = true;
               },
               k => {
-                println!("error writing: {:?}", k);
+                error!("error writing: {:?}", k);
                 self.state = ConnectionState::Error;
                 return Err(e);
               }
@@ -48,7 +48,7 @@ impl Connection {
                 read_would_block = true;
               },
               k => {
-                println!("error reading: {:?}", k);
+                error!("error reading: {:?}", k);
                 self.state = ConnectionState::Error;
                 return Err(e);
               }
@@ -90,7 +90,7 @@ impl Connection {
 
     match writer.write(&mut send_buffer.data()) {
       Ok(sz) => {
-        println!("wrote {} bytes", sz);
+        trace!("wrote {} bytes", sz);
         send_buffer.consume(sz);
         Ok((sz, self.state))
       },
@@ -106,7 +106,7 @@ impl Connection {
 
     match reader.read(&mut receive_buffer.space()) {
       Ok(sz) => {
-        println!("read {} bytes", sz);
+        trace!("read {} bytes", sz);
         receive_buffer.fill(sz);
         Ok((sz, self.state))
       },

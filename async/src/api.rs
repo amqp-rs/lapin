@@ -133,7 +133,7 @@ impl Connection {
             */
 
             m => {
-                println!("the client should not receive this method: {:?}", m);
+                error!("the client should not receive this method: {:?}", m);
                 return Err(Error::InvalidState);
             }
         }
@@ -157,7 +157,7 @@ impl Connection {
             Class::Channel(channel::Methods::Open(channel::Open { out_of_band: out_of_band }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-            println!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
+            trace!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
             let request_id = self.next_request_id();
             self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk(request_id));
             request_id
@@ -170,7 +170,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -219,7 +219,7 @@ impl Connection {
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -251,7 +251,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -310,7 +310,7 @@ impl Connection {
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -346,7 +346,7 @@ impl Connection {
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -402,7 +402,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingAccessRequestOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -414,7 +414,7 @@ impl Connection {
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -435,7 +435,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Access.RequestOk, ignoring packet");
+        error!("unimplemented method Access.RequestOk, ignoring packet");
 
 
         Ok(())
@@ -480,7 +480,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeDeclareOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -491,7 +491,7 @@ impl Connection {
                                        -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -512,7 +512,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.DeclareOk, ignoring packet");
+        error!("unimplemented method Exchange.DeclareOk, ignoring packet");
 
 
         Ok(())
@@ -547,7 +547,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeDeleteOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -558,7 +558,7 @@ impl Connection {
                                       -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -579,7 +579,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.DeleteOk, ignoring packet");
+        error!("unimplemented method Exchange.DeleteOk, ignoring packet");
 
 
         Ok(())
@@ -618,7 +618,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeBindOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -629,7 +629,7 @@ impl Connection {
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -647,7 +647,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.Bind, ignoring packet");
+        error!("unimplemented method Exchange.Bind, ignoring packet");
 
 
         Ok(())
@@ -676,7 +676,7 @@ impl Connection {
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -697,7 +697,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.BindOk, ignoring packet");
+        error!("unimplemented method Exchange.BindOk, ignoring packet");
 
 
         Ok(())
@@ -736,7 +736,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingExchangeUnbindOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -747,7 +747,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -765,7 +765,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.Unbind, ignoring packet");
+        error!("unimplemented method Exchange.Unbind, ignoring packet");
 
 
         Ok(())
@@ -794,7 +794,7 @@ impl Connection {
                                       -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -815,7 +815,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Exchange.UnbindOk, ignoring packet");
+        error!("unimplemented method Exchange.UnbindOk, ignoring packet");
 
 
         Ok(())
@@ -861,7 +861,7 @@ impl Connection {
               c.queues.insert(queue.clone(), q);
               //FIXME: when we set passive, the server might return an error if the queue exists
               c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
-              println!("channel {} state is now {:?}", _channel_id, c.state);
+              trace!("channel {} state is now {:?}", _channel_id, c.state);
           });
           request_id
         })
@@ -873,7 +873,7 @@ impl Connection {
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -936,7 +936,7 @@ impl Connection {
                   q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
                   );
                 });
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -948,7 +948,7 @@ impl Connection {
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -999,7 +999,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id, queue.clone()));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1011,7 +1011,7 @@ impl Connection {
                                   -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1061,7 +1061,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(request_id, queue));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1073,7 +1073,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1123,7 +1123,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
               c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key));
-              println!("channel {} state is now {:?}", _channel_id, c.state);
+              trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1135,7 +1135,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1186,7 +1186,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1198,7 +1198,7 @@ impl Connection {
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1264,7 +1264,7 @@ impl Connection {
                 c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
                   request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait
                 ));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1276,7 +1276,7 @@ impl Connection {
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1336,7 +1336,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicCancelOk(request_id));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1348,7 +1348,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1406,7 +1406,7 @@ impl Connection {
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1414,7 +1414,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        println!("receive_basic_amqp_return unimplemented");
+        error!("receive_basic_amqp_return unimplemented");
         Ok(())
     }
 
@@ -1424,7 +1424,7 @@ impl Connection {
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1444,7 +1444,7 @@ impl Connection {
                 ));
               });
             }
-            println!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(())
     }
@@ -1474,7 +1474,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1486,7 +1486,7 @@ impl Connection {
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1496,7 +1496,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
-            println!("unimplemented method Basic.GetOk, ignoring packet");
+            error!("unimplemented method Basic.GetOk, ignoring packet");
             self.finished_reqs.insert(request_id);
             Ok(())
           },
@@ -1513,7 +1513,7 @@ impl Connection {
                                    -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1523,7 +1523,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
-            println!("unimplemented method Basic.GetEmpty, ignoring packet");
+            error!("unimplemented method Basic.GetEmpty, ignoring packet");
             self.finished_reqs.insert(request_id);
             Ok(())
           },
@@ -1607,7 +1607,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
         })
@@ -1619,7 +1619,7 @@ impl Connection {
                                     -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1630,7 +1630,7 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicRecoverOk(request_id)) => {
             self.finished_reqs.insert(request_id);
-            println!("unimplemented method Basic.RecoverOk, ignoring packet");
+            error!("unimplemented method Basic.RecoverOk, ignoring packet");
             Ok(())
           },
           _ => {
@@ -1682,7 +1682,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxSelectOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -1693,7 +1693,7 @@ impl Connection {
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1714,7 +1714,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Tx.SelectOk, ignoring packet");
+        error!("unimplemented method Tx.SelectOk, ignoring packet");
 
 
         Ok(())
@@ -1738,7 +1738,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxCommitOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -1749,7 +1749,7 @@ impl Connection {
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1770,7 +1770,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Tx.CommitOk, ignoring packet");
+        error!("unimplemented method Tx.CommitOk, ignoring packet");
 
 
         Ok(())
@@ -1794,7 +1794,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingTxRollbackOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -1805,7 +1805,7 @@ impl Connection {
                                   -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1826,7 +1826,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Tx.RollbackOk, ignoring packet");
+        error!("unimplemented method Tx.RollbackOk, ignoring packet");
 
 
         Ok(())
@@ -1852,7 +1852,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.state = ChannelState::AwaitingConfirmSelectOk;
-                println!("channel {} state is now {:?}", _channel_id, c.state);
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
     }
@@ -1863,7 +1863,7 @@ impl Connection {
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            println!("key {} not in channels {:?}", _channel_id, self.channels);
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
@@ -1884,7 +1884,7 @@ impl Connection {
             }
         }
 
-        println!("unimplemented method Confirm.SelectOk, ignoring packet");
+        error!("unimplemented method Confirm.SelectOk, ignoring packet");
 
 
         Ok(())

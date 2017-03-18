@@ -3,6 +3,8 @@
 
 extern crate amq_protocol_types;
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate nom;
 #[macro_use]
 extern crate cookie_factory;

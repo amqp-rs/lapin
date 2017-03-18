@@ -10,6 +10,7 @@ license = "MIT"
 
 [dependencies]
 nom = "^2.1"
+log = "^0.3"
 bytes = "^0.4"
 futures = "^0.1"
 tokio-io = "^0.1"

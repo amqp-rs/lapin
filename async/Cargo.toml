@@ -10,20 +10,24 @@ license = "MIT"
 build = "build.rs"
 
 [dependencies]
-amq-protocol-types = "^0.5.0"
+log = "^0.3"
 nom = "^2.1"
 sasl = "^0.3"
-clippy = {version = "^0.0.119", optional = true}
 cookie-factory = "^0.1"
+amq-protocol-types = "^0.5.0"
+clippy = {version = "^0.0.119", optional = true}
 
 
 [build-dependencies]
+serde = "^0.9"
+serde_json = "^0.9"
+handlebars = "^0.25"
+serde_derive = "^0.9"
 amq-protocol-types   = "^0.5.0"
 amq-protocol-codegen = "^0.10.0"
-handlebars = "^0.25"
-serde = "^0.9"
-serde_derive = "^0.9"
-serde_json = "^0.9"
+
+[dev-dependencies]
+env_logger = "^0.4"
 
 [features]
 default = []

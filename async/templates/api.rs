@@ -62,7 +62,7 @@ impl Connection {
       self.send_method_frame(_channel_id, &method).map(|_| {
         self.channels.get_mut(&_channel_id).map(|c| {
           c.state = ChannelState::Awaiting{{camel class.name}}{{camel method.name}}Ok;
-          println!("channel {} state is now {:?}", _channel_id, c.state);
+          trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
       }){{else}}self.send_method_frame(_channel_id, &method){{/if}}
   }
@@ -71,7 +71,7 @@ impl Connection {
     _channel_id: u16, method: {{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
 
       if !self.channels.contains_key(&_channel_id) {
-        println!("key {} not in channels {:?}", _channel_id, self.channels);
+        trace!("key {} not in channels {:?}", _channel_id, self.channels);
         return Err(Error::InvalidChannel);
       }
 
@@ -87,7 +87,7 @@ impl Connection {
         }
       }
 
-      println!("unimplemented method {{camel class.name}}.{{camel method.name}}, ignoring packet");
+      trace!("unimplemented method {{camel class.name}}.{{camel method.name}}, ignoring packet");
 
 
       Ok(())

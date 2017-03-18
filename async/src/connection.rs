@@ -180,7 +180,7 @@ impl Connection {
     }
 
     let next_msg = next_msg.unwrap();
-    println!("will write to buffer: {:?}", next_msg);
+    trace!("will write to buffer: {:?}", next_msg);
 
     let gen_res = match &next_msg {
       &Frame::ProtocolHeader => {
@@ -205,7 +205,7 @@ impl Connection {
         Ok((sz, self.state))
       },
       Err(e) => {
-        println!("error generating frame: {:?}", e);
+        error!("error generating frame: {:?}", e);
         self.state = ConnectionState::Error;
         match e {
           GenError::BufferTooSmall(_) => {
@@ -249,7 +249,7 @@ impl Connection {
   pub fn handle_frame(&mut self, f: Frame) {
     match f {
       Frame::ProtocolHeader => {
-        println!("error: the client should not receive a protocol header");
+        error!("error: the client should not receive a protocol header");
         self.state = ConnectionState::Error;
       },
       Frame::Method(channel_id, method) => {
@@ -283,7 +283,7 @@ impl Connection {
           },
           ConnectingState::SentProtocolHeader => {
             if let Class::Connection(connection::Methods::Start(s)) = c {
-              println!("Server sent Connection::Start: {:?}", s);
+              trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
               let mut h = HashMap::new();
@@ -311,20 +311,20 @@ impl Connection {
                 }
               ));
 
-              println!("client sending Connection::StartOk: {:?}", start_ok);
+              debug!("client sending Connection::StartOk: {:?}", start_ok);
               self.frame_queue.push_back(Frame::Method(0, start_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
-              println!("waiting for class Connection method Start, got {:?}", c);
+              trace!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
             }
           },
           /*ConnectingState::ReceivedStart => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },*/
           ConnectingState::SentStartOk => {
             if let Class::Connection(connection::Methods::Tune(t)) = c {
-              println!("Server sent Connection::Tune: {:?}", t);
+              debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
               self.configuration.channel_max = t.channel_max;
@@ -346,7 +346,7 @@ impl Connection {
                 }
               ));
 
-              println!("client sending Connection::TuneOk: {:?}", tune_ok);
+              debug!("client sending Connection::TuneOk: {:?}", tune_ok);
 
               self.frame_queue.push_back(Frame::Method(0, tune_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
@@ -359,42 +359,42 @@ impl Connection {
                   }
                   ));
 
-              println!("client sending Connection::Open: {:?}", open);
+              debug!("client sending Connection::Open: {:?}", open);
               self.frame_queue.push_back(Frame::Method(0,open));
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
 
             } else {
-              println!("waiting for class Connection method Start, got {:?}", c);
+              trace!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
             }
           },
           ConnectingState::ReceivedSecure => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },
           ConnectingState::SentSecure => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },
           ConnectingState::ReceivedSecondSecure => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },
           ConnectingState::ReceivedTune => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },
           ConnectingState::SentOpen => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
             if let Class::Connection(connection::Methods::OpenOk(o)) = c {
-              println!("Server sent Connection::OpenOk: {:?}, client now connected", o);
+              debug!("Server sent Connection::OpenOk: {:?}, client now connected", o);
               self.state = ConnectionState::Connected;
             } else {
-              println!("waiting for class Connection method Start, got {:?}", c);
+              trace!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
             }
           },
           ConnectingState::Error => {
-            println!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.state, c);
           },
           s => {
-            println!("invalid state {:?}", s);
+            error!("invalid state {:?}", s);
             self.state = ConnectionState::Error;
           }
         }
@@ -443,7 +443,7 @@ impl Connection {
           self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag, remaining_size - payload_size));
         }
       } else {
-        println!("body frame too large");
+        error!("body frame too large");
         self.set_channel_state(channel_id, ChannelState::Error);
       }
     } else {
