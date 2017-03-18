@@ -5,24 +5,25 @@ use lapin_async::format::frame::*;
 
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
+use bytes::{BufMut,BytesMut};
+use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
 use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use futures::future;
 use std::collections::HashMap;
-use tokio_core::io::{Codec,EasyBuf,Framed,Io};
-use tokio_core::reactor::Handle;
-use tokio_core::net::TcpStream;
+use tokio_io::{AsyncRead,AsyncWrite};
+use tokio_io::codec::{Decoder,Encoder,Framed};
 use std::net::SocketAddr;
 use std::sync::{Arc,Mutex};
 
 pub struct AMQPCodec;
 
-impl Codec for AMQPCodec {
-    type In = Frame;
-    type Out = Frame;
+impl Decoder for AMQPCodec {
+    type Item = Frame;
+    type Error = io::Error;
 
-    fn decode(&mut self, buf: &mut EasyBuf) -> Result<Option<Frame>, io::Error> {
-        let (consumed, f) = match frame(buf.as_slice()) {
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Frame>, io::Error> {
+        let (consumed, f) = match frame(buf) {
           IResult::Incomplete(_) => {
             return Ok(None)
           },
@@ -30,36 +31,45 @@ impl Codec for AMQPCodec {
             return Err(io::Error::new(io::ErrorKind::Other, format!("parse error: {:?}", e)))
           },
           IResult::Done(i, frame) => {
-            (buf.as_slice().offset(i), frame)
+            (buf.offset(i), frame)
           }
         };
 
         println!("decoded frame: {:?}", f);
-        buf.drain_to(consumed);
+
+        buf.split_to(consumed);
+
         Ok(Some(f))
     }
+}
 
-    fn encode(&mut self, frame: Frame, buf: &mut Vec<u8>) -> io::Result<()> {
-      if buf.len() < 8192 {
-        buf.resize(8192, 0);
+impl Encoder for AMQPCodec {
+    type Item = Frame;
+    type Error = io::Error;
+
+    fn encode(&mut self, frame: Frame, buf: &mut BytesMut) -> Result<(), Self::Error> {
+      let length = buf.len();
+      if length < 8192 {
+        //reserve more capacity and intialize it
+        buf.extend(repeat(0).take(8192 - length));
       }
       println!("will send frame: {:?}", frame);
       loop {
         let gen_res = match &frame {
           &Frame::ProtocolHeader => {
-            gen_protocol_header((buf.as_mut_slice(), 0)).map(|tup| tup.1)
+            gen_protocol_header((buf, 0)).map(|tup| tup.1)
           },
           &Frame::Heartbeat(_) => {
-            gen_heartbeat_frame((buf.as_mut_slice(), 0)).map(|tup| tup.1)
+            gen_heartbeat_frame((buf, 0)).map(|tup| tup.1)
           },
           &Frame::Method(channel, ref method) => {
-            gen_method_frame((buf.as_mut_slice(), 0), channel, method).map(|tup| tup.1)
+            gen_method_frame((buf, 0), channel, method).map(|tup| tup.1)
           },
           &Frame::Header(channel_id, class_id, ref header) => {
-            gen_content_header_frame((buf.as_mut_slice(), 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
+            gen_content_header_frame((buf, 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
           },
           &Frame::Body(channel_id, ref data) => {
-            gen_content_body_frame((buf.as_mut_slice(), 0), channel_id, data).map(|tup| tup.1)
+            gen_content_body_frame((buf, 0), channel_id, data).map(|tup| tup.1)
           }
         };
 
@@ -73,7 +83,7 @@ impl Codec for AMQPCodec {
             println!("error generating frame: {:?}", e);
             match e {
               GenError::BufferTooSmall(sz) => {
-                buf.resize(sz, 0);
+                buf.extend(repeat(0).take(sz - length));
                 //return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
               },
               GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
@@ -92,8 +102,9 @@ pub struct AMQPTransport<T> {
 }
 
 impl<T> AMQPTransport<T>
-    where T: Io,
-          T: 'static {
+   where T: AsyncRead+AsyncWrite,
+         T: 'static               {
+
   pub fn connect(upstream: Framed<T,AMQPCodec>) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut t = AMQPTransport {
       upstream: upstream,
@@ -104,7 +115,7 @@ impl<T> AMQPTransport<T>
     let f = t.conn.next_frame().unwrap();
     t.upstream.start_send(f);
     t.upstream.poll_complete();
-    t.upstream.get_mut().poll_read();
+    t.upstream.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
@@ -139,7 +150,7 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           println!("handle frames: upstream poll gave NotReady");
-          self.upstream.get_mut().poll_read();
+          self.upstream.poll();
           break;
         },
         Err(e) => {
@@ -156,7 +167,7 @@ pub struct AMQPTransportConnector<T> {
 }
 
 impl<T> Future for AMQPTransportConnector<T>
-    where T : Io {
+    where T: AsyncRead + AsyncWrite {
 
   type Item  = AMQPTransport<T>;
   type Error = io::Error;
@@ -175,7 +186,7 @@ impl<T> Future for AMQPTransportConnector<T>
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         println!("upstream poll gave NotReady");
-        transport.upstream.get_mut().poll_read();
+        transport.upstream.poll();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
@@ -197,6 +208,7 @@ impl<T> Future for AMQPTransportConnector<T>
         if transport.conn.state == ConnectionState::Connected {
           return Ok(Async::Ready(transport))
         } else {
+          transport.upstream.poll();
           self.transport = Some(transport);
           return Ok(Async::NotReady)
         }
@@ -211,7 +223,7 @@ impl<T> Future for AMQPTransportConnector<T>
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T : Io {
+    where T: AsyncRead {
     type Item = Frame;
     type Error = io::Error;
 
@@ -233,7 +245,7 @@ impl<T> Stream for AMQPTransport<T>
 }
 
 impl<T> Sink for AMQPTransport<T>
-    where T : Io {
+    where T: AsyncWrite {
     type SinkItem = Frame;
     type SinkError = io::Error;
 
@@ -254,7 +266,7 @@ pub struct Client<T> {
     transport: Arc<Mutex<AMQPTransport<T>>>,
 }
 
-impl<T: Io+'static> Client<T> {
+impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   pub fn connect(stream: T) -> Box<Future<Item = Client<T>, Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream.framed(AMQPCodec)).and_then(|transport| {
       println!("got client service");
@@ -307,7 +319,7 @@ pub struct Channel<T> {
   pub id:    u16,
 }
 
-impl<T: Io+'static> Channel<T> {
+impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   pub fn queue_declare(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
@@ -466,7 +478,7 @@ pub struct Consumer<T> {
   pub consumer_tag: String,
 }
 
-impl<T: Io+'static> Stream for Consumer<T> {
+impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
   type Item = Message;
   type Error = io::Error;
 
@@ -475,11 +487,11 @@ impl<T: Io+'static> Stream for Consumer<T> {
     if let Ok(mut transport) = self.transport.try_lock() {
       //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
       if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
-        transport.upstream.get_mut().poll_read();
+        transport.upstream.poll();
         println!("consumer[{}] ready", self.consumer_tag);
         Ok(Async::Ready(Some(message)))
       } else {
-        transport.upstream.get_mut().poll_read();
+        transport.upstream.poll();
         println!("consumer[{}] not ready", self.consumer_tag);
         Ok(Async::NotReady)
       }
@@ -490,7 +502,7 @@ impl<T: Io+'static> Stream for Consumer<T> {
   }
 }
 
-pub fn wait_for_answer<T: Io+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
+pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
   Box::new(future::poll_fn(move || {
     let connected = if let Ok(mut tr) = transport.try_lock() {
       if ! tr.conn.is_finished(request_id) {
