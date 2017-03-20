@@ -59,18 +59,23 @@ pub struct Configuration {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
+  /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub state:            ConnectionState,
   pub channels:         HashMap<u16, Channel>,
   pub configuration:    Configuration,
   pub channel_index:    u16,
   pub prefetch_size:    u32,
   pub prefetch_count:   u16,
+  /// list of message to send
   pub frame_queue:      VecDeque<Frame>,
+  /// next request id
   pub request_index:    RequestId,
+  /// list of finished requests
   pub finished_reqs:    HashSet<RequestId>,
 }
 
 impl Connection {
+  /// creates a `Connection` object in initial state
   pub fn new() -> Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
@@ -94,6 +99,12 @@ impl Connection {
     }
   }
 
+  /// creates a `Channel` object in initial state
+  ///
+  /// returns a `u16` channel id
+  ///
+  /// The channel will not be usable until `channel_open`
+  /// is called with the channel id
   pub fn create_channel(&mut self) -> u16 {
     let c  = Channel::new(self.channel_index);
     self.channels.insert(self.channel_index, c);
@@ -106,58 +117,85 @@ impl Connection {
     self.channels.get_mut(&channel_id).map(|c| c.state = new_state);
   }
 
+  /// verifies if the channel's state is the one passed as argument
+  ///
+  /// returns a Option of the result. None in the case the channel
+  /// does not exists
   pub fn check_state(&self, channel_id: u16, state: ChannelState) -> Option<bool> {
     self.channels
           .get(&channel_id)
           .map(|c| c.state == state)
   }
 
+  /// returns the channel's state
+  ///
+  /// returns a Option of the state. Non in the case the channel
+  /// does not exists
   pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
     self.channels
           .get(&channel_id)
           .map(|c| c.state.clone())
   }
 
+  #[doc(hidden)]
   pub fn push_back_answer(&mut self, channel_id: u16, answer: Answer) {
     self.channels
       .get_mut(&channel_id)
       .map(|c| c.awaiting.push_back(answer));
   }
 
-  pub fn check_next_answer(&self, channel_id: u16, answer: Answer) -> bool {
+  #[doc(hidden)]
+  fn check_next_answer(&self, channel_id: u16, answer: Answer) -> bool {
     self.channels
           .get(&channel_id)
           .map(|c| c.awaiting.front() == Some(&answer)).unwrap_or(false)
   }
 
+  #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
     self.channels
           .get_mut(&channel_id)
           .and_then(|c| c.awaiting.pop_front())
   }
 
+  /// verifies if the channel is connecyed
   pub fn is_connected(&self, channel_id: u16) -> bool {
     self.channels
           .get(&channel_id)
           .map(|c| c.is_connected()).unwrap_or(false)
   }
 
+  #[doc(hidden)]
   pub fn next_request_id(&mut self) -> RequestId {
     let id = self.request_index;
     self.request_index += 1;
     id
   }
 
+  /// verifies if the request identified with the `RequestId` is finished
+  ///
+  /// this method can only be called once per request id, as it will be
+  /// removed from the list afterwards
   pub fn is_finished(&mut self, id: RequestId) -> bool {
     self.finished_reqs.remove(&id)
   }
 
+  /// gets the next message corresponding to a channel, queue and consumer tag
+  ///
+  /// if the channel id, queue and consumer tag have no link, the method
+  /// will return None. If there is no message, the method will return None
   pub fn next_message(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Message> {
     self.channels.get_mut(&channel_id)
       .and_then(|channel| channel.queues.get_mut(queue_name))
       .and_then(|queue| queue.next_message(consumer_tag))
   }
 
+  /// starts the process of connecting to the server
+  ///
+  /// this will set up the state machine and generates the required messages.
+  /// The messages will not be sent until calls to `serialize`
+  /// to write the messages to a buffer, or calls to `next_frame`
+  /// to obtain the next message to send
   pub fn connect(&mut self) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {
       self.state = ConnectionState::Error;
@@ -169,10 +207,18 @@ impl Connection {
     Ok(self.state)
   }
 
+  /// next message to send to the network
+  ///
+  /// returns None if there's no message to send
   pub fn next_frame(&mut self) -> Option<Frame> {
     self.frame_queue.pop_front()
   }
 
+  /// writes the next message to a mutable byte slice
+  ///
+  /// returns how many bytes were written and the current state.
+  /// this method can be called repeatedly until the buffer is full or
+  /// there are no more frames to send
   pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
     let next_msg = self.frame_queue.pop_front();
     if next_msg == None {
@@ -220,6 +266,12 @@ impl Connection {
     }
   }
 
+  /// parses a frame from a byte slice
+  ///
+  /// returns how many bytes were consumed and the current state.
+  ///
+  /// This method will update the state machine according to the ReceivedStart
+  /// frame with `handle_frame`
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     let parsed_frame = frame(data);
     match parsed_frame {
@@ -246,6 +298,7 @@ impl Connection {
     return Ok((consumed, self.state));
   }
 
+  /// updates the current state with a new received frame
   pub fn handle_frame(&mut self, f: Frame) {
     match f {
       Frame::ProtocolHeader => {
@@ -271,6 +324,7 @@ impl Connection {
     };
   }
 
+  #[doc(hidden)]
   pub fn handle_global_method(&mut self, c: Class) {
     match self.state {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
@@ -404,6 +458,7 @@ impl Connection {
     };
   }
 
+  #[doc(hidden)]
   pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
@@ -415,6 +470,7 @@ impl Connection {
     }
   }
 
+  #[doc(hidden)]
   pub fn handle_body_frame(&mut self, channel_id: u16, payload: Vec<u8>) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
@@ -451,7 +507,12 @@ impl Connection {
     }
   }
 
-  //FIXME: no chunking for now
+  /// generates the content header and content frames for a payload
+  ///
+  /// WARNING: this does not support chunking the message yet
+  ///
+  /// the frames will be stored in the frame queue until they're written
+  /// to the network.
   pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
     let header = ContentHeader {
       class_id:       class_id,
@@ -464,6 +525,7 @@ impl Connection {
     self.frame_queue.push_back(Frame::Body(channel_id,Vec::from(slice)));
   }
 
+  #[doc(hidden)]
   pub fn send_method_frame(&mut self, channel: u16, method: Class) -> result::Result<(), error::Error> {
     self.frame_queue.push_back(Frame::Method(channel,method));
     Ok(())
