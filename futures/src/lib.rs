@@ -129,5 +129,6 @@ extern crate lapin_async;
 extern crate cookie_factory;
 
 pub mod client;
-
-
+pub mod transport;
+pub mod channel;
+pub mod consumer;
