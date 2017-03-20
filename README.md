@@ -24,6 +24,19 @@ a library with a futures based API, that you can use with tokio-core or futures-
 
 This is the recommended way to use lapin as an AMQP client.
 
+lapin-futures is available on [crates.io](https://crates.io/crates/lapin-futures) and can be included in your Cargo enabled project like this:
+
+```toml
+[dependencies]
+lapin-futures = "^0.2"
+```
+
+Then include it in your code like this:
+
+```rust
+#[macro_use]
+extern crate lapin_futures;
+```
 
 ## lapin-async
 
@@ -32,3 +45,16 @@ This is the recommended way to use lapin as an AMQP client.
 A low level library meant for usage in an event loop like one you'd build with mio.
 This library assumes non blocking IO.
 
+lapin-async is available on [crates.io](https://crates.io/crates/lapin-async) and can be included in your Cargo enabled project like this:
+
+```toml
+[dependencies]
+lapin-async = "^0.2"
+```
+
+Then include it in your code like this:
+
+```rust
+#[macro_use]
+extern crate lapin_async;
+```
