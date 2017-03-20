@@ -1,0 +1,40 @@
+language: rust
+
+rust:
+  - nightly
+  - beta
+  - stable
+
+before_install:
+  - export ROOT_PATH=`pwd`
+  - export CFLAGS="-fPIC"
+  - curl -L -O https://www.openssl.org/source/openssl-1.0.2j.tar.gz
+  - tar xzf openssl-1.0.2j.tar.gz
+  - cd openssl-1.0.2j
+  - mkdir $ROOT_PATH/openssl-1.0.2j/dist
+  - ./Configure --prefix=$ROOT_PATH/openssl-1.0.2j/dist linux-x86_64 -fPIC && make && make install
+  - make build_tests
+
+before_script:
+  - cargo install cargo-travis && export PATH=$HOME/.cargo/bin:$PATH;
+
+script:
+  - export OPENSSL_INCLUDE_DIR=$ROOT_PATH/openssl-1.0.2j/dist/include
+  - export OPENSSL_LIB_DIR=$ROOT_PATH/openssl-1.0.2j/dist/lib
+  - cd $ROOT_PATH/async   && cargo test
+  - cd $ROOT_PATH/futures && cargo test
+
+after_success:
+  - cargo coveralls
+
+
+dist: trusty
+sudo: false
+
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/a8be0f69e0165e590dcb
+    on_success: change
+    on_failure: always
+    on_start:   never
