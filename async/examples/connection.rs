@@ -1,19 +1,12 @@
 extern crate lapin_async as lapin;
 #[macro_use] extern crate log;
 extern crate env_logger;
-#[macro_use] extern crate nom;
 
 use std::net::TcpStream;
-use std::iter::repeat;
-use std::io::{Read,Write,Error};
 use std::collections::HashMap;
 use std::{thread,time};
 
-use nom::HexDisplay;
-
 use lapin::connection::*;
-use lapin::method::*;
-use lapin::frame::*;
 use lapin::buffer::Buffer;
 
 fn main() {

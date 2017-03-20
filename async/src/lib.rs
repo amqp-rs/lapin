@@ -16,7 +16,7 @@
 //!
 //! Create the client socket and some buffers to move data:
 //!
-//! ```rust
+//! ```rust,ignore
 //! extern crate lapin_async as lapin;
 //!
 //! use std::net::TcpStream;
@@ -36,7 +36,7 @@
 //!
 //! Now, we can create the `Connection` object:
 //!
-//! ```rust
+//! ```rust,ignore
 //!   let mut conn: Connection = Connection::new();
 //!   loop {
 //!     match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
@@ -64,7 +64,7 @@
 //!
 //! ## Creating a channel
 //!
-//! ```rust
+//! ```rust,ignore
 //! let channel_id: u16 = conn.create_channel();
 //! conn.channel_open(channel_a, "".to_string()).expect("channel_open");
 //!
@@ -74,7 +74,7 @@
 //!
 //! ## Creating a queue
 //!
-//! ```rust
+//! ```rust,ignore
 //! //create the "hello" queue
 //! let request_id: u16 = conn.queue_declare(channel_id, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).unwrap();
 //!
@@ -84,7 +84,7 @@
 //!
 //! ## Publishing a message
 //!
-//! ```rust
+//! ```rust,ignore
 //! conn.basic_publish(channel_id, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
 //! let payload = b"Hello world!";
 //! conn.send_content_frames(channel_a, 60, payload);
@@ -94,7 +94,7 @@
 //!
 //! ## Creating a Consumer
 //!
-//! ```rust
+//! ```rust,ignore
 //! //create the "hello" queue
 //! let request_id: u16 = conn.basic_consume(channel_id, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
 //!

@@ -1,108 +1,55 @@
+#[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio_core;
+extern crate env_logger;
 
+use futures::{Stream,Sink};
 use futures::future::{self,Future};
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
-//#[test]
+#[test]
 fn connection() {
-      //let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
-      let mut core = Core::new().unwrap();
+  env_logger::init().unwrap();
+  let mut core = Core::new().unwrap();
 
-      let handle = core.handle();
-      let addr = "127.0.0.1:5672".parse().unwrap();
+  let handle = core.handle();
+  let addr = "127.0.0.1:5672".parse().unwrap();
 
-      core.run(
-        TcpStream::connect(&addr, &handle).and_then(|stream| {
-          lapin::client::Client::connect(stream)
-            .and_then(|client| {
-              println!("client exists");
-              //panic!();
-              future::ok(1)
-              /*
-                client.call("Hello".to_string())
-                    .and_then(move |response| {
-                        println!("CLIENT: {:?}", response);
-                        client.call("Goodbye".to_string())
-                    })
-                    .and_then(|response| {
-                        println!("CLIENT: {:?}", response);
-                        Ok(())
-                    })
-                    */
-          })
+  core.run(
+    TcpStream::connect(&addr, &handle).and_then(|stream| {
+      lapin::client::Client::connect(stream)
+    }).and_then(|client| {
+
+      client.create_channel().and_then(|channel| {
+        let id = channel.id;
+        info!("created channel with id: {}", id);
+
+        channel.queue_declare("hello").and_then(move |_| {
+          info!("channel {} declared queue {}", id, "hello");
+
+          channel.basic_publish("hello", b"hello from tokio")
         })
-    ).unwrap();
-    panic!();
+      }).and_then(move |_| {
+        client.create_channel()
+      }).and_then(|channel| {
+        let id = channel.id;
+        info!("created channel with id: {}", id);
 
-      /*
-      let mut client_future = Client::new(stream);
-      let mut client = client_future.wait().unwrap();
-      println!("got client with connection: {:?}", client.connection);
-      panic!();
-      */
-      /*
-      let i = client_future.then(|client| {
-        println!("got client");
-        future::ok(1)
-      }).wait();
-      */
-      /*
-      let capacity = 4096;
+        channel.queue_declare("hello").and_then(move |_| {
+          info!("channel {} declared queue {}", id, "hello");
 
-      //let (sl, bytes_written) = gen_protocol_header((&mut send_buffer, 0)).unwrap();
-      //assert_eq!(stream.write(&sl[..bytes_written]).unwrap(), bytes_written);
+          channel.basic_consume("hello", "my_consumer")
+        }).and_then(|stream| {
+          info!("got consumer stream");
 
-      let mut conn: Connection = Connection::new();
-      assert_eq!(conn.connect(&mut stream).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
-
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      //now connected
-
-      let channel_a: u16 = conn.create_channel();
-      let channel_b: u16 = conn.create_channel();
-      //send channel
-      conn.channel_open(channel_a, "".to_string()).expect("channel_open");
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      thread::sleep(time::Duration::from_millis(100));
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      //receive channel
-      conn.channel_open(channel_b, "".to_string()).expect("channel_open");
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      thread::sleep(time::Duration::from_millis(100));
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      //create the hello queue
-      conn.queue_declare(channel_a, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      conn.queue_declare(channel_b, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      println!("will consume");
-      let consumer = LoggingConsumer{};
-      conn.basic_consume(consumer, channel_b, 0, "hello".to_string(), "".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-
-      println!("will publish");
-      conn.basic_publish(channel_a, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
-      let payload = b"Hello world!";
-      conn.send_content_frames(channel_a, 60, payload);
-      println!("[{}] state: {:?}", line!(), conn.write(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.read(&mut stream).unwrap());
-      println!("[{}] state: {:?}", line!(), conn.parse().unwrap());
-      println!("[{}] state: {:?}", line!(), conn.parse().unwrap());
-      panic!();
-      */
+          stream.into_future().and_then(|(message, stream)| {
+            assert_eq!(message.unwrap().data, b"hello from tokio");
+            Ok(())
+          }).map_err(|(err, _)| err)
+        })
+      })
+    })
+  ).unwrap();
 }

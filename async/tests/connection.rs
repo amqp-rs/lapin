@@ -1,17 +1,11 @@
 extern crate lapin_async as lapin;
-#[macro_use] extern crate nom;
 
 use std::net::TcpStream;
-use std::iter::repeat;
-use std::io::{Read,Write,Error};
 use std::collections::HashMap;
 use std::{thread,time};
 
-use nom::HexDisplay;
 
 use lapin::connection::*;
-use lapin::method::*;
-use lapin::frame::*;
 use lapin::buffer::Buffer;
 
 #[test]
@@ -52,31 +46,32 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //create the hello queue
-      conn.queue_declare(channel_a, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
+      conn.queue_declare(channel_a, 0, "hello-async".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      conn.queue_declare(channel_b, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
+      conn.queue_declare(channel_b, 0, "hello-async".to_string(), false, false, false, false, false, HashMap::new()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       println!("will consume");
-      conn.basic_consume(channel_b, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
+      conn.basic_consume(channel_b, 0, "hello-async".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       println!("will publish");
-      conn.basic_publish(channel_a, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
+      conn.basic_publish(channel_a, 0, "".to_string(), "hello-async".to_string(), false, false).expect("basic_publish");
       let payload = b"Hello world!";
       conn.send_content_frames(channel_a, 60, payload);
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
-      let msg = conn.next_message(channel_b, "hello", "my_consumer").unwrap();
+      let msg = conn.next_message(channel_b, "hello-async", "my_consumer").unwrap();
       println!("received message: {:?}", msg);
       println!("data: {}", std::str::from_utf8(&msg.data).unwrap());
-      panic!();
+
+      assert_eq!(msg.data, b"Hello world!");
 }
