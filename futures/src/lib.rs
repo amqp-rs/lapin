@@ -45,7 +45,7 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel()
-//!     .and_then(|channel| {
+//!     }).and_then(|channel| {
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
 //!
@@ -94,7 +94,7 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel()
-//!     .and_then(|channel| {
+//!     }).and_then(|channel| {
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
 //!
