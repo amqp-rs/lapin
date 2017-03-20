@@ -5,6 +5,8 @@ rust:
   - beta
   - stable
 
+services: rabbitmq
+
 before_install:
   - export ROOT_PATH=`pwd`
   - export CFLAGS="-fPIC"
