@@ -1,7 +1,7 @@
 use std::io::{self,Error,ErrorKind};
 use futures::Future;
 use futures::future;
-use std::collections::HashMap;
+use amq_protocol_types::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
@@ -26,7 +26,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_declare(self.id, 0, name.to_string(), false, false, false, false, false, HashMap::new()) {
+      match transport.conn.queue_declare(self.id, 0, name.to_string(), false, false, false, false, false, FieldTable::new()) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
@@ -85,7 +85,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_consume(self.id, 0, queue.to_string(), consumer_tag.to_string(), false, true, false, false, HashMap::new()) {
+      match transport.conn.basic_consume(self.id, 0, queue.to_string(), consumer_tag.to_string(), false, true, false, false, FieldTable::new()) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
         ),
