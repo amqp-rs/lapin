@@ -1,3 +1,4 @@
+/// low level wrapper for the state machine, encoding and decoding from lapin-async
 use lapin_async::connection::*;
 use lapin_async::format::frame::*;
 
@@ -10,6 +11,7 @@ use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 
+/// implements tokio-io's Decoder and Encoder
 pub struct AMQPCodec;
 
 impl Decoder for AMQPCodec {
@@ -91,6 +93,7 @@ impl Encoder for AMQPCodec {
     }
 }
 
+/// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   pub upstream: Framed<T,AMQPCodec>,
   pub conn: Connection,
@@ -100,6 +103,9 @@ impl<T> AMQPTransport<T>
    where T: AsyncRead+AsyncWrite,
          T: 'static               {
 
+  /// starts the connection process
+  ///
+  /// returns a future of a `AMQPTransport` that is connected
   pub fn connect(upstream: Framed<T,AMQPCodec>) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut t = AMQPTransport {
       upstream: upstream,
@@ -157,6 +163,10 @@ impl<T> AMQPTransport<T>
   }
 }
 
+/// implements a future of `AMQPTransport`
+///
+/// this structure is used to perform the AMQP handshake and provide
+/// a connected transport afterwards
 pub struct AMQPTransportConnector<T> {
   pub transport: Option<AMQPTransport<T>>,
 }

@@ -9,12 +9,17 @@ use std::sync::{Arc,Mutex};
 use transport::*;
 use channel::Channel;
 
+/// the Client structures connects to a server and creates channels
 #[derive(Clone)]
 pub struct Client<T> {
     transport: Arc<Mutex<AMQPTransport<T>>>,
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
+  /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
+  ///
+  /// this method returns a future that resolves once the connection handshake is done.
+  /// The result is a client that can be used to create a channel
   pub fn connect(stream: T) -> Box<Future<Item = Client<T>, Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream.framed(AMQPCodec)).and_then(|transport| {
       debug!("got client service");
@@ -27,6 +32,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 
   }
 
+  /// creates a new channel
+  ///
+  /// returns a future that resolves to a `Channel` once the method succeeds
   pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
     let channel_transport = self.transport.clone();
 
@@ -61,6 +69,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 
 }
 
+/// internal method to wait until a specific request succeeded
 pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
   Box::new(future::poll_fn(move || {
     let connected = if let Ok(mut tr) = transport.try_lock() {

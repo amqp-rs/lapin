@@ -9,6 +9,7 @@ use transport::*;
 use consumer::Consumer;
 use client::wait_for_answer;
 
+/// `Channel` provides methods to act on a channel, such as managing queues
 #[derive(Clone)]
 pub struct Channel<T> {
   pub transport: Arc<Mutex<AMQPTransport<T>>>,
@@ -16,6 +17,11 @@ pub struct Channel<T> {
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
+  /// creates a queue
+  ///
+  /// returns a future that resolves once the queue is available
+  ///
+  /// WARNING: this method cannot pass custom queue_declare arguments yet
   pub fn queue_declare(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
@@ -42,6 +48,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// publishes a message on a queue
+  ///
+  /// WARNING: does not handle chunking of the content for now
   pub fn basic_publish(&self, queue: &str, payload: &[u8]) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.basic_publish(self.id, 0, "".to_string(), queue.to_string(), false, false) {
@@ -66,6 +75,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// creates a consumer stream
+  ///
+  /// returns a future of a `Consumer` that resolves once the method succeeds
+  ///
+  /// `Consumer` implements `futures::Stream`, so it can be used with any of
+  /// the usual combinators
   pub fn basic_consume(&self, queue: &str, consumer_tag: &str) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
@@ -101,6 +116,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// acks a message
   pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.basic_ack(self.id, delivery_tag, false) {
@@ -120,6 +136,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// rejects a message
   pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.basic_reject(self.id, delivery_tag, requeue) {
@@ -139,6 +156,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// purges a queue
   pub fn queue_purge(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 

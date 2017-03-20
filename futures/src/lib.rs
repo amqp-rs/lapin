@@ -64,7 +64,7 @@
 //!
 //! ## Creating a consumer
 //!
-//! ```rust
+//! ```rust,ignore
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate futures;
