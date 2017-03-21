@@ -1,7 +1,7 @@
-use amq_protocol_types::AMQPValue;
+use amq_protocol_types::parsing::*;
+use amq_protocol_types::value::*;
 use nom::be_u16;
 
-use field::value;
 // 0          2           4
 // +----------+-----------+-------------- - -
 // | class-id | method-id | arguments...
@@ -19,7 +19,7 @@ named!(pub method<Method>,
   do_parse!(
     class:  be_u16           >>
     method: be_u16           >>
-    arguments: many0!(dbg_dmp!(value)) >>
+    arguments: many0!(dbg_dmp!(parse_value)) >>
     (Method {
       class_id:  class,
       method_id: method,

@@ -1,5 +1,5 @@
 use std::collections::{HashMap,VecDeque};
-use amq_protocol_types::*;
+use amq_protocol_types::types::*;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Binding {

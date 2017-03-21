@@ -1,7 +1,8 @@
 use std::io::{Error,ErrorKind,Result};
 use std::{result,str};
 use std::collections::{HashSet,HashMap,VecDeque};
-use amq_protocol_types::AMQPValue;
+use amq_protocol_types::types::*;
+use amq_protocol_types::value::*;
 use nom::{IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
 use sasl::mechanisms::Plain;
@@ -340,7 +341,7 @@ impl Connection {
               trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
-              let mut h = HashMap::new();
+              let mut h = FieldTable::new();
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
               let creds = Credentials {
@@ -519,7 +520,7 @@ impl Connection {
       weight:         0,
       body_size:      slice.len() as u64,
       property_flags: 0x2000,
-      property_list:  HashMap::new(),
+      property_list:  FieldTable::new(),
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
     self.frame_queue.push_back(Frame::Body(channel_id,Vec::from(slice)));

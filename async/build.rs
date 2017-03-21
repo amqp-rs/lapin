@@ -7,6 +7,7 @@ extern crate serde_json;
 
 use amq_protocol_codegen::*;
 use amq_protocol_types::*;
+use amq_protocol_types::types::*;
 use handlebars::{Handlebars,Helper,RenderContext,RenderError};
 
 use std::collections::BTreeMap;
@@ -82,19 +83,23 @@ fn map_parser_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> Resu
         handlebars.render("bits", &data).unwrap()
       }
     },
-    AMQPType::ShortShortInt  => format!("{} : {} >>", snake_case(&arg.name), "be_i8"),
-    AMQPType::ShortShortUInt => format!("{} : {} >>", snake_case(&arg.name), "be_u8"),
-    AMQPType::ShortInt       => format!("{} : {} >>", snake_case(&arg.name),"be_i16"),
-    AMQPType::ShortUInt      => format!("{} : {} >>", snake_case(&arg.name),"be_u16"),
-    AMQPType::LongInt        => format!("{} : {} >>", snake_case(&arg.name),"be_i32"),
-    AMQPType::LongUInt       => format!("{} : {} >>", snake_case(&arg.name),"be_u32"),
-    AMQPType::LongLongInt    => format!("{} : {} >>", snake_case(&arg.name),"be_i64"),
-    AMQPType::LongLongUInt   => format!("{} : {} >>", snake_case(&arg.name),"be_u64"),
-    AMQPType::ShortString    => format!("{} : {} >>", snake_case(&arg.name),"map!(short_string, |s:&str| s.to_string())"),
-    AMQPType::LongString     => format!("{} : {} >>", snake_case(&arg.name),"map!(long_string,  |s:&str| s.to_string())"),
-    AMQPType::FieldTable     => format!("{} : {} >>", snake_case(&arg.name),"field_table"),
-    AMQPType::Timestamp      => format!("{} : {} >>", snake_case(&arg.name),"be_u64"),
-    _                        => unimplemented!(),
+    AMQPType::ShortShortInt  => format!("{} : {} >>", snake_case(&arg.name), "parse_short_short_int"),
+    AMQPType::ShortShortUInt => format!("{} : {} >>", snake_case(&arg.name), "parse_short_short_uint"),
+    AMQPType::ShortInt       => format!("{} : {} >>", snake_case(&arg.name), "parse_short_int"),
+    AMQPType::ShortUInt      => format!("{} : {} >>", snake_case(&arg.name), "parse_short_uint"),
+    AMQPType::LongInt        => format!("{} : {} >>", snake_case(&arg.name), "parse_long_int"),
+    AMQPType::LongUInt       => format!("{} : {} >>", snake_case(&arg.name), "parse_long_uint"),
+    AMQPType::LongLongInt    => format!("{} : {} >>", snake_case(&arg.name), "parse_long_long_int"),
+    AMQPType::LongLongUInt   => format!("{} : {} >>", snake_case(&arg.name), "parse_long_long_uint"),
+    AMQPType::ShortString    => format!("{} : {} >>", snake_case(&arg.name), "parse_short_string"),
+    AMQPType::LongString     => format!("{} : {} >>", snake_case(&arg.name), "parse_long_string"),
+    AMQPType::Float          => format!("{} : {} >>", snake_case(&arg.name), "parse_float"),
+    AMQPType::Double         => format!("{} : {} >>", snake_case(&arg.name), "parse_double"),
+    AMQPType::DecimalValue   => format!("{} : {} >>", snake_case(&arg.name), "parse_decimal_value"),
+    AMQPType::FieldTable     => format!("{} : {} >>", snake_case(&arg.name), "parse_field_table"),
+    AMQPType::Timestamp      => format!("{} : {} >>", snake_case(&arg.name), "parse_timestamp"),
+    AMQPType::FieldArray     => format!("{} : {} >>", snake_case(&arg.name), "parse_field_array"),
+    AMQPType::Void           => "".to_string(),
   };
   try!(rc.writer.write(&rendered.as_bytes()));
 
@@ -187,19 +192,23 @@ fn map_generator_helper(h: &Helper, _: &Handlebars, rc: &mut RenderContext) -> R
         handlebars.render("bits", &data).unwrap()
       }
     },
-    AMQPType::ShortShortInt  => format!(">> {}(&method.{})", "gen_be_i8", snake_case(&arg.name)),
-    AMQPType::ShortShortUInt => format!(">> {}(&method.{})", "gen_be_u8", snake_case(&arg.name)),
-    AMQPType::ShortInt       => format!(">> {}(&method.{})", "gen_be_i16", snake_case(&arg.name)),
-    AMQPType::ShortUInt      => format!(">> {}(&method.{})", "gen_be_u16", snake_case(&arg.name)),
-    AMQPType::LongInt        => format!(">> {}(&method.{})", "gen_be_i32", snake_case(&arg.name)),
-    AMQPType::LongUInt       => format!(">> {}(&method.{})", "gen_be_u32", snake_case(&arg.name)),
-    AMQPType::LongLongInt    => format!(">> {}(&method.{})", "gen_be_i64", snake_case(&arg.name)),
-    AMQPType::LongLongUInt   => format!(">> {}(&method.{})", "gen_be_u64", snake_case(&arg.name)),
+    AMQPType::ShortShortInt  => format!(">> {}(&method.{})", "gen_short_short_int", snake_case(&arg.name)),
+    AMQPType::ShortShortUInt => format!(">> {}(&method.{})", "gen_short_short_uint", snake_case(&arg.name)),
+    AMQPType::ShortInt       => format!(">> {}(&method.{})", "gen_short_int", snake_case(&arg.name)),
+    AMQPType::ShortUInt      => format!(">> {}(&method.{})", "gen_short_uint", snake_case(&arg.name)),
+    AMQPType::LongInt        => format!(">> {}(&method.{})", "gen_long_int", snake_case(&arg.name)),
+    AMQPType::LongUInt       => format!(">> {}(&method.{})", "gen_long_uint", snake_case(&arg.name)),
+    AMQPType::LongLongInt    => format!(">> {}(&method.{})", "gen_long_long_int", snake_case(&arg.name)),
+    AMQPType::LongLongUInt   => format!(">> {}(&method.{})", "gen_long_long_uint", snake_case(&arg.name)),
+    AMQPType::Float          => format!(">> {}(&method.{})", "gen_float", snake_case(&arg.name)),
+    AMQPType::Double         => format!(">> {}(&method.{})", "gen_double", snake_case(&arg.name)),
+    AMQPType::DecimalValue   => format!(">> {}(&method.{})", "gen_decimal_value", snake_case(&arg.name)),
     AMQPType::ShortString    => format!(">> {}(&method.{})", "gen_short_string", snake_case(&arg.name)),
     AMQPType::LongString     => format!(">> {}(&method.{})", "gen_long_string", snake_case(&arg.name)),
     AMQPType::FieldTable     => format!(">> {}(&method.{})", "gen_field_table", snake_case(&arg.name)),
-    AMQPType::Timestamp      => format!(">> {}(&method.{})", "gen_be_u64", snake_case(&arg.name)),
-    _                        => unimplemented!(),
+    AMQPType::Timestamp      => format!(">> {}(&method.{})", "gen_timestamp", snake_case(&arg.name)),
+    AMQPType::FieldArray     => format!(">> {}(&method.{})", "gen_field_array", snake_case(&arg.name)),
+    AMQPType::Void           => "".to_string(),
   };
   try!(rc.writer.write(rendered.as_bytes()));
 
