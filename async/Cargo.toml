@@ -16,17 +16,12 @@ log = "^0.3"
 nom = "^2.2"
 sasl = "^0.3"
 cookie-factory = "^0.2"
-amq-protocol-types = "^0.7.0"
+amq-protocol = "^0.5"
 clippy = {version = "^0.0.119", optional = true}
 
 
 [build-dependencies]
-serde = "^0.9"
-serde_json = "^0.9"
-handlebars = "^0.25"
-serde_derive = "^0.9"
-amq-protocol-types   = "^0.7.0"
-amq-protocol-codegen = "^0.12.0"
+amq-protocol = "^0.5"
 
 [dev-dependencies]
 env_logger = "^0.4"

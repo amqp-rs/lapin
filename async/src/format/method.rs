@@ -1,5 +1,5 @@
-use amq_protocol_types::parsing::*;
-use amq_protocol_types::value::*;
+use amq_protocol::types::*;
+use amq_protocol::types::parsing::*;
 use nom::be_u16;
 
 // 0          2           4

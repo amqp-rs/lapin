@@ -1,5 +1,5 @@
-use amq_protocol_types::generation::*;
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
+use amq_protocol::types::generation::*;
 use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use format::content::*;

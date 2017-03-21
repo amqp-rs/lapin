@@ -1,10 +1,10 @@
 extern crate lapin_async as lapin;
-extern crate amq_protocol_types;
+extern crate amq_protocol;
 
 use std::net::TcpStream;
 use std::{thread,time};
 
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
 
 use lapin::connection::*;
 use lapin::buffer::Buffer;

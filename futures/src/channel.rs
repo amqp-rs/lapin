@@ -1,7 +1,7 @@
 use std::io::{self,Error,ErrorKind};
 use futures::Future;
 use futures::future;
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 

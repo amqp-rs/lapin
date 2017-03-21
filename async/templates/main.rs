@@ -1,6 +1,7 @@
-use amq_protocol_types::generation::*;
-use amq_protocol_types::parsing::*;
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
+use amq_protocol::types::flags::*;
+use amq_protocol::types::generation::*;
+use amq_protocol::types::parsing::*;
 use cookie_factory::*;
 use nom::{be_i8,be_i16,be_i32,be_i64,be_u8,be_u16,be_u32,be_u64};
 
@@ -41,9 +42,10 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 {{#each specs.classes as |class|}}
   pub mod {{snake class.name}} {
     use super::Class;
-use amq_protocol_types::generation::*;
-use amq_protocol_types::parsing::*;
-    use amq_protocol_types::types::*;
+    use amq_protocol::types::*;
+    use amq_protocol::types::flags::*;
+    use amq_protocol::types::generation::*;
+    use amq_protocol::types::parsing::*;
     use format::field::*;
     use cookie_factory::*;
     use nom::{be_i8,be_i16,be_i32,be_i64,be_u8,be_u16,be_u32,be_u64};
@@ -82,31 +84,65 @@ use amq_protocol_types::parsing::*;
     {{#each class.methods as |method|}}
       #[derive(Clone,Debug,PartialEq)]
       pub struct {{camel method.name}} {
-        {{#each method.arguments as |argument| ~}}
-          pub {{snake argument.name}}: {{argument.type}},
-        {{/each ~}}
+        {{#each_argument method.arguments as |argument| ~}}
+          {{#if argument_is_value ~}}
+            pub {{snake argument.name}}: {{argument.type}},
+          {{else}}
+            {{#each_flag argument as |flag| ~}}
+              pub {{snake flag.name}}: Boolean,
+            {{/each_flag ~}}
+          {{/if ~}}
+        {{/each_argument ~}}
       }
 
       named!(parse_{{snake method.name}}<Methods>,
         do_parse!(
-          {{#each method.arguments as |argument| ~}}
-            {{map_parser argument method.arguments}}
-          {{/each ~}}
+          {{#each_argument method.arguments as |argument| ~}}
+            {{#if argument_is_value ~}}
+              {{snake argument.name}} : parse_{{snake_type argument.type}} >>
+            {{else}}
+              flags : apply!(parse_flags, &vec![
+                {{#each_flag argument as |flag| ~}}
+                  "{{flag.name}}",
+                {{/each_flag ~}}
+              ]) >>
+            {{/if ~}}
+          {{/each_argument ~}}
 
           (Methods::{{camel method.name}}({{camel method.name}} {
-            {{#each method.arguments as |argument| ~}}
-            {{map_assign argument method.arguments}}
-            {{/each ~}}
+            {{#each_argument method.arguments as |argument| ~}}
+              {{#if argument_is_value ~}}
+                {{snake argument.name}}: {{snake argument.name}},
+              {{else}}
+                {{#each_flag argument as |flag| ~}}
+                  {{snake flag.name}}: flags.get_flag("{{snake flag.name}}").unwrap_or({{flag.default_value}}),
+                {{/each_flag ~}}
+              {{/if ~}}
+            {{/each_argument ~}}
           }))
         )
       );
 
       pub fn gen_{{snake method.name}}<'a>(input:(&'a mut [u8],usize), method: &{{camel method.name}}) -> Result<(&'a mut [u8],usize),GenError> {
+        {{#if method.has_flags ~}}
+          let mut flags = AMQPFlags::new();
+          {{#each_argument method.arguments as |argument| ~}}
+            {{#unless argument_is_value ~}}
+              {{#each_flag argument as |flag| ~}}
+                flags.add_flag("{{snake flag.name}}".to_string(), method.{{snake flag.name}});
+              {{/each_flag ~}}
+            {{/unless ~}}
+          {{/each_argument ~}}
+        {{/if ~}}
         do_gen!(input,
           gen_be_u16!({{method.id}}u16)
-          {{#each method.arguments as |argument| ~}}
-          {{map_generator argument method.arguments}}
-          {{/each ~}}
+          {{#each_argument method.arguments as |argument| ~}}
+            {{#if argument_is_value ~}}
+              >> gen_{{snake_type argument.type}}(&method.{{snake argument.name}})
+            {{else}}
+              >> gen_flags(&flags)
+            {{/if ~}}
+          {{/each_argument ~}}
         )
       }
     {{/each}}

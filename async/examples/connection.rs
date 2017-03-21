@@ -1,12 +1,12 @@
 extern crate lapin_async as lapin;
-extern crate amq_protocol_types;
+extern crate amq_protocol;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
 use std::net::TcpStream;
 use std::{thread,time};
 
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
 use lapin::connection::*;
 use lapin::buffer::Buffer;
 

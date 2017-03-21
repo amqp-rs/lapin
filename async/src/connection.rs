@@ -1,8 +1,7 @@
 use std::io::{Error,ErrorKind,Result};
 use std::{result,str};
 use std::collections::{HashSet,HashMap,VecDeque};
-use amq_protocol_types::types::*;
-use amq_protocol_types::value::*;
+use amq_protocol::types::*;
 use nom::{IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
 use sasl::mechanisms::Plain;
