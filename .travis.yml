@@ -18,7 +18,8 @@ before_install:
   - sudo dpkg -i libssl-dev_1.0.2g-1ubuntu4.6_amd64.deb
 
 before_script:
-  - cargo install cargo-travis && export PATH=$HOME/.cargo/bin:$PATH;
+  - cargo install cargo-travis --force
+  - export PATH=$HOME/.cargo/bin:$PATH;
 
 script:
   - cd $ROOT_PATH/async   && cargo build
