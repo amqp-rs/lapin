@@ -4,6 +4,8 @@
 
 # lapin, a Rust AMQP client library
 
+![](logo.jpg)
+
 this project is separated into two crates. See the READMEs in the subfolder for each library.
 
 It follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ. As this is a young project,
