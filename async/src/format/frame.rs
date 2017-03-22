@@ -1,3 +1,4 @@
+use amq_protocol::protocol;
 use amq_protocol::types::*;
 use amq_protocol::types::generation::*;
 use cookie_factory::*;
@@ -7,16 +8,16 @@ use generated::*;
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
-    tag!(b"AMQP\0"),
-    tag!(&[0, 9, 1])
+    tag!(protocol::NAME.as_bytes()),
+    tag!(&[0, protocol::MAJOR_VERSION, protocol::MINOR_VERSION, protocol::REVISION])
   )
 );
 
 pub fn gen_protocol_header<'a>(x:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
   do_gen!(
     x,
-    gen_slice!(b"AMQP") >>
-    gen_slice!(&[0, 0, 9, 1])
+    gen_slice!(protocol::NAME.as_bytes()) >>
+    gen_slice!(&[0, protocol::MAJOR_VERSION, protocol::MINOR_VERSION, protocol::REVISION])
   )
 }
 
@@ -37,10 +38,10 @@ pub enum FrameType {
 
 named!(pub frame_type<FrameType>,
   switch!(be_u8,
-    1 => value!(FrameType::Method)
-  | 2 => value!(FrameType::Header)
-  | 3 => value!(FrameType::Body)
-  | 8 => value!(FrameType::Heartbeat)
+    protocol::FRAME_METHOD    => value!(FrameType::Method)
+  | protocol::FRAME_HEADER    => value!(FrameType::Header)
+  | protocol::FRAME_BODY      => value!(FrameType::Body)
+  | protocol::FRAME_HEARTBEAT => value!(FrameType::Heartbeat)
   )
 );
 
@@ -72,7 +73,7 @@ named!(pub raw_frame<RawFrame>,
     channel: be_u16        >>
     size:    be_u32        >>
     payload: take!(size)   >>
-             tag!(&[0xCE]) >>
+             tag!(&[protocol::FRAME_END]) >>
     (RawFrame {
       frame_type: frame,
       channel_id: channel,
@@ -111,14 +112,14 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
 
 pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Class) -> Result<(&'a mut [u8],usize),GenError> {
   //FIXME: this does not take into account the BufferTooSmall errors
-  let r = gen_be_u8!(input, 1u8);
+  let r = gen_be_u8!(input, protocol::FRAME_METHOD);
   //println!("r: {:?}", r);
   if let Ok(input1) = r {
     if let Ok((sl2, index2)) = gen_be_u16!(input1, channel) {
       if let Ok((sl3, index3)) = gen_class((sl2, index2 + 4), class) {
         if let Ok((sl4, _)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
-          gen_be_u8!((sl4, index3), 0xCE)
-          //if let Ok((sl5, index5)) = gen_be_u8!((sl4, index3), 0xCE)
+          gen_be_u8!((sl4, index3), protocol::FRAME_END)
+          //if let Ok((sl5, index5)) = gen_be_u8!((sl4, index3), protocol::FRAME_END)
           //{
           //}
         } else {
@@ -136,12 +137,12 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
 }
 
 pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
-  do_gen!(input, gen_slice!(&[8, 0, 0, 0xCE]))
+  do_gen!(input, gen_slice!(&[protocol::FRAME_HEARTBEAT, 0, 0, protocol::FRAME_END]))
 }
 
 pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64) -> Result<(&'a mut [u8],usize),GenError> {
   do_gen!(input,
-    gen_be_u8!( 2 ) >>
+    gen_be_u8!( protocol::FRAME_HEADER ) >>
     gen_be_u16!(channel_id) >>
 
     ofs_len: gen_skip!(4) >>
@@ -155,18 +156,18 @@ pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16,
     ) >>
     end: gen_at_offset!(ofs_len, gen_be_u32!(end-start)) >>
 
-    gen_be_u8!(0xCE)
+    gen_be_u8!(protocol::FRAME_END)
   )
 }
 
 pub fn gen_content_body_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, slice: &[u8]) -> Result<(&'a mut [u8],usize),GenError> {
   do_gen!(input,
-    gen_be_u8!( 3 ) >>
+    gen_be_u8!( protocol::FRAME_BODY ) >>
     gen_be_u16!(channel_id) >>
     gen_be_u32!(slice.len()) >>
 
     gen_slice!(slice) >>
 
-    gen_be_u8!(0xCE)
+    gen_be_u8!(protocol::FRAME_END)
   )
 }
