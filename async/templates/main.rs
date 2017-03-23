@@ -44,7 +44,6 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
     use amq_protocol::types::flags::*;
     use amq_protocol::types::generation::*;
     use amq_protocol::types::parsing::*;
-    use format::field::*;
     use cookie_factory::*;
     use nom::{be_i8,be_i16,be_i32,be_i64,be_u8,be_u16,be_u32,be_u64};
 
