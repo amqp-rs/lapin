@@ -37,6 +37,7 @@ fn main() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
+        let c = channel.clone();
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
@@ -44,9 +45,10 @@ fn main() {
         }).and_then(|stream| {
           info!("got consumer stream");
 
-          stream.for_each(|message| {
+          stream.for_each(move |message| {
             debug!("got message: {:?}", message);
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
+            c.basic_ack(message.delivery_tag);
             Ok(())
           })
         })

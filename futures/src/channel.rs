@@ -11,10 +11,19 @@ use consumer::Consumer;
 use client::wait_for_answer;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct Channel<T> {
   pub transport: Arc<Mutex<AMQPTransport<T>>>,
   pub id:    u16,
+}
+
+impl<T> Clone for Channel<T> {
+  fn clone(&self) -> Channel<T> {
+    Channel {
+      transport: self.transport.clone(),
+      id:        self.id,
+    }
+  }
 }
 
 #[derive(Clone,Debug,PartialEq)]
