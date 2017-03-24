@@ -1,7 +1,7 @@
+use amq_protocol::protocol::*;
 use amq_protocol::types::*;
 use connection::*;
 use queue::*;
-use generated::*;
 use error::*;
 use std::collections::VecDeque;
 
@@ -51,83 +51,83 @@ pub enum Answer {
 }
 
 impl Connection {
-    pub fn receive_method(&mut self, channel_id: u16, method: Class) -> Result<(), Error> {
+    pub fn receive_method(&mut self, channel_id: u16, method: AMQPClass) -> Result<(), Error> {
         match method {
 
-            Class::Channel(channel::Methods::OpenOk(m)) => {
+            AMQPClass::Channel(channel::AMQPMethod::OpenOk(m)) => {
                 self.receive_channel_open_ok(channel_id, m)
             }
-            Class::Channel(channel::Methods::Flow(m)) => self.receive_channel_flow(channel_id, m),
-            Class::Channel(channel::Methods::FlowOk(m)) => {
+            AMQPClass::Channel(channel::AMQPMethod::Flow(m)) => self.receive_channel_flow(channel_id, m),
+            AMQPClass::Channel(channel::AMQPMethod::FlowOk(m)) => {
                 self.receive_channel_flow_ok(channel_id, m)
             }
-            Class::Channel(channel::Methods::Close(m)) => self.receive_channel_close(channel_id, m),
-            Class::Channel(channel::Methods::CloseOk(m)) => {
+            AMQPClass::Channel(channel::AMQPMethod::Close(m)) => self.receive_channel_close(channel_id, m),
+            AMQPClass::Channel(channel::AMQPMethod::CloseOk(m)) => {
                 self.receive_channel_close_ok(channel_id, m)
             }
 
             /*
-            Class::Access(access::Methods::RequestOk(m)) => {
+            AMQPClass::Access(access::AMQPMethod::RequestOk(m)) => {
                 self.receive_access_request_ok(channel_id, m)
             }
 
-            Class::Exchange(exchange::Methods::DeclareOk(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::DeclareOk(m)) => {
                 self.receive_exchange_declare_ok(channel_id, m)
             }
-            Class::Exchange(exchange::Methods::DeleteOk(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::DeleteOk(m)) => {
                 self.receive_exchange_delete_ok(channel_id, m)
             }
-            Class::Exchange(exchange::Methods::Bind(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::Bind(m)) => {
                 self.receive_exchange_bind(channel_id, m)
             }
-            Class::Exchange(exchange::Methods::BindOk(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::BindOk(m)) => {
                 self.receive_exchange_bind_ok(channel_id, m)
             }
-            Class::Exchange(exchange::Methods::Unbind(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::Unbind(m)) => {
                 self.receive_exchange_unbind(channel_id, m)
             }
-            Class::Exchange(exchange::Methods::UnbindOk(m)) => {
+            AMQPClass::Exchange(exchange::AMQPMethod::UnbindOk(m)) => {
                 self.receive_exchange_unbind_ok(channel_id, m)
             }
             */
 
-            Class::Queue(queue::Methods::DeclareOk(m)) => {
+            AMQPClass::Queue(queue::AMQPMethod::DeclareOk(m)) => {
                 self.receive_queue_declare_ok(channel_id, m)
             }
-            Class::Queue(queue::Methods::BindOk(m)) => self.receive_queue_bind_ok(channel_id, m),
-            Class::Queue(queue::Methods::PurgeOk(m)) => self.receive_queue_purge_ok(channel_id, m),
-            Class::Queue(queue::Methods::DeleteOk(m)) => {
+            AMQPClass::Queue(queue::AMQPMethod::BindOk(m)) => self.receive_queue_bind_ok(channel_id, m),
+            AMQPClass::Queue(queue::AMQPMethod::PurgeOk(m)) => self.receive_queue_purge_ok(channel_id, m),
+            AMQPClass::Queue(queue::AMQPMethod::DeleteOk(m)) => {
                 self.receive_queue_delete_ok(channel_id, m)
             }
-            Class::Queue(queue::Methods::UnbindOk(m)) => {
+            AMQPClass::Queue(queue::AMQPMethod::UnbindOk(m)) => {
                 self.receive_queue_unbind_ok(channel_id, m)
             }
 
-            Class::Basic(basic::Methods::QosOk(m)) => self.receive_basic_qos_ok(channel_id, m),
-            Class::Basic(basic::Methods::ConsumeOk(m)) => {
+            AMQPClass::Basic(basic::AMQPMethod::QosOk(m)) => self.receive_basic_qos_ok(channel_id, m),
+            AMQPClass::Basic(basic::AMQPMethod::ConsumeOk(m)) => {
                 self.receive_basic_consume_ok(channel_id, m)
             }
-            Class::Basic(basic::Methods::CancelOk(m)) => {
+            AMQPClass::Basic(basic::AMQPMethod::CancelOk(m)) => {
                 self.receive_basic_cancel_ok(channel_id, m)
             }
-            Class::Basic(basic::Methods::Return(m)) => {
+            AMQPClass::Basic(basic::AMQPMethod::Return(m)) => {
                 self.receive_basic_amqp_return(channel_id, m)
             }
-            Class::Basic(basic::Methods::Deliver(m)) => self.receive_basic_deliver(channel_id, m),
-            Class::Basic(basic::Methods::GetOk(m)) => self.receive_basic_get_ok(channel_id, m),
-            Class::Basic(basic::Methods::GetEmpty(m)) => {
+            AMQPClass::Basic(basic::AMQPMethod::Deliver(m)) => self.receive_basic_deliver(channel_id, m),
+            AMQPClass::Basic(basic::AMQPMethod::GetOk(m)) => self.receive_basic_get_ok(channel_id, m),
+            AMQPClass::Basic(basic::AMQPMethod::GetEmpty(m)) => {
                 self.receive_basic_get_empty(channel_id, m)
             }
-            Class::Basic(basic::Methods::RecoverOk(m)) => {
+            AMQPClass::Basic(basic::AMQPMethod::RecoverOk(m)) => {
                 self.receive_basic_recover_ok(channel_id, m)
             }
 
             /*
-            Class::Tx(tx::Methods::SelectOk(m)) => self.receive_tx_select_ok(channel_id, m),
-            Class::Tx(tx::Methods::CommitOk(m)) => self.receive_tx_commit_ok(channel_id, m),
-            Class::Tx(tx::Methods::RollbackOk(m)) => self.receive_tx_rollback_ok(channel_id, m),
+            AMQPClass::Tx(tx::AMQPMethod::SelectOk(m)) => self.receive_tx_select_ok(channel_id, m),
+            AMQPClass::Tx(tx::AMQPMethod::CommitOk(m)) => self.receive_tx_commit_ok(channel_id, m),
+            AMQPClass::Tx(tx::AMQPMethod::RollbackOk(m)) => self.receive_tx_rollback_ok(channel_id, m),
 
-            Class::Confirm(confirm::Methods::SelectOk(m)) => {
+            AMQPClass::Confirm(confirm::AMQPMethod::SelectOk(m)) => {
                 self.receive_confirm_select_ok(channel_id, m)
             }
             */
@@ -154,7 +154,7 @@ impl Connection {
         }
 
         let method =
-            Class::Channel(channel::Methods::Open(channel::Open { out_of_band: out_of_band }));
+            AMQPClass::Channel(channel::AMQPMethod::Open(channel::Open { out_of_band: out_of_band }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             trace!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
@@ -204,7 +204,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Channel(channel::Methods::Flow(channel::Flow { active: active }));
+        let method = AMQPClass::Channel(channel::AMQPMethod::Flow(channel::Flow { active: active }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             let request_id = self.next_request_id();
@@ -241,7 +241,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Channel(channel::Methods::FlowOk(channel::FlowOk { active: active }));
+        let method = AMQPClass::Channel(channel::AMQPMethod::FlowOk(channel::FlowOk { active: active }));
         self.send_method_frame(_channel_id, method)
     }
 
@@ -290,7 +290,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Channel(channel::Methods::Close(channel::Close {
+        let method = AMQPClass::Channel(channel::AMQPMethod::Close(channel::Close {
             reply_code: reply_code,
             reply_text: reply_text,
             class_id: class_id,
@@ -336,7 +336,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Channel(channel::Methods::CloseOk(channel::CloseOk {}));
+        let method = AMQPClass::Channel(channel::AMQPMethod::CloseOk(channel::CloseOk {}));
         self.send_method_frame(_channel_id, method)
     }
 
@@ -390,7 +390,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Access(access::Methods::Request(access::Request {
+        let method = AMQPClass::Access(access::AMQPMethod::Request(access::Request {
             realm: realm,
             exclusive: exclusive,
             passive: passive,
@@ -465,7 +465,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::Declare(exchange::Declare {
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::Declare(exchange::Declare {
             ticket: ticket,
             exchange: exchange,
             amqp_type: amqp_type,
@@ -537,7 +537,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::Delete(exchange::Delete {
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::Delete(exchange::Delete {
             ticket: ticket,
             exchange: exchange,
             if_unused: if_unused,
@@ -606,7 +606,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::Bind(exchange::Bind {
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::Bind(exchange::Bind {
             ticket: ticket,
             destination: destination,
             source: source,
@@ -666,7 +666,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::BindOk(exchange::BindOk {}));
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::BindOk(exchange::BindOk {}));
         self.send_method_frame(_channel_id, method)
     }
 
@@ -724,7 +724,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::Unbind(exchange::Unbind {
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::Unbind(exchange::Unbind {
             ticket: ticket,
             destination: destination,
             source: source,
@@ -784,7 +784,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Exchange(exchange::Methods::UnbindOk(exchange::UnbindOk {}));
+        let method = AMQPClass::Exchange(exchange::AMQPMethod::UnbindOk(exchange::UnbindOk {}));
         self.send_method_frame(_channel_id, method)
     }
 
@@ -843,7 +843,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Queue(queue::Methods::Declare(queue::Declare {
+        let method = AMQPClass::Queue(queue::AMQPMethod::Declare(queue::Declare {
             ticket: ticket,
             queue: queue.clone(),
             passive: passive,
@@ -918,7 +918,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Queue(queue::Methods::Bind(queue::Bind {
+        let method = AMQPClass::Queue(queue::AMQPMethod::Bind(queue::Bind {
             ticket: ticket,
             queue: queue.clone(),
             exchange: exchange.clone(),
@@ -989,7 +989,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Queue(queue::Methods::Purge(queue::Purge {
+        let method = AMQPClass::Queue(queue::AMQPMethod::Purge(queue::Purge {
             ticket: ticket,
             queue: queue.clone(),
             nowait: nowait,
@@ -1049,7 +1049,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Queue(queue::Methods::Delete(queue::Delete {
+        let method = AMQPClass::Queue(queue::AMQPMethod::Delete(queue::Delete {
             ticket: ticket,
             queue: queue.clone(),
             if_unused: if_unused,
@@ -1111,7 +1111,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Queue(queue::Methods::Unbind(queue::Unbind {
+        let method = AMQPClass::Queue(queue::AMQPMethod::Unbind(queue::Unbind {
             ticket: ticket,
             queue: queue,
             exchange: exchange.clone(),
@@ -1176,7 +1176,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Qos(basic::Qos {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Qos(basic::Qos {
             prefetch_size: prefetch_size,
             prefetch_count: prefetch_count,
             global: global,
@@ -1247,7 +1247,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Consume(basic::Consume {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Consume(basic::Consume {
             ticket: ticket,
             queue: queue.clone(),
             consumer_tag: consumer_tag.clone(),
@@ -1327,7 +1327,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Cancel(basic::Cancel {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Cancel(basic::Cancel {
             consumer_tag: consumer_tag,
             nowait: nowait,
         }));
@@ -1390,7 +1390,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Publish(basic::Publish {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Publish(basic::Publish {
             ticket: ticket,
             exchange: exchange,
             routing_key: routing_key,
@@ -1464,7 +1464,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Get(basic::Get {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Get(basic::Get {
             ticket: ticket,
             queue: queue.clone(),
             no_ack: no_ack,
@@ -1559,7 +1559,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Ack(basic::Ack {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Ack(basic::Ack {
             delivery_tag: delivery_tag,
             multiple: multiple,
         }));
@@ -1580,7 +1580,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Reject(basic::Reject {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Reject(basic::Reject {
             delivery_tag: delivery_tag,
             requeue: requeue,
         }));
@@ -1598,7 +1598,7 @@ impl Connection {
         }
 
         let method =
-            Class::Basic(basic::Methods::RecoverAsync(basic::RecoverAsync { requeue: requeue }));
+            AMQPClass::Basic(basic::AMQPMethod::RecoverAsync(basic::RecoverAsync { requeue: requeue }));
         self.send_method_frame(_channel_id, method)
     }
 
@@ -1612,7 +1612,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Recover(basic::Recover { requeue: requeue }));
+        let method = AMQPClass::Basic(basic::AMQPMethod::Recover(basic::Recover { requeue: requeue }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             let request_id = self.next_request_id();
@@ -1666,7 +1666,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Basic(basic::Methods::Nack(basic::Nack {
+        let method = AMQPClass::Basic(basic::AMQPMethod::Nack(basic::Nack {
             delivery_tag: delivery_tag,
             multiple: multiple,
             requeue: requeue,
@@ -1688,7 +1688,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Tx(tx::Methods::Select(tx::Select {}));
+        let method = AMQPClass::Tx(tx::AMQPMethod::Select(tx::Select {}));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
@@ -1744,7 +1744,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Tx(tx::Methods::Commit(tx::Commit {}));
+        let method = AMQPClass::Tx(tx::AMQPMethod::Commit(tx::Commit {}));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
@@ -1800,7 +1800,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Tx(tx::Methods::Rollback(tx::Rollback {}));
+        let method = AMQPClass::Tx(tx::AMQPMethod::Rollback(tx::Rollback {}));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {
@@ -1858,7 +1858,7 @@ impl Connection {
             return Err(Error::InvalidState);
         }
 
-        let method = Class::Confirm(confirm::Methods::Select(confirm::Select { nowait: nowait }));
+        let method = AMQPClass::Confirm(confirm::AMQPMethod::Select(confirm::Select { nowait: nowait }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             self.channels.get_mut(&_channel_id).map(|c| {

@@ -1,6 +1,7 @@
 use std::io::{Error,ErrorKind,Result};
 use std::{result,str};
 use std::collections::{HashSet,HashMap,VecDeque};
+use amq_protocol::protocol::*;
 use amq_protocol::types::*;
 use nom::{IResult,Offset};
 use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
@@ -12,7 +13,6 @@ use format::content::*;
 use channel::Channel;
 use queue::Message;
 use api::{Answer,ChannelState,RequestId};
-use generated::*;
 use error;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -346,7 +346,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_global_method(&mut self, c: Class) {
+  pub fn handle_global_method(&mut self, c: AMQPClass) {
     match self.state {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
         self.state = ConnectionState::Error
@@ -357,7 +357,7 @@ impl Connection {
             self.state = ConnectionState::Error
           },
           ConnectingState::SentProtocolHeader => {
-            if let Class::Connection(connection::Methods::Start(s)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
               trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
@@ -377,7 +377,7 @@ impl Connection {
 
               //FIXME: fill with user configured data
               //we need to handle the server properties, and have some client properties
-              let start_ok = Class::Connection(connection::Methods::StartOk(
+              let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
                 connection::StartOk {
                   client_properties: h,
                   mechanism: "PLAIN".to_string(),
@@ -398,7 +398,7 @@ impl Connection {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
           },*/
           ConnectingState::SentStartOk => {
-            if let Class::Connection(connection::Methods::Tune(t)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
               debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
@@ -413,7 +413,7 @@ impl Connection {
 
               self.configuration.frame_max = t.frame_max;
 
-              let tune_ok = Class::Connection(connection::Methods::TuneOk(
+              let tune_ok = AMQPClass::Connection(connection::AMQPMethod::TuneOk(
                 connection::TuneOk {
                   channel_max : self.configuration.channel_max,
                   frame_max   : self.configuration.frame_max,
@@ -426,7 +426,7 @@ impl Connection {
               self.frame_queue.push_back(Frame::Method(0, tune_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
 
-              let open = Class::Connection(connection::Methods::Open(
+              let open = AMQPClass::Connection(connection::AMQPMethod::Open(
                   connection::Open {
                     virtual_host: "/".to_string(),
                     capabilities: "".to_string(),
@@ -457,7 +457,7 @@ impl Connection {
           },
           ConnectingState::SentOpen => {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
-            if let Class::Connection(connection::Methods::OpenOk(o)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::OpenOk(o)) = c {
               debug!("Server sent Connection::OpenOk: {:?}, client now connected", o);
               self.state = ConnectionState::Connected;
             } else {
@@ -555,7 +555,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&mut self, channel: u16, method: Class) -> result::Result<(), error::Error> {
+  pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) -> result::Result<(), error::Error> {
     self.frame_queue.push_back(Frame::Method(channel,method));
     Ok(())
   }

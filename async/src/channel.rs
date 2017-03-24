@@ -1,6 +1,7 @@
+use amq_protocol::protocol::AMQPClass;
+
 use format::frame::Frame;
 use std::collections::{HashMap,VecDeque};
-use generated::Class;
 use api::{Answer,ChannelState};
 use queue::*;
 
@@ -36,7 +37,7 @@ impl Channel {
     Channel::new(0)
   }
 
-  pub fn received_method(&mut self, m: Class) {
+  pub fn received_method(&mut self, m: AMQPClass) {
     trace!("channel[{}] received {:?}", self.id, m);
     //FIXME: handle method here instead of queuing
     self.frame_queue.push_back(Frame::Method(self.id,m));

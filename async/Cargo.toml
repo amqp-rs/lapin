@@ -16,11 +16,11 @@ log = "^0.3"
 nom = "^2.2"
 sasl = "^0.3"
 cookie-factory = "^0.2"
-amq-protocol = "^0.6"
+amq-protocol = "^0.11"
 clippy = {version = "^0.0.119", optional = true}
 
 [build-dependencies]
-amq-protocol = "^0.6"
+amq-protocol = "^0.11"
 
 [dev-dependencies]
 env_logger = "^0.4"
