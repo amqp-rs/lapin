@@ -93,7 +93,8 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   ///
   /// returns a future that resolves once the queue is available
   ///
-  /// WARNING: this method cannot pass custom queue_declare arguments yet
+  /// the `mandatory` and `ìmmediate` options can be set to true,
+  /// but the return message will not be handled
   pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
