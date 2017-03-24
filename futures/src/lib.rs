@@ -25,6 +25,7 @@
 //! use futures::Stream;
 //! use tokio_core::reactor::Core;
 //! use tokio_core::net::TcpStream;
+//! use lapin::channel::{BasicPublishOptions,QueueDeclareOptions};
 //!
 //! fn main() {
 //!
@@ -52,10 +53,10 @@
 //!       // we using a "move" closure to reuse the channel
 //!       // once the queue is declared. We could also clone
 //!       // the channel
-//!       channel.queue_declare("hello").and_then(move |_| {
+//!       channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
-//!         channel.basic_publish("hello", b"hello from tokio")
+//!         channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default())
 //!       })
 //!     })
 //!   ).unwrap();
@@ -74,6 +75,7 @@
 //! use futures::Stream;
 //! use tokio_core::reactor::Core;
 //! use tokio_core::net::TcpStream;
+//! use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 //!
 //! fn main() {
 //!
@@ -98,13 +100,13 @@
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
 //!
-//!       channel.queue_declare("hello").and_then(move |_| {
+//!       channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
 //!         // basic_consume returns a future of a message
 //!         // stream. Any time a message arrives for this consumer,
 //!         // the for_each method would be called
-//!         channel.basic_consume("hello", "my_consumer")
+//!         channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
 //!       }).and_then(|stream| {
 //!         info!("got consumer stream");
 //!

@@ -4,6 +4,7 @@ use futures::future;
 use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
+use std::default::Default;
 
 use transport::*;
 use consumer::Consumer;
@@ -16,17 +17,81 @@ pub struct Channel<T> {
   pub id:    u16,
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct QueueDeclareOptions {
+  passive:     bool,
+  durable:     bool,
+  exclusive:   bool,
+  auto_delete: bool,
+  nowait:      bool,
+}
+
+impl Default for QueueDeclareOptions {
+  fn default() -> QueueDeclareOptions {
+    QueueDeclareOptions {
+      passive:     false,
+      durable:     false,
+      exclusive:   false,
+      auto_delete: false,
+      nowait:      false,
+    }
+  }
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct BasicPublishOptions {
+  ticket:    u16,
+  exchange:  String,
+  mandatory: bool,
+  immediate: bool,
+}
+
+impl Default for BasicPublishOptions {
+  fn default() -> BasicPublishOptions {
+    BasicPublishOptions {
+      ticket:    0,
+      exchange:  "".to_string(),
+      mandatory: false,
+      immediate: false,
+    }
+  }
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct BasicConsumeOptions {
+  ticket:    u16,
+  no_local:  bool,
+  no_ack:    bool,
+  exclusive: bool,
+  no_wait:   bool,
+}
+
+impl Default for BasicConsumeOptions {
+  fn default() -> BasicConsumeOptions {
+    BasicConsumeOptions {
+      ticket:    0,
+      no_local:  false,
+      no_ack:    false,
+      exclusive: false,
+      no_wait:   false,
+    }
+  }
+}
+
+
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// creates a queue
   ///
   /// returns a future that resolves once the queue is available
   ///
   /// WARNING: this method cannot pass custom queue_declare arguments yet
-  pub fn queue_declare(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_declare(self.id, 0, name.to_string(), false, false, false, false, false, FieldTable::new()) {
+      match transport.conn.queue_declare(
+        self.id, 0, name.to_string(),
+        options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, FieldTable::new()) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
@@ -51,9 +116,11 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// publishes a message on a queue
   ///
   /// WARNING: does not handle chunking of the content for now
-  pub fn basic_publish(&self, queue: &str, payload: &[u8]) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_publish(self.id, 0, "".to_string(), queue.to_string(), false, false) {
+      //FIXME: does not handle the return messages with mandatory and immediate
+      match transport.conn.basic_publish(self.id, options.ticket, options.exchange.clone(),
+        queue.to_string(), options.mandatory, options.immediate) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
@@ -81,11 +148,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   ///
   /// `Consumer` implements `futures::Stream`, so it can be used with any of
   /// the usual combinators
-  pub fn basic_consume(&self, queue: &str, consumer_tag: &str) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
+  pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_consume(self.id, 0, queue.to_string(), consumer_tag.to_string(), false, true, false, false, FieldTable::new()) {
+      match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
+        options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
         ),
