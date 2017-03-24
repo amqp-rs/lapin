@@ -1,14 +1,16 @@
 use std::io::{self,Error,ErrorKind};
-use futures::Future;
-use futures::future;
+use futures::{Async,Future,future,Stream};
 use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use std::default::Default;
+use lapin_async::api::RequestId;
+use lapin_async::queue::Message;
 
 use transport::*;
 use consumer::Consumer;
 use client::wait_for_answer;
+
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -87,6 +89,20 @@ impl Default for BasicConsumeOptions {
   }
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct BasicGetOptions {
+  pub ticket:    u16,
+  pub no_ack:    bool,
+}
+
+impl Default for BasicGetOptions {
+  fn default() -> BasicGetOptions {
+    BasicGetOptions {
+      ticket:    0,
+      no_ack:    false,
+    }
+  }
+}
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// creates a queue
@@ -234,6 +250,28 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// acks a message
+  pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = Message, Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          transport.send_frames();
+          transport.handle_frames();
+          wait_for_basic_get_answer(cl_transport, request_id, self.id, queue)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
+
   /// purges a queue
   pub fn queue_purge(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
@@ -260,4 +298,52 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
       ))
     }
   }
+}
+
+/// internal method to wait until a basic get succeeded
+pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>,
+  request_id: RequestId, channel_id: u16, queue: &str) -> Box<Future<Item = Message, Error = io::Error>> {
+
+  let receive_transport = transport.clone();
+  let queue = queue.to_string();
+
+  let request_future = future::poll_fn(move || {
+    let result = if let Ok(mut tr) = transport.try_lock() {
+      match tr.conn.finished_get_result(request_id) {
+        None =>  {
+          tr.handle_frames();
+          if let Some(res) = tr.conn.finished_get_result(request_id) {
+            res
+          } else {
+            return Ok(Async::NotReady);
+          }
+        },
+        Some(res) => res,
+      }
+    } else {
+      return Ok(Async::NotReady);
+    };
+
+    if result {
+      Ok(Async::Ready(()))
+    } else {
+      Err(Error::new(ErrorKind::Other, format!("basic get returned empty")))
+    }
+  });
+
+  let receive_future = future::poll_fn(move || {
+    if let Ok(mut transport) = receive_transport.try_lock() {
+      if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
+        Ok(Async::Ready(message))
+      } else {
+        transport.upstream.poll();
+        trace!("basic get[{}-{}] not ready", channel_id, queue);
+        Ok(Async::NotReady)
+      }
+    } else {
+      return Ok(Async::NotReady);
+    }
+  });
+
+  Box::new(request_future.and_then(|_| receive_future))
 }
