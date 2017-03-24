@@ -60,18 +60,20 @@ pub struct Configuration {
 #[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
-  pub state:            ConnectionState,
-  pub channels:         HashMap<u16, Channel>,
-  pub configuration:    Configuration,
-  pub channel_index:    u16,
-  pub prefetch_size:    u32,
-  pub prefetch_count:   u16,
+  pub state:             ConnectionState,
+  pub channels:          HashMap<u16, Channel>,
+  pub configuration:     Configuration,
+  pub channel_index:     u16,
+  pub prefetch_size:     u32,
+  pub prefetch_count:    u16,
   /// list of message to send
-  pub frame_queue:      VecDeque<Frame>,
+  pub frame_queue:       VecDeque<Frame>,
   /// next request id
-  pub request_index:    RequestId,
+  pub request_index:     RequestId,
   /// list of finished requests
-  pub finished_reqs:    HashSet<RequestId>,
+  pub finished_reqs:     HashSet<RequestId>,
+  /// list of finished basic get requests
+  pub finished_get_reqs: HashMap<RequestId, bool>,
 }
 
 impl Connection {
@@ -87,15 +89,16 @@ impl Connection {
     };
 
     Connection {
-      state:          ConnectionState::Initial,
-      channels:       h,
-      configuration:  configuration,
-      channel_index:  1,
-      prefetch_size:  0,
-      prefetch_count: 0,
-      frame_queue:    VecDeque::new(),
-      request_index:  0,
-      finished_reqs:  HashSet::new(),
+      state:             ConnectionState::Initial,
+      channels:          h,
+      configuration:     configuration,
+      channel_index:     1,
+      prefetch_size:     0,
+      prefetch_count:    0,
+      frame_queue:       VecDeque::new(),
+      request_index:     0,
+      finished_reqs:     HashSet::new(),
+      finished_get_reqs: HashMap::new(),
     }
   }
 
@@ -180,6 +183,14 @@ impl Connection {
     self.finished_reqs.remove(&id)
   }
 
+  /// verifies if the get request identified with the `RequestId` is finished
+  ///
+  /// this method can only be called once per request id, as it will be
+  /// removed from the list afterwards
+  pub fn finished_get_result(&mut self, id: RequestId) -> Option<bool> {
+    self.finished_get_reqs.remove(&id)
+  }
+
   /// gets the next message corresponding to a channel, queue and consumer tag
   ///
   /// if the channel id, queue and consumer tag have no link, the method
@@ -187,7 +198,17 @@ impl Connection {
   pub fn next_message(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Message> {
     self.channels.get_mut(&channel_id)
       .and_then(|channel| channel.queues.get_mut(queue_name))
-      .and_then(|queue| queue.next_message(consumer_tag))
+      .and_then(|queue| queue.next_message(Some(consumer_tag)))
+  }
+
+  /// gets the next message corresponding to a channel and queue, in response to a basic.get
+  ///
+  /// if the channel id and queue have no link, the method
+  /// will return None. If there is no message, the method will return None
+  pub fn next_get_message(&mut self, channel_id: u16, queue_name: &str) -> Option<Message> {
+    self.channels.get_mut(&channel_id)
+      .and_then(|channel| channel.queues.get_mut(queue_name))
+      .and_then(|queue| queue.next_message(None))
   }
 
   /// starts the process of connecting to the server
@@ -478,16 +499,24 @@ impl Connection {
 
     let payload_size = payload.len();
 
-    if let ChannelState::ReceivingContent(queue_name, consumer_tag, remaining_size) = state {
+    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = state {
       if remaining_size >= payload_size {
 
         if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
           if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
-            if let Some(ref mut cs) = q.consumers.get_mut(&consumer_tag) {
-              cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
+            if let Some(ref consumer_tag) = opt_consumer_tag {
+              if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
+                cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
+                if remaining_size == payload_size {
+                  let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
+                  cs.messages.push_back(message);
+                }
+              }
+            } else {
+              q.current_get_message.as_mut().map(|msg| msg.receive_content(payload));
               if remaining_size == payload_size {
-                let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
-                cs.messages.push_back(message);
+                let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
+                q.get_messages.push_back(message);
               }
             }
           }
@@ -496,7 +525,7 @@ impl Connection {
         if remaining_size == payload_size {
           self.set_channel_state(channel_id, ChannelState::Connected);
         } else {
-          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag, remaining_size - payload_size));
+          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size));
         }
       } else {
         error!("body frame too large");

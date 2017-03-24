@@ -12,8 +12,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(String,String),
-    ReceivingContent(String,String,usize),
+    WillReceiveContent(String,Option<String>),
+    ReceivingContent(String,Option<String>,usize),
 }
 
 pub type RequestId = u64;
@@ -40,7 +40,7 @@ pub enum Answer {
     AwaitingBasicQosOk(RequestId, u32,u16,bool),
     AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool),
     AwaitingBasicCancelOk(RequestId),
-    AwaitingBasicGetAnswer(RequestId),
+    AwaitingBasicGetAnswer(RequestId, String),
     AwaitingBasicRecoverOk(RequestId),
 
     AwaitingTxSelectOk(RequestId),
@@ -1434,7 +1434,7 @@ impl Connection {
 
         self.channels.get_mut(&_channel_id).map(|c| {
             for (ref queue_name, ref mut q) in &mut c.queues {
-              c.state = ChannelState::WillReceiveContent(queue_name.to_string(), method.consumer_tag.to_string());
+              c.state = ChannelState::WillReceiveContent(queue_name.to_string(), Some(method.consumer_tag.to_string()));
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
                 cs.current_message = Some(Message::new(
                   method.delivery_tag,
@@ -1466,14 +1466,14 @@ impl Connection {
 
         let method = Class::Basic(basic::Methods::Get(basic::Get {
             ticket: ticket,
-            queue: queue,
+            queue: queue.clone(),
             no_ack: no_ack,
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id));
+                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id, queue.clone()));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
@@ -1482,7 +1482,7 @@ impl Connection {
 
     pub fn receive_basic_get_ok(&mut self,
                                 _channel_id: u16,
-                                _: basic::GetOk)
+                                method: basic::GetOk)
                                 -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1495,9 +1495,21 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
-            error!("unimplemented method Basic.GetOk, ignoring packet");
-            self.finished_reqs.insert(request_id);
+          Some(Answer::AwaitingBasicGetAnswer(request_id, queue_name)) => {
+            self.finished_get_reqs.insert(request_id, true);
+            self.set_channel_state(_channel_id, ChannelState::WillReceiveContent(queue_name.to_string(), None));
+
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.queues.get_mut(&queue_name).map(|mut q| {
+                q.current_get_message = Some(Message::new(
+                  method.delivery_tag,
+                  method.exchange.to_string(),
+                  method.routing_key.to_string(),
+                  method.redelivered
+                ));
+              })
+            });
+
             Ok(())
           },
           _ => {
@@ -1522,9 +1534,8 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicGetAnswer(request_id)) => {
-            error!("unimplemented method Basic.GetEmpty, ignoring packet");
-            self.finished_reqs.insert(request_id);
+          Some(Answer::AwaitingBasicGetAnswer(request_id, queue_name)) => {
+            self.finished_get_reqs.insert(request_id, false);
             Ok(())
           },
           _ => {
