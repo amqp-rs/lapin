@@ -19,11 +19,11 @@ pub struct Channel<T> {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct QueueDeclareOptions {
-  passive:     bool,
-  durable:     bool,
-  exclusive:   bool,
-  auto_delete: bool,
-  nowait:      bool,
+  pub passive:     bool,
+  pub durable:     bool,
+  pub exclusive:   bool,
+  pub auto_delete: bool,
+  pub nowait:      bool,
 }
 
 impl Default for QueueDeclareOptions {
@@ -40,10 +40,10 @@ impl Default for QueueDeclareOptions {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct BasicPublishOptions {
-  ticket:    u16,
-  exchange:  String,
-  mandatory: bool,
-  immediate: bool,
+  pub ticket:    u16,
+  pub exchange:  String,
+  pub mandatory: bool,
+  pub immediate: bool,
 }
 
 impl Default for BasicPublishOptions {
@@ -59,11 +59,11 @@ impl Default for BasicPublishOptions {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct BasicConsumeOptions {
-  ticket:    u16,
-  no_local:  bool,
-  no_ack:    bool,
-  exclusive: bool,
-  no_wait:   bool,
+  pub ticket:    u16,
+  pub no_local:  bool,
+  pub no_ack:    bool,
+  pub exclusive: bool,
+  pub no_wait:   bool,
 }
 
 impl Default for BasicConsumeOptions {
