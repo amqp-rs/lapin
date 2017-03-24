@@ -1,4 +1,4 @@
-use amq_protocol_types::*;
+use amq_protocol::types::*;
 use format::field::*;
 use format::frame::*;
 use connection::*;
@@ -40,8 +40,13 @@ impl Connection {
   {{#unless class.is_connection}}
   {{#each class.methods as |method| ~}}
   pub fn {{snake class.name}}_{{snake method.name}}(&mut self,
-    _channel_id: u16{{#each method.arguments as |argument| ~}},
-    {{snake argument.name}}: {{argument.type}}{{/each ~}}) -> Result<(), Error> {
+    _channel_id: u16{{#each_argument method.arguments as |argument| ~}},
+          {{#if argument_is_value ~}}
+            {{snake argument.name}}: {{argument.type}}
+          {{else}}
+            flags: AMQPFlags
+          {{/if ~}}
+        {{/each_argument ~}}) -> Result<(), Error> {
 
       if !self.channels.contains_key(&_channel_id) {
         return Err(Error::InvalidChannel);
@@ -53,9 +58,13 @@ impl Connection {
 
       let method = Class::{{camel class.name}}({{snake class.name}}::Methods::{{camel method.name}} (
         {{snake class.name}}::{{camel method.name}} {
-          {{#each method.arguments as |argument| ~}}
-          {{snake argument.name}}: {{snake argument.name}},
-          {{/each ~}}
+          {{#each_argument method.arguments as |argument| ~}}
+          {{#if argument_is_value ~}}
+          {{snake argument.name}}: {{argument.type}},
+          {{else}}
+          flags: AMQPFlags,
+          {{/if ~}}
+          {{/each_argument ~}}
         }
       ));
       {{#if method.synchronous }}

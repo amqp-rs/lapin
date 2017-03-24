@@ -1,6 +1,6 @@
 use nom::{be_u16,be_u64};
-use amq_protocol_types::parsing::*;
-use amq_protocol_types::types::*;
+use amq_protocol::types::*;
+use amq_protocol::types::parsing::*;
 
 // 0 2 4 12 14
 // +----------+--------+-----------+----------------+------------- - -
