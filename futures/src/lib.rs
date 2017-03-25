@@ -102,6 +102,7 @@
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
 //!
+//!       let ch = channel.clone();
 //!       channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
@@ -115,6 +116,7 @@
 //!         stream.for_each(|message| {
 //!           debug!("got message: {:?}", message);
 //!           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
+//!           ch.basic_ack(message.delivery_tag);
 //!           Ok(())
 //!         })
 //!       })
