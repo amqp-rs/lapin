@@ -143,5 +143,44 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         )
       }
     {{/each}}
+    {{#if class.has_properties ~}}
+    pub struct Properties {
+        {{#each class.properties as |property| ~}}
+        {{snake property.name}}: Option<{{property.type}}>,
+        {{/each ~}}
+    }
+
+    impl Properties {
+        pub fn new() -> Properties {
+            Properties {
+                {{#each class.properties as |property| ~}}
+                {{snake property.name}}: None,
+                {{/each ~}}
+            }
+        }
+
+        {{#each class.properties as |property| ~}}
+        pub fn with_{{snake property.name}}(mut self, value: {{property.type}}) -> Properties {
+            self.{{snake property.name}} = Some(value);
+            self
+        }
+        {{/each ~}}
+
+        pub fn bitmask(&self) -> ShortUInt {
+            {{#each class.properties as |property| ~}}
+            (if self.{{snake property.name}}.is_some() { {{bitmask 16 @index}} } else { 0 }) {{#unless @last ~}} + {{/unless ~}}
+            {{/each ~}}
+        }
+    }
+
+    pub fn gen_properties<'a>(input:(&'a mut [u8],usize), props: &Properties) -> Result<(&'a mut [u8],usize),GenError> {
+        do_gen!(input,
+            gen_short_uint(&props.bitmask())
+            {{#each class.properties as |property| ~}}
+            >> gen_cond!(props.{{snake property.name}}.is_some(), gen_call!(gen_{{snake_type property.type}}, &props.{{snake property.name}}.as_ref().unwrap()))
+            {{/each ~}}
+        )
+    }
+    {{/if ~}}
   }
 {{/each}}
