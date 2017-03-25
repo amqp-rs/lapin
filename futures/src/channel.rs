@@ -140,8 +140,6 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   }
 
   /// publishes a message on a queue
-  ///
-  /// WARNING: does not handle chunking of the content for now
   pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
       //FIXME: does not handle the return messages with mandatory and immediate

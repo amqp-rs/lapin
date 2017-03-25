@@ -566,8 +566,6 @@ impl Connection {
 
   /// generates the content header and content frames for a payload
   ///
-  /// WARNING: this does not support chunking the message yet
-  ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
   pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
@@ -579,7 +577,11 @@ impl Connection {
       property_list:  FieldTable::new(),
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
-    self.frame_queue.push_back(Frame::Body(channel_id,Vec::from(slice)));
+
+    //a content body frame 8 bytes of overhead
+    for chunk in slice.chunks(self.configuration.frame_max as usize - 8) {
+      self.frame_queue.push_back(Frame::Body(channel_id, Vec::from(chunk)));
+    }
   }
 
   #[doc(hidden)]
