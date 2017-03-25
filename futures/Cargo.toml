@@ -18,7 +18,7 @@ futures = "^0.1"
 tokio-io = "^0.1"
 lapin-async = "^0.3"
 cookie-factory = "^0.2"
-amq-protocol = "^0.5"
+amq-protocol = "^0.11"
 
 [dev-dependencies]
 nom = "^2.1"

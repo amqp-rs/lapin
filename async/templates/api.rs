@@ -1,8 +1,7 @@
+use amq_protocol::protocol::*;
 use amq_protocol::types::*;
-use format::field::*;
 use format::frame::*;
 use connection::*;
-use generated::*;
 use error::*;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
