@@ -15,7 +15,7 @@ What you can do:
 
 - connect to a server, close the connection
 - create and close channels
-- using all the basic methods except get. That means you can publish messages, make a consumer, ack or reject messages
+- using all the basic methods. That means you can publish messages, make a consumer, ack or reject messages
 - authentication method is only PLAIN for now
 
 ## lapin-futures
