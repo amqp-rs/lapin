@@ -1,9 +1,10 @@
-use std::io::{Error,ErrorKind,Result};
 use std::{result,str};
+use std::default::Default;
+use std::io::{Error,ErrorKind,Result};
 use std::collections::{HashSet,HashMap,VecDeque};
 use amq_protocol::types::*;
 use nom::{IResult,Offset};
-use sasl::{ChannelBinding, Credentials, Secret, Mechanism};
+use sasl::{self,ChannelBinding, Secret, Mechanism};
 use sasl::mechanisms::Plain;
 use cookie_factory::GenError;
 
@@ -58,6 +59,21 @@ pub struct Configuration {
 }
 
 #[derive(Clone,Debug,PartialEq)]
+pub struct Credentials {
+  username: String,
+  password: String,
+}
+
+impl Default for Credentials {
+  fn default() -> Credentials {
+    Credentials {
+      username: "guest".to_string(),
+      password: "guest".to_string(),
+    }
+  }
+}
+
+#[derive(Clone,Debug,PartialEq)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub state:             ConnectionState,
@@ -74,6 +90,8 @@ pub struct Connection {
   pub finished_reqs:     HashSet<RequestId>,
   /// list of finished basic get requests
   pub finished_get_reqs: HashMap<RequestId, bool>,
+  /// credentials are stored in an option to remove them from memory once they are used
+  pub credentials:       Option<Credentials>,
 }
 
 impl Connection {
@@ -99,7 +117,15 @@ impl Connection {
       request_index:     0,
       finished_reqs:     HashSet::new(),
       finished_get_reqs: HashMap::new(),
+      credentials:       None,
     }
+  }
+
+  pub fn set_credentials(&mut self, username: &str, password: &str) {
+    self.credentials = Some(Credentials {
+      username: username.to_string(),
+      password: password.to_string(),
+    });
   }
 
   /// creates a `Channel` object in initial state
@@ -364,9 +390,11 @@ impl Connection {
               let mut h = FieldTable::new();
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
-              let creds = Credentials {
-                username: Some("guest".to_owned()),
-                secret: Secret::Password("guest".to_owned()),
+              let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
+
+              let creds = sasl::Credentials {
+                username: Some(saved_creds.username),
+                secret: Secret::Password(saved_creds.password),
                 channel_binding: ChannelBinding::None,
               };
 
@@ -382,7 +410,7 @@ impl Connection {
                   client_properties: h,
                   mechanism: "PLAIN".to_string(),
                   locale:    "en_US".to_string(), // FIXME: comes from the server
-                  response:  s.to_string(),     //FIXME: implement SASL
+                  response:  s.to_string(),
                 }
               ));
 

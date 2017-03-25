@@ -10,6 +10,7 @@ use std::io::{self,Error,ErrorKind};
 use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
+use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
 pub struct AMQPCodec;
@@ -106,10 +107,13 @@ impl<T> AMQPTransport<T>
   /// starts the connection process
   ///
   /// returns a future of a `AMQPTransport` that is connected
-  pub fn connect(upstream: Framed<T,AMQPCodec>) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
+  pub fn connect(upstream: Framed<T,AMQPCodec>, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
+    let mut conn = Connection::new();
+    conn.set_credentials(&options.username, &options.password);
+
     let mut t = AMQPTransport {
       upstream: upstream,
-      conn:     Connection::new(),
+      conn:     conn,
     };
 
     t.conn.connect();

@@ -1,5 +1,6 @@
 use lapin_async::api::RequestId;
 
+use std::default::Default;
 use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future};
 use futures::future;
@@ -15,13 +16,28 @@ pub struct Client<T> {
     transport: Arc<Mutex<AMQPTransport<T>>>,
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct ConnectionOptions {
+  pub username: String,
+  pub password: String,
+}
+
+impl Default for ConnectionOptions {
+  fn default() -> ConnectionOptions {
+    ConnectionOptions {
+      username: "guest".to_string(),
+      password: "guest".to_string(),
+    }
+  }
+}
+
 impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
   /// this method returns a future that resolves once the connection handshake is done.
   /// The result is a client that can be used to create a channel
-  pub fn connect(stream: T) -> Box<Future<Item = Client<T>, Error = io::Error>> {
-    Box::new(AMQPTransport::connect(stream.framed(AMQPCodec)).and_then(|transport| {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = Client<T>, Error = io::Error>> {
+    Box::new(AMQPTransport::connect(stream.framed(AMQPCodec), options).and_then(|transport| {
       debug!("got client service");
       let client = Client {
         transport: Arc::new(Mutex::new(transport)),

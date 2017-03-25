@@ -25,6 +25,7 @@
 //! use futures::Stream;
 //! use tokio_core::reactor::Core;
 //! use tokio_core::net::TcpStream;
+//! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicPublishOptions,QueueDeclareOptions};
 //!
 //! fn main() {
@@ -40,7 +41,7 @@
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream)
+//!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
 //!     }).and_then(|client| {
 //!
 //!       // create_channel returns a future that is resolved
@@ -75,6 +76,7 @@
 //! use futures::Stream;
 //! use tokio_core::reactor::Core;
 //! use tokio_core::net::TcpStream;
+//! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 //!
 //! fn main() {
@@ -90,7 +92,7 @@
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream)
+//!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
 //!     }).and_then(|client| {
 //!
 //!       // create_channel returns a future that is resolved

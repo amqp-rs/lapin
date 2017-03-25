@@ -8,7 +8,8 @@ use futures::future::Future;
 use futures::Stream;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
+use lapin::client::ConnectionOptions;
+use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,QueueDeclareOptions};
 
 fn main() {
   env_logger::init().unwrap();
@@ -19,7 +20,7 @@ fn main() {
 
   core.run(
     TcpStream::connect(&addr, &handle).and_then(|stream| {
-      lapin::client::Client::connect(stream)
+      lapin::client::Client::connect(stream, &ConnectionOptions::default())
     }).and_then(|client| {
 
       client.create_channel().and_then(|channel| {
