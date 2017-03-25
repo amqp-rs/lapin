@@ -5,6 +5,7 @@ use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use format::content::*;
 use generated::*;
+use generated::basic::{gen_properties, Properties};
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
@@ -151,8 +152,7 @@ pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16,
       gen_be_u16!(class_id) >>
       gen_be_u16!(0) >> // weight
       gen_be_u64!(length) >>
-      gen_be_u16!(0x2000) >> // property flags. Why this value?
-      gen_field_table(&FieldTable::new())
+      gen_properties(&Properties::new().with_headers(FieldTable::new()))
     ) >>
     end: gen_at_offset!(ofs_len, gen_be_u32!(end-start)) >>
 

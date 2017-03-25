@@ -14,6 +14,7 @@ use channel::Channel;
 use queue::Message;
 use api::{Answer,ChannelState,RequestId};
 use generated::*;
+use generated::basic::Properties;
 use error;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -573,8 +574,7 @@ impl Connection {
       class_id:       class_id,
       weight:         0,
       body_size:      slice.len() as u64,
-      property_flags: 0x2000,
-      property_list:  FieldTable::new(),
+      properties:     Properties::new().with_headers(FieldTable::new()),
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
 
