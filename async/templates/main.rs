@@ -171,7 +171,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 
       pub fn bitmask(&self) -> ShortUInt {
         {{#each class.properties as |property| ~}}
-          (if self.{{snake property.name}}.is_some() { {{bitmask 16 @index}} } else { 0 }) {{#unless @last ~}} + {{/unless ~}}
+          (if self.{{snake property.name}}.is_some() { 1 << (15 - {{@index}}) } else { 0 }) {{#unless @last ~}} + {{/unless ~}}
         {{/each ~}}
       }
     }
