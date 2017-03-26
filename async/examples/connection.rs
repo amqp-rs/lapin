@@ -9,6 +9,7 @@ use std::{thread,time};
 use amq_protocol::types::*;
 use lapin::connection::*;
 use lapin::buffer::Buffer;
+use lapin::generated::basic;
 
 fn main() {
       env_logger::init().unwrap();
@@ -67,7 +68,7 @@ fn main() {
       info!("will publish");
       conn.basic_publish(channel_a, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
       let payload = b"Hello world!";
-      conn.send_content_frames(channel_a, 60, payload);
+      conn.send_content_frames(channel_a, 60, payload, Some(basic::Properties::new()));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

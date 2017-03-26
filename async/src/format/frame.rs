@@ -1,10 +1,9 @@
 use amq_protocol::protocol::{constants, metadata};
-use amq_protocol::types::*;
 use cookie_factory::*;
 use nom::{be_u8,be_u16,be_u32,IResult};
 use format::content::*;
 use generated::*;
-use generated::basic::{gen_properties, Properties};
+use generated::basic::{self, gen_properties};
 
 named!(pub protocol_header<&[u8]>,
   preceded!(
@@ -140,7 +139,7 @@ pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u
   do_gen!(input, gen_slice!(&[constants::FRAME_HEARTBEAT, 0, 0, constants::FRAME_END]))
 }
 
-pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64) -> Result<(&'a mut [u8],usize),GenError> {
+pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64, properties: &basic::Properties) -> Result<(&'a mut [u8],usize),GenError> {
   do_gen!(input,
     gen_be_u8!( constants::FRAME_HEADER ) >>
     gen_be_u16!(channel_id) >>
@@ -151,7 +150,7 @@ pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16,
       gen_be_u16!(class_id) >>
       gen_be_u16!(0) >> // weight
       gen_be_u64!(length) >>
-      gen_properties(&Properties::new().with_headers(FieldTable::new()))
+      gen_properties(properties)
     ) >>
     end: gen_at_offset!(ofs_len, gen_be_u32!(end-start)) >>
 

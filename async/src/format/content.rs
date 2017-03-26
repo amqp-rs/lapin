@@ -1,6 +1,6 @@
 use nom::{be_u16,be_u64};
 
-use generated::basic::{Properties, properties};
+use generated::basic::{self, properties};
 
 // 0 2 4 12 14
 // +----------+--------+-----------+----------------+------------- - -
@@ -10,10 +10,10 @@ use generated::basic::{Properties, properties};
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct ContentHeader {
-  pub class_id:       u16,
-  pub weight:         u16,
-  pub body_size:      u64,
-  pub properties:     Properties,
+  pub class_id:   u16,
+  pub weight:     u16,
+  pub body_size:  u64,
+  pub properties: basic::Properties,
 }
 
 named!(pub content_header<ContentHeader>,

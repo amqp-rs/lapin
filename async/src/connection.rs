@@ -14,7 +14,6 @@ use channel::Channel;
 use queue::Message;
 use api::{Answer,ChannelState,RequestId};
 use generated::*;
-use generated::basic::Properties;
 use error;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -287,7 +286,7 @@ impl Connection {
         gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
       },
       &Frame::Header(channel_id, class_id, ref header) => {
-        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
+        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
       },
       &Frame::Body(channel_id, ref data) => {
         gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
@@ -569,12 +568,12 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: Option<basic::Properties>) {
     let header = ContentHeader {
       class_id:       class_id,
       weight:         0,
       body_size:      slice.len() as u64,
-      properties:     Properties::new().with_headers(FieldTable::new()),
+      properties:     properties.unwrap_or(basic::Properties::new()), /* fallback to an empty Properties object which will serialize as "0" flags and no property afterwards */
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
 
