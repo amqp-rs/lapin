@@ -174,6 +174,18 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         }
     }
 
+    named!(pub properties<Properties>, do_parse!(
+        flags: parse_short_uint >>
+        {{#each class.properties as |property| ~}}
+        {{snake property.name}}: cond!(flags & (1 << (15 - {{@index}})) != 0, parse_{{snake_type property.type}}) >>
+        {{/each ~}}
+        (Properties {
+        {{#each class.properties as |property| ~}}
+        {{snake property.name}}: {{snake property.name}},
+        {{/each ~}}
+        })
+    ));
+
     pub fn gen_properties<'a>(input:(&'a mut [u8],usize), props: &Properties) -> Result<(&'a mut [u8],usize),GenError> {
         do_gen!(input,
             gen_short_uint(&props.bitmask())

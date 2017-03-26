@@ -1,8 +1,6 @@
 use nom::{be_u16,be_u64};
-use amq_protocol::types::*;
-use amq_protocol::types::parsing::*;
 
-use generated::basic::Properties;
+use generated::basic::{Properties, properties};
 
 // 0 2 4 12 14
 // +----------+--------+-----------+----------------+------------- - -
@@ -20,16 +18,15 @@ pub struct ContentHeader {
 
 named!(pub content_header<ContentHeader>,
   do_parse!(
-    class:  be_u16 >>
-    weight: be_u16 >>
-    size:   be_u64 >>
-    flags:  be_u16 >> // FIXME: parse_properties
-    list:   parse_field_table >>
+    class:      be_u16     >>
+    weight:     be_u16     >>
+    size:       be_u64     >>
+    properties: properties >>
     (ContentHeader {
-      class_id:       class,
-      weight:         weight,
-      body_size:      size,
-      properties:     Properties::new().with_headers(list),
+      class_id:   class,
+      weight:     weight,
+      body_size:  size,
+      properties: properties
     })
   )
 );
