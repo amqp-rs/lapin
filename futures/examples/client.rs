@@ -30,7 +30,7 @@ fn main() {
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
+          channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string()))
         })
       }).and_then(move |_| {
         client.create_channel()
