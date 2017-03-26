@@ -5,7 +5,7 @@ use generated::*;
 use error::*;
 use std::collections::VecDeque;
 
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq)]
 pub enum ChannelState {
     Initial,
     Connected,
@@ -13,7 +13,7 @@ pub enum ChannelState {
     Error,
     SendingContent(usize),
     WillReceiveContent(String,Option<String>),
-    ReceivingContent(String,Option<String>,usize),
+    ReceivingContent(String,Option<String>,usize,basic::Properties),
 }
 
 pub type RequestId = u64;
