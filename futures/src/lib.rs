@@ -25,6 +25,7 @@
 //! use futures::Stream;
 //! use tokio_core::reactor::Core;
 //! use tokio_core::net::TcpStream;
+//! use lapin::basic;
 //! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicPublishOptions,QueueDeclareOptions};
 //!
@@ -57,7 +58,7 @@
 //!       channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
-//!         channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default())
+//!         channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), basic::Properties::new())
 //!       })
 //!     })
 //!   ).unwrap();
@@ -139,3 +140,5 @@ pub mod client;
 pub mod transport;
 pub mod channel;
 pub mod consumer;
+
+pub use lapin_async::generated::basic;

@@ -64,7 +64,7 @@ impl Encoder for AMQPCodec {
             gen_method_frame((buf, 0), channel, method).map(|tup| tup.1)
           },
           &Frame::Header(channel_id, class_id, ref header) => {
-            gen_content_header_frame((buf, 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
+            gen_content_header_frame((buf, 0), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
           },
           &Frame::Body(channel_id, ref data) => {
             gen_content_body_frame((buf, 0), channel_id, data).map(|tup| tup.1)
