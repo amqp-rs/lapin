@@ -151,15 +151,17 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         {{/each ~}}
     }
 
-    impl Properties {
-        pub fn new() -> Properties {
+    impl Default for Properties {
+        fn default() -> Properties {
             Properties {
                 {{#each class.properties as |property| ~}}
                 {{snake property.name}}: None,
                 {{/each ~}}
             }
         }
+    }
 
+    impl Properties {
         {{#each class.properties as |property| ~}}
         pub fn with_{{snake property.name}}(mut self, value: {{property.type}}) -> Properties {
             self.{{snake property.name}} = Some(value);
