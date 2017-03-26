@@ -151,7 +151,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(_) => {
           transport.send_frames();
-          transport.conn.send_content_frames(self.id, 60, payload, Some(properties.clone()));
+          transport.conn.send_content_frames(self.id, 60, payload, properties.clone());
           transport.send_frames();
 
           transport.handle_frames();

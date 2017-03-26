@@ -568,12 +568,12 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: Option<basic::Properties>) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::Properties) {
     let header = ContentHeader {
       class_id:       class_id,
       weight:         0,
       body_size:      slice.len() as u64,
-      properties:     properties.unwrap_or(basic::Properties::new()), /* fallback to an empty Properties object which will serialize as "0" flags and no property afterwards */
+      properties:     properties,
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
 
