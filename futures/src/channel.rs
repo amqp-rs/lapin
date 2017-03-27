@@ -310,6 +310,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
 
   let request_future = future::poll_fn(move || {
     let result = if let Ok(mut tr) = transport.try_lock() {
+      tr.handle_frames();
       match tr.conn.finished_get_result(request_id) {
         None =>  {
           tr.handle_frames();
@@ -334,6 +335,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
 
   let receive_future = future::poll_fn(move || {
     if let Ok(mut transport) = receive_transport.try_lock() {
+      transport.handle_frames();
       if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
         Ok(Async::Ready(message))
       } else {
