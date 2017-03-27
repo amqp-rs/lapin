@@ -126,11 +126,11 @@ impl Connection {
             Class::Tx(tx::Methods::SelectOk(m)) => self.receive_tx_select_ok(channel_id, m),
             Class::Tx(tx::Methods::CommitOk(m)) => self.receive_tx_commit_ok(channel_id, m),
             Class::Tx(tx::Methods::RollbackOk(m)) => self.receive_tx_rollback_ok(channel_id, m),
+            */
 
             Class::Confirm(confirm::Methods::SelectOk(m)) => {
                 self.receive_confirm_select_ok(channel_id, m)
             }
-            */
 
             m => {
                 error!("the client should not receive this method: {:?}", m);
@@ -1842,27 +1842,23 @@ impl Connection {
 
         Ok(())
     }
-
-
+    */
 
     pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<(), Error> {
-
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
+        if !self.is_connected(_channel_id) {
             return Err(Error::InvalidState);
         }
 
         let method = Class::Confirm(confirm::Methods::Select(confirm::Select { nowait: nowait }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingConfirmSelectOk;
+                c.awaiting.push_back(Answer::AwaitingConfirmSelectOk(request_id));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
         })
@@ -1873,32 +1869,28 @@ impl Connection {
                                      method: confirm::SelectOk)
                                      -> Result<(), Error> {
 
+
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingConfirmSelectOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
         }
 
-        error!("unimplemented method Confirm.SelectOk, ignoring packet");
-
-
-        Ok(())
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingConfirmSelectOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            self.channels.get_mut(&_channel_id).map(|c| {
+              c.confirm = true;
+            });
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
     }
-    */
 }

@@ -54,6 +54,11 @@ fn main() {
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
+      conn.confirm_select(channel_a, false).expect("confirm_select");
+      info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
+      thread::sleep(time::Duration::from_millis(100));
+      info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
+
       conn.queue_declare(channel_b, 0, "hello".to_string(), false, false, false, false, false, FieldTable::new()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));

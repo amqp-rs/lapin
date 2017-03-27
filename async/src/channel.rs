@@ -15,6 +15,7 @@ pub struct Channel {
   pub prefetch_size:  u32,
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
+  pub confirm:        bool,
 }
 
 impl Channel {
@@ -28,7 +29,8 @@ impl Channel {
       queues:         HashMap::new(),
       prefetch_size:  0,
       prefetch_count: 0,
-      awaiting:       VecDeque::new()
+      awaiting:       VecDeque::new(),
+      confirm:        false,
     }
   }
 

@@ -347,6 +347,7 @@ impl Connection {
 
   /// updates the current state with a new received frame
   pub fn handle_frame(&mut self, f: Frame) {
+    trace!("will handle frame: {:?}", f);
     match f {
       Frame::ProtocolHeader => {
         error!("error: the client should not receive a protocol header");
