@@ -47,7 +47,9 @@ pub enum Answer {
     AwaitingTxCommitOk(RequestId),
     AwaitingTxRollbackOk(RequestId),
 
+    // RabbitMQ confirm extension
     AwaitingConfirmSelectOk(RequestId),
+    AwaitingPublishConfirm(RequestId),
 }
 
 impl Connection {
@@ -130,6 +132,12 @@ impl Connection {
 
             Class::Confirm(confirm::Methods::SelectOk(m)) => {
                 self.receive_confirm_select_ok(channel_id, m)
+            }
+            Class::Basic(basic::Methods::Ack(m)) => {
+                self.receive_basic_ack(channel_id, m)
+            }
+            Class::Basic(basic::Methods::Nack(m)) => {
+                self.receive_basic_nack(channel_id, m)
             }
 
             m => {
@@ -1893,4 +1901,55 @@ impl Connection {
           }
         }
     }
+
+    pub fn receive_basic_ack(&mut self,
+                     _channel_id: u16,
+                     method: basic::Ack)
+                     -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingPublishConfirm(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
+
+    pub fn receive_basic_nack(&mut self,
+                      _channel_id: u16,
+                      method: basic::Nack)
+                      -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingPublishConfirm(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
+
 }
