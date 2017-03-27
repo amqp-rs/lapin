@@ -6,6 +6,7 @@ use futures::{Async,Future};
 use futures::future;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
+use std::time::Duration;
 
 use transport::*;
 use channel::Channel;
@@ -18,15 +19,17 @@ pub struct Client<T> {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct ConnectionOptions {
-  pub username: String,
-  pub password: String,
+  pub username:  String,
+  pub password:  String,
+  pub heartbeat: Duration,
 }
 
 impl Default for ConnectionOptions {
   fn default() -> ConnectionOptions {
     ConnectionOptions {
-      username: "guest".to_string(),
-      password: "guest".to_string(),
+      username:  "guest".to_string(),
+      password:  "guest".to_string(),
+      heartbeat: Duration::from_secs(60),
     }
   }
 }

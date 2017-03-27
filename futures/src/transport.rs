@@ -10,6 +10,7 @@ use std::io::{self,Error,ErrorKind};
 use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
+use tokio_timer::{Interval,Timer};
 use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
@@ -97,6 +98,7 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   pub upstream: Framed<T,AMQPCodec>,
+  pub heartbeat: Interval,
   pub conn: Connection,
 }
 
@@ -112,8 +114,9 @@ impl<T> AMQPTransport<T>
     conn.set_credentials(&options.username, &options.password);
 
     let mut t = AMQPTransport {
-      upstream: upstream,
-      conn:     conn,
+      upstream:  upstream,
+      heartbeat: Timer::default().interval(options.heartbeat),
+      conn:      conn,
     };
 
     t.conn.connect();
@@ -232,11 +235,17 @@ impl<T> Future for AMQPTransportConnector<T>
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T: AsyncRead {
+    where T: AsyncRead + AsyncWrite {
     type Item = Frame;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
+        if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
+            debug!("Heartbeat");
+            self.start_send(Frame::Heartbeat(0));
+            self.poll_complete();
+        }
+
         trace!("stream poll");
         // and Async::NotReady.
         match try_ready!(self.upstream.poll()) {
