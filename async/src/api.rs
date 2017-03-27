@@ -1388,7 +1388,7 @@ impl Connection {
                          routing_key: ShortString,
                          mandatory: Boolean,
                          immediate: Boolean)
-                         -> Result<(), Error> {
+                         -> Result<u64, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
@@ -1406,13 +1406,6 @@ impl Connection {
             immediate: immediate,
         }));
 
-        self.channels.get_mut(&_channel_id).map(|c| {
-          if c.confirm {
-            c.unacked.insert(c.message_count);
-            c.message_count += 1;
-          }
-        });
-
         self.send_method_frame(_channel_id, method).map(|_| {
             //FIXME: if we're not on a confirm channel, we're jumping over some request id
             // this is not a big issue, since we only need them to be unique
@@ -1420,8 +1413,12 @@ impl Connection {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 c.awaiting.push_back(Answer::AwaitingPublishConfirm(request_id));
-              }
-            });
+                let delivery_tag = c.message_count;
+                c.unacked.insert(delivery_tag);
+                c.message_count += 1;
+                delivery_tag
+              } else { 0 }
+            }).unwrap_or(0)
         })
     }
 

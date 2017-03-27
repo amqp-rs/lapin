@@ -87,6 +87,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   /// the channel will support RabbitMQ's confirm extension
   pub fn create_confirm_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
 
+    //FIXME: maybe the confirm channel should be a separate type
+    //especially, if we implement transactions, the methods should be available on the original channel
+    //but not on the confirm channel. And the basic publish method should have different results
     Box::new(self.create_channel().and_then(|channel| {
       let ch = channel.clone();
 

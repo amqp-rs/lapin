@@ -169,7 +169,14 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   }
 
   /// publishes a message on a queue
-  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = (), Error = io::Error>> {
+  ///
+  /// the future's result is:
+  /// - `Some(true)` if we're on a confirm channel and the message was ack'd
+  /// - `Some(false)` if we're on a confirm channel and the message was nack'd
+  /// - `None` if we're not on a confirm channel
+  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
     if let Ok(mut transport) = self.transport.lock() {
       //FIXME: does not handle the return messages with mandatory and immediate
       match transport.conn.basic_publish(self.id, options.ticket, options.exchange.clone(),
@@ -177,14 +184,17 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
-        Ok(_) => {
+        Ok(delivery_tag) => {
           transport.send_frames();
           transport.conn.send_content_frames(self.id, 60, payload, properties);
           transport.send_frames();
 
           transport.handle_frames();
-
-          Box::new(future::ok(()))
+          if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
+            wait_for_basic_publish_confirm(cl_transport, delivery_tag, self.id)
+          } else {
+            Box::new(future::ok(None))
+          }
         },
       }
     } else {
@@ -373,4 +383,35 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
   });
 
   Box::new(request_future.and_then(|_| receive_future))
+}
+
+/// internal method to wait until a basic publish confirmation comes back
+pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>,
+  delivery_tag: u64, channel_id: u16) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
+
+  Box::new(future::poll_fn(move || {
+    if let Ok(mut tr) = transport.try_lock() {
+      tr.handle_frames();
+      let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
+        if c.acked.remove(&delivery_tag) {
+          Some(true)
+        } else if c.nacked.remove(&delivery_tag) {
+          Some(false)
+        } else {
+          info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
+          None
+        }
+      }).unwrap();
+
+      if acked_opt.is_some() {
+        return Ok(Async::Ready(acked_opt));
+      } else {
+        tr.upstream.poll();
+        return Ok(Async::NotReady);
+      }
+    } else {
+      return Ok(Async::NotReady);
+    };
+
+  }))
 }
