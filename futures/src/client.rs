@@ -83,6 +83,16 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
     }
   }
 
+  /// returns a future that resolves to a `Channel` once the method succeeds
+  /// the channel will support RabbitMQ's confirm extension
+  pub fn create_confirm_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
+
+    Box::new(self.create_channel().and_then(|channel| {
+      let ch = channel.clone();
+
+      channel.confirm_select().map(|_| ch)
+    }))
+  }
 }
 
 /// internal method to wait until a specific request succeeded

@@ -142,6 +142,32 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
+  /// sets up confirm extension for this channel
+  pub fn confirm_select(&self) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.confirm_select(self.id, false) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("confirm select request id: {}", request_id);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+      Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension"))
+      ))
+    }
+  }
+
   /// publishes a message on a queue
   pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {

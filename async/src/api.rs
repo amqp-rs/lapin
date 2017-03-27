@@ -1869,7 +1869,7 @@ impl Connection {
     }
     */
 
-    pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<(), Error> {
+    pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<RequestId, Error> {
         if !self.channels.contains_key(&_channel_id) {
             return Err(Error::InvalidChannel);
         }
@@ -1886,6 +1886,7 @@ impl Connection {
                 c.awaiting.push_back(Answer::AwaitingConfirmSelectOk(request_id));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
