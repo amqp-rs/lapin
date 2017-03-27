@@ -3,7 +3,7 @@ use connection::*;
 use queue::*;
 use generated::*;
 use error::*;
-use std::collections::VecDeque;
+use std::collections::{HashSet,VecDeque};
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -1405,7 +1405,24 @@ impl Connection {
             mandatory: mandatory,
             immediate: immediate,
         }));
-        self.send_method_frame(_channel_id, method)
+
+        self.channels.get_mut(&_channel_id).map(|c| {
+          if c.confirm {
+            c.unacked.insert(c.message_count);
+            c.message_count += 1;
+          }
+        });
+
+        self.send_method_frame(_channel_id, method).map(|_| {
+            //FIXME: if we're not on a confirm channel, we're jumping over some request id
+            // this is not a big issue, since we only need them to be unique
+            let request_id = self.next_request_id();
+            self.channels.get_mut(&_channel_id).map(|c| {
+              if c.confirm {
+                c.awaiting.push_back(Answer::AwaitingPublishConfirm(request_id));
+              }
+            });
+        })
     }
 
     pub fn receive_basic_amqp_return(&mut self,
@@ -1877,7 +1894,6 @@ impl Connection {
                                      method: confirm::SelectOk)
                                      -> Result<(), Error> {
 
-
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
@@ -1892,6 +1908,7 @@ impl Connection {
             self.finished_reqs.insert(request_id);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.confirm = true;
+              c.message_count = 1;
             });
             Ok(())
           },
@@ -1918,9 +1935,24 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
             self.finished_reqs.insert(request_id);
+
+            self.channels.get_mut(&_channel_id).map(|c| {
+              if c.confirm {
+                if method.multiple {
+                  let h: HashSet<u64> = c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect();
+                  c.unacked = c.unacked.difference(&h).cloned().collect();
+                  c.acked = c.acked.union(&h).cloned().collect();
+                } else {
+                  if c.unacked.remove(&method.delivery_tag) {
+                    c.acked.insert(method.delivery_tag);
+                  }
+                }
+              }
+            });
+
             Ok(())
           },
-          _ => {
+          m => {
             self.set_channel_state(_channel_id, ChannelState::Error);
             return Err(Error::UnexpectedAnswer);
           }
@@ -1943,6 +1975,21 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
             self.finished_reqs.insert(request_id);
+
+            self.channels.get_mut(&_channel_id).map(|c| {
+              if c.confirm {
+                if method.multiple {
+                  let h: HashSet<u64> = c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect();
+                  c.unacked = c.unacked.difference(&h).cloned().collect();
+                  c.acked = c.nacked.union(&h).cloned().collect();
+                } else {
+                  if c.unacked.remove(&method.delivery_tag) {
+                    c.nacked.insert(method.delivery_tag);
+                  }
+                }
+              }
+            });
+
             Ok(())
           },
           _ => {

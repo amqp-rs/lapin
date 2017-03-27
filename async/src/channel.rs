@@ -1,5 +1,5 @@
 use format::frame::Frame;
-use std::collections::{HashMap,VecDeque};
+use std::collections::{HashMap,HashSet,VecDeque};
 use generated::Class;
 use api::{Answer,ChannelState};
 use queue::*;
@@ -16,6 +16,10 @@ pub struct Channel {
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
   pub confirm:        bool,
+  pub message_count:  u64,
+  pub acked:          HashSet<u64>,
+  pub nacked:         HashSet<u64>,
+  pub unacked:        HashSet<u64>,
 }
 
 impl Channel {
@@ -31,6 +35,10 @@ impl Channel {
       prefetch_count: 0,
       awaiting:       VecDeque::new(),
       confirm:        false,
+      message_count:  0,
+      acked:          HashSet::new(),
+      nacked:         HashSet::new(),
+      unacked:        HashSet::new(),
     }
   }
 
