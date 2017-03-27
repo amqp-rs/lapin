@@ -6,6 +6,7 @@ use std::sync::{Arc,Mutex};
 use std::default::Default;
 use lapin_async::api::RequestId;
 use lapin_async::queue::Message;
+use lapin_async::generated::basic;
 
 use transport::*;
 use consumer::Consumer;
@@ -67,6 +68,8 @@ impl Default for BasicPublishOptions {
     }
   }
 }
+
+pub type BasicProperties = basic::Properties;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct BasicConsumeOptions {
@@ -140,7 +143,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   }
 
   /// publishes a message on a queue
-  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = (), Error = io::Error>> {
     if let Ok(mut transport) = self.transport.lock() {
       //FIXME: does not handle the return messages with mandatory and immediate
       match transport.conn.basic_publish(self.id, options.ticket, options.exchange.clone(),
@@ -150,7 +153,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(_) => {
           transport.send_frames();
-          transport.conn.send_content_frames(self.id, 60, payload);
+          transport.conn.send_content_frames(self.id, 60, payload, properties);
           transport.send_frames();
 
           transport.handle_frames();

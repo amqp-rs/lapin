@@ -10,7 +10,7 @@ use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions};
 
 #[test]
 fn connection() {
@@ -32,7 +32,7 @@ fn connection() {
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default())
+          channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
         })
       }).and_then(move |_| {
         client.create_channel()

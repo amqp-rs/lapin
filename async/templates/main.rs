@@ -143,5 +143,59 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
         )
       }
     {{/each}}
+    {{#if class.has_properties ~}}
+    #[derive(Clone,Debug,PartialEq)]
+    pub struct Properties {
+      {{#each class.properties as |property| ~}}
+        {{snake property.name}}: Option<{{property.type}}>,
+      {{/each ~}}
+    }
+
+    impl Default for Properties {
+      fn default() -> Properties {
+        Properties {
+          {{#each class.properties as |property| ~}}
+            {{snake property.name}}: None,
+          {{/each ~}}
+        }
+      }
+    }
+
+    impl Properties {
+      {{#each class.properties as |property| ~}}
+        pub fn with_{{snake property.name}}(mut self, value: {{property.type}}) -> Properties {
+          self.{{snake property.name}} = Some(value);
+          self
+        }
+      {{/each ~}}
+
+      pub fn bitmask(&self) -> ShortUInt {
+        {{#each class.properties as |property| ~}}
+          (if self.{{snake property.name}}.is_some() { 1 << (15 - {{@index}}) } else { 0 }) {{#unless @last ~}} + {{/unless ~}}
+        {{/each ~}}
+      }
+    }
+
+    named!(pub properties<Properties>, do_parse!(
+      flags: parse_short_uint >>
+      {{#each class.properties as |property| ~}}
+        {{snake property.name}}: cond!(flags & (1 << (15 - {{@index}})) != 0, parse_{{snake_type property.type}}) >>
+      {{/each ~}}
+      (Properties {
+        {{#each class.properties as |property| ~}}
+          {{snake property.name}}: {{snake property.name}},
+        {{/each ~}}
+      })
+    ));
+
+    pub fn gen_properties<'a>(input:(&'a mut [u8],usize), props: &Properties) -> Result<(&'a mut [u8],usize),GenError> {
+      do_gen!(input,
+        gen_short_uint(&props.bitmask())
+        {{#each class.properties as |property| ~}}
+          >> gen_cond!(props.{{snake property.name}}.is_some(), gen_call!(gen_{{snake_type property.type}}, &props.{{snake property.name}}.as_ref().unwrap()))
+        {{/each ~}}
+      )
+    }
+    {{/if ~}}
   }
 {{/each}}

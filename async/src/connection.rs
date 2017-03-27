@@ -286,7 +286,7 @@ impl Connection {
         gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
       },
       &Frame::Header(channel_id, class_id, ref header) => {
-        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size).map(|tup| tup.1)
+        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
       },
       &Frame::Body(channel_id, ref data) => {
         gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
@@ -363,7 +363,7 @@ impl Connection {
         self.frame_queue.push_back(Frame::Heartbeat(0));
       },
       Frame::Header(channel_id, _, header) => {
-        self.handle_content_header_frame(channel_id, header.body_size);
+        self.handle_content_header_frame(channel_id, header.body_size, header.properties);
       },
       Frame::Body(channel_id, payload) => {
         self.handle_body_frame(channel_id, payload);
@@ -508,12 +508,27 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64) {
+  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: basic::Properties) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
     }).unwrap();
     if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = state {
-      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag.clone(), size as usize));
+      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
+      if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
+        if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
+          if let Some(ref consumer_tag) = consumer_tag {
+            if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
+              if let Some(mut msg) = cs.current_message.as_mut() {
+                msg.properties = properties;
+              }
+            }
+          } else {
+            if let Some(mut msg) = q.current_get_message.as_mut() {
+              msg.properties = properties;
+            }
+          }
+        }
+      }
     } else {
       self.set_channel_state(channel_id, ChannelState::Error);
     }
@@ -529,7 +544,6 @@ impl Connection {
 
     if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = state {
       if remaining_size >= payload_size {
-
         if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
           if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
             if let Some(ref consumer_tag) = opt_consumer_tag {
@@ -568,13 +582,12 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8]) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::Properties) {
     let header = ContentHeader {
       class_id:       class_id,
       weight:         0,
       body_size:      slice.len() as u64,
-      property_flags: 0x2000,
-      property_list:  FieldTable::new(),
+      properties:     properties,
     };
     self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
 

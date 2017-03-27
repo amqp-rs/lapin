@@ -1,4 +1,5 @@
 use std::collections::{HashMap,VecDeque};
+use generated::basic;
 use amq_protocol::types::*;
 
 #[derive(Clone,Debug,PartialEq)]
@@ -26,6 +27,7 @@ pub struct Message {
   pub exchange:     String,
   pub routing_key:  String,
   pub redelivered:  bool,
+  pub properties:   basic::Properties,
   pub data:         Vec<u8>,
 }
 
@@ -36,6 +38,7 @@ impl Message {
       exchange:     exchange,
       routing_key:  routing_key,
       redelivered:  redelivered,
+      properties:   basic::Properties::default(),
       data:         Vec::new(),
     }
   }
