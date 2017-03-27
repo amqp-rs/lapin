@@ -27,7 +27,7 @@ pub struct Message {
   pub exchange:     String,
   pub routing_key:  String,
   pub redelivered:  bool,
-  pub properties:   Option<basic::Properties>,
+  pub properties:   basic::Properties,
   pub data:         Vec<u8>,
 }
 
@@ -38,7 +38,7 @@ impl Message {
       exchange:     exchange,
       routing_key:  routing_key,
       redelivered:  redelivered,
-      properties:   None,
+      properties:   basic::Properties::default(),
       data:         Vec::new(),
     }
   }

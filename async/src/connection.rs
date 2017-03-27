@@ -513,7 +513,22 @@ impl Connection {
       channel.state.clone()
     }).unwrap();
     if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = state {
-      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, consumer_tag.clone(), size as usize, properties));
+      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
+      if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
+        if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
+          if let Some(ref consumer_tag) = consumer_tag {
+            if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
+              if let Some(mut msg) = cs.current_message.as_mut() {
+                msg.properties = properties;
+              }
+            }
+          } else {
+            if let Some(mut msg) = q.current_get_message.as_mut() {
+              msg.properties = properties;
+            }
+          }
+        }
+      }
     } else {
       self.set_channel_state(channel_id, ChannelState::Error);
     }
@@ -527,7 +542,7 @@ impl Connection {
 
     let payload_size = payload.len();
 
-    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size, properties) = state {
+    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = state {
       if remaining_size >= payload_size {
         if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
           if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
@@ -535,16 +550,14 @@ impl Connection {
               if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
                 cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
                 if remaining_size == payload_size {
-                  let mut message = cs.current_message.take().expect("there should be an in flight message in the consumer");
-                  message.properties = Some(properties.clone());
+                  let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
                   cs.messages.push_back(message);
                 }
               }
             } else {
               q.current_get_message.as_mut().map(|msg| msg.receive_content(payload));
               if remaining_size == payload_size {
-                let mut message = q.current_get_message.take().expect("there should be an in flight message in the queue");
-                message.properties = Some(properties.clone());
+                let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
                 q.get_messages.push_back(message);
               }
             }
@@ -554,7 +567,7 @@ impl Connection {
         if remaining_size == payload_size {
           self.set_channel_state(channel_id, ChannelState::Connected);
         } else {
-          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size, properties));
+          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size));
         }
       } else {
         error!("body frame too large");
