@@ -49,7 +49,14 @@ fn main() {
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+          let ch = channel.clone();
+          channel.basic_get("hello", &BasicGetOptions::default()).and_then(|message| {
+            info!("got message: {:?}", message);
+            info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
+            Ok(())
+          }).and_then(move |_| {
+            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+          })
         }).and_then(|stream| {
           info!("got consumer stream");
 
