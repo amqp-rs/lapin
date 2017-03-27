@@ -124,6 +124,7 @@ impl<T> AMQPTransport<T>
     t.upstream.start_send(f);
     t.upstream.poll_complete();
     t.upstream.poll();
+    t.heartbeat.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
@@ -159,6 +160,7 @@ impl<T> AMQPTransport<T>
         Ok(Async::NotReady) => {
           trace!("handle frames: upstream poll gave NotReady");
           self.upstream.poll();
+          self.heartbeat.poll();
           break;
         },
         Err(e) => {
@@ -194,11 +196,13 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     trace!("waiting before poll");
+    transport.heartbeat.poll();
     let value = match transport.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         trace!("upstream poll gave NotReady");
         transport.upstream.poll();
+        transport.heartbeat.poll();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
@@ -221,6 +225,7 @@ impl<T> Future for AMQPTransportConnector<T>
           return Ok(Async::Ready(transport))
         } else {
           transport.upstream.poll();
+          transport.heartbeat.poll();
           self.transport = Some(transport);
           return Ok(Async::NotReady)
         }
