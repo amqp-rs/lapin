@@ -7,6 +7,7 @@ use cookie_factory::GenError;
 use bytes::BytesMut;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
+use std::time::Duration;
 use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
@@ -112,14 +113,15 @@ impl<T> AMQPTransport<T>
   pub fn connect(upstream: Framed<T,AMQPCodec>, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
+    conn.set_heartbeat(options.heartbeat);
+    conn.connect();
 
     let mut t = AMQPTransport {
       upstream:  upstream,
-      heartbeat: Timer::default().interval(options.heartbeat),
+      heartbeat: Timer::default().interval(Duration::from_secs(conn.configuration.heartbeat as u64)),
       conn:      conn,
     };
 
-    t.conn.connect();
     let f = t.conn.next_frame().unwrap();
     t.upstream.start_send(f);
     t.upstream.poll_complete();
