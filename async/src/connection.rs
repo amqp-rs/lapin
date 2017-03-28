@@ -4,8 +4,9 @@ use std::io::{Error,ErrorKind,Result};
 use std::collections::{HashSet,HashMap,VecDeque};
 use amq_protocol::types::*;
 use nom::{IResult,Offset};
-use sasl::{self,ChannelBinding, Secret, Mechanism};
-use sasl::mechanisms::Plain;
+use sasl;
+use sasl::client::Mechanism;
+use sasl::client::mechanisms::Plain;
 use cookie_factory::GenError;
 
 use format::frame::*;
@@ -397,11 +398,9 @@ impl Connection {
 
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
 
-              let creds = sasl::Credentials {
-                username: Some(saved_creds.username),
-                secret: Secret::Password(saved_creds.password),
-                channel_binding: ChannelBinding::None,
-              };
+              let creds = sasl::common::Credentials::default()
+                .with_username(saved_creds.username)
+                .with_password(saved_creds.password);
 
               let mut mechanism = Plain::from_credentials(creds).unwrap();
 

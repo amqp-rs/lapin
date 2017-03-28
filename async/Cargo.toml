@@ -14,10 +14,13 @@ build = "build.rs"
 [dependencies]
 log = "^0.3"
 nom = "^2.2"
-sasl = "^0.3"
 cookie-factory = "^0.2"
 amq-protocol = "^0.11"
 clippy = {version = "^0.0.119", optional = true}
+
+[dependencies.sasl]
+version= "^0.4"
+default-features = false
 
 [build-dependencies]
 amq-protocol = "^0.11"
