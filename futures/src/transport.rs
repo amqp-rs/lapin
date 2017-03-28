@@ -7,9 +7,11 @@ use cookie_factory::GenError;
 use bytes::BytesMut;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
+use std::time::Duration;
 use futures::{Async,Poll,Sink,Stream,StartSend,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
+use tokio_timer::{Interval,Timer};
 use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
@@ -97,6 +99,7 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   pub upstream: Framed<T,AMQPCodec>,
+  pub heartbeat: Interval,
   pub conn: Connection,
 }
 
@@ -110,17 +113,20 @@ impl<T> AMQPTransport<T>
   pub fn connect(upstream: Framed<T,AMQPCodec>, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
+    conn.set_heartbeat(options.heartbeat);
+    conn.connect();
 
     let mut t = AMQPTransport {
-      upstream: upstream,
-      conn:     conn,
+      upstream:  upstream,
+      heartbeat: Timer::default().interval(Duration::from_secs(conn.configuration.heartbeat as u64)),
+      conn:      conn,
     };
 
-    t.conn.connect();
     let f = t.conn.next_frame().unwrap();
     t.upstream.start_send(f);
     t.upstream.poll_complete();
     t.upstream.poll();
+    t.heartbeat.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
@@ -156,6 +162,7 @@ impl<T> AMQPTransport<T>
         Ok(Async::NotReady) => {
           trace!("handle frames: upstream poll gave NotReady");
           self.upstream.poll();
+          self.heartbeat.poll();
           break;
         },
         Err(e) => {
@@ -191,11 +198,13 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     trace!("waiting before poll");
+    transport.heartbeat.poll();
     let value = match transport.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         trace!("upstream poll gave NotReady");
         transport.upstream.poll();
+        transport.heartbeat.poll();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
@@ -218,6 +227,7 @@ impl<T> Future for AMQPTransportConnector<T>
           return Ok(Async::Ready(transport))
         } else {
           transport.upstream.poll();
+          transport.heartbeat.poll();
           self.transport = Some(transport);
           return Ok(Async::NotReady)
         }
@@ -232,11 +242,17 @@ impl<T> Future for AMQPTransportConnector<T>
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T: AsyncRead {
+    where T: AsyncRead + AsyncWrite {
     type Item = Frame;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
+        if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
+            debug!("Heartbeat");
+            self.start_send(Frame::Heartbeat(0));
+            self.poll_complete();
+        }
+
         trace!("stream poll");
         // and Async::NotReady.
         match try_ready!(self.upstream.poll()) {

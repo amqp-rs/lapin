@@ -376,6 +376,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
         Ok(Async::Ready(message))
       } else {
         transport.upstream.poll();
+        transport.heartbeat.poll();
         trace!("basic get[{}-{}] not ready", channel_id, queue);
         Ok(Async::NotReady)
       }

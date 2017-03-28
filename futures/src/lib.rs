@@ -132,6 +132,7 @@ extern crate amq_protocol;
 extern crate nom;
 extern crate bytes;
 extern crate tokio_io;
+extern crate tokio_timer;
 extern crate lapin_async;
 extern crate cookie_factory;
 

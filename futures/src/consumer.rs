@@ -26,10 +26,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
       //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
       if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
         transport.upstream.poll();
+        transport.heartbeat.poll();
         //debug!("consumer[{}] ready", self.consumer_tag);
         Ok(Async::Ready(Some(message)))
       } else {
         transport.upstream.poll();
+        transport.heartbeat.poll();
         trace!("consumer[{}] not ready", self.consumer_tag);
         Ok(Async::NotReady)
       }

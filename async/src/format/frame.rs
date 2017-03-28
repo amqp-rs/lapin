@@ -136,7 +136,7 @@ pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Cl
 }
 
 pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
-  do_gen!(input, gen_slice!(&[constants::FRAME_HEARTBEAT, 0, 0, constants::FRAME_END]))
+  do_gen!(input, gen_slice!(&[constants::FRAME_HEARTBEAT, 0, 0, 0, 0, 0, 0, constants::FRAME_END]))
 }
 
 pub fn gen_content_header_frame<'a>(input:(&'a mut [u8],usize), channel_id: u16, class_id: u16, length: u64, properties: &basic::Properties) -> Result<(&'a mut [u8],usize),GenError> {

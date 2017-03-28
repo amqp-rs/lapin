@@ -53,9 +53,9 @@ pub enum ClosingState {
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Configuration {
-  channel_max: u16,
-  frame_max:   u32,
-  heartbeat:   u16,
+  channel_max:   u16,
+  frame_max:     u32,
+  pub heartbeat: u16,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -126,6 +126,10 @@ impl Connection {
       username: username.to_string(),
       password: password.to_string(),
     });
+  }
+
+  pub fn set_heartbeat(&mut self, heartbeat: u16) {
+    self.configuration.heartbeat = heartbeat;
   }
 
   /// creates a `Channel` object in initial state
@@ -432,7 +436,13 @@ impl Connection {
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
               self.configuration.channel_max = t.channel_max;
-              self.configuration.heartbeat   = t.heartbeat;
+              if self.configuration.heartbeat == 0 {
+                // If we disable the heartbeat but the server don't, follow him and enable it too
+                self.configuration.heartbeat = t.heartbeat;
+              } else if t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat {
+                // If both us and the server want heartbeat enabled, pick the lowest value.
+                self.configuration.heartbeat = t.heartbeat;
+              }
 
               if t.frame_max > self.configuration.frame_max {
                 //FIXME: what do we do without the buffers available?
