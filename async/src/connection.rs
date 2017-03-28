@@ -596,7 +596,10 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::Properties) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], mut properties: basic::Properties) {
+    if properties.user_id.is_none() {
+      properties.user_id = Some(self.credentials.username.clone());
+    }
     let header = ContentHeader {
       class_id:       class_id,
       weight:         0,
