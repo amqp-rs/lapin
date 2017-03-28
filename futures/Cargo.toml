@@ -19,7 +19,7 @@ tokio-io = "^0.1"
 tokio-timer = "^0.1"
 lapin-async = "^0.5"
 cookie-factory = "^0.2"
-amq-protocol = "^0.11"
+amq-protocol = "^0.15"
 
 [dev-dependencies]
 nom = "^2.1"
