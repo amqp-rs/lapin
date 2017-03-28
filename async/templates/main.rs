@@ -147,7 +147,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
     #[derive(Clone,Debug,PartialEq)]
     pub struct Properties {
       {{#each class.properties as |property| ~}}
-        {{snake property.name}}: Option<{{property.type}}>,
+        pub {{snake property.name}}: Option<{{property.type}}>,
       {{/each ~}}
     }
 
