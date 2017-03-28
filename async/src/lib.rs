@@ -87,7 +87,7 @@
 //! ```rust,ignore
 //! conn.basic_publish(channel_id, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
 //! let payload = b"Hello world!";
-//! conn.send_content_frames(channel_a, 60, payload);
+//! conn.send_content_frames(channel_a, 60, payload, basic::Properties::default()));
 //!
 //! // update state
 //! ```
