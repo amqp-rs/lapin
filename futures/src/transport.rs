@@ -113,6 +113,7 @@ impl<T> AMQPTransport<T>
   pub fn connect(upstream: Framed<T,AMQPCodec>, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
+    conn.set_vhost(&options.vhost);
     conn.set_heartbeat(options.heartbeat);
     conn.connect();
 
