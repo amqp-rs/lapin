@@ -4,8 +4,8 @@ extern crate futures;
 extern crate tokio_core;
 extern crate env_logger;
 
-use futures::{Stream,Sink};
-use futures::future::{self,Future};
+use futures::Stream;
+use futures::future::Future;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
@@ -32,7 +32,9 @@ fn connection() {
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
+          channel.queue_purge("hello").and_then(move |_| {
+            channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
+          })
         })
       }).and_then(move |_| {
         client.create_channel()
@@ -40,15 +42,19 @@ fn connection() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
+        let ch = channel.clone();
         channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
-        }).and_then(|stream| {
+        }).and_then(move |stream| {
           info!("got consumer stream");
 
-          stream.into_future().and_then(|(message, stream)| {
-            assert_eq!(message.unwrap().data, b"hello from tokio");
+          stream.into_future().and_then(move |(message, _)| {
+            let msg = message.unwrap();
+            info!("got message: {:?}", msg);
+            assert_eq!(msg.data, b"hello from tokio");
+            ch.basic_ack(msg.delivery_tag);
             Ok(())
           }).map_err(|(err, _)| err)
         })
