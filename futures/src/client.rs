@@ -21,6 +21,7 @@ pub struct Client<T> {
 pub struct ConnectionOptions {
   pub username:  String,
   pub password:  String,
+  pub vhost:     String,
   pub heartbeat: u16,
 }
 
@@ -29,6 +30,7 @@ impl Default for ConnectionOptions {
     ConnectionOptions {
       username:  "guest".to_string(),
       password:  "guest".to_string(),
+      vhost:     "/".to_string(),
       heartbeat: 60,
     }
   }
