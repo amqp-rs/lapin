@@ -50,9 +50,10 @@ fn main() {
           info!("channel {} declared queue {}", id, "hello");
 
           let ch = channel.clone();
-          channel.basic_get("hello", &BasicGetOptions::default()).and_then(|message| {
+          channel.basic_get("hello", &BasicGetOptions::default()).and_then(move |message| {
             info!("got message: {:?}", message);
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
+            channel.basic_ack(message.delivery_tag);
             Ok(())
           }).and_then(move |_| {
             ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
