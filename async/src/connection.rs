@@ -80,6 +80,7 @@ pub struct Connection {
   pub state:             ConnectionState,
   pub channels:          HashMap<u16, Channel>,
   pub configuration:     Configuration,
+  pub vhost:             String,
   pub channel_index:     u16,
   pub prefetch_size:     u32,
   pub prefetch_count:    u16,
@@ -111,6 +112,7 @@ impl Connection {
       state:             ConnectionState::Initial,
       channels:          h,
       configuration:     configuration,
+      vhost:             "/".to_string(),
       channel_index:     1,
       prefetch_size:     0,
       prefetch_count:    0,
@@ -127,6 +129,10 @@ impl Connection {
       username: username.to_string(),
       password: password.to_string(),
     });
+  }
+
+  pub fn set_vhost(&mut self, vhost: &str) {
+    self.vhost = vhost.to_string();
   }
 
   pub fn set_heartbeat(&mut self, heartbeat: u16) {
@@ -466,7 +472,7 @@ impl Connection {
 
               let open = Class::Connection(connection::Methods::Open(
                   connection::Open {
-                    virtual_host: "/".to_string(),
+                    virtual_host: self.vhost.clone(),
                     capabilities: "".to_string(),
                     insist:       false,
                   }
