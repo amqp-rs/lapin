@@ -256,6 +256,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(_) => {
           transport.send_frames();
+          transport.handle_frames();
           Box::new(future::ok(()))
         },
       }
@@ -276,6 +277,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(_) => {
           transport.send_frames();
+          transport.handle_frames();
           Box::new(future::ok(()))
         },
       }
