@@ -17,10 +17,12 @@ using tokio-core.
 
 ```rust
 #[macro_use] extern crate log;
+extern crate amq_protocol;
 extern crate futures;
 extern crate tokio_core;
 extern crate lapin_futures as lapin;
 
+use amq_protocol::types::FieldTable;
 use futures::Stream;
 use futures::future::Future;
 use tokio_core::reactor::Core;
@@ -54,7 +56,7 @@ fn main() {
       // we using a "move" closure to reuse the channel
       // once the queue is declared. We could also clone
       // the channel
-      channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
         channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default())
@@ -68,10 +70,12 @@ fn main() {
 
 ```rust
 #[macro_use] extern crate log;
+extern crate amq_protocol;
 extern crate futures;
 extern crate tokio_core;
 extern crate lapin_futures as lapin;
 
+use amq_protocol::types::FieldTable;
 use futures::Stream;
 use futures::future::Future;
 use tokio_core::reactor::Core;
@@ -102,7 +106,7 @@ fn main() {
       info!("created channel with id: {}", id);
 
       let ch = channel.clone();
-      channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
         // basic_consume returns a future of a message
