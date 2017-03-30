@@ -1,9 +1,11 @@
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
+extern crate amq_protocol;
 extern crate futures;
 extern crate tokio_core;
 extern crate env_logger;
 
+use amq_protocol::types::FieldTable;
 use futures::future::Future;
 use futures::Stream;
 use tokio_core::reactor::Core;
@@ -27,7 +29,7 @@ fn main() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
-        channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.basic_publish(
@@ -46,7 +48,7 @@ fn main() {
         info!("created channel with id: {}", id);
 
         let c = channel.clone();
-        channel.queue_declare("hello", &QueueDeclareOptions::default()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           let ch = channel.clone();

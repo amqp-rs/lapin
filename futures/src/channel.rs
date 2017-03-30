@@ -114,13 +114,13 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   ///
   /// the `mandatory` and `ìmmediate` options can be set to true,
   /// but the return message will not be handled
-  pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_declare(
         self.id, 0, name.to_string(),
-        options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, FieldTable::new()) {
+        options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
