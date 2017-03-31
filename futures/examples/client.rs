@@ -11,7 +11,7 @@ use futures::Stream;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ExchangeDeclareOptions,QueueBindOptions,QueueDeclareOptions};
 
 fn main() {
   env_logger::init().unwrap();
@@ -32,13 +32,20 @@ fn main() {
         channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_publish(
-            "hello",
-            b"hello from tokio",
-            &BasicPublishOptions::default(),
-            BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
-          ).map(|confirmation| {
-            info!("publish got confirmation: {:?}", confirmation)
+          channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+            channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), FieldTable::new()).and_then(move |_| {
+              channel.basic_publish(
+                "hello_2",
+                b"hello from tokio",
+                &BasicPublishOptions {
+                  exchange: "hello_exchange".to_string(),
+                  ..Default::default()
+                },
+                BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
+              ).map(|confirmation| {
+                info!("publish got confirmation: {:?}", confirmation)
+              })
+            })
           })
         })
       }).and_then(move |_| {
