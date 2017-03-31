@@ -72,6 +72,19 @@ impl Default for QueueDeclareOptions {
 }
 
 #[derive(Clone,Debug,PartialEq)]
+pub struct QueueBindOptions {
+  pub nowait: bool,
+}
+
+impl Default for QueueBindOptions {
+  fn default() -> QueueBindOptions {
+    QueueBindOptions {
+      nowait: false,
+    }
+  }
+}
+
+#[derive(Clone,Debug,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
   pub exchange:  String,
@@ -183,6 +196,37 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           transport.handle_frames();
 
           trace!("queue_declare returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+      ))
+    }
+  }
+
+  /// binds a queue to an exchange
+  ///
+  /// returns a future that resolves once the queue is bound to the exchange
+  pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.queue_bind(
+        self.id, 0, name.to_string(), exchange.to_string(), routing_key.to_string(),
+        options.nowait, arguments) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind queue: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("queue_bind request id: {}", request_id);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          trace!("queue_bind returning closure");
           wait_for_answer(cl_transport, request_id)
         },
       }
