@@ -12,7 +12,7 @@ use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions};
 
 #[test]
 fn connection() {
@@ -60,7 +60,7 @@ fn connection() {
             ch1.basic_ack(msg.delivery_tag);
             Ok(())
           }).map_err(|(err, _)| err).and_then(move |_| {
-            ch2.queue_delete("hello", false, false)
+            ch2.queue_delete("hello", &QueueDeleteOptions::default())
           })
         })
       })

@@ -107,6 +107,23 @@ impl Default for BasicGetOptions {
   }
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct QueueDeleteOptions {
+  pub if_unused: bool,
+  pub if_empty:  bool,
+  pub no_wait:   bool,
+}
+
+impl Default for QueueDeleteOptions {
+  fn default() -> QueueDeleteOptions {
+    QueueDeleteOptions {
+      if_unused: false,
+      if_empty:  false,
+      no_wait:   false,
+    }
+  }
+}
+
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// creates a queue
   ///
@@ -349,11 +366,11 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// If the queue has consumers the server does not delete it but raises a channel exception instead.
   ///
   /// If `if_empty` is set, the server will only delete the queue if it has no messages.
-  pub fn queue_delete(&self, queue_name: &str, if_unused: bool, if_empty: bool) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_delete(&self, queue_name: &str, options: &QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_delete(self.id, 0, queue_name.to_string(), if_unused, if_empty, false) {
+      match transport.conn.queue_delete(self.id, 0, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
         ),
