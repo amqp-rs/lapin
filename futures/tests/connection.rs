@@ -44,7 +44,8 @@ fn connection() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
-        let ch = channel.clone();
+        let ch1 = channel.clone();
+        let ch2 = channel.clone();
         channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
@@ -56,9 +57,11 @@ fn connection() {
             let msg = message.unwrap();
             info!("got message: {:?}", msg);
             assert_eq!(msg.data, b"hello from tokio");
-            ch.basic_ack(msg.delivery_tag);
+            ch1.basic_ack(msg.delivery_tag);
             Ok(())
-          }).map_err(|(err, _)| err)
+          }).map_err(|(err, _)| err).and_then(move |_| {
+            ch2.queue_delete("hello", false, false)
+          })
         })
       })
     })
