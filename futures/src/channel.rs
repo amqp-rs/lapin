@@ -107,6 +107,23 @@ impl Default for BasicGetOptions {
   }
 }
 
+#[derive(Clone,Debug,PartialEq)]
+pub struct QueueDeleteOptions {
+  pub if_unused: bool,
+  pub if_empty:  bool,
+  pub no_wait:   bool,
+}
+
+impl Default for QueueDeleteOptions {
+  fn default() -> QueueDeleteOptions {
+    QueueDeleteOptions {
+      if_unused: false,
+      if_empty:  false,
+      no_wait:   false,
+    }
+  }
+}
+
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// creates a queue
   ///
@@ -311,12 +328,14 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
-  /// purges a queue
-  pub fn queue_purge(&self, name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+  /// Purge a queue.
+  ///
+  /// This method removes all messages from a queue which are not awaiting acknowledgment.
+  pub fn queue_purge(&self, queue_name: &str) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_purge(self.id, 0, name.to_string(), false) {
+      match transport.conn.queue_purge(self.id, 0, queue_name.to_string(), false) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
         ),
@@ -333,7 +352,42 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     } else {
       //FIXME: if we're there, it means the mutex failed
       Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue {}", name))
+        Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue {}", queue_name))
+      ))
+    }
+  }
+
+  /// Delete a queue.
+  ///
+  /// This method deletes a queue. When a queue is deleted any pending messages are sent to a dead-letter queue
+  /// if this is defined in the server configuration, and all consumers on the queue are cancelled.
+  ///
+  /// If `if_unused` is set, the server will only delete the queue if it has no consumers.
+  /// If the queue has consumers the server does not delete it but raises a channel exception instead.
+  ///
+  /// If `if_empty` is set, the server will only delete the queue if it has no messages.
+  pub fn queue_delete(&self, queue_name: &str, options: &QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.queue_delete(self.id, 0, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("delete request id: {}", request_id);
+          transport.send_frames();
+
+          transport.handle_frames();
+
+          trace!("delete returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue {}", queue_name))
       ))
     }
   }
