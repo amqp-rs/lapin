@@ -23,6 +23,9 @@ amq-protocol = "^0.15"
 
 [dev-dependencies]
 nom = "^2.2"
-futures = "^0.1"
 env_logger = "^0.4"
+futures = "^0.1"
+rustls = "^0.5"
 tokio-core = "^0.1"
+tokio-rustls = "^0.1"
+webpki-roots = "^0.7"
