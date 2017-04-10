@@ -73,9 +73,6 @@ impl Connection {
                 self.receive_access_request_ok(channel_id, m)
             }
 
-            Class::Exchange(exchange::Methods::DeclareOk(m)) => {
-                self.receive_exchange_declare_ok(channel_id, m)
-            }
             Class::Exchange(exchange::Methods::DeleteOk(m)) => {
                 self.receive_exchange_delete_ok(channel_id, m)
             }
@@ -92,6 +89,10 @@ impl Connection {
                 self.receive_exchange_unbind_ok(channel_id, m)
             }
             */
+
+            Class::Exchange(exchange::Methods::DeclareOk(m)) => {
+                self.receive_exchange_declare_ok(channel_id, m)
+            }
 
             Class::Queue(queue::Methods::DeclareOk(m)) => {
                 self.receive_queue_declare_ok(channel_id, m)
@@ -449,83 +450,6 @@ impl Connection {
         Ok(())
     }
 
-    pub fn exchange_declare(&mut self,
-                            _channel_id: u16,
-                            ticket: ShortUInt,
-                            exchange: ShortString,
-                            amqp_type: ShortString,
-                            passive: Boolean,
-                            durable: Boolean,
-                            auto_delete: Boolean,
-                            internal: Boolean,
-                            nowait: Boolean,
-                            arguments: FieldTable)
-                            -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::Declare(exchange::Declare {
-            ticket: ticket,
-            exchange: exchange,
-            amqp_type: amqp_type,
-            passive: passive,
-            durable: durable,
-            auto_delete: auto_delete,
-            internal: internal,
-            nowait: nowait,
-            arguments: arguments,
-        }));
-
-        self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingExchangeDeclareOk;
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-        })
-    }
-
-    pub fn receive_exchange_declare_ok(&mut self,
-                                       _channel_id: u16,
-                                       method: exchange::DeclareOk)
-                                       -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingExchangeDeclareOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.DeclareOk, ignoring packet");
-
-
-        Ok(())
-    }
-
     pub fn exchange_delete(&mut self,
                            _channel_id: u16,
                            ticket: ShortUInt,
@@ -828,8 +752,76 @@ impl Connection {
 
         Ok(())
     }
-
 */
+
+    pub fn exchange_declare(&mut self,
+                            _channel_id: u16,
+                            ticket: ShortUInt,
+                            exchange: ShortString,
+                            exchange_type: ShortString,
+                            passive: Boolean,
+                            durable: Boolean,
+                            auto_delete: Boolean,
+                            internal: Boolean,
+                            nowait: Boolean,
+                            arguments: FieldTable)
+                            -> Result<RequestId, Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        let method = Class::Exchange(exchange::Methods::Declare(exchange::Declare {
+            ticket: ticket,
+            exchange: exchange,
+            amqp_type: exchange_type,
+            passive: passive,
+            durable: durable,
+            auto_delete: auto_delete,
+            internal: internal,
+            nowait: nowait,
+            arguments: arguments,
+        }));
+
+        self.send_method_frame(_channel_id, method).map(|_| {
+          let request_id = self.next_request_id();
+          self.channels.get_mut(&_channel_id).map(|c| {
+              c.awaiting.push_back(Answer::AwaitingExchangeDeclareOk(request_id));
+              trace!("channel {} state is now {:?}", _channel_id, c.state);
+          });
+          request_id
+        })
+    }
+
+    pub fn receive_exchange_declare_ok(&mut self,
+                                       _channel_id: u16,
+                                       method: exchange::DeclareOk)
+                                       -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::InvalidState);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingExchangeDeclareOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
 
     pub fn queue_declare(&mut self,
                          _channel_id: u16,
