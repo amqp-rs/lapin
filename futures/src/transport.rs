@@ -192,6 +192,13 @@ impl<T> Future for AMQPTransportConnector<T>
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
     debug!("AMQPTransportConnector poll transport is none? {}", self.transport.is_none());
     let mut transport = self.transport.take().unwrap();
+
+    //we might have received a frame before here
+    while let Some(f) = transport.conn.next_frame() {
+      transport.upstream.start_send(f);
+      transport.upstream.poll_complete();
+    }
+
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
       debug!("already connected");
