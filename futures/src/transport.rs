@@ -114,6 +114,7 @@ impl<T> AMQPTransport<T>
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
+    conn.set_frame_max(options.frame_max);
     conn.set_heartbeat(options.heartbeat);
     if let Err(e) = conn.connect() {
       let err = format!("Failed to connect: {:?}", e);

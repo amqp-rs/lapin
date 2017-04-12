@@ -21,6 +21,7 @@ pub struct ConnectionOptions {
   pub username:  String,
   pub password:  String,
   pub vhost:     String,
+  pub frame_max: u32,
   pub heartbeat: u16,
 }
 
@@ -30,6 +31,7 @@ impl Default for ConnectionOptions {
       username:  "guest".to_string(),
       password:  "guest".to_string(),
       vhost:     "/".to_string(),
+      frame_max: 8192,
       heartbeat: 60,
     }
   }

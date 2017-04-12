@@ -21,7 +21,10 @@ fn main() {
 
   core.run(
     TcpStream::connect(&addr, &handle).and_then(|stream| {
-      lapin::client::Client::connect(stream, &ConnectionOptions::default())
+      lapin::client::Client::connect(stream, &ConnectionOptions {
+        frame_max: 65535,
+        ..Default::default()
+      })
     }).and_then(|client| {
 
       client.create_confirm_channel().and_then(|channel| {
