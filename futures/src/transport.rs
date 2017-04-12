@@ -172,29 +172,7 @@ impl<T> AMQPTransport<T>
 
   pub fn poll_children(&mut self) {
     self.poll_heartbeat();
-    let value = match self.upstream.poll() {
-      Ok(Async::Ready(t)) => t,
-      Ok(Async::NotReady) => {
-        trace!("NotReady");
-        return;
-      },
-      Err(e) => {
-        error!("upstream poll got error: {:?}", e);
-        return;
-      },
-    };
-
-    match value {
-      Some(frame) => {
-        trace!("got frame: {:?}", frame);
-        self.conn.handle_frame(frame);
-        self.send_frames();
-        self.upstream.poll_complete();
-      },
-      e => {
-        error!("did not get a frame? -> {:?}", e);
-      }
-    }
+    self.poll_upstream();
   }
 
   pub fn send_and_handle_frames(&mut self) {
