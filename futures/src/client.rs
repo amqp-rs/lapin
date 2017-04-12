@@ -6,7 +6,6 @@ use futures::{Async,Future};
 use futures::future;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
-use std::time::Duration;
 
 use transport::*;
 use channel::Channel;
