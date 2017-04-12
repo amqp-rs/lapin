@@ -123,11 +123,8 @@ impl<T> AMQPTransport<T>
       conn:      conn,
     };
 
-    let f = t.conn.next_frame().unwrap();
-    t.upstream.start_send(f);
-    t.upstream.poll_complete();
-    t.upstream.poll();
-    t.heartbeat.poll();
+    t.send_and_handle_frames();
+    t.poll_children();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
@@ -138,6 +135,16 @@ impl<T> AMQPTransport<T>
     trace!("post-poll");
 
     Box::new(connector)
+  }
+
+  pub fn poll_children(&mut self) {
+    self.upstream.poll();
+    self.heartbeat.poll();
+  }
+
+  pub fn send_and_handle_frames(&mut self) {
+    self.send_frames();
+    self.handle_frames();
   }
 
   pub fn send_frames(&mut self) {
@@ -162,8 +169,7 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           trace!("handle frames: upstream poll gave NotReady");
-          self.upstream.poll();
-          self.heartbeat.poll();
+          self.poll_children();
           break;
         },
         Err(e) => {
@@ -184,7 +190,8 @@ pub struct AMQPTransportConnector<T> {
 }
 
 impl<T> Future for AMQPTransportConnector<T>
-    where T: AsyncRead + AsyncWrite {
+    where T: AsyncRead + AsyncWrite,
+          T: 'static {
 
   type Item  = AMQPTransport<T>;
   type Error = io::Error;
@@ -194,10 +201,7 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
-    while let Some(f) = transport.conn.next_frame() {
-      transport.upstream.start_send(f);
-      transport.upstream.poll_complete();
-    }
+    transport.send_frames();
 
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
@@ -211,8 +215,7 @@ impl<T> Future for AMQPTransportConnector<T>
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         trace!("upstream poll gave NotReady");
-        transport.upstream.poll();
-        transport.heartbeat.poll();
+        transport.poll_children();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
@@ -226,16 +229,12 @@ impl<T> Future for AMQPTransportConnector<T>
       Some(frame) => {
         trace!("got frame: {:?}", frame);
         transport.conn.handle_frame(frame);
-        while let Some(f) = transport.conn.next_frame() {
-          transport.upstream.start_send(f);
-          transport.upstream.poll_complete();
-        }
+        transport.send_frames();
         transport.upstream.poll_complete();
         if transport.conn.state == ConnectionState::Connected {
           return Ok(Async::Ready(transport))
         } else {
-          transport.upstream.poll();
-          transport.heartbeat.poll();
+          transport.poll_children();
           self.transport = Some(transport);
           return Ok(Async::NotReady)
         }
