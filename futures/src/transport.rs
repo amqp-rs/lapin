@@ -52,7 +52,7 @@ impl Encoder for AMQPCodec {
         //reserve more capacity and intialize it
         buf.extend(repeat(0).take(8192 - length));
       }
-      trace!("will send frame: {:?}", frame);
+      trace!("will encode and write frame: {:?}", frame);
 
       loop {
         let gen_res = match &frame {
@@ -138,8 +138,30 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn poll_children(&mut self) {
-    self.upstream.poll();
     self.heartbeat.poll();
+    let value = match self.upstream.poll() {
+      Ok(Async::Ready(t)) => t,
+      Ok(Async::NotReady) => {
+        trace!("NotReady");
+        return;
+      },
+      Err(e) => {
+        error!("upstream poll got error: {:?}", e);
+        return;
+      },
+    };
+
+    match value {
+      Some(frame) => {
+        trace!("got frame: {:?}", frame);
+        self.conn.handle_frame(frame);
+        self.send_frames();
+        self.upstream.poll_complete();
+      },
+      e => {
+        error!("did not get a frame? -> {:?}", e);
+      }
+    }
   }
 
   pub fn send_and_handle_frames(&mut self) {
@@ -201,6 +223,7 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
+    transport.handle_frames();
     transport.send_frames();
 
     debug!("conn state: {:?}", transport.conn.state);
@@ -215,7 +238,6 @@ impl<T> Future for AMQPTransportConnector<T>
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         trace!("upstream poll gave NotReady");
-        transport.poll_children();
         self.transport = Some(transport);
         return Ok(Async::NotReady);
       },
