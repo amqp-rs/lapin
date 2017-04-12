@@ -215,8 +215,7 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
-    transport.handle_frames();
-    transport.send_frames();
+    transport.send_and_handle_frames();
 
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
