@@ -146,7 +146,7 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn poll_children(&mut self) {
-    self.heartbeat.poll();
+    self.poll_heartbeat();
     let value = match self.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
@@ -241,7 +241,7 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     trace!("waiting before poll");
-    transport.heartbeat.poll();
+    transport.poll_heartbeat();
     let value = match transport.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
@@ -279,16 +279,13 @@ impl<T> Future for AMQPTransportConnector<T>
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T: AsyncRead + AsyncWrite {
+    where T: AsyncRead + AsyncWrite,
+          T: 'static {
     type Item = Frame;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
-        if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
-            debug!("Heartbeat");
-            self.start_send(Frame::Heartbeat(0));
-            self.poll_complete();
-        }
+        self.poll_heartbeat();
 
         trace!("stream poll");
         // and Async::NotReady.
