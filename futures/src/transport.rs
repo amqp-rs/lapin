@@ -137,6 +137,14 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
+  fn poll_heartbeat(&mut self) {
+    if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
+      debug!("Heartbeat");
+      self.start_send(Frame::Heartbeat(0));
+      self.poll_complete();
+    }
+  }
+
   pub fn poll_children(&mut self) {
     self.heartbeat.poll();
     let value = match self.upstream.poll() {
