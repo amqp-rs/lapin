@@ -145,6 +145,31 @@ impl<T> AMQPTransport<T>
     }
   }
 
+  fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
+    let value = match self.upstream.poll() {
+      Ok(Async::Ready(t)) => t,
+      Ok(Async::NotReady) => {
+        trace!("NotReady");
+        return Ok(Async::NotReady);
+      },
+      Err(e) => {
+        error!("upstream poll got error: {:?}", e);
+        return Err(From::from(e));
+      },
+    };
+
+    if let Some(frame) = value {
+      trace!("got frame: {:?}", frame);
+      self.conn.handle_frame(frame);
+      self.send_frames();
+      self.upstream.poll_complete();
+      Ok(Async::Ready(Some(())))
+    } else {
+      error!("did not get a frame");
+      Ok(Async::Ready(None))
+    }
+  }
+
   pub fn poll_children(&mut self) {
     self.poll_heartbeat();
     let value = match self.upstream.poll() {
