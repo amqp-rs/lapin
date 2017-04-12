@@ -68,8 +68,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
         ),
         Ok(request_id) => {
           trace!("request id: {}", request_id);
-          transport.send_frames();
-          transport.handle_frames();
+          transport.send_and_handle_frames();
 
           //FIXME: very afterwards that the state is Connected and not error
           Box::new(wait_for_answer(channel_transport.clone(), request_id).map(move |_| {

@@ -140,6 +140,11 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
+  pub fn send_and_handle_frames(&mut self) {
+    self.send_frames();
+    self.handle_frames();
+  }
+
   pub fn send_frames(&mut self) {
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
