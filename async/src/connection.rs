@@ -55,7 +55,7 @@ pub enum ClosingState {
 #[derive(Clone,Debug,PartialEq)]
 pub struct Configuration {
   channel_max:   u16,
-  frame_max:     u32,
+  pub frame_max: u32,
   pub heartbeat: u16,
 }
 
@@ -461,13 +461,15 @@ impl Connection {
                 self.configuration.heartbeat = t.heartbeat;
               }
 
-              if t.frame_max > self.configuration.frame_max {
-                //FIXME: what do we do without the buffers available?
-                //self.send_buffer.grow(t.frame_max as usize);
-                //self.receive_buffer.grow(t.frame_max as usize);
+              if t.frame_max != 0 {
+                if self.configuration.frame_max == 0 {
+                  // 0 means we want to take the server's value
+                  self.configuration.frame_max = t.frame_max;
+                } else if t.frame_max < self.configuration.frame_max {
+                  // If both us and the server specified a frame_max, pick the lowest value.
+                  self.configuration.frame_max = t.frame_max;
+                }
               }
-
-              self.configuration.frame_max = t.frame_max;
 
               let tune_ok = Class::Connection(connection::Methods::TuneOk(
                 connection::TuneOk {

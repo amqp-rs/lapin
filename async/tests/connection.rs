@@ -18,6 +18,7 @@ fn connection() {
       let mut receive_buffer = Buffer::with_capacity(capacity as usize);
 
       let mut conn: Connection = Connection::new();
+      conn.set_frame_max(capacity);
       assert_eq!(conn.connect().unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
       loop {
         match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
@@ -30,6 +31,12 @@ fn connection() {
       println!("CONNECTED");
 
       //now connected
+
+      let frame_max = conn.configuration.frame_max;
+      if frame_max > capacity {
+        send_buffer.grow(frame_max as usize);
+        receive_buffer.grow(frame_max as usize);
+      }
 
       let channel_a: u16 = conn.create_channel();
       let channel_b: u16 = conn.create_channel();
