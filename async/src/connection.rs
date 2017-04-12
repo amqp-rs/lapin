@@ -139,6 +139,10 @@ impl Connection {
     self.configuration.heartbeat = heartbeat;
   }
 
+  pub fn set_frame_max(&mut self, frame_max: u32) {
+    self.configuration.frame_max = frame_max;
+  }
+
   /// creates a `Channel` object in initial state
   ///
   /// returns a `u16` channel id
