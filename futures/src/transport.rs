@@ -170,9 +170,10 @@ impl<T> AMQPTransport<T>
     }
   }
 
-  pub fn poll_children(&mut self) {
+  // poll heartbeat and upstream and return what upstream gave us
+  pub fn poll_children(&mut self) -> Poll<Option<()>, io::Error> {
     self.poll_heartbeat();
-    self.poll_upstream();
+    self.poll_upstream()
   }
 
   pub fn send_and_handle_frames(&mut self) {
@@ -224,8 +225,7 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     trace!("waiting before poll");
-    transport.poll_heartbeat();
-    transport.poll_upstream().map(|value| {
+    transport.poll_children().map(|value| {
       match value {
         Async::Ready(Some(_)) => {
           if transport.conn.state == ConnectionState::Connected {
@@ -256,8 +256,7 @@ impl<T> Stream for AMQPTransport<T>
 
     fn poll(&mut self) -> Poll<Option<()>, io::Error> {
       trace!("stream poll");
-      self.poll_heartbeat();
-      self.poll_upstream()
+      self.poll_children()
     }
 }
 
