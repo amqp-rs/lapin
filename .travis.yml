@@ -7,7 +7,6 @@ rust:
   - beta
   - stable
 
-
 services: rabbitmq
 
 before_install:
@@ -35,10 +34,3 @@ after_success:
 dist: trusty
 #sudo: false
 
-notifications:
-  webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/a8be0f69e0165e590dcb
-    on_success: change
-    on_failure: always
-    on_start:   never
