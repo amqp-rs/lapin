@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Stream};
+use futures::{Async,Future,future};
 use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
@@ -529,7 +529,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
       if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
         Ok(Async::Ready(message))
       } else {
-        transport.poll();
+        transport.handle_frames();
         trace!("basic get[{}-{}] not ready", channel_id, queue);
         Ok(Async::NotReady)
       }
@@ -562,7 +562,7 @@ pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport
       if acked_opt.is_some() {
         return Ok(Async::Ready(acked_opt));
       } else {
-        tr.poll();
+        tr.handle_frames();
         return Ok(Async::NotReady);
       }
     } else {
