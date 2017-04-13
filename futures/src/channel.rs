@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future};
+use futures::{Async,Future,future,Stream};
 use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
