@@ -98,8 +98,8 @@ impl Encoder for AMQPCodec {
 
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
-  pub upstream: Framed<T,AMQPCodec>,
-  pub heartbeat: Interval,
+  upstream: Framed<T,AMQPCodec>,
+  heartbeat: Interval,
   pub conn: Connection,
 }
 
