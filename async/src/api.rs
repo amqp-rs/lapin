@@ -799,7 +799,7 @@ impl Connection {
 
     pub fn receive_exchange_declare_ok(&mut self,
                                        _channel_id: u16,
-                                       method: exchange::DeclareOk)
+                                       _: exchange::DeclareOk)
                                        -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1548,7 +1548,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicGetAnswer(request_id, queue_name)) => {
+          Some(Answer::AwaitingBasicGetAnswer(request_id, _)) => {
             self.finished_get_reqs.insert(request_id, false);
             Ok(())
           },
@@ -1881,7 +1881,7 @@ impl Connection {
 
     pub fn receive_confirm_select_ok(&mut self,
                                      _channel_id: u16,
-                                     method: confirm::SelectOk)
+                                     _: confirm::SelectOk)
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1942,7 +1942,7 @@ impl Connection {
 
             Ok(())
           },
-          m => {
+          _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
             return Err(Error::UnexpectedAnswer);
           }

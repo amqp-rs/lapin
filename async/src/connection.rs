@@ -384,7 +384,7 @@ impl Connection {
       },
       ConnectionState::Connecting(connecting_state) => {
         match connecting_state {
-          ConnectingState::Initial | ConnectingState::Error => {
+          ConnectingState::Initial => {
             self.state = ConnectionState::Error
           },
           ConnectingState::SentProtocolHeader => {
