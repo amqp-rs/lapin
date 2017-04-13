@@ -124,7 +124,7 @@ impl<T> AMQPTransport<T>
     };
 
     t.send_and_handle_frames();
-    t.poll_children();
+    t.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
@@ -137,30 +137,36 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
-  pub fn poll_children(&mut self) {
-    self.heartbeat.poll();
+  fn poll_heartbeat(&mut self) {
+    if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
+      debug!("Heartbeat");
+      self.start_send(Frame::Heartbeat(0));
+      self.poll_complete();
+    }
+  }
+
+  fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
     let value = match self.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
-        trace!("NotReady");
-        return;
+        trace!("upstream poll gave NotReady");
+        return Ok(Async::NotReady);
       },
       Err(e) => {
-        error!("upstream poll got error: {:?}", e);
-        return;
+        error!("upstream poll gave error: {:?}", e);
+        return Err(From::from(e));
       },
     };
 
-    match value {
-      Some(frame) => {
-        trace!("got frame: {:?}", frame);
-        self.conn.handle_frame(frame);
-        self.send_frames();
-        self.upstream.poll_complete();
-      },
-      e => {
-        error!("did not get a frame? -> {:?}", e);
-      }
+    if let Some(frame) = value {
+      trace!("upstream poll gave frame: {:?}", frame);
+      self.conn.handle_frame(frame);
+      self.send_frames();
+      self.upstream.poll_complete();
+      Ok(Async::Ready(Some(())))
+    } else {
+      error!("upstream poll gave Ready(None)");
+      Ok(Async::Ready(None))
     }
   }
 
@@ -179,27 +185,7 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn handle_frames(&mut self) {
-    loop {
-      match self.poll() {
-        Ok(Async::Ready(Some(frame))) => {
-          trace!("handle frames: AMQPTransport received frame: {:?}", frame);
-          self.conn.handle_frame(frame);
-        },
-        Ok(Async::Ready(None)) => {
-          trace!("handle frames: upstream poll gave Ready(None)");
-          break;
-        },
-        Ok(Async::NotReady) => {
-          trace!("handle frames: upstream poll gave NotReady");
-          self.poll_children();
-          break;
-        },
-        Err(e) => {
-          error!("handle frames: upstream poll got error: {:?}", e);
-          break;
-        },
-      };
-    }
+    while let Ok(Async::Ready(Some(_))) = self.poll() {}
   }
 }
 
@@ -223,8 +209,7 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
-    transport.handle_frames();
-    transport.send_frames();
+    transport.send_and_handle_frames();
 
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
@@ -233,68 +218,39 @@ impl<T> Future for AMQPTransportConnector<T>
     }
 
     trace!("waiting before poll");
-    transport.heartbeat.poll();
-    let value = match transport.upstream.poll() {
-      Ok(Async::Ready(t)) => t,
-      Ok(Async::NotReady) => {
-        trace!("upstream poll gave NotReady");
-        self.transport = Some(transport);
-        return Ok(Async::NotReady);
-      },
-      Err(e) => {
-        error!("upstream poll got error: {:?}", e);
-        return Err(From::from(e));
-      },
-    };
-
-    match value {
-      Some(frame) => {
-        trace!("got frame: {:?}", frame);
-        transport.conn.handle_frame(frame);
-        transport.send_frames();
-        transport.upstream.poll_complete();
-        if transport.conn.state == ConnectionState::Connected {
-          return Ok(Async::Ready(transport))
-        } else {
-          transport.poll_children();
+    transport.poll().map(|value| {
+      match value {
+        Async::Ready(Some(_)) => {
+          if transport.conn.state == ConnectionState::Connected {
+            // Upstream had frames available and we're connected, the transport is ready
+            Async::Ready(transport)
+          } else {
+            // Upstream had frames but we're not yet connected, continue polling
+            transport.poll();
+            self.transport = Some(transport);
+            Async::NotReady
+          }
+        },
+        _ => {
+          // Upstream had no frames
           self.transport = Some(transport);
-          return Ok(Async::NotReady)
-        }
-      },
-      e => {
-        error!("did not get a frame? -> {:?}", e);
-        self.transport = Some(transport);
-        return Ok(Async::NotReady)
+          Async::NotReady
+        },
       }
-    }
+    })
   }
 }
 
 impl<T> Stream for AMQPTransport<T>
-    where T: AsyncRead + AsyncWrite {
-    type Item = Frame;
+    where T: AsyncRead + AsyncWrite,
+          T: 'static {
+    type Item = ();
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Option<Frame>, io::Error> {
-        if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
-            debug!("Heartbeat");
-            self.start_send(Frame::Heartbeat(0));
-            self.poll_complete();
-        }
-
-        trace!("stream poll");
-        // and Async::NotReady.
-        match try_ready!(self.upstream.poll()) {
-            Some(frame) => {
-              debug!("AMQPTransport received frame: {:?}", frame);
-              //try!(self.poll_complete());
-              return Ok(Async::Ready(Some(frame)))
-            },
-            None => {
-              trace!("AMQPTransport returned NotReady");
-              return Ok(Async::NotReady)
-            }
-        }
+    fn poll(&mut self) -> Poll<Option<()>, io::Error> {
+      trace!("stream poll");
+      self.poll_heartbeat();
+      self.poll_upstream()
     }
 }
 

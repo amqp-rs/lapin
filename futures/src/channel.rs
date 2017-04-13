@@ -509,7 +509,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
       if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
         Ok(Async::Ready(message))
       } else {
-        transport.poll_children();
+        transport.poll();
         trace!("basic get[{}-{}] not ready", channel_id, queue);
         Ok(Async::NotReady)
       }
@@ -542,7 +542,7 @@ pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport
       if acked_opt.is_some() {
         return Ok(Async::Ready(acked_opt));
       } else {
-        tr.poll_children();
+        tr.poll();
         return Ok(Async::NotReady);
       }
     } else {
