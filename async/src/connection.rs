@@ -185,13 +185,6 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  fn check_next_answer(&self, channel_id: u16, answer: Answer) -> bool {
-    self.channels
-          .get(&channel_id)
-          .map(|c| c.awaiting.front() == Some(&answer)).unwrap_or(false)
-  }
-
-  #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
     self.channels
           .get_mut(&channel_id)
