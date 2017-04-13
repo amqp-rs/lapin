@@ -15,7 +15,7 @@
 //!
 //! ## Publishing a message
 //!
-//! ```rust
+//! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate amq_protocol;
@@ -68,7 +68,7 @@
 //!
 //! ## Creating a consumer
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate amq_protocol;
