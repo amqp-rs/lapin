@@ -322,7 +322,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
       match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
         options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
         ),
         Ok(request_id) => {
           transport.send_and_handle_frames();
