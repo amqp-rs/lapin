@@ -140,7 +140,7 @@ impl<T> AMQPTransport<T>
     if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
       trace!("Sending heartbeat");
       if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
-        debug!("Failed to send heartbeat: {:?}", e);
+        error!("Failed to send heartbeat: {:?}", e);
       }
     }
   }
@@ -177,7 +177,10 @@ impl<T> AMQPTransport<T>
   pub fn send_frames(&mut self) {
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
-      self.send_frame(f);
+      if let Err(e) = self.send_frame(f) {
+        error!("Failed to send frame: {:?}", e);
+        break;
+      }
     }
     self.poll_complete();
   }
