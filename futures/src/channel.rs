@@ -469,6 +469,26 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
       ))
     }
   }
+
+  /// closes the cannel
+  pub fn close(&self, code: u16, message: String) -> Box<Future<Item = (), Error = io::Error>> {
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.channel_close(self.id, code, message, 0, 0) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::Other, format!("could not close channel: {:?}", e)))
+        ),
+        Ok(_) => {
+          transport.send_and_handle_frames();
+          Box::new(future::ok(()))
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not close channel"))
+      ))
+    }
+  }
 }
 
 /// internal method to wait until a basic get succeeded

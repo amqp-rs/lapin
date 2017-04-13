@@ -44,6 +44,8 @@ fn main() {
                 BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
+              }).and_then(move |_| {
+                channel.close(200, "Bye".to_string())
               })
             })
           })
