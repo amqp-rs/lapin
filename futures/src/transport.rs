@@ -161,7 +161,7 @@ impl<T> AMQPTransport<T>
       trace!("upstream poll gave frame: {:?}", frame);
       self.conn.handle_frame(frame);
       self.send_frames();
-      self.upstream.poll_complete();
+      self.poll_complete();
       Ok(Async::Ready(Some(())))
     } else {
       error!("upstream poll gave Ready(None)");
@@ -178,9 +178,9 @@ impl<T> AMQPTransport<T>
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
       self.upstream.start_send(f);
-      self.upstream.poll_complete();
+      self.poll_complete();
     }
-    //self.upstream.poll_complete();
+    //self.poll_complete();
   }
 
   pub fn handle_frames(&mut self) {
