@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
 use std::time::Duration;
-use futures::{Async,Poll,Sink,Stream,StartSend,Future};
+use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use tokio_timer::{Interval,Timer};
@@ -115,7 +115,10 @@ impl<T> AMQPTransport<T>
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
     conn.set_heartbeat(options.heartbeat);
-    conn.connect();
+    if let Err(e) = conn.connect() {
+      let err = format!("Failed to connect: {:?}", e);
+      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+    }
 
     let mut t = AMQPTransport {
       upstream:  upstream,
