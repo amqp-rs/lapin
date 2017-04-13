@@ -139,9 +139,10 @@ impl<T> AMQPTransport<T>
 
   fn poll_heartbeat(&mut self) {
     if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
-      debug!("Heartbeat");
-      self.start_send(Frame::Heartbeat(0));
-      self.poll_complete();
+      trace!("Sending heartbeat");
+      if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
+        debug!("Failed to send heartbeat: {:?}", e);
+      }
     }
   }
 
@@ -162,7 +163,6 @@ impl<T> AMQPTransport<T>
       trace!("upstream poll gave frame: {:?}", frame);
       self.conn.handle_frame(frame);
       self.send_frames();
-      self.poll_complete();
       Ok(Async::Ready(Some(())))
     } else {
       error!("upstream poll gave Ready(None)");
@@ -178,10 +178,13 @@ impl<T> AMQPTransport<T>
   pub fn send_frames(&mut self) {
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
-      self.upstream.start_send(f);
-      self.poll_complete();
+      self.send_frame(f);
     }
-    //self.poll_complete();
+    self.poll_complete();
+  }
+
+  fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
+      self.start_send(frame).and_then(|_| self.poll_complete())
   }
 
   pub fn handle_frames(&mut self) {
