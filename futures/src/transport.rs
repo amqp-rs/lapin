@@ -186,7 +186,6 @@ impl<T> AMQPTransport<T>
         break;
       }
     }
-    self.poll_complete();
   }
 
   fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
