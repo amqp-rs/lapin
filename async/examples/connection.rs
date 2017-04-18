@@ -14,7 +14,7 @@ use lapin::generated::basic;
 fn main() {
       env_logger::init().unwrap();
       let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
-      stream.set_nonblocking(true);
+      stream.set_nonblocking(true).unwrap();
 
       let capacity = 8192;
       let mut send_buffer    = Buffer::with_capacity(capacity as usize);

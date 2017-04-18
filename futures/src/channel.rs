@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Stream};
+use futures::{Async,Future,future};
 use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
@@ -322,7 +322,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
       match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
         options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
         ),
         Ok(request_id) => {
           transport.send_and_handle_frames();
@@ -529,7 +529,7 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
       if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
         Ok(Async::Ready(message))
       } else {
-        transport.poll();
+        transport.handle_frames();
         trace!("basic get[{}-{}] not ready", channel_id, queue);
         Ok(Async::NotReady)
       }
@@ -562,7 +562,7 @@ pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport
       if acked_opt.is_some() {
         return Ok(Async::Ready(acked_opt));
       } else {
-        tr.poll();
+        tr.handle_frames();
         return Ok(Async::NotReady);
       }
     } else {

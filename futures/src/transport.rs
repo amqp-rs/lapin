@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
 use std::time::Duration;
-use futures::{Async,Poll,Sink,Stream,StartSend,Future};
+use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use tokio_timer::{Interval,Timer};
@@ -98,8 +98,8 @@ impl Encoder for AMQPCodec {
 
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
-  pub upstream: Framed<T,AMQPCodec>,
-  pub heartbeat: Interval,
+  upstream: Framed<T,AMQPCodec>,
+  heartbeat: Interval,
   pub conn: Connection,
 }
 
@@ -115,7 +115,10 @@ impl<T> AMQPTransport<T>
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
     conn.set_heartbeat(options.heartbeat);
-    conn.connect();
+    if let Err(e) = conn.connect() {
+      let err = format!("Failed to connect: {:?}", e);
+      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+    }
 
     let mut t = AMQPTransport {
       upstream:  upstream,
@@ -124,14 +127,13 @@ impl<T> AMQPTransport<T>
     };
 
     t.send_and_handle_frames();
-    t.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
     };
 
     trace!("pre-poll");
-    connector.poll();
+    connector.poll().ok();
     trace!("post-poll");
 
     Box::new(connector)
@@ -139,9 +141,10 @@ impl<T> AMQPTransport<T>
 
   fn poll_heartbeat(&mut self) {
     if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
-      debug!("Heartbeat");
-      self.start_send(Frame::Heartbeat(0));
-      self.poll_complete();
+      trace!("Sending heartbeat");
+      if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
+        error!("Failed to send heartbeat: {:?}", e);
+      }
     }
   }
 
@@ -162,7 +165,6 @@ impl<T> AMQPTransport<T>
       trace!("upstream poll gave frame: {:?}", frame);
       self.conn.handle_frame(frame);
       self.send_frames();
-      self.upstream.poll_complete();
       Ok(Async::Ready(Some(())))
     } else {
       error!("upstream poll gave Ready(None)");
@@ -178,10 +180,15 @@ impl<T> AMQPTransport<T>
   pub fn send_frames(&mut self) {
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
-      self.upstream.start_send(f);
-      self.upstream.poll_complete();
+      if let Err(e) = self.send_frame(f) {
+        error!("Failed to send frame: {:?}", e);
+        break;
+      }
     }
-    //self.upstream.poll_complete();
+  }
+
+  fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
+      self.start_send(frame).and_then(|_| self.poll_complete())
   }
 
   pub fn handle_frames(&mut self) {
@@ -226,7 +233,7 @@ impl<T> Future for AMQPTransportConnector<T>
             Async::Ready(transport)
           } else {
             // Upstream had frames but we're not yet connected, continue polling
-            transport.poll();
+            transport.handle_frames();
             self.transport = Some(transport);
             Async::NotReady
           }
