@@ -126,14 +126,20 @@ impl<T> AMQPTransport<T>
       conn:      conn,
     };
 
-    t.send_and_handle_frames();
+    if let Err(e) = t.send_and_handle_frames() {
+      let err = format!("Failed to handle frames: {:?}", e);
+      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+    }
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
     };
 
     trace!("pre-poll");
-    connector.poll();
+    if let Err(e) = connector.poll() {
+      let err = format!("Failed to handle frames: {:?}", e);
+      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+    }
     trace!("post-poll");
 
     Box::new(connector)
@@ -163,7 +169,10 @@ impl<T> AMQPTransport<T>
 
     if let Some(frame) = value {
       trace!("upstream poll gave frame: {:?}", frame);
-      self.conn.handle_frame(frame);
+      if let Err(e) = self.conn.handle_frame(frame) {
+        let err = format!("failed to handle frame: {:?}", e);
+        return Err(io::Error::new(io::ErrorKind::Other, err));
+      }
       self.send_frames();
       Ok(Async::Ready(Some(())))
     } else {
@@ -221,7 +230,7 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
-    transport.send_and_handle_frames();
+    transport.send_and_handle_frames()?;
 
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
