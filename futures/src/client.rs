@@ -67,7 +67,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
         ),
         Ok(request_id) => {
           trace!("request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           //FIXME: very afterwards that the state is Connected and not error
           Box::new(wait_for_answer(channel_transport.clone(), request_id).map(move |_| {
@@ -105,7 +108,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
   Box::new(future::poll_fn(move || {
     let connected = if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames();
+      tr.handle_frames()?;
       if ! tr.conn.is_finished(request_id) {
         tr.conn.is_finished(request_id)
       } else {
