@@ -192,7 +192,13 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn handle_frames(&mut self) {
-    while let Ok(Async::Ready(Some(_))) = self.poll() {}
+    for _ in 0..30 {
+      if let Ok(Async::Ready(Some(_))) = self.poll() {
+        // Do nothing
+      } else {
+        break;
+      }
+    }
   }
 }
 
