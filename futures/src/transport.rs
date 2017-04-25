@@ -172,9 +172,9 @@ impl<T> AMQPTransport<T>
     }
   }
 
-  pub fn send_and_handle_frames(&mut self) {
+  pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames();
-    self.handle_frames();
+    self.handle_frames()
   }
 
   pub fn send_frames(&mut self) {
@@ -191,14 +191,13 @@ impl<T> AMQPTransport<T>
       self.start_send(frame).and_then(|_| self.poll_complete())
   }
 
-  pub fn handle_frames(&mut self) {
+  pub fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     for _ in 0..30 {
-      if let Ok(Async::Ready(Some(_))) = self.poll() {
-        // Do nothing
-      } else {
-        break;
+      if try_ready!(self.poll()).is_none() {
+        return Ok(Async::Ready(None));
       }
     }
+    self.poll()
   }
 }
 
