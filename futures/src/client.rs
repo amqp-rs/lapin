@@ -107,8 +107,6 @@ pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQ
     let connected = if let Ok(mut tr) = transport.try_lock() {
       tr.handle_frames();
       if ! tr.conn.is_finished(request_id) {
-        //retry because we might have obtained a new frame
-        tr.handle_frames();
         tr.conn.is_finished(request_id)
       } else {
         true
