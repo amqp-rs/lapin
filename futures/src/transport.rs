@@ -127,7 +127,6 @@ impl<T> AMQPTransport<T>
     };
 
     t.send_and_handle_frames();
-    t.poll();
 
     let mut connector = AMQPTransportConnector {
       transport: Some(t)
