@@ -174,7 +174,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("exchange_declare request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           trace!("exchange_declare returning closure");
           wait_for_answer(cl_transport, request_id)
@@ -206,7 +209,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("queue_declare request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           trace!("queue_declare returning closure");
           wait_for_answer(cl_transport, request_id)
@@ -235,7 +241,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("queue_bind request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           trace!("queue_bind returning closure");
           wait_for_answer(cl_transport, request_id)
@@ -260,7 +269,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("confirm select request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           wait_for_answer(cl_transport, request_id)
         },
@@ -290,9 +302,15 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(delivery_tag) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
           transport.conn.send_content_frames(self.id, 60, payload, properties);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
             wait_for_basic_publish_confirm(cl_transport, delivery_tag, self.id)
@@ -322,10 +340,13 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
       match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
         options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
         Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer")))
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
         ),
         Ok(request_id) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           let consumer = Consumer {
             transport:    cl_transport.clone(),
@@ -357,7 +378,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(_) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
           Box::new(future::ok(()))
         },
       }
@@ -377,7 +401,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(_) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
           Box::new(future::ok(()))
         },
       }
@@ -398,7 +425,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(request_id) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
           wait_for_basic_get_answer(cl_transport, request_id, self.id, queue)
         },
       }
@@ -423,7 +453,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("purge request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           trace!("purge returning closure");
           wait_for_answer(cl_transport, request_id)
@@ -456,7 +489,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         ),
         Ok(request_id) => {
           trace!("delete request id: {}", request_id);
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
 
           trace!("delete returning closure");
           wait_for_answer(cl_transport, request_id)
@@ -478,7 +514,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::Other, format!("could not close channel: {:?}", e)))
         ),
         Ok(_) => {
-          transport.send_and_handle_frames();
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
           Box::new(future::ok(()))
         },
       }
@@ -500,10 +539,10 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
 
   let request_future = future::poll_fn(move || {
     let result = if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames();
+      tr.handle_frames()?;
       match tr.conn.finished_get_result(request_id) {
         None =>  {
-          tr.handle_frames();
+          tr.handle_frames()?;
           if let Some(res) = tr.conn.finished_get_result(request_id) {
             res
           } else {
@@ -525,11 +564,11 @@ pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc
 
   let receive_future = future::poll_fn(move || {
     if let Ok(mut transport) = receive_transport.try_lock() {
-      transport.handle_frames();
+      transport.handle_frames()?;
       if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
         Ok(Async::Ready(message))
       } else {
-        transport.poll();
+        transport.poll()?;
         trace!("basic get[{}-{}] not ready", channel_id, queue);
         Ok(Async::NotReady)
       }
@@ -547,7 +586,7 @@ pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport
 
   Box::new(future::poll_fn(move || {
     if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames();
+      tr.handle_frames()?;
       let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
         if c.acked.remove(&delivery_tag) {
           Some(true)
@@ -562,7 +601,7 @@ pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport
       if acked_opt.is_some() {
         return Ok(Async::Ready(acked_opt));
       } else {
-        tr.poll();
+        tr.poll()?;
         return Ok(Async::NotReady);
       }
     } else {

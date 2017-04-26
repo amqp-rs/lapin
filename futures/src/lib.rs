@@ -15,7 +15,7 @@
 //!
 //! ## Publishing a message
 //!
-//! ```rust
+//! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate amq_protocol;
@@ -68,7 +68,7 @@
 //!
 //! ## Creating a consumer
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate amq_protocol;
@@ -130,15 +130,15 @@
 //! ```
 //!
 
-#[macro_use] extern crate log;
-#[macro_use] extern crate futures;
 extern crate amq_protocol;
-extern crate nom;
+extern crate cookie_factory;
 extern crate bytes;
+#[macro_use] extern crate futures;
+extern crate lapin_async;
+#[macro_use] extern crate log;
+extern crate nom;
 extern crate tokio_io;
 extern crate tokio_timer;
-extern crate lapin_async;
-extern crate cookie_factory;
 
 pub mod client;
 pub mod transport;

@@ -185,13 +185,6 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  fn check_next_answer(&self, channel_id: u16, answer: Answer) -> bool {
-    self.channels
-          .get(&channel_id)
-          .map(|c| c.awaiting.front() == Some(&answer)).unwrap_or(false)
-  }
-
-  #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
     self.channels
           .get_mut(&channel_id)
@@ -351,13 +344,18 @@ impl Connection {
     // do we continue?
     let consumed = data.offset(i);
 
-    self.handle_frame(f);
+    if let Err(e) = self.handle_frame(f) {
+      //FIXME: should probably disconnect on error here
+      let err = format!("failed to handle frame: {:?}", e);
+      self.state = ConnectionState::Error;
+      return Err(Error::new(ErrorKind::Other, err))
+    }
 
     return Ok((consumed, self.state));
   }
 
   /// updates the current state with a new received frame
-  pub fn handle_frame(&mut self, f: Frame) {
+  pub fn handle_frame(&mut self, f: Frame) -> result::Result<(), error::Error> {
     trace!("will handle frame: {:?}", f);
     match f {
       Frame::ProtocolHeader => {
@@ -368,7 +366,7 @@ impl Connection {
         if channel_id == 0 {
           self.handle_global_method(method);
         } else {
-          self.receive_method(channel_id, method);
+          self.receive_method(channel_id, method)?;
         }
       },
       Frame::Heartbeat(_) => {
@@ -381,6 +379,7 @@ impl Connection {
         self.handle_body_frame(channel_id, payload);
       }
     };
+    Ok(())
   }
 
   #[doc(hidden)]
@@ -391,7 +390,7 @@ impl Connection {
       },
       ConnectionState::Connecting(connecting_state) => {
         match connecting_state {
-          ConnectingState::Initial | ConnectingState::Error => {
+          ConnectingState::Initial => {
             self.state = ConnectionState::Error
           },
           ConnectingState::SentProtocolHeader => {
