@@ -117,7 +117,7 @@ fn main() {
       }).and_then(|stream| {
         info!("got consumer stream");
 
-        stream.for_each(|message| {
+        stream.for_each(move|message| {
           debug!("got message: {:?}", message);
           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
           ch.basic_ack(message.delivery_tag);
