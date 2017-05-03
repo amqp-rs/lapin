@@ -778,7 +778,7 @@ impl Connection {
         let method = Class::Exchange(exchange::Methods::Declare(exchange::Declare {
             ticket: ticket,
             exchange: exchange,
-            amqp_type: exchange_type,
+            type_: exchange_type,
             passive: passive,
             durable: durable,
             auto_delete: auto_delete,
