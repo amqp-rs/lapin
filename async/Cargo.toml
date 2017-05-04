@@ -1,6 +1,6 @@
 [package]
 name = "lapin-async"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 description = "AMQP client library with a low level API designed for use with mio"
 repository = "https://github.com/Geal/lapin"
