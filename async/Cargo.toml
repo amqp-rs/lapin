@@ -15,15 +15,15 @@ build = "build.rs"
 log = "^0.3"
 nom = "^2.2"
 cookie-factory = "^0.2"
-amq-protocol = "^0.15"
-clippy = {version = "^0.0.119", optional = true}
+amq-protocol = "^0.16"
+clippy = {version = "^0.0.130", optional = true}
 
 [dependencies.sasl]
 version= "^0.4"
 default-features = false
 
 [build-dependencies]
-amq-protocol = "^0.15"
+amq-protocol = "^0.16"
 
 [dev-dependencies]
 env_logger = "^0.4"
