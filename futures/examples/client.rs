@@ -41,7 +41,7 @@ fn main() {
                   exchange: "hello_exchange".to_string(),
                   ..Default::default()
                 },
-                BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
+                BasicProperties::default().with_reply_to("foobar".to_string())
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
               }).and_then(move |_| {

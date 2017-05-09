@@ -62,14 +62,15 @@ pub struct Configuration {
 #[derive(Clone,Debug,PartialEq)]
 pub struct Credentials {
   username: String,
-  password: String,
+  /// password is stored in an option to remove it from memory once used
+  password: Option<String>,
 }
 
 impl Default for Credentials {
   fn default() -> Credentials {
     Credentials {
       username: "guest".to_string(),
-      password: "guest".to_string(),
+      password: Some("guest".to_string()),
     }
   }
 }
@@ -92,8 +93,7 @@ pub struct Connection {
   pub finished_reqs:     HashSet<RequestId>,
   /// list of finished basic get requests
   pub finished_get_reqs: HashMap<RequestId, bool>,
-  /// credentials are stored in an option to remove them from memory once they are used
-  pub credentials:       Option<Credentials>,
+  pub credentials:       Credentials,
 }
 
 impl Connection {
@@ -120,15 +120,15 @@ impl Connection {
       request_index:     0,
       finished_reqs:     HashSet::new(),
       finished_get_reqs: HashMap::new(),
-      credentials:       None,
+      credentials:       Credentials::default(),
     }
   }
 
   pub fn set_credentials(&mut self, username: &str, password: &str) {
-    self.credentials = Some(Credentials {
+    self.credentials = Credentials {
       username: username.to_string(),
-      password: password.to_string(),
-    });
+      password: Some(password.to_string()),
+    };
   }
 
   pub fn set_vhost(&mut self, vhost: &str) {
@@ -401,11 +401,9 @@ impl Connection {
               let mut h = FieldTable::new();
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
-              let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
-
               let creds = sasl::common::Credentials::default()
-                .with_username(saved_creds.username)
-                .with_password(saved_creds.password);
+                .with_username(self.credentials.username.clone())
+                .with_password(self.credentials.password.take().unwrap_or_else(|| "guest".to_string()));
 
               let mut mechanism = Plain::from_credentials(creds).unwrap();
 
@@ -597,7 +595,10 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::Properties) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], mut properties: basic::Properties) {
+    if properties.user_id.is_none() {
+      properties.user_id = Some(self.credentials.username.clone());
+    }
     let header = ContentHeader {
       class_id:       class_id,
       weight:         0,
