@@ -53,13 +53,12 @@ fn connection() {
         }).and_then(move |stream| {
           info!("got consumer stream");
 
-          stream.into_future().and_then(move |(message, _)| {
+          stream.into_future().map_err(|(err, _)| err).and_then(move |(message, _)| {
             let msg = message.unwrap();
             info!("got message: {:?}", msg);
             assert_eq!(msg.data, b"hello from tokio");
-            ch1.basic_ack(msg.delivery_tag);
-            Ok(())
-          }).map_err(|(err, _)| err).and_then(move |_| {
+            ch1.basic_ack(msg.delivery_tag)
+          }).and_then(move |_| {
             ch2.queue_delete("hello", &QueueDeleteOptions::default())
           })
         })
