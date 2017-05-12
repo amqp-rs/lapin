@@ -11,7 +11,7 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-nom = "^2.2"
+nom = "^3.0"
 log = "^0.3"
 bytes = "^0.4"
 futures = "^0.1"
@@ -19,13 +19,13 @@ tokio-io = "^0.1"
 tokio-timer = "^0.1"
 lapin-async = {version = "^0.8", path = "../async"}
 cookie-factory = "^0.2"
-amq-protocol = "^0.16"
+amq-protocol = "^0.18"
 
 [dev-dependencies]
-nom = "^2.2"
+nom = "^3.0"
 env_logger = "^0.4"
 futures = "^0.1"
-rustls = "^0.7"
+rustls = "^0.8"
 tokio-core = "^0.1"
 tokio-rustls = "^0.2"
 webpki-roots = "^0.10"
