@@ -35,7 +35,7 @@ fn connection() {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.queue_purge("hello").and_then(move |_| {
-            channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
+            channel.basic_publish("", "hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
           })
         })
       }).and_then(move |_| {

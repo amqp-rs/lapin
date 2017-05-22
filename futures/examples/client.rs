@@ -35,12 +35,10 @@ fn main() {
           channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
             channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), FieldTable::new()).and_then(move |_| {
               channel.basic_publish(
+                "hello_exchange",
                 "hello_2",
                 b"hello from tokio",
-                &BasicPublishOptions {
-                  exchange: "hello_exchange".to_string(),
-                  ..Default::default()
-                },
+                &BasicPublishOptions::default(),
                 BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
