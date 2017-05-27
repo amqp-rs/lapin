@@ -87,7 +87,6 @@ impl Default for QueueBindOptions {
 #[derive(Clone,Debug,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
-  pub exchange:  String,
   pub mandatory: bool,
   pub immediate: bool,
 }
@@ -96,7 +95,6 @@ impl Default for BasicPublishOptions {
   fn default() -> BasicPublishOptions {
     BasicPublishOptions {
       ticket:    0,
-      exchange:  "".to_string(),
       mandatory: false,
       immediate: false,
     }
@@ -291,12 +289,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// - `Some(true)` if we're on a confirm channel and the message was ack'd
   /// - `Some(false)` if we're on a confirm channel and the message was nack'd
   /// - `None` if we're not on a confirm channel
-  pub fn basic_publish(&self, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
+  pub fn basic_publish(&self, exchange: &str, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
       //FIXME: does not handle the return messages with mandatory and immediate
-      match transport.conn.basic_publish(self.id, options.ticket, options.exchange.clone(),
+      match transport.conn.basic_publish(self.id, options.ticket, exchange.to_string(),
         queue.to_string(), options.mandatory, options.immediate) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
