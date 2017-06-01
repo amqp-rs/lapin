@@ -143,7 +143,7 @@ impl Connection {
 
             m => {
                 error!("the client should not receive this method: {:?}", m);
-                return Err(Error::InvalidState);
+                return Err(Error::InvalidMethod);
             }
         }
     }
@@ -210,7 +210,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Channel(channel::Methods::Flow(channel::Flow { active: active }));
@@ -233,7 +233,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         self.channels.get_mut(&_channel_id).map(|c| c.send_flow = method.active);
@@ -247,7 +247,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Channel(channel::Methods::FlowOk(channel::FlowOk { active: active }));
@@ -265,7 +265,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -296,7 +296,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Channel(channel::Methods::Close(channel::Close {
@@ -324,7 +324,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         //FIXME: log the error if there is one
@@ -342,7 +342,7 @@ impl Connection {
         }
 
         if ! self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Channel(channel::Methods::CloseOk(channel::CloseOk {}));
@@ -360,7 +360,7 @@ impl Connection {
         }
 
         if ! self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -772,7 +772,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Exchange(exchange::Methods::Declare(exchange::Declare {
@@ -808,7 +808,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -840,7 +840,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Queue(queue::Methods::Declare(queue::Declare {
@@ -878,7 +878,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -915,7 +915,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Queue(queue::Methods::Bind(queue::Bind {
@@ -953,7 +953,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -986,7 +986,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Queue(queue::Methods::Purge(queue::Purge {
@@ -1016,7 +1016,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
 
@@ -1046,7 +1046,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Queue(queue::Methods::Delete(queue::Delete {
@@ -1078,7 +1078,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1108,7 +1108,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Queue(queue::Methods::Unbind(queue::Unbind {
@@ -1140,7 +1140,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1173,7 +1173,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Qos(basic::Qos {
@@ -1203,7 +1203,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1244,7 +1244,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Consume(basic::Consume {
@@ -1281,7 +1281,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1324,7 +1324,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Cancel(basic::Cancel {
@@ -1353,7 +1353,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1387,7 +1387,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Publish(basic::Publish {
@@ -1425,7 +1425,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         error!("receive_basic_amqp_return unimplemented");
@@ -1443,7 +1443,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         self.channels.get_mut(&_channel_id).map(|c| {
@@ -1475,7 +1475,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Get(basic::Get {
@@ -1505,7 +1505,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1544,7 +1544,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1570,7 +1570,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Ack(basic::Ack {
@@ -1591,7 +1591,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Reject(basic::Reject {
@@ -1608,7 +1608,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method =
@@ -1623,7 +1623,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Recover(basic::Recover { requeue: requeue }));
@@ -1649,7 +1649,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1677,7 +1677,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Basic(basic::Methods::Nack(basic::Nack {
@@ -1864,7 +1864,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Confirm(confirm::Methods::Select(confirm::Select { nowait: nowait }));
@@ -1890,7 +1890,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1919,7 +1919,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1959,7 +1959,7 @@ impl Connection {
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::InvalidState);
+            return Err(Error::NotConnected);
         }
 
         match self.get_next_answer(_channel_id) {

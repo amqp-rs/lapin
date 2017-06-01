@@ -5,6 +5,8 @@ pub enum Error {
   GeneratorError,
   ParserError,
   InvalidState,
+  InvalidMethod,
   InvalidChannel,
+  NotConnected,
   UnexpectedAnswer,
 }
