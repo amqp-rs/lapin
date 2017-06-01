@@ -1,6 +1,5 @@
 use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Stream};
-use amq_protocol::types::*;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use std::default::Default;
@@ -9,9 +8,9 @@ use lapin_async::queue::Message;
 use lapin_async::generated::basic;
 
 use transport::*;
+use types::FieldTable;
 use consumer::Consumer;
 use client::wait_for_answer;
-
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]

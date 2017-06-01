@@ -1,8 +1,8 @@
-use amq_protocol::types::*;
 use connection::*;
 use queue::*;
 use generated::*;
 use error::*;
+use types::*;
 use std::collections::{HashSet,VecDeque};
 
 #[derive(Clone,Debug,PartialEq,Eq)]

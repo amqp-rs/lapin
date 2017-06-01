@@ -1,16 +1,15 @@
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
-extern crate amq_protocol;
 extern crate futures;
 extern crate tokio_core;
 extern crate env_logger;
 
-use amq_protocol::types::FieldTable;
 use futures::Stream;
 use futures::future::Future;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 
+use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions};
 

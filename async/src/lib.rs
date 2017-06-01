@@ -128,5 +128,6 @@ pub mod generated;
 pub mod format;
 pub mod api;
 pub mod error;
+pub mod types;
 
 pub use format::*;

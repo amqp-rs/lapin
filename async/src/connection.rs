@@ -2,7 +2,6 @@ use std::{result,str};
 use std::default::Default;
 use std::io::{Error,ErrorKind,Result};
 use std::collections::{HashSet,HashMap,VecDeque};
-use amq_protocol::types::*;
 use nom::{IResult,Offset};
 use sasl;
 use sasl::client::Mechanism;
@@ -16,6 +15,7 @@ use queue::Message;
 use api::{Answer,ChannelState,RequestId};
 use generated::*;
 use error;
+use types::{AMQPValue,FieldTable};
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {

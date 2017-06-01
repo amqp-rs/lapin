@@ -4,8 +4,7 @@ extern crate amq_protocol;
 use std::net::TcpStream;
 use std::{thread,time};
 
-use amq_protocol::types::*;
-
+use lapin::types::*;
 use lapin::connection::*;
 use lapin::buffer::Buffer;
 use lapin::generated::basic;
