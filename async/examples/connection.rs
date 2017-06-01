@@ -1,5 +1,4 @@
 extern crate lapin_async as lapin;
-extern crate amq_protocol;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
