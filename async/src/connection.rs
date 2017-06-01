@@ -14,8 +14,8 @@ use channel::Channel;
 use queue::Message;
 use api::{Answer,ChannelState,RequestId};
 use generated::*;
-use error;
 use types::{AMQPValue,FieldTable};
+use error::{self, InvalidState};
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
@@ -161,10 +161,19 @@ impl Connection {
   ///
   /// returns a Option of the result. None in the case the channel
   /// does not exists
-  pub fn check_state(&self, channel_id: u16, state: ChannelState) -> Option<bool> {
+  pub fn check_state(&self, channel_id: u16, state: ChannelState) -> result::Result<(), error::Error> {
     self.channels
           .get(&channel_id)
-          .map(|c| c.state == state)
+          .map_or(Err(error::Error::InvalidChannel), |c| {
+              if c.state == state {
+                  Ok(())
+              } else {
+                Err(error::Error::InvalidState(InvalidState {
+                    expected: state,
+                    actual:   c.state.clone(),
+                }))
+              }
+          })
   }
 
   /// returns the channel's state

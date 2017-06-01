@@ -157,9 +157,9 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if !self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
+        if let Err(err) = self.check_state(_channel_id, ChannelState::Initial) {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::InvalidState);
+            return Err(err);
         }
 
         let method =
@@ -183,9 +183,9 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        if ! self.check_state(_channel_id, ChannelState::Initial).unwrap_or(false) {
-          self.set_channel_state(_channel_id, ChannelState::Error);
-          return Err(Error::InvalidState);
+        if let Err(err) = self.check_state(_channel_id, ChannelState::Initial) {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(err);
         }
 
         match self.get_next_answer(_channel_id) {
