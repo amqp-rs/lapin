@@ -1,4 +1,4 @@
-use amq_protocol::types::*;
+use types::*;
 use amq_protocol::types::flags::*;
 use amq_protocol::types::generation::*;
 use amq_protocol::types::parsing::*;
@@ -40,7 +40,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 {{#each specs.classes as |class|}}
   pub mod {{snake class.name}} {
     use super::Class;
-    use amq_protocol::types::*;
+    use types::*;
     use amq_protocol::types::flags::*;
     use amq_protocol::types::generation::*;
     use amq_protocol::types::parsing::*;

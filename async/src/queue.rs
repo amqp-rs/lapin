@@ -1,6 +1,6 @@
 use std::collections::{HashMap,VecDeque};
 use generated::basic;
-use amq_protocol::types::*;
+use types::*;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Binding {

@@ -1,4 +1,4 @@
-use amq_protocol::types::*;
+use types::*;
 use format::field::*;
 use format::frame::*;
 use connection::*;
