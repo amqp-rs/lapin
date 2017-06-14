@@ -73,6 +73,12 @@ pub struct QueueBindOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
+pub struct QueuePurgeOptions {
+  pub ticket: u16,
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
   pub mandatory: bool,
@@ -482,11 +488,11 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// Purge a queue.
   ///
   /// This method removes all messages from a queue which are not awaiting acknowledgment.
-  pub fn queue_purge(&self, queue_name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_purge(&self, queue_name: &str, options: &QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_purge(self.id, 0, queue_name.to_string(), false) {
+      match transport.conn.queue_purge(self.id, options.ticket, queue_name.to_string(), options.nowait) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
         ),
