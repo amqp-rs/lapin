@@ -2,7 +2,6 @@ use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
-use std::default::Default;
 use lapin_async::api::RequestId;
 use lapin_async::queue::Message;
 use lapin_async::generated::basic;
@@ -30,7 +29,7 @@ impl<T> Clone for Channel<T> {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
-  pub ticket:    u16,
+  pub ticket:      u16,
   pub passive:     bool,
   pub durable:     bool,
   pub auto_delete: bool,
@@ -39,8 +38,27 @@ pub struct ExchangeDeclareOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
-pub struct QueueDeclareOptions {
+pub struct ExchangeDeleteOptions {
   pub ticket:    u16,
+  pub if_unused: bool,
+  pub nowait:    bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ExchangeBindOptions {
+  pub ticket: u16,
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ExchangeUnbindOptions {
+  pub ticket: u16,
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct QueueDeclareOptions {
+  pub ticket:      u16,
   pub passive:     bool,
   pub durable:     bool,
   pub exclusive:   bool,
@@ -50,7 +68,7 @@ pub struct QueueDeclareOptions {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
-  pub ticket:    u16,
+  pub ticket: u16,
   pub nowait: bool,
 }
 
@@ -114,7 +132,100 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     } else {
       //FIXME: if we're there, it means the mutex failed
       Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+        Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange"))
+      ))
+    }
+  }
+
+  /// deletes an exchange
+  ///
+  /// returns a future that resolves once the exchange is deleted
+  pub fn exchange_delete(&self, name: &str, options: &ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_delete(
+        self.id, options.ticket, name.to_string(), options.if_unused, options.nowait) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_delete request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_delete returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
+      ))
+    }
+  }
+
+  /// binds an exchange to another exchange
+  ///
+  /// returns a future that resolves once the exchanges are bound
+  pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_bind(
+        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_bind request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_bind returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange"))
+      ))
+    }
+  }
+
+  /// unbinds an exchange from another one
+  ///
+  /// returns a future that resolves once the exchanges are unbound
+  pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_unbind(
+        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not unbind exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_unbind request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_unbind returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
       ))
     }
   }
