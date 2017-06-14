@@ -30,6 +30,7 @@ impl<T> Clone for Channel<T> {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
+  pub ticket:    u16,
   pub passive:     bool,
   pub durable:     bool,
   pub auto_delete: bool,
@@ -39,6 +40,7 @@ pub struct ExchangeDeclareOptions {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeclareOptions {
+  pub ticket:    u16,
   pub passive:     bool,
   pub durable:     bool,
   pub exclusive:   bool,
@@ -48,6 +50,7 @@ pub struct QueueDeclareOptions {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
+  pub ticket:    u16,
   pub nowait: bool,
 }
 
@@ -77,6 +80,7 @@ pub struct BasicGetOptions {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeleteOptions {
+  pub ticket:    u16,
   pub if_unused: bool,
   pub if_empty:  bool,
   pub no_wait:   bool,
@@ -91,7 +95,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.exchange_declare(
-        self.id, 0, name.to_string(), exchange_type.to_string(),
+        self.id, options.ticket, name.to_string(), exchange_type.to_string(),
         options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange: {:?}", e)))
@@ -126,7 +130,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_declare(
-        self.id, 0, name.to_string(),
+        self.id, options.ticket, name.to_string(),
         options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
@@ -158,7 +162,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_bind(
-        self.id, 0, name.to_string(), exchange.to_string(), routing_key.to_string(),
+        self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
         options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind queue: {:?}", e)))
@@ -407,7 +411,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_delete(self.id, 0, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
+      match transport.conn.queue_delete(self.id, options.ticket, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
         ),
