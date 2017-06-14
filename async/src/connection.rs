@@ -52,7 +52,7 @@ pub enum ClosingState {
   Error,
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct Configuration {
   channel_max:   u16,
   pub frame_max: u32,
@@ -102,11 +102,7 @@ impl Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
-    let configuration = Configuration {
-      channel_max: 0,
-      frame_max:   8192,
-      heartbeat:   60,
-    };
+    let configuration = Configuration::default();
 
     Connection {
       state:             ConnectionState::Initial,

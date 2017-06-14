@@ -31,8 +31,8 @@ impl Default for ConnectionOptions {
       username:  "guest".to_string(),
       password:  "guest".to_string(),
       vhost:     "/".to_string(),
-      frame_max: 8192,
-      heartbeat: 60,
+      frame_max: 0,
+      heartbeat: 0,
     }
   }
 }
