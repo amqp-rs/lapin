@@ -2,7 +2,6 @@ use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
-use std::default::Default;
 use lapin_async::api::RequestId;
 use lapin_async::queue::Message;
 use lapin_async::generated::basic;
@@ -28,8 +27,9 @@ impl<T> Clone for Channel<T> {
   }
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
+  pub ticket:      u16,
   pub passive:     bool,
   pub durable:     bool,
   pub auto_delete: bool,
@@ -37,20 +37,28 @@ pub struct ExchangeDeclareOptions {
   pub nowait:      bool,
 }
 
-impl Default for ExchangeDeclareOptions {
-  fn default() -> ExchangeDeclareOptions {
-    ExchangeDeclareOptions {
-      passive:     false,
-      durable:     false,
-      auto_delete: false,
-      internal:    false,
-      nowait:      false,
-    }
-  }
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ExchangeDeleteOptions {
+  pub ticket:    u16,
+  pub if_unused: bool,
+  pub nowait:    bool,
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ExchangeBindOptions {
+  pub ticket: u16,
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ExchangeUnbindOptions {
+  pub ticket: u16,
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeclareOptions {
+  pub ticket:      u16,
   pub passive:     bool,
   pub durable:     bool,
   pub exclusive:   bool,
@@ -58,51 +66,28 @@ pub struct QueueDeclareOptions {
   pub nowait:      bool,
 }
 
-impl Default for QueueDeclareOptions {
-  fn default() -> QueueDeclareOptions {
-    QueueDeclareOptions {
-      passive:     false,
-      durable:     false,
-      exclusive:   false,
-      auto_delete: false,
-      nowait:      false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
+  pub ticket: u16,
   pub nowait: bool,
 }
 
-impl Default for QueueBindOptions {
-  fn default() -> QueueBindOptions {
-    QueueBindOptions {
-      nowait: false,
-    }
-  }
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct QueuePurgeOptions {
+  pub ticket: u16,
+  pub nowait: bool,
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
   pub mandatory: bool,
   pub immediate: bool,
 }
 
-impl Default for BasicPublishOptions {
-  fn default() -> BasicPublishOptions {
-    BasicPublishOptions {
-      ticket:    0,
-      mandatory: false,
-      immediate: false,
-    }
-  }
-}
-
 pub type BasicProperties = basic::Properties;
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicConsumeOptions {
   pub ticket:    u16,
   pub no_local:  bool,
@@ -111,48 +96,18 @@ pub struct BasicConsumeOptions {
   pub no_wait:   bool,
 }
 
-impl Default for BasicConsumeOptions {
-  fn default() -> BasicConsumeOptions {
-    BasicConsumeOptions {
-      ticket:    0,
-      no_local:  false,
-      no_ack:    false,
-      exclusive: false,
-      no_wait:   false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicGetOptions {
   pub ticket:    u16,
   pub no_ack:    bool,
 }
 
-impl Default for BasicGetOptions {
-  fn default() -> BasicGetOptions {
-    BasicGetOptions {
-      ticket:    0,
-      no_ack:    false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeleteOptions {
+  pub ticket:    u16,
   pub if_unused: bool,
   pub if_empty:  bool,
   pub no_wait:   bool,
-}
-
-impl Default for QueueDeleteOptions {
-  fn default() -> QueueDeleteOptions {
-    QueueDeleteOptions {
-      if_unused: false,
-      if_empty:  false,
-      no_wait:   false,
-    }
-  }
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
@@ -164,7 +119,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.exchange_declare(
-        self.id, 0, name.to_string(), exchange_type.to_string(),
+        self.id, options.ticket, name.to_string(), exchange_type.to_string(),
         options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange: {:?}", e)))
@@ -183,7 +138,100 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     } else {
       //FIXME: if we're there, it means the mutex failed
       Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
+        Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange"))
+      ))
+    }
+  }
+
+  /// deletes an exchange
+  ///
+  /// returns a future that resolves once the exchange is deleted
+  pub fn exchange_delete(&self, name: &str, options: &ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_delete(
+        self.id, options.ticket, name.to_string(), options.if_unused, options.nowait) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_delete request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_delete returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
+      ))
+    }
+  }
+
+  /// binds an exchange to another exchange
+  ///
+  /// returns a future that resolves once the exchanges are bound
+  pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_bind(
+        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_bind request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_bind returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange"))
+      ))
+    }
+  }
+
+  /// unbinds an exchange from another one
+  ///
+  /// returns a future that resolves once the exchanges are unbound
+  pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.exchange_unbind(
+        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not unbind exchange: {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("exchange_unbind request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("exchange_unbind returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
       ))
     }
   }
@@ -199,7 +247,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_declare(
-        self.id, 0, name.to_string(),
+        self.id, options.ticket, name.to_string(),
         options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
@@ -231,7 +279,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     if let Ok(mut transport) = self.transport.lock() {
       match transport.conn.queue_bind(
-        self.id, 0, name.to_string(), exchange.to_string(), routing_key.to_string(),
+        self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
         options.nowait, arguments) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind queue: {:?}", e)))
@@ -440,11 +488,11 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   /// Purge a queue.
   ///
   /// This method removes all messages from a queue which are not awaiting acknowledgment.
-  pub fn queue_purge(&self, queue_name: &str) -> Box<Future<Item = (), Error = io::Error>> {
+  pub fn queue_purge(&self, queue_name: &str, options: &QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error>> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_purge(self.id, 0, queue_name.to_string(), false) {
+      match transport.conn.queue_purge(self.id, options.ticket, queue_name.to_string(), options.nowait) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
         ),
@@ -480,7 +528,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     let cl_transport = self.transport.clone();
 
     if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_delete(self.id, 0, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
+      match transport.conn.queue_delete(self.id, options.ticket, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
         ),

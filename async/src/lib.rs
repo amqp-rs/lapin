@@ -107,9 +107,6 @@
 //! }
 //! ```
 
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
-
 extern crate amq_protocol;
 #[macro_use]
 extern crate log;

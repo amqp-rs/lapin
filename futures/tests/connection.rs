@@ -11,7 +11,7 @@ use tokio_core::net::TcpStream;
 
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions};
+use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
 
 #[test]
 fn connection() {
@@ -33,7 +33,7 @@ fn connection() {
         channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.queue_purge("hello").and_then(move |_| {
+          channel.queue_purge("hello", &QueuePurgeOptions::default()).and_then(move |_| {
             channel.basic_publish("", "hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
           })
         })
