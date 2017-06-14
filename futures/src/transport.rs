@@ -15,7 +15,9 @@ use tokio_timer::{Interval,Timer};
 use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
-pub struct AMQPCodec;
+pub struct AMQPCodec {
+    pub frame_max: u32,
+}
 
 impl Decoder for AMQPCodec {
     type Item = Frame;
@@ -47,10 +49,11 @@ impl Encoder for AMQPCodec {
     type Error = io::Error;
 
     fn encode(&mut self, frame: Frame, buf: &mut BytesMut) -> Result<(), Self::Error> {
-      let length = buf.len();
-      if length < 8192 {
+      let length    = buf.len();
+      let frame_max = self.frame_max as usize;
+      if length < frame_max {
         //reserve more capacity and intialize it
-        buf.extend(repeat(0).take(8192 - length));
+        buf.extend(repeat(0).take(frame_max - length));
       }
       trace!("will encode and write frame: {:?}", frame);
 
@@ -110,7 +113,7 @@ impl<T> AMQPTransport<T>
   /// starts the connection process
   ///
   /// returns a future of a `AMQPTransport` that is connected
-  pub fn connect(upstream: Framed<T,AMQPCodec>, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error>> {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
@@ -121,8 +124,11 @@ impl<T> AMQPTransport<T>
       return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
     }
 
+    let codec = AMQPCodec {
+      frame_max: conn.configuration.frame_max,
+    };
     let mut t = AMQPTransport {
-      upstream:  upstream,
+      upstream:  stream.framed(codec),
       heartbeat: Timer::default().interval(Duration::from_secs(conn.configuration.heartbeat as u64)),
       conn:      conn,
     };

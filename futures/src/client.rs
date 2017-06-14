@@ -43,7 +43,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   /// this method returns a future that resolves once the connection handshake is done.
   /// The result is a client that can be used to create a channel
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = Client<T>, Error = io::Error>> {
-    Box::new(AMQPTransport::connect(stream.framed(AMQPCodec), options).and_then(|transport| {
+    Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let client = Client {
         transport: Arc::new(Mutex::new(transport)),
