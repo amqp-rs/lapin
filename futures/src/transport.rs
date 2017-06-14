@@ -5,6 +5,7 @@ use lapin_async::format::frame::*;
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
 use bytes::BytesMut;
+use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
 use std::time::Duration;
@@ -50,7 +51,9 @@ impl Encoder for AMQPCodec {
 
     fn encode(&mut self, frame: Frame, buf: &mut BytesMut) -> Result<(), Self::Error> {
       let length    = buf.len();
-      let frame_max = self.frame_max as usize;
+      // Ensure we at least allocate 8192 so that the buffer is big enough for the frame_max
+      // negociation. Afterwards, use frame_max if > 8192.
+      let frame_max = cmp::max(self.frame_max, 8192) as usize;
       if length < frame_max {
         //reserve more capacity and intialize it
         buf.extend(repeat(0).take(frame_max - length));
