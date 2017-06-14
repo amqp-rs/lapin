@@ -72,26 +72,19 @@ impl Connection {
             Class::Access(access::Methods::RequestOk(m)) => {
                 self.receive_access_request_ok(channel_id, m)
             }
-
-            Class::Exchange(exchange::Methods::DeleteOk(m)) => {
-                self.receive_exchange_delete_ok(channel_id, m)
-            }
-            Class::Exchange(exchange::Methods::Bind(m)) => {
-                self.receive_exchange_bind(channel_id, m)
-            }
-            Class::Exchange(exchange::Methods::BindOk(m)) => {
-                self.receive_exchange_bind_ok(channel_id, m)
-            }
-            Class::Exchange(exchange::Methods::Unbind(m)) => {
-                self.receive_exchange_unbind(channel_id, m)
-            }
-            Class::Exchange(exchange::Methods::UnbindOk(m)) => {
-                self.receive_exchange_unbind_ok(channel_id, m)
-            }
             */
 
             Class::Exchange(exchange::Methods::DeclareOk(m)) => {
                 self.receive_exchange_declare_ok(channel_id, m)
+            }
+            Class::Exchange(exchange::Methods::DeleteOk(m)) => {
+                self.receive_exchange_delete_ok(channel_id, m)
+            }
+            Class::Exchange(exchange::Methods::BindOk(m)) => {
+                self.receive_exchange_bind_ok(channel_id, m)
+            }
+            Class::Exchange(exchange::Methods::UnbindOk(m)) => {
+                self.receive_exchange_unbind_ok(channel_id, m)
             }
 
             Class::Queue(queue::Methods::DeclareOk(m)) => {
@@ -449,310 +442,7 @@ impl Connection {
 
         Ok(())
     }
-
-    pub fn exchange_delete(&mut self,
-                           _channel_id: u16,
-                           ticket: ShortUInt,
-                           exchange: ShortString,
-                           if_unused: Boolean,
-                           nowait: Boolean)
-                           -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::Delete(exchange::Delete {
-            ticket: ticket,
-            exchange: exchange,
-            if_unused: if_unused,
-            nowait: nowait,
-        }));
-
-        self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingExchangeDeleteOk;
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-        })
-    }
-
-    pub fn receive_exchange_delete_ok(&mut self,
-                                      _channel_id: u16,
-                                      method: exchange::DeleteOk)
-                                      -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingExchangeDeleteOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.DeleteOk, ignoring packet");
-
-
-        Ok(())
-    }
-
-    pub fn exchange_bind(&mut self,
-                         _channel_id: u16,
-                         ticket: ShortUInt,
-                         destination: ShortString,
-                         source: ShortString,
-                         routing_key: ShortString,
-                         nowait: Boolean,
-                         arguments: FieldTable)
-                         -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::Bind(exchange::Bind {
-            ticket: ticket,
-            destination: destination,
-            source: source,
-            routing_key: routing_key,
-            nowait: nowait,
-            arguments: arguments,
-        }));
-
-        self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingExchangeBindOk;
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-        })
-    }
-
-    pub fn receive_exchange_bind(&mut self,
-                                 _channel_id: u16,
-                                 method: exchange::Bind)
-                                 -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.Bind, ignoring packet");
-
-
-        Ok(())
-    }
-
-    pub fn exchange_bind_ok(&mut self, _channel_id: u16) -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::BindOk(exchange::BindOk {}));
-        self.send_method_frame(_channel_id, method)
-    }
-
-    pub fn receive_exchange_bind_ok(&mut self,
-                                    _channel_id: u16,
-                                    method: exchange::BindOk)
-                                    -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingExchangeBindOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.BindOk, ignoring packet");
-
-
-        Ok(())
-    }
-
-    pub fn exchange_unbind(&mut self,
-                           _channel_id: u16,
-                           ticket: ShortUInt,
-                           destination: ShortString,
-                           source: ShortString,
-                           routing_key: ShortString,
-                           nowait: Boolean,
-                           arguments: FieldTable)
-                           -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::Unbind(exchange::Unbind {
-            ticket: ticket,
-            destination: destination,
-            source: source,
-            routing_key: routing_key,
-            nowait: nowait,
-            arguments: arguments,
-        }));
-
-        self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingExchangeUnbindOk;
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-        })
-    }
-
-    pub fn receive_exchange_unbind(&mut self,
-                                   _channel_id: u16,
-                                   method: exchange::Unbind)
-                                   -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.Unbind, ignoring packet");
-
-
-        Ok(())
-    }
-
-    pub fn exchange_unbind_ok(&mut self, _channel_id: u16) -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
-        }
-
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
-        }
-
-        let method = Class::Exchange(exchange::Methods::UnbindOk(exchange::UnbindOk {}));
-        self.send_method_frame(_channel_id, method)
-    }
-
-    pub fn receive_exchange_unbind_ok(&mut self,
-                                      _channel_id: u16,
-                                      method: exchange::UnbindOk)
-                                      -> Result<(), Error> {
-
-        if !self.channels.contains_key(&_channel_id) {
-            trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
-        }
-
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingExchangeUnbindOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
-        }
-
-        error!("unimplemented method Exchange.UnbindOk, ignoring packet");
-
-
-        Ok(())
-    }
-*/
+    */
 
     pub fn exchange_declare(&mut self,
                             _channel_id: u16,
@@ -813,6 +503,194 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingExchangeDeclareOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
+
+
+    pub fn exchange_delete(&mut self,
+                           _channel_id: u16,
+                           ticket: ShortUInt,
+                           exchange: ShortString,
+                           if_unused: Boolean,
+                           nowait: Boolean)
+                           -> Result<RequestId, Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        let method = Class::Exchange(exchange::Methods::Delete(exchange::Delete {
+            ticket: ticket,
+            exchange: exchange,
+            if_unused: if_unused,
+            nowait: nowait,
+        }));
+
+        self.send_method_frame(_channel_id, method).map(|_| {
+          let request_id = self.next_request_id();
+          self.channels.get_mut(&_channel_id).map(|c| {
+              c.awaiting.push_back(Answer::AwaitingExchangeDeleteOk(request_id));
+              trace!("channel {} state is now {:?}", _channel_id, c.state);
+          });
+          request_id
+        })
+    }
+
+    pub fn receive_exchange_delete_ok(&mut self,
+                                      _channel_id: u16,
+                                      _: exchange::DeleteOk)
+                                      -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingExchangeDeleteOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
+
+    pub fn exchange_bind(&mut self,
+                         _channel_id: u16,
+                         ticket: ShortUInt,
+                         destination: ShortString,
+                         source: ShortString,
+                         routing_key: ShortString,
+                         nowait: Boolean,
+                         arguments: FieldTable)
+                         -> Result<RequestId, Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        let method = Class::Exchange(exchange::Methods::Bind(exchange::Bind {
+            ticket: ticket,
+            destination: destination,
+            source: source,
+            routing_key: routing_key,
+            nowait: nowait,
+            arguments: arguments,
+        }));
+
+        self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
+            self.channels.get_mut(&_channel_id).map(|c| {
+                c.awaiting.push_back(Answer::AwaitingExchangeBindOk(request_id));
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
+            });
+            request_id
+        })
+    }
+
+    pub fn receive_exchange_bind_ok(&mut self,
+                                    _channel_id: u16,
+                                    _: exchange::BindOk)
+                                    -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingExchangeBindOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
+    }
+
+    pub fn exchange_unbind(&mut self,
+                           _channel_id: u16,
+                           ticket: ShortUInt,
+                           destination: ShortString,
+                           source: ShortString,
+                           routing_key: ShortString,
+                           nowait: Boolean,
+                           arguments: FieldTable)
+                           -> Result<RequestId, Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        let method = Class::Exchange(exchange::Methods::Unbind(exchange::Unbind {
+            ticket: ticket,
+            destination: destination,
+            source: source,
+            routing_key: routing_key,
+            nowait: nowait,
+            arguments: arguments,
+        }));
+
+        self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
+            self.channels.get_mut(&_channel_id).map(|c| {
+                c.awaiting.push_back(Answer::AwaitingExchangeUnbindOk(request_id));
+                trace!("channel {} state is now {:?}", _channel_id, c.state);
+            });
+            request_id
+        })
+    }
+
+    pub fn receive_exchange_unbind_ok(&mut self,
+                                      _channel_id: u16,
+                                      _: exchange::UnbindOk)
+                                      -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(Error::InvalidChannel);
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
+        }
+
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingExchangeUnbindOk(request_id)) => {
             self.finished_reqs.insert(request_id);
             Ok(())
           },
