@@ -28,7 +28,7 @@ impl<T> Clone for Channel<T> {
   }
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
   pub passive:     bool,
   pub durable:     bool,
@@ -37,19 +37,7 @@ pub struct ExchangeDeclareOptions {
   pub nowait:      bool,
 }
 
-impl Default for ExchangeDeclareOptions {
-  fn default() -> ExchangeDeclareOptions {
-    ExchangeDeclareOptions {
-      passive:     false,
-      durable:     false,
-      auto_delete: false,
-      internal:    false,
-      nowait:      false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeclareOptions {
   pub passive:     bool,
   pub durable:     bool,
@@ -58,51 +46,21 @@ pub struct QueueDeclareOptions {
   pub nowait:      bool,
 }
 
-impl Default for QueueDeclareOptions {
-  fn default() -> QueueDeclareOptions {
-    QueueDeclareOptions {
-      passive:     false,
-      durable:     false,
-      exclusive:   false,
-      auto_delete: false,
-      nowait:      false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
   pub nowait: bool,
 }
 
-impl Default for QueueBindOptions {
-  fn default() -> QueueBindOptions {
-    QueueBindOptions {
-      nowait: false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
   pub mandatory: bool,
   pub immediate: bool,
 }
 
-impl Default for BasicPublishOptions {
-  fn default() -> BasicPublishOptions {
-    BasicPublishOptions {
-      ticket:    0,
-      mandatory: false,
-      immediate: false,
-    }
-  }
-}
-
 pub type BasicProperties = basic::Properties;
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicConsumeOptions {
   pub ticket:    u16,
   pub no_local:  bool,
@@ -111,48 +69,17 @@ pub struct BasicConsumeOptions {
   pub no_wait:   bool,
 }
 
-impl Default for BasicConsumeOptions {
-  fn default() -> BasicConsumeOptions {
-    BasicConsumeOptions {
-      ticket:    0,
-      no_local:  false,
-      no_ack:    false,
-      exclusive: false,
-      no_wait:   false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicGetOptions {
   pub ticket:    u16,
   pub no_ack:    bool,
 }
 
-impl Default for BasicGetOptions {
-  fn default() -> BasicGetOptions {
-    BasicGetOptions {
-      ticket:    0,
-      no_ack:    false,
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeleteOptions {
   pub if_unused: bool,
   pub if_empty:  bool,
   pub no_wait:   bool,
-}
-
-impl Default for QueueDeleteOptions {
-  fn default() -> QueueDeleteOptions {
-    QueueDeleteOptions {
-      if_unused: false,
-      if_empty:  false,
-      no_wait:   false,
-    }
-  }
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
