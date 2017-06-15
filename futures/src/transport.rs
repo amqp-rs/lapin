@@ -155,13 +155,15 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
-  fn poll_heartbeat(&mut self) {
+  fn poll_heartbeat(&mut self) -> Result<(), io::Error> {
     if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
       trace!("Sending heartbeat");
       if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
         error!("Failed to send heartbeat: {:?}", e);
+        return Err(e);
       }
     }
+    Ok(())
   }
 
   fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
@@ -183,7 +185,7 @@ impl<T> AMQPTransport<T>
         let err = format!("failed to handle frame: {:?}", e);
         return Err(io::Error::new(io::ErrorKind::Other, err));
       }
-      self.send_frames();
+      self.send_frames()?;
       Ok(Async::Ready(Some(())))
     } else {
       error!("upstream poll gave Ready(None)");
@@ -192,18 +194,19 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
-    self.send_frames();
+    self.send_frames()?;
     self.handle_frames()
   }
 
-  pub fn send_frames(&mut self) {
+  fn send_frames(&mut self) -> Result<(), io::Error> {
     //FIXME: find a way to use a future here
     while let Some(f) = self.conn.next_frame() {
       if let Err(e) = self.send_frame(f) {
         error!("Failed to send frame: {:?}", e);
-        break;
+        return Err(e);
       }
     }
+    Ok(())
   }
 
   fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
@@ -279,7 +282,7 @@ impl<T> Stream for AMQPTransport<T>
 
     fn poll(&mut self) -> Poll<Option<()>, io::Error> {
       trace!("stream poll");
-      self.poll_heartbeat();
+      self.poll_heartbeat()?;
       self.poll_upstream()
     }
 }
