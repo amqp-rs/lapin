@@ -28,6 +28,15 @@ impl<T> Clone for Channel<T> {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
+pub struct AccessRequestOptions {
+  pub exclusive: bool,
+  pub passive:   bool,
+  pub active:    bool,
+  pub write:     bool,
+  pub read:      bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
   pub ticket:      u16,
   pub passive:     bool,
@@ -111,6 +120,37 @@ pub struct QueueDeleteOptions {
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
+  /// request access
+  ///
+  /// returns a future that resolves once the access is granted
+  pub fn access_request(&self, realm: &str, options: &AccessRequestOptions) -> Box<Future<Item = (), Error = io::Error>> {
+    let cl_transport = self.transport.clone();
+
+    if let Ok(mut transport) = self.transport.lock() {
+      match transport.conn.access_request(
+        self.id, realm.to_string(), options.exclusive, options.passive, options.active, options.write, options.read) {
+        Err(e) => Box::new(
+          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not request access {:?}", e)))
+        ),
+        Ok(request_id) => {
+          trace!("access_request request id: {}", request_id);
+          if let Err(e) = transport.send_and_handle_frames() {
+            let err = format!("Failed to handle frames: {:?}", e);
+            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+          }
+
+          trace!("access_request returning closure");
+          wait_for_answer(cl_transport, request_id)
+        },
+      }
+    } else {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(
+        Error::new(ErrorKind::ConnectionAborted, format!("could not request access"))
+      ))
+    }
+  }
+
   /// creates an exchange
   ///
   /// returns a future that resolves once the exchange is available
