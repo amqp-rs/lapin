@@ -16,7 +16,6 @@ log = "^0.3"
 nom = "^3.0"
 cookie-factory = "^0.2"
 amq-protocol = "^0.18"
-clippy = {version = "^0.0.135", optional = true}
 
 [dependencies.sasl]
 version= "^0.4"
