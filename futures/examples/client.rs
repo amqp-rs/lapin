@@ -10,7 +10,7 @@ use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ExchangeDeclareOptions,QueueBindOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
 
 fn main() {
   env_logger::init().unwrap();
@@ -42,7 +42,13 @@ fn main() {
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
               }).and_then(move |_| {
-                channel.close(200, "Bye".to_string())
+                channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), FieldTable::new()).and_then(move |_| {
+                    channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), FieldTable::new()).and_then(move |_| {
+                        channel.exchange_delete("hello_exchange", &ExchangeDeleteOptions::default()).and_then(move |_| {
+                            channel.close(200, "Bye".to_string())
+                        })
+                    })
+                })
               })
             })
           })
