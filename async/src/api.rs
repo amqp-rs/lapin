@@ -68,11 +68,9 @@ impl Connection {
                 self.receive_channel_close_ok(channel_id, m)
             }
 
-            /*
             Class::Access(access::Methods::RequestOk(m)) => {
                 self.receive_access_request_ok(channel_id, m)
             }
-            */
 
             Class::Exchange(exchange::Methods::DeclareOk(m)) => {
                 self.receive_exchange_declare_ok(channel_id, m)
@@ -370,7 +368,6 @@ impl Connection {
         Ok(())
     }
 
-    /*
     pub fn access_request(&mut self,
                           _channel_id: u16,
                           realm: ShortString,
@@ -379,17 +376,15 @@ impl Connection {
                           active: Boolean,
                           write: Boolean,
                           read: Boolean)
-                          -> Result<(), Error> {
+                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
             return Err(Error::InvalidChannel);
         }
 
-        if !self.channels
-            .get_mut(&_channel_id)
-            .map(|c| c.state == ChannelState::Connected)
-            .unwrap_or(false) {
-            return Err(Error::InvalidState);
+        if ! self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
         }
 
         let method = Class::Access(access::Methods::Request(access::Request {
@@ -402,17 +397,19 @@ impl Connection {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
+            let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
-                c.state = ChannelState::AwaitingAccessRequestOk;
+                c.awaiting.push_back(Answer::AwaitingAccessRequestOk(request_id));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
+            request_id
         })
     }
 
 
     pub fn receive_access_request_ok(&mut self,
                                      _channel_id: u16,
-                                     method: access::RequestOk)
+                                     _: access::RequestOk)
                                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -420,29 +417,21 @@ impl Connection {
             return Err(Error::InvalidChannel);
         }
 
-        match self.channels.get_mut(&_channel_id).map(|c| c.state.clone()).unwrap() {
-            ChannelState::Initial | ChannelState::Connected => {}
-            ChannelState::Error |
-            ChannelState::Closed |
-            ChannelState::SendingContent(_) |
-            ChannelState::ReceivingContent(_,_) => {
-                return Err(Error::InvalidState);
-            }
-            ChannelState::AwaitingAccessRequestOk => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Connected);
-            }
-            _ => {
-                self.channels.get_mut(&_channel_id).map(|c| c.state = ChannelState::Error);
-                return Err(Error::InvalidState);
-            }
+        if !self.is_connected(_channel_id) {
+            return Err(Error::NotConnected);
         }
 
-        error!("unimplemented method Access.RequestOk, ignoring packet");
-
-
-        Ok(())
+        match self.get_next_answer(_channel_id) {
+          Some(Answer::AwaitingAccessRequestOk(request_id)) => {
+            self.finished_reqs.insert(request_id);
+            Ok(())
+          },
+          _ => {
+            self.set_channel_state(_channel_id, ChannelState::Error);
+            return Err(Error::UnexpectedAnswer);
+          }
+        }
     }
-    */
 
     pub fn exchange_declare(&mut self,
                             _channel_id: u16,
