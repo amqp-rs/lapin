@@ -52,10 +52,10 @@ pub enum ClosingState {
   Error,
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct Configuration {
   channel_max:   u16,
-  frame_max:     u32,
+  pub frame_max: u32,
   pub heartbeat: u16,
 }
 
@@ -102,11 +102,7 @@ impl Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
-    let configuration = Configuration {
-      channel_max: 0,
-      frame_max:   8192,
-      heartbeat:   60,
-    };
+    let configuration = Configuration::default();
 
     Connection {
       state:             ConnectionState::Initial,
@@ -137,6 +133,10 @@ impl Connection {
 
   pub fn set_heartbeat(&mut self, heartbeat: u16) {
     self.configuration.heartbeat = heartbeat;
+  }
+
+  pub fn set_frame_max(&mut self, frame_max: u32) {
+    self.configuration.frame_max = frame_max;
   }
 
   /// creates a `Channel` object in initial state
@@ -457,13 +457,15 @@ impl Connection {
                 self.configuration.heartbeat = t.heartbeat;
               }
 
-              if t.frame_max > self.configuration.frame_max {
-                //FIXME: what do we do without the buffers available?
-                //self.send_buffer.grow(t.frame_max as usize);
-                //self.receive_buffer.grow(t.frame_max as usize);
+              if t.frame_max != 0 {
+                if self.configuration.frame_max == 0 {
+                  // 0 means we want to take the server's value
+                  self.configuration.frame_max = t.frame_max;
+                } else if t.frame_max < self.configuration.frame_max {
+                  // If both us and the server specified a frame_max, pick the lowest value.
+                  self.configuration.frame_max = t.frame_max;
+                }
               }
-
-              self.configuration.frame_max = t.frame_max;
 
               let tune_ok = Class::Connection(connection::Methods::TuneOk(
                 connection::TuneOk {

@@ -38,6 +38,7 @@
 //!
 //! ```rust,ignore
 //!   let mut conn: Connection = Connection::new();
+//!   conn.set_frame_max(capacity);
 //!   loop {
 //!     match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
 //!       Err(e) => panic!("could not connect: {:?}", e),
@@ -47,6 +48,13 @@
 //!     thread::sleep(time::Duration::from_millis(100));
 //!   }
 //!   println!("CONNECTED");
+//!
+//!   let frame_max = conn.configuration.frame_max;
+//!   if frame_max > capacity {
+//!     send_buffer.grow(frame_max as usize);
+//!     receive_buffer.grow(frame_max as usize);
+//!   }
+//!
 //! ```
 //!
 //! The [`run` method](https://docs.rs/lapin-async/0.1.0/lapin_async/connection/struct.Connection.html#method.run)
