@@ -379,7 +379,7 @@ impl Connection {
         }
       },
       Frame::Heartbeat(_) => {
-        self.frame_queue.push_back(Frame::Heartbeat(0));
+        debug!("received heartbeat from server");
       },
       Frame::Header(channel_id, _, header) => {
         self.handle_content_header_frame(channel_id, header.body_size, header.properties);
