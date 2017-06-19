@@ -20,13 +20,13 @@ impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Option<Message>, io::Error> {
-    //trace!("consumer[{}] poll", self.consumer_tag);
+    trace!("consumer[{}] poll", self.consumer_tag);
     if let Ok(mut transport) = self.transport.try_lock() {
       transport.handle_frames()?;
       //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
       if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
         transport.poll()?;
-        //debug!("consumer[{}] ready", self.consumer_tag);
+        trace!("consumer[{}] ready", self.consumer_tag);
         Ok(Async::Ready(Some(message)))
       } else {
         transport.poll()?;

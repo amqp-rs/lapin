@@ -167,6 +167,7 @@ impl<T> AMQPTransport<T>
   }
 
   fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
+    trace!("poll upstream");
     let value = match self.upstream.poll() {
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
@@ -200,6 +201,7 @@ impl<T> AMQPTransport<T>
 
   fn send_frames(&mut self) -> Result<(), io::Error> {
     //FIXME: find a way to use a future here
+    trace!("send frames");
     while let Some(f) = self.conn.next_frame() {
       if let Err(e) = self.send_frame(f) {
         error!("Failed to send frame: {:?}", e);
@@ -214,6 +216,7 @@ impl<T> AMQPTransport<T>
   }
 
   pub fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
+    trace!("handle frames");
     for _ in 0..30 {
       if try_ready!(self.poll()).is_none() {
         return Ok(Async::Ready(None));
