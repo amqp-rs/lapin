@@ -136,6 +136,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("access_request request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -168,6 +169,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("exchange_declare request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -199,6 +201,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("exchange_delete request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -230,6 +233,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("exchange_bind request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -261,6 +265,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("exchange_unbind request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -296,6 +301,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("queue_declare request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -328,6 +334,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("queue_bind request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -356,6 +363,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("confirm select request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -389,11 +397,13 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(delivery_tag) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
           transport.conn.send_content_frames(self.id, 60, payload, properties);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -430,6 +440,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(request_id) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -465,6 +476,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(_) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
           Box::new(future::ok(()))
@@ -488,6 +500,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(_) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
           Box::new(future::ok(()))
@@ -512,6 +525,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(request_id) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
           wait_for_basic_get_answer(cl_transport, request_id, self.id, queue)
@@ -540,6 +554,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("purge request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -576,6 +591,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           trace!("delete request id: {}", request_id);
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
 
@@ -601,6 +617,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Ok(_) => {
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
+            trace!("{}", err);
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
           }
           Box::new(future::ok(()))

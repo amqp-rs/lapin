@@ -108,6 +108,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 
 /// internal method to wait until a specific request succeeded
 pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
+  trace!("wait for answer for request {}", request_id);
   Box::new(future::poll_fn(move || {
     let connected = if let Ok(mut tr) = transport.try_lock() {
       tr.handle_frames()?;
