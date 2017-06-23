@@ -137,10 +137,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not request access"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -162,10 +159,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -186,10 +180,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -210,10 +201,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -234,10 +222,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -262,10 +247,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -287,10 +269,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -308,10 +287,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-      Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -353,10 +329,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -398,10 +371,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -417,10 +387,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -436,10 +403,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -462,10 +426,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -485,10 +446,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue {}", queue_name))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -514,10 +472,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue {}", queue_name))
-      ))
+        Self::mutex_failed()
     }
   }
 
@@ -533,11 +488,13 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         },
       }
     } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not close channel"))
-      ))
+        Self::mutex_failed()
     }
+  }
+
+  fn mutex_failed<I: 'static>() -> Box<Future<Item = I, Error = io::Error>> {
+      //FIXME: if we're there, it means the mutex failed
+      Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
   }
 
   fn process_frames(transport: &mut AMQPTransport<T>, cl_transport: Option<Arc<Mutex<AMQPTransport<T>>>>, method: &str, request_id: Option<RequestId>) -> Box<Future<Item = (), Error = io::Error>> {
