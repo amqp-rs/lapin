@@ -1,3 +1,4 @@
+use lapin_async;
 use std::default::Default;
 use std::io;
 use futures::{future,Future};
@@ -10,7 +11,8 @@ use channel::{Channel, ConfirmSelectOptions};
 /// the Client structures connects to a server and creates channels
 #[derive(Clone)]
 pub struct Client<T> {
-    transport: Arc<Mutex<AMQPTransport<T>>>,
+    transport:         Arc<Mutex<AMQPTransport<T>>>,
+    pub configuration: ConnectionConfiguration,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -34,6 +36,8 @@ impl Default for ConnectionOptions {
   }
 }
 
+pub type ConnectionConfiguration = lapin_async::connection::Configuration;
+
 impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
@@ -42,8 +46,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = Client<T>, Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
+      let config = transport.conn.configuration.clone();
       let client = Client {
-        transport: Arc::new(Mutex::new(transport)),
+        transport:     Arc::new(Mutex::new(transport)),
+        configuration: config,
       };
 
       future::ok(client)
