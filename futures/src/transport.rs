@@ -106,7 +106,7 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream: Framed<T,AMQPCodec>,
-  heartbeat: Interval,
+  heartbeat: Option<Interval>,
   pub conn: Connection,
 }
 
@@ -133,7 +133,7 @@ impl<T> AMQPTransport<T>
     };
     let mut t = AMQPTransport {
       upstream:  stream.framed(codec),
-      heartbeat: Timer::default().interval(Duration::from_secs(conn.configuration.heartbeat as u64)),
+      heartbeat: None,
       conn:      conn,
     };
 
@@ -143,7 +143,7 @@ impl<T> AMQPTransport<T>
     }
 
     let mut connector = AMQPTransportConnector {
-      transport: Some(t)
+      transport: Some(t),
     };
 
     trace!("pre-poll");
@@ -156,8 +156,15 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
+  pub fn start_heartbeat(&mut self) {
+      let heartbeat = self.conn.configuration.heartbeat as u64;
+      if heartbeat > 0 {
+          self.heartbeat = Some(Timer::default().interval(Duration::from_secs(heartbeat)));
+      }
+  }
+
   fn poll_heartbeat(&mut self) -> Result<(), io::Error> {
-    if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
+    if let Some(Ok(Async::Ready(_))) = self.heartbeat.as_mut().map(Interval::poll) {
       trace!("Sending heartbeat");
       if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
         error!("Failed to send heartbeat: {:?}", e);
