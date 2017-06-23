@@ -2,6 +2,7 @@ use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
+use lapin_async;
 use lapin_async::api::RequestId;
 use lapin_async::queue::Message;
 use lapin_async::generated::basic;
@@ -477,19 +478,21 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
   }
 
   /// closes the cannel
-  pub fn close(&self, code: u16, message: String) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.channel_close(self.id, code, message, 0, 0) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::Other, format!("could not close channel: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          Self::process_frames(&mut transport, None, "close", Some(request_id))
-        },
+  pub fn close(&self, code: u16, message: &str) -> Box<Future<Item = (), Error = io::Error>> {
+      self.run_on_locked_transport(None, "close", "Could not close channel", |mut transport| {
+          transport.conn.channel_close(self.id, code, message.to_string(), 0, 0).map(|_| None)
+      })
+  }
+
+  fn run_on_locked_transport<F: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>>(&self, cl_transport: Option<Arc<Mutex<AMQPTransport<T>>>>, method: &str, error: &str, mut action: F) -> Box<Future<Item = (), Error = io::Error>> {
+      if let Ok(mut transport) = self.transport.lock() {
+          match action(&mut transport) {
+              Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
+              Ok(request_id) => Self::process_frames(&mut transport, cl_transport, method, request_id),
+          }
+      } else {
+          Self::mutex_failed()
       }
-    } else {
-        Self::mutex_failed()
-    }
   }
 
   fn mutex_failed<I: 'static>() -> Box<Future<Item = I, Error = io::Error>> {

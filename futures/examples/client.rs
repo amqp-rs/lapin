@@ -48,7 +48,7 @@ fn main() {
                 channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), FieldTable::new()).and_then(move |_| {
                     channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), FieldTable::new()).and_then(move |_| {
                         channel.exchange_delete("hello_exchange", &ExchangeDeleteOptions::default()).and_then(move |_| {
-                            channel.close(200, "Bye".to_string())
+                            channel.close(200, "Bye")
                         })
                     })
                 })
