@@ -133,7 +133,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not request access {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "access_request", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "access_request", Some(request_id))
         },
       }
     } else {
@@ -158,7 +158,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "exchange_declare", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "exchange_declare", Some(request_id))
         },
       }
     } else {
@@ -182,7 +182,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "exchange_delete", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "exchange_delete", Some(request_id))
         },
       }
     } else {
@@ -206,7 +206,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "exchange_bind", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "exchange_bind", Some(request_id))
         },
       }
     } else {
@@ -230,7 +230,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not unbind exchange: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "exchange_unbind", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "exchange_unbind", Some(request_id))
         },
       }
     } else {
@@ -258,7 +258,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "queue_declare", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "queue_declare", Some(request_id))
         },
       }
     } else {
@@ -283,7 +283,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "queue_bind", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "queue_bind", Some(request_id))
         },
       }
     } else {
@@ -304,7 +304,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "confirm_select", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "confirm_select", Some(request_id))
         },
       }
     } else {
@@ -332,6 +332,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(delivery_tag) => {
+            //TODO: process_frames
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
             trace!("{}", err);
@@ -375,7 +376,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
         ),
         Ok(request_id) => {
-          //TODO: Self::process_frames(&mut transport, cl_transport, "basic_consume", request_id)
+          //TODO: Self::process_frames(&mut transport, Some(cl_transport), "basic_consume", Some(request_id))
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
             trace!("{}", err);
@@ -412,12 +413,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
+          Self::process_frames(&mut transport, None, "basic_ack", None)
         },
       }
     } else {
@@ -436,12 +432,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
+          Self::process_frames(&mut transport, None, "basic_reject", None)
         },
       }
     } else {
@@ -461,7 +452,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
         ),
         Ok(request_id) => {
-          //TODO: Self::process_frames(&mut transport, cl_transport, "basic_get", request_id)
+          //TODO: Self::process_frames(&mut transport, Some(cl_transport), "basic_get", Some(request_id))
           if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
             trace!("{}", err);
@@ -490,7 +481,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "queue_purge", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "queue_purge", Some(request_id))
         },
       }
     } else {
@@ -519,7 +510,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
           future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
         ),
         Ok(request_id) => {
-          Self::process_frames(&mut transport, cl_transport, "queue_delete", request_id)
+          Self::process_frames(&mut transport, Some(cl_transport), "queue_delete", Some(request_id))
         },
       }
     } else {
@@ -537,13 +528,8 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Err(e) => Box::new(
           future::err(Error::new(ErrorKind::Other, format!("could not close channel: {:?}", e)))
         ),
-        Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
+        Ok(request_id) => {
+          Self::process_frames(&mut transport, None, "close", Some(request_id))
         },
       }
     } else {
@@ -554,17 +540,21 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
   }
 
-    fn process_frames(transport: &mut AMQPTransport<T>, cl_transport: Arc<Mutex<AMQPTransport<T>>>, method: &str, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
-        trace!("{} request id: {}", method, request_id);
-        if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-        }
+  fn process_frames(transport: &mut AMQPTransport<T>, cl_transport: Option<Arc<Mutex<AMQPTransport<T>>>>, method: &str, request_id: Option<RequestId>) -> Box<Future<Item = (), Error = io::Error>> {
+      trace!("{} request id: {:?}", method, request_id);
+      if let Err(e) = transport.send_and_handle_frames() {
+          let err = format!("Failed to handle frames: {:?}", e);
+          trace!("{}", err);
+          return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+      }
 
-        trace!("{} returning closure", method);
-        wait_for_answer(cl_transport, request_id)
-    }
+      cl_transport.and_then(|cl_transport| {
+          request_id.map(|request_id| {
+              trace!("{} returning closure", method);
+              wait_for_answer(cl_transport, request_id)
+          })
+      }).unwrap_or_else(|| Box::new(future::ok(())))
+  }
 }
 
 /// internal method to wait until a basic get succeeded
