@@ -378,34 +378,16 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
   /// acks a message
   pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_ack(self.id, delivery_tag, false) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(_) => {
-          Self::process_frames(&mut transport, None, "basic_ack", None)
-        },
-      }
-    } else {
-        Self::mutex_failed()
-    }
+      self.run_on_locked_transport(None, "basic_ack", "Could not ack message", |mut transport| {
+          transport.conn.basic_ack(self.id, delivery_tag, false).map(|_| None)
+      })
   }
 
   /// rejects a message
   pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_reject(self.id, delivery_tag, requeue) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(_) => {
-          Self::process_frames(&mut transport, None, "basic_reject", None)
-        },
-      }
-    } else {
-        Self::mutex_failed()
-    }
+      self.run_on_locked_transport(None, "basic_reject", "Could not reject message", |mut transport| {
+          transport.conn.basic_reject(self.id, delivery_tag, requeue).map(|_| None)
+      })
   }
 
   /// acks a message
