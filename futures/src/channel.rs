@@ -366,10 +366,10 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    fn run_on_locked_transport_full<A, F, N>(&self, method: &str, error: &str, mut action: A, finished: F, no_answer: N) -> Box<Future<Item = (), Error = io::Error>>
-        where A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
-              F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
-              N: 'static + Fn() -> Poll<bool, io::Error> {
+    fn run_on_locked_transport_full<Action, Finished, NoAnswer>(&self, method: &str, error: &str, mut action: Action, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = (), Error = io::Error>>
+        where Action:   FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
+              Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
@@ -381,14 +381,14 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         }
     }
 
-    fn run_on_locked_transport<A>(&self, method: &str, error: &str, action: A) -> Box<Future<Item = (), Error = io::Error>>
-        where A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
+    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error>>
+        where Action: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady))
     }
 
-    fn process_frames<F, N>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F, N)>) -> Box<Future<Item = (), Error = io::Error>>
-        where F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
-              N: 'static + Fn() -> Poll<bool, io::Error> {
+    fn process_frames<Finished, NoAnswer>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, Finished, NoAnswer)>) -> Box<Future<Item = (), Error = io::Error>>
+        where Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
         trace!("{} request id: {:?}", method, request_id_data.as_ref().map(|r| r.0));
         if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
@@ -405,9 +405,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     }
 
     /// internal method to wait until a request succeeds
-    pub fn wait_for_answer<F, N>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F, no_answer: N) -> Box<Future<Item = bool, Error = io::Error>>
-        where F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
-              N: 'static + Fn() -> Poll<bool, io::Error> {
+    pub fn wait_for_answer<Finished, NoAnswer>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = bool, Error = io::Error>>
+        where Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
         trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
             let got_answer = if let Ok(mut tr) = transport.try_lock() {
