@@ -7,7 +7,7 @@ use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
 use transport::*;
-use channel::{Channel, ConfirmSelectOptions, wait_for_answer};
+use channel::{Channel, ConfirmSelectOptions};
 
 /// the Client structures connects to a server and creates channels
 #[derive(Clone)]
@@ -74,7 +74,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
           }
 
           //FIXME: very afterwards that the state is Connected and not error
-          Box::new(wait_for_answer(channel_transport.clone(), request_id, Connection::is_finished, || Ok(Async::NotReady)).map(move |_| {
+          Box::new(Channel::wait_for_answer(channel_transport.clone(), request_id, Connection::is_finished, || Ok(Async::NotReady)).map(move |_| {
             Channel {
               id:        channel_id,
               transport: channel_transport,
