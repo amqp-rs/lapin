@@ -10,7 +10,7 @@ use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ConfirmSelectOptions,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
 
 fn main() {
   env_logger::init().unwrap();
@@ -27,7 +27,7 @@ fn main() {
       })
     }).and_then(|client| {
 
-      client.create_confirm_channel().and_then(|channel| {
+      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
         info!("created channel with id: {}", id);
 

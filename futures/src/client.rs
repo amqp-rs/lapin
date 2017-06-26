@@ -8,7 +8,7 @@ use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
 use transport::*;
-use channel::Channel;
+use channel::{Channel, ConfirmSelectOptions};
 
 /// the Client structures connects to a server and creates channels
 #[derive(Clone)]
@@ -93,15 +93,15 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
-  pub fn create_confirm_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
+  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
 
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
     //but not on the confirm channel. And the basic publish method should have different results
-    Box::new(self.create_channel().and_then(|channel| {
+    Box::new(self.create_channel().and_then(move |channel| {
       let ch = channel.clone();
 
-      channel.confirm_select().map(|_| ch)
+      channel.confirm_select(&options).map(|_| ch)
     }))
   }
 }

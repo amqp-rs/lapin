@@ -9,6 +9,7 @@ extern crate webpki_roots;
 
 use futures::future::Future;
 use lapin::client::ConnectionOptions;
+use lapin::channel::ConfirmSelectOptions;
 use rustls::ClientConfig;
 use std::sync::Arc;
 use tokio_core::reactor::Core;
@@ -40,7 +41,7 @@ fn main() {
         ..Default::default()
       })
     }).and_then(|client| {
-      client.create_confirm_channel().and_then(|channel| {
+      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
         info!("created channel with id: {}", id);
         Ok(())
