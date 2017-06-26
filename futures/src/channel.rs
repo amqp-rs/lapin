@@ -373,7 +373,22 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
-                Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone(), finished, no_answer))),
+                Ok(request_id) => {
+                    trace!("{} request id: {:?}", method, request_id);
+
+                    if let Err(e) = transport.send_and_handle_frames() {
+                        let err = format!("Failed to handle frames: {:?}", e);
+                        trace!("{}", err);
+                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+                    }
+
+                    if let Some(request_id) = request_id {
+                        trace!("{} returning closure", method);
+                        Box::new(Self::wait_for_answer(self.transport.clone(), request_id, finished, no_answer).map(|_| ()))
+                    } else {
+                        Box::new(future::ok(()))
+                    }
+                },
             }
         } else {
             //FIXME: if we're there, it means the mutex failed
@@ -386,46 +401,23 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady))
     }
 
-    fn process_frames<Finished, NoAnswer>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, Finished, NoAnswer)>) -> Box<Future<Item = (), Error = io::Error>>
-        where Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
-              NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
-        trace!("{} request id: {:?}", method, request_id_data.as_ref().map(|r| r.0));
-        if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-        }
-
-        if let Some((request_id, cl_transport, finished, no_answer)) = request_id_data {
-            trace!("{} returning closure", method);
-            Box::new(Self::wait_for_answer(cl_transport, request_id, finished, no_answer).map(|_| ()))
-        } else {
-            Box::new(future::ok(()))
-        }
-    }
-
     /// internal method to wait until a request succeeds
     pub fn wait_for_answer<Finished, NoAnswer>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = bool, Error = io::Error>>
         where Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
               NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
         trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
-            let got_answer = if let Ok(mut tr) = transport.try_lock() {
+            if let Ok(mut tr) = transport.try_lock() {
                 tr.handle_frames()?;
-                if let Some(res) = finished(&mut tr.conn, request_id) {
-                    res
-                } else {
-                    return Ok(Async::NotReady);
+                if let Some(got_answer) = finished(&mut tr.conn, request_id) {
+                    return if got_answer {
+                        Ok(Async::Ready(got_answer))
+                    } else {
+                        no_answer()
+                    };
                 }
-            } else {
-                return Ok(Async::NotReady);
-            };
-
-            if got_answer {
-                Ok(Async::Ready(got_answer))
-            } else {
-                no_answer()
             }
+            Ok(Async::NotReady)
         }))
     }
 }
