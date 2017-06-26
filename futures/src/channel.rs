@@ -4,13 +4,13 @@ use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
 use lapin_async::api::RequestId;
+use lapin_async::connection::Connection;
 use lapin_async::queue::Message;
 use lapin_async::generated::basic;
 
 use transport::*;
 use types::FieldTable;
 use consumer::Consumer;
-use client::wait_for_answer;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -339,11 +339,11 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    fn run_on_locked_transport<F: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>>(&self, method: &str, error: &str, mut action: F) -> Box<Future<Item = (), Error = io::Error>> {
+    fn run_on_locked_transport<A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>>(&self, method: &str, error: &str, mut action: A) -> Box<Future<Item = (), Error = io::Error>> {
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
-                Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone()))),
+                Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone(), Connection::is_finished))),
             }
         } else {
             Self::mutex_failed()
@@ -355,7 +355,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
     }
 
-    fn process_frames(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>)>) -> Box<Future<Item = (), Error = io::Error>> {
+    fn process_frames<F: 'static+Fn(&mut Connection, RequestId) -> bool>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F)>) -> Box<Future<Item = (), Error = io::Error>> {
         trace!("{} request id: {:?}", method, request_id_data.as_ref().map(|r| r.0));
         if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
@@ -363,11 +363,29 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
         }
 
-        request_id_data.map(|(request_id, cl_transport)| {
+        request_id_data.map(|(request_id, cl_transport, finished)| {
             trace!("{} returning closure", method);
-            wait_for_answer(cl_transport, request_id)
+            wait_for_answer(cl_transport, request_id, finished)
         }).unwrap_or_else(|| Box::new(future::ok(())))
     }
+}
+
+pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static, F: 'static+Fn(&mut Connection, RequestId) -> bool>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F) -> Box<Future<Item = (), Error = io::Error>> {
+    trace!("wait for answer for request {}", request_id);
+    Box::new(future::poll_fn(move || {
+        let connected = if let Ok(mut tr) = transport.try_lock() {
+            tr.handle_frames()?;
+            finished(&mut tr.conn, request_id)
+        } else {
+            return Ok(Async::NotReady);
+        };
+
+        if connected {
+            Ok(Async::Ready(()))
+        } else {
+            Ok(Async::NotReady)
+        }
+    }))
 }
 
 /// internal method to wait until a basic get succeeded

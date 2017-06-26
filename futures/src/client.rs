@@ -1,14 +1,14 @@
-use lapin_async::api::RequestId;
+use lapin_async::connection::Connection;
 
 use std::default::Default;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future};
+use futures::Future;
 use futures::future;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
 use transport::*;
-use channel::{Channel, ConfirmSelectOptions};
+use channel::{Channel, ConfirmSelectOptions, wait_for_answer};
 
 /// the Client structures connects to a server and creates channels
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
           }
 
           //FIXME: very afterwards that the state is Connected and not error
-          Box::new(wait_for_answer(channel_transport.clone(), request_id).map(move |_| {
+          Box::new(wait_for_answer(channel_transport.clone(), request_id, Connection::is_finished).map(move |_| {
             Channel {
               id:        channel_id,
               transport: channel_transport,
@@ -104,28 +104,4 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
       channel.confirm_select(&options).map(|_| ch)
     }))
   }
-}
-
-/// internal method to wait until a specific request succeeded
-pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId) -> Box<Future<Item = (), Error = io::Error>> {
-  trace!("wait for answer for request {}", request_id);
-  Box::new(future::poll_fn(move || {
-    let connected = if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames()?;
-      if ! tr.conn.is_finished(request_id) {
-        tr.conn.is_finished(request_id)
-      } else {
-        true
-      }
-    } else {
-      return Ok(Async::NotReady);
-    };
-
-    if connected {
-      Ok(Async::Ready(()))
-    } else {
-      Ok(Async::NotReady)
-    }
-  }))
-
 }
