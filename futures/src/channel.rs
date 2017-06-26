@@ -366,7 +366,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    fn run_on_locked_transport_full<Action, Finished, NoAnswer>(&self, method: &str, error: &str, mut action: Action, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = (), Error = io::Error>>
+    fn run_on_locked_transport_full<Action, Finished, NoAnswer>(&self, method: &str, error: &str, mut action: Action, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = Option<bool>, Error = io::Error>>
         where Action:   FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
               NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
@@ -384,9 +384,9 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
                     if let Some(request_id) = request_id {
                         trace!("{} returning closure", method);
-                        Box::new(Self::wait_for_answer(self.transport.clone(), request_id, finished, no_answer).map(|_| ()))
+                        Box::new(Self::wait_for_answer(self.transport.clone(), request_id, finished, no_answer).map(Some))
                     } else {
-                        Box::new(future::ok(()))
+                        Box::new(future::ok(None))
                     }
                 },
             }
@@ -398,7 +398,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error>>
         where Action: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
-        self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady))
+        Box::new(self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady)).map(|_| ()))
     }
 
     /// internal method to wait until a request succeeds
