@@ -268,7 +268,8 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                 },
             }
         } else {
-            Self::mutex_failed()
+            //FIXME: if we're there, it means the mutex failed
+            Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
         }
     }
 
@@ -375,19 +376,14 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                 Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone(), finished, no_answer))),
             }
         } else {
-            Self::mutex_failed()
+            //FIXME: if we're there, it means the mutex failed
+            Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
         }
     }
 
     fn run_on_locked_transport<A>(&self, method: &str, error: &str, action: A) -> Box<Future<Item = (), Error = io::Error>>
         where A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady))
-    }
-
-
-    fn mutex_failed<I: 'static>() -> Box<Future<Item = I, Error = io::Error>> {
-        //FIXME: if we're there, it means the mutex failed
-        Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
     }
 
     fn process_frames<F, N>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F, N)>) -> Box<Future<Item = (), Error = io::Error>>
