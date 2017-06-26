@@ -285,27 +285,29 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    /// acks a message
+    /// gets a message
     pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = Message, Error = io::Error>> {
-        let cl_transport = self.transport.clone();
-        if let Ok(mut transport) = self.transport.lock() {
-            match transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack) {
-                Err(e) => Box::new(
-                    future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-                    ),
-                Ok(request_id) => {
-                    //TODO: Self::process_frames(&mut transport, Some(cl_transport), "basic_get", Some(request_id))
-                    if let Err(e) = transport.send_and_handle_frames() {
-                        let err = format!("Failed to handle frames: {:?}", e);
-                        trace!("{}", err);
-                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-                    }
-                    Self::wait_for_basic_get_answer(cl_transport, request_id, self.id, queue)
-                },
+        let channel_id = self.id;
+        let _queue = queue.to_string();
+        let receive_transport = self.transport.clone();
+        let receive_future = future::poll_fn(move || {
+            if let Ok(mut transport) = receive_transport.try_lock() {
+                transport.handle_frames()?;
+                if let Some(message) = transport.conn.next_get_message(channel_id, &_queue) {
+                    Ok(Async::Ready(message))
+                } else {
+                    transport.poll()?;
+                    trace!("basic get[{}-{}] not ready", channel_id, _queue);
+                    Ok(Async::NotReady)
+                }
+            } else {
+                return Ok(Async::NotReady);
             }
-        } else {
-            Self::mutex_failed()
-        }
+        });
+
+        Box::new(self.run_on_locked_transport_full("basic_get", "Could not get message", |mut transport| {
+            transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack).map(Some)
+        }, Connection::finished_get_result, || Err(Error::new(ErrorKind::Other, "basic get returned empty"))).and_then(|_| receive_future))
     }
 
     /// Purge a queue.
@@ -339,23 +341,34 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    fn run_on_locked_transport<A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>>(&self, method: &str, error: &str, mut action: A) -> Box<Future<Item = (), Error = io::Error>> {
+    fn run_on_locked_transport_full<A, F, N>(&self, method: &str, error: &str, mut action: A, finished: F, no_answer: N) -> Box<Future<Item = (), Error = io::Error>>
+        where A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
+              F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              N: 'static + Fn() -> Poll<(), io::Error> {
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
-                Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone(), Connection::is_finished))),
+                Ok(request_id) => Self::process_frames(&mut transport, method, request_id.map(|request_id| (request_id, self.transport.clone(), finished, no_answer))),
             }
         } else {
             Self::mutex_failed()
         }
     }
 
+    fn run_on_locked_transport<A>(&self, method: &str, error: &str, action: A) -> Box<Future<Item = (), Error = io::Error>>
+        where A: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
+        self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady))
+    }
+
+
     fn mutex_failed<I: 'static>() -> Box<Future<Item = I, Error = io::Error>> {
         //FIXME: if we're there, it means the mutex failed
         Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
     }
 
-    fn process_frames<F: 'static+Fn(&mut Connection, RequestId) -> Option<bool>>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F)>) -> Box<Future<Item = (), Error = io::Error>> {
+    fn process_frames<F, N>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F, N)>) -> Box<Future<Item = (), Error = io::Error>>
+        where F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              N: 'static + Fn() -> Poll<(), io::Error> {
         trace!("{} request id: {:?}", method, request_id_data.as_ref().map(|r| r.0));
         if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
@@ -363,13 +376,16 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
             return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
         }
 
-        request_id_data.map(|(request_id, cl_transport, finished)| {
+        request_id_data.map(|(request_id, cl_transport, finished, no_answer)| {
             trace!("{} returning closure", method);
-            Self::wait_for_answer(cl_transport, request_id, finished, || Ok(Async::NotReady))
+            Self::wait_for_answer(cl_transport, request_id, finished, no_answer)
         }).unwrap_or_else(|| Box::new(future::ok(())))
     }
 
-    pub fn wait_for_answer<F: 'static+Fn(&mut Connection, RequestId) -> Option<bool>, N: 'static+Fn() -> Poll<(), io::Error>>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F, no_answer: N) -> Box<Future<Item = (), Error = io::Error>> {
+    /// internal method to wait until a request succeeds
+    pub fn wait_for_answer<F, N>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F, no_answer: N) -> Box<Future<Item = (), Error = io::Error>>
+        where F: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
+              N: 'static + Fn() -> Poll<(), io::Error> {
         trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
             let got_answer = if let Ok(mut tr) = transport.try_lock() {
@@ -389,29 +405,6 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                 no_answer()
             }
         }))
-    }
-
-    /// internal method to wait until a basic get succeeded
-    pub fn wait_for_basic_get_answer(transport: Arc<Mutex<AMQPTransport<T>>>,
-                                     request_id: RequestId, channel_id: u16, queue: &str) -> Box<Future<Item = Message, Error = io::Error>> {
-        let queue = queue.to_string();
-        let receive_transport = transport.clone();
-        let receive_future = future::poll_fn(move || {
-            if let Ok(mut transport) = receive_transport.try_lock() {
-                transport.handle_frames()?;
-                if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
-                    Ok(Async::Ready(message))
-                } else {
-                    transport.poll()?;
-                    trace!("basic get[{}-{}] not ready", channel_id, queue);
-                    Ok(Async::NotReady)
-                }
-            } else {
-                return Ok(Async::NotReady);
-            }
-        });
-
-        Box::new(Self::wait_for_answer(transport, request_id, Connection::finished_get_result, || Err(Error::new(ErrorKind::Other, "basic get returned empty"))).and_then(|_| receive_future))
     }
 
     /// internal method to wait until a basic publish confirmation comes back
