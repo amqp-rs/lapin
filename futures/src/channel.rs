@@ -236,8 +236,32 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                         return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
                     }
 
+                    let channel_id = self.id;
                     if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
-                        Self::wait_for_basic_publish_confirm(cl_transport, delivery_tag, self.id)
+                        Box::new(future::poll_fn(move || {
+                            if let Ok(mut tr) = cl_transport.try_lock() {
+                                tr.handle_frames()?;
+                                let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
+                                    if c.acked.remove(&delivery_tag) {
+                                        Some(true)
+                                    } else if c.nacked.remove(&delivery_tag) {
+                                        Some(false)
+                                    } else {
+                                        info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
+                                        None
+                                    }
+                                }).unwrap();
+
+                                if acked_opt.is_some() {
+                                    return Ok(Async::Ready(acked_opt));
+                                } else {
+                                    tr.poll()?;
+                                    return Ok(Async::NotReady);
+                                }
+                            } else {
+                                return Ok(Async::NotReady);
+                            };
+                        }))
                     } else {
                         Box::new(future::ok(None))
                     }
@@ -406,37 +430,6 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
             } else {
                 no_answer()
             }
-        }))
-    }
-
-    /// internal method to wait until a basic publish confirmation comes back
-    pub fn wait_for_basic_publish_confirm(transport: Arc<Mutex<AMQPTransport<T>>>,
-                                          delivery_tag: u64, channel_id: u16) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
-
-        Box::new(future::poll_fn(move || {
-            if let Ok(mut tr) = transport.try_lock() {
-                tr.handle_frames()?;
-                let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
-                    if c.acked.remove(&delivery_tag) {
-                        Some(true)
-                    } else if c.nacked.remove(&delivery_tag) {
-                        Some(false)
-                    } else {
-                        info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
-                        None
-                    }
-                }).unwrap();
-
-                if acked_opt.is_some() {
-                    return Ok(Async::Ready(acked_opt));
-                } else {
-                    tr.poll()?;
-                    return Ok(Async::NotReady);
-                }
-            } else {
-                return Ok(Async::NotReady);
-            };
-
         }))
     }
 }
