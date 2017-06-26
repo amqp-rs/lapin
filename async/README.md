@@ -87,7 +87,7 @@ assert!(conn.check_state(channel_id, ChannelState::Connected).unwrap_or(false));
 let request_id: u16 = conn.queue_declare(channel_id, 0, "hello".to_string(), false, false, false, false, false, HashMap::new()).unwrap();
 
 // update state here until:
-assert!(conn.is_finished(request_id));
+assert!(conn.is_finished(request_id).unwrap_or(false));
 ```
 
 ## Publishing a message
@@ -107,7 +107,7 @@ conn.send_content_frames(channel_a, 60, payload, basic::Properties::default()));
 let request_id: u16 = conn.basic_consume(channel_id, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, HashMap::new()).expect("basic_consume");
 
 // update state here until:
-assert!(conn.is_finished(request_id));
+assert!(conn.is_finished(request_id).unwrap_or(false));
 
 // get the next message
 if let Ok(message) = conn.next_message(channel_id, "hello", "my_consumer") {

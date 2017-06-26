@@ -1,7 +1,7 @@
 use std::{result,str};
 use std::default::Default;
 use std::io::{Error,ErrorKind,Result};
-use std::collections::{HashSet,HashMap,VecDeque};
+use std::collections::{HashMap,VecDeque};
 use nom::{IResult,Offset};
 use sasl;
 use sasl::client::Mechanism;
@@ -89,7 +89,7 @@ pub struct Connection {
   /// next request id
   pub request_index:     RequestId,
   /// list of finished requests
-  pub finished_reqs:     HashSet<RequestId>,
+  pub finished_reqs:     HashMap<RequestId, bool>,
   /// list of finished basic get requests
   pub finished_get_reqs: HashMap<RequestId, bool>,
   /// credentials are stored in an option to remove them from memory once they are used
@@ -114,7 +114,7 @@ impl Connection {
       prefetch_count:    0,
       frame_queue:       VecDeque::new(),
       request_index:     0,
-      finished_reqs:     HashSet::new(),
+      finished_reqs:     HashMap::new(),
       finished_get_reqs: HashMap::new(),
       credentials:       None,
     }
@@ -218,7 +218,7 @@ impl Connection {
   ///
   /// this method can only be called once per request id, as it will be
   /// removed from the list afterwards
-  pub fn is_finished(&mut self, id: RequestId) -> bool {
+  pub fn is_finished(&mut self, id: RequestId) -> Option<bool> {
     self.finished_reqs.remove(&id)
   }
 
