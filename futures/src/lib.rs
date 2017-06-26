@@ -111,7 +111,7 @@
 //!         // basic_consume returns a future of a message
 //!         // stream. Any time a message arrives for this consumer,
 //!         // the for_each method would be called
-//!         channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+//!         channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
 //!       }).and_then(|stream| {
 //!         info!("got consumer stream");
 //!

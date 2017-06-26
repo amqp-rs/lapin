@@ -48,7 +48,7 @@ fn connection() {
         channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
         }).and_then(move |stream| {
           info!("got consumer stream");
 

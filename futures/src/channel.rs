@@ -254,40 +254,21 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     ///
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
-    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
-        let cl_transport = self.transport.clone();
+    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
+        let consumer = Consumer {
+            transport:    self.transport.clone(),
+            channel_id:   self.id,
+            queue:        queue.to_string(),
+            consumer_tag: consumer_tag.to_string(),
+        };
 
-        if let Ok(mut transport) = self.transport.lock() {
-            match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
-            options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
-                Err(e) => Box::new(
-                    future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
-                    ),
-                Ok(request_id) => {
-                    //TODO: Self::process_frames(&mut transport, Some(cl_transport), "basic_consume", Some(request_id))
-                    if let Err(e) = transport.send_and_handle_frames() {
-                        let err = format!("Failed to handle frames: {:?}", e);
-                        trace!("{}", err);
-                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-                    }
-
-                    let consumer = Consumer {
-                        transport:    cl_transport.clone(),
-                        channel_id:   self.id,
-                        queue:        queue.to_string(),
-                        consumer_tag: consumer_tag.to_string(),
-                    };
-
-                    trace!("basic_consume returning closure");
-                    Box::new(wait_for_answer(cl_transport, request_id).map(move |_| {
-                        trace!("basic_consume received response, returning consumer");
-                        consumer
-                    }))
-                },
-            }
-        } else {
-            Self::mutex_failed()
-        }
+        Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |mut transport| {
+            transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
+            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.clone()).map(Some)
+        }).map(|_| {
+            trace!("basic_consume received response, returning consumer");
+            consumer
+        }))
     }
 
     /// acks a message

@@ -72,7 +72,7 @@ fn main() {
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
             channel.basic_ack(message.delivery_tag)
           }).and_then(move |_| {
-            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
           })
         }).and_then(|stream| {
           info!("got consumer stream");
