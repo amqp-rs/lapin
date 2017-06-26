@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Stream};
+use futures::{Async,Future,future,Poll,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
@@ -355,7 +355,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
     }
 
-    fn process_frames<F: 'static+Fn(&mut Connection, RequestId) -> bool>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F)>) -> Box<Future<Item = (), Error = io::Error>> {
+    fn process_frames<F: 'static+Fn(&mut Connection, RequestId) -> Option<bool>>(transport: &mut AMQPTransport<T>, method: &str, request_id_data: Option<(RequestId, Arc<Mutex<AMQPTransport<T>>>, F)>) -> Box<Future<Item = (), Error = io::Error>> {
         trace!("{} request id: {:?}", method, request_id_data.as_ref().map(|r| r.0));
         if let Err(e) = transport.send_and_handle_frames() {
             let err = format!("Failed to handle frames: {:?}", e);
@@ -365,77 +365,54 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
         request_id_data.map(|(request_id, cl_transport, finished)| {
             trace!("{} returning closure", method);
-            wait_for_answer(cl_transport, request_id, finished)
+            wait_for_answer(cl_transport, request_id, finished, || Ok(Async::NotReady))
         }).unwrap_or_else(|| Box::new(future::ok(())))
     }
 }
 
-pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static, F: 'static+Fn(&mut Connection, RequestId) -> bool>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F) -> Box<Future<Item = (), Error = io::Error>> {
+pub fn wait_for_answer<T: AsyncRead+AsyncWrite+'static, F: 'static+Fn(&mut Connection, RequestId) -> Option<bool>, N: 'static+Fn() -> Poll<(), io::Error>>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: F, no_answer: N) -> Box<Future<Item = (), Error = io::Error>> {
     trace!("wait for answer for request {}", request_id);
     Box::new(future::poll_fn(move || {
-        let connected = if let Ok(mut tr) = transport.try_lock() {
+        let got_answer = if let Ok(mut tr) = transport.try_lock() {
             tr.handle_frames()?;
-            finished(&mut tr.conn, request_id)
+            if let Some(res) = finished(&mut tr.conn, request_id) {
+                res
+            } else {
+                return Ok(Async::NotReady);
+            }
         } else {
             return Ok(Async::NotReady);
         };
 
-        if connected {
+        if got_answer {
             Ok(Async::Ready(()))
         } else {
-            Ok(Async::NotReady)
+            no_answer()
         }
     }))
 }
 
 /// internal method to wait until a basic get succeeded
 pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>,
-  request_id: RequestId, channel_id: u16, queue: &str) -> Box<Future<Item = Message, Error = io::Error>> {
-
-  let receive_transport = transport.clone();
-  let queue = queue.to_string();
-
-  let request_future = future::poll_fn(move || {
-    let result = if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames()?;
-      match tr.conn.finished_get_result(request_id) {
-        None =>  {
-          tr.handle_frames()?;
-          if let Some(res) = tr.conn.finished_get_result(request_id) {
-            res
-          } else {
+                                                                  request_id: RequestId, channel_id: u16, queue: &str) -> Box<Future<Item = Message, Error = io::Error>> {
+    let queue = queue.to_string();
+    let receive_transport = transport.clone();
+    let receive_future = future::poll_fn(move || {
+        if let Ok(mut transport) = receive_transport.try_lock() {
+            transport.handle_frames()?;
+            if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
+                Ok(Async::Ready(message))
+            } else {
+                transport.poll()?;
+                trace!("basic get[{}-{}] not ready", channel_id, queue);
+                Ok(Async::NotReady)
+            }
+        } else {
             return Ok(Async::NotReady);
-          }
-        },
-        Some(res) => res,
-      }
-    } else {
-      return Ok(Async::NotReady);
-    };
+        }
+    });
 
-    if result {
-      Ok(Async::Ready(()))
-    } else {
-      Err(Error::new(ErrorKind::Other, format!("basic get returned empty")))
-    }
-  });
-
-  let receive_future = future::poll_fn(move || {
-    if let Ok(mut transport) = receive_transport.try_lock() {
-      transport.handle_frames()?;
-      if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
-        Ok(Async::Ready(message))
-      } else {
-        transport.poll()?;
-        trace!("basic get[{}-{}] not ready", channel_id, queue);
-        Ok(Async::NotReady)
-      }
-    } else {
-      return Ok(Async::NotReady);
-    }
-  });
-
-  Box::new(request_future.and_then(|_| receive_future))
+    Box::new(wait_for_answer(transport, request_id, Connection::finished_get_result, || Err(Error::new(ErrorKind::Other, "basic get returned empty"))).and_then(|_| receive_future))
 }
 
 /// internal method to wait until a basic publish confirmation comes back

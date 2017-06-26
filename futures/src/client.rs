@@ -2,8 +2,7 @@ use lapin_async::connection::Connection;
 
 use std::default::Default;
 use std::io::{self,Error,ErrorKind};
-use futures::Future;
-use futures::future;
+use futures::{Async,future,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
@@ -75,7 +74,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
           }
 
           //FIXME: very afterwards that the state is Connected and not error
-          Box::new(wait_for_answer(channel_transport.clone(), request_id, Connection::is_finished).map(move |_| {
+          Box::new(wait_for_answer(channel_transport.clone(), request_id, Connection::is_finished, || Ok(Async::NotReady)).map(move |_| {
             Channel {
               id:        channel_id,
               transport: channel_transport,
