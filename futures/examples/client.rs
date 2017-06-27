@@ -31,11 +31,11 @@ fn main() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
-            channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), FieldTable::new()).and_then(move |_| {
+          channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
+            channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), &FieldTable::new()).and_then(move |_| {
               channel.basic_publish(
                 "hello_exchange",
                 "hello_2",
@@ -45,8 +45,8 @@ fn main() {
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
               }).and_then(move |_| {
-                channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), FieldTable::new()).and_then(move |_| {
-                    channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), FieldTable::new()).and_then(move |_| {
+                channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), &FieldTable::new()).and_then(move |_| {
+                    channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), &FieldTable::new()).and_then(move |_| {
                         channel.exchange_delete("hello_exchange", &ExchangeDeleteOptions::default()).and_then(move |_| {
                             channel.close(200, "Bye")
                         })
@@ -63,7 +63,7 @@ fn main() {
         info!("created channel with id: {}", id);
 
         let c = channel.clone();
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           let ch = channel.clone();
@@ -72,7 +72,7 @@ fn main() {
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
             channel.basic_ack(message.delivery_tag)
           }).and_then(move |_| {
-            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
+            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
           })
         }).and_then(|stream| {
           info!("got consumer stream");

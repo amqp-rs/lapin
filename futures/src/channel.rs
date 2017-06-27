@@ -163,7 +163,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     /// declares an exchange
     ///
     /// returns a future that resolves once the exchange is available
-    pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: &ExchangeDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: &ExchangeDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("exchange_declare", "Could not declare exchange", |mut transport| {
             transport.conn.exchange_declare(self.id, options.ticket, name.to_string(), exchange_type.to_string(),
                 options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments.clone()).map(Some)
@@ -183,7 +183,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     /// binds an exchange to another exchange
     ///
     /// returns a future that resolves once the exchanges are bound
-    pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("exchange_bind", "Could not bind exchange", |mut transport| {
             transport.conn.exchange_bind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
@@ -193,7 +193,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     /// unbinds an exchange from another one
     ///
     /// returns a future that resolves once the exchanges are unbound
-    pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("exchange_unbind", "Could not unbind exchange", |mut transport| {
             transport.conn.exchange_unbind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
@@ -206,7 +206,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     ///
     /// the `mandatory` and `ìmmediate` options can be set to true,
     /// but the return message will not be handled
-    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("queue_declare", "Could not declare queue", |mut transport| {
             transport.conn.queue_declare(self.id, options.ticket, name.to_string(),
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.clone()).map(Some)
@@ -216,7 +216,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     /// binds a queue to an exchange
     ///
     /// returns a future that resolves once the queue is bound to the exchange
-    pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("queue_bind", "Could not bind queue", |mut transport| {
             transport.conn.queue_bind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
@@ -266,7 +266,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     ///
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
-    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
+    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
         let consumer = Consumer {
             transport:    self.transport.clone(),
             channel_id:   self.id,

@@ -30,7 +30,7 @@ fn connection() {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.queue_purge("hello", &QueuePurgeOptions::default()).and_then(move |_| {
@@ -45,10 +45,10 @@ fn connection() {
 
         let ch1 = channel.clone();
         let ch2 = channel.clone();
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
+          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
         }).and_then(move |stream| {
           info!("got consumer stream");
 

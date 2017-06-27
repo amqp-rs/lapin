@@ -55,7 +55,7 @@ fn main() {
       // we using a "move" closure to reuse the channel
       // once the queue is declared. We could also clone
       // the channel
-      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
           channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(),
@@ -106,13 +106,13 @@ fn main() {
       info!("created channel with id: {}", id);
 
       let ch = channel.clone();
-      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
         // basic_consume returns a future of a message
         // stream. Any time a message arrives for this consumer,
         // the for_each method would be called
-        channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), FieldTable::new())
+        channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
       }).and_then(|stream| {
         info!("got consumer stream");
 
