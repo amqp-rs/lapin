@@ -234,7 +234,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                     if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
                         Box::new(future::poll_fn(move || {
                             if let Ok(mut tr) = cl_transport.try_lock() {
-                                tr.handle_frames()?;
+                                tr.send_and_handle_frames()?;
                                 let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
                                     if c.acked.remove(&delivery_tag) {
                                         Some(true)
@@ -311,7 +311,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
             if let Ok(mut transport) = receive_transport.try_lock() {
-                transport.handle_frames()?;
+                transport.send_and_handle_frames()?;
                 if let Some(message) = transport.conn.next_get_message(channel_id, &_queue) {
                     Ok(Async::Ready(message))
                 } else {
@@ -419,7 +419,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
             if let Ok(mut tr) = transport.try_lock() {
-                tr.handle_frames()?;
+                tr.send_and_handle_frames()?;
                 finished(&mut tr.conn, request_id)
             } else {
                 Ok(Async::NotReady)
