@@ -224,13 +224,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                     ),
                 Ok(delivery_tag) => {
                     //TODO: process_frames
-                    if let Err(e) = transport.send_and_handle_frames() {
-                        let err = format!("Failed to handle frames: {:?}", e);
-                        trace!("{}", err);
-                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-                    }
-                    transport.conn.send_content_frames(self.id, 60, payload, properties);
-                    if let Err(e) = transport.send_and_handle_frames() {
+                    if let Err(e) = transport.send_and_handle_frames_with_payload(self.id, payload, properties) {
                         let err = format!("Failed to handle frames: {:?}", e);
                         trace!("{}", err);
                         return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
@@ -332,7 +326,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
         Box::new(self.run_on_locked_transport_full("basic_get", "Could not get message", |mut transport| {
             transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack).map(Some)
-        }, Connection::finished_get_result, || Err(Error::new(ErrorKind::Other, "basic get returned empty"))).and_then(|_| receive_future))
+        }, Connection::finished_get_result, || Err(Error::new(ErrorKind::Other, "basic get returned empty")), None).and_then(|_| receive_future))
     }
 
     /// Purge a queue.
@@ -366,7 +360,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
         })
     }
 
-    fn run_on_locked_transport_full<Action, Finished, NoAnswer>(&self, method: &str, error: &str, mut action: Action, finished: Finished, no_answer: NoAnswer) -> Box<Future<Item = Option<bool>, Error = io::Error>>
+    fn run_on_locked_transport_full<Action, Finished, NoAnswer>(&self, method: &str, error: &str, mut action: Action, finished: Finished, no_answer: NoAnswer, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<bool>, Error = io::Error>>
         where Action:   FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Fn(&mut Connection, RequestId) -> Option<bool>,
               NoAnswer: 'static + Fn() -> Poll<bool, io::Error> {
@@ -376,7 +370,12 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
                 Ok(request_id) => {
                     trace!("{} request id: {:?}", method, request_id);
 
-                    if let Err(e) = transport.send_and_handle_frames() {
+                    let res = match payload {
+                        Some(payload) => transport.send_and_handle_frames_with_payload(payload.0, payload.1, payload.2),
+                        None          => transport.send_and_handle_frames(),
+                    };
+
+                    if let Err(e) = res {
                         let err = format!("Failed to handle frames: {:?}", e);
                         trace!("{}", err);
                         return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
@@ -398,7 +397,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
 
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error>>
         where Action: FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
-        Box::new(self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady)).map(|_| ()))
+        Box::new(self.run_on_locked_transport_full(method, error, action, Connection::is_finished, || Ok(Async::NotReady), None).map(|_| ()))
     }
 
     /// internal method to wait until a request succeeds

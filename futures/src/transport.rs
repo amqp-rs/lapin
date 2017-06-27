@@ -13,6 +13,7 @@ use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use tokio_timer::{Interval,Timer};
+use channel::BasicProperties;
 use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
@@ -197,6 +198,12 @@ impl<T> AMQPTransport<T>
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames()?;
     self.handle_frames()
+  }
+
+  pub fn send_and_handle_frames_with_payload(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) -> Poll<Option<()>, io::Error> {
+      self.send_and_handle_frames()?;
+      self.conn.send_content_frames(channel_id, 60, payload, properties);
+      self.send_and_handle_frames()
   }
 
   fn send_frames(&mut self) -> Result<(), io::Error> {
