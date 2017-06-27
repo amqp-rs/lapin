@@ -213,58 +213,27 @@ impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
     /// - `Some(false)` if we're on a confirm channel and the message was nack'd
     /// - `None` if we're not on a confirm channel
     pub fn basic_publish(&self, exchange: &str, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
-        let cl_transport = self.transport.clone();
+        let channel_id = self.id;
 
-        if let Ok(mut transport) = self.transport.lock() {
-            //FIXME: does not handle the return messages with mandatory and immediate
-            match transport.conn.basic_publish(self.id, options.ticket, exchange.to_string(),
-            queue.to_string(), options.mandatory, options.immediate) {
-                Err(e) => Box::new(
-                    future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-                    ),
-                Ok(delivery_tag) => {
-                    //TODO: process_frames
-                    if let Err(e) = transport.send_and_handle_frames_with_payload(self.id, payload, properties) {
-                        let err = format!("Failed to handle frames: {:?}", e);
-                        trace!("{}", err);
-                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-                    }
-
-                    let channel_id = self.id;
-                    if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
-                        Box::new(future::poll_fn(move || {
-                            if let Ok(mut tr) = cl_transport.try_lock() {
-                                tr.send_and_handle_frames()?;
-                                let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
-                                    if c.acked.remove(&delivery_tag) {
-                                        Some(true)
-                                    } else if c.nacked.remove(&delivery_tag) {
-                                        Some(false)
-                                    } else {
-                                        info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
-                                        None
-                                    }
-                                }).unwrap();
-
-                                if acked_opt.is_some() {
-                                    return Ok(Async::Ready(acked_opt));
-                                } else {
-                                    tr.poll()?;
-                                    return Ok(Async::NotReady);
-                                }
-                            } else {
-                                return Ok(Async::NotReady);
-                            };
-                        }))
+        self.run_on_locked_transport_full("basic_publish", "Could not publish", |mut transport| {
+            transport.conn.basic_publish(channel_id, options.ticket, exchange.to_string(), queue.to_string(),
+                options.mandatory, options.immediate).map(Some)
+        }, move |mut conn, delivery_tag| {
+            conn.channels.get_mut(&channel_id).and_then(|c| {
+                if c.confirm {
+                    if c.acked.remove(&delivery_tag) {
+                        Some(Ok(Async::Ready(Some(true))))
+                    } else if c.nacked.remove(&delivery_tag) {
+                        Some(Ok(Async::Ready(Some(false))))
                     } else {
-                        Box::new(future::ok(None))
+                        info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
+                        Some(Ok(Async::NotReady))
                     }
-                },
-            }
-        } else {
-            //FIXME: if we're there, it means the mutex failed
-            Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
-        }
+                } else {
+                    None
+                }
+            }).unwrap_or(Ok(Async::Ready(None)))
+        }, Some((channel_id, payload, properties)))
     }
 
     /// creates a consumer stream
