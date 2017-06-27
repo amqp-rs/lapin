@@ -1,6 +1,6 @@
 use std::default::Default;
-use std::io::{self,Error,ErrorKind};
-use futures::{Async,future,Future};
+use std::io;
+use futures::{future,Future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
@@ -55,42 +55,7 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
   pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
-    let channel_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      let channel_id: u16 = transport.conn.create_channel();
-      match transport.conn.channel_open(channel_id, "".to_string()) {
-        //FIXME: should use errors from underlying library here
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not create channel: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          //FIXME: very afterwards that the state is Connected and not error
-          Box::new(Channel::wait_for_answer(channel_transport.clone(), request_id, |mut conn, request_id| {
-            match conn.is_finished(request_id) {
-                Some(answer) if answer => Ok(Async::Ready(Some(true))),
-                _                      => Ok(Async::NotReady),
-            }
-          }).map(move |_| {
-            Channel {
-              id:        channel_id,
-              transport: channel_transport,
-            }
-          }))
-        }
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
-    }
+    Channel::create(self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds

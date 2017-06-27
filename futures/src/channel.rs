@@ -126,6 +126,30 @@ pub struct QueueDeleteOptions {
 }
 
 impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
+    /// create a channel
+    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error>> {
+        let channel_transport = transport.clone();
+        let create_channel = future::poll_fn(move || {
+            if let Ok(mut transport) = channel_transport.try_lock() {
+                return Ok(Async::Ready(Channel {
+                    id:        transport.conn.create_channel(),
+                    transport: channel_transport.clone(),
+                }))
+            } else {
+                return Ok(Async::NotReady);
+            }
+        });
+
+        Box::new(create_channel.and_then(|channel| {
+            let channel_id = channel.id;
+            channel.run_on_locked_transport("create", "Could not create channel", move |mut transport| {
+                transport.conn.channel_open(channel_id, "".to_string()).map(Some)
+            }).map(move |_| {
+                channel
+            })
+        }))
+    }
+
     /// request access
     ///
     /// returns a future that resolves once the access is granted
