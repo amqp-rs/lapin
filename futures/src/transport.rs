@@ -8,11 +8,14 @@ use bytes::BytesMut;
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
+use std::sync::{Arc,Mutex};
+use std::thread;
 use std::time::Duration;
 use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
+use tokio_core::reactor::Core;
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
-use tokio_timer::{Interval,Timer};
+use tokio_timer::Timer;
 use channel::BasicProperties;
 use client::ConnectionOptions;
 
@@ -106,7 +109,6 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream: Framed<T,AMQPCodec>,
-  heartbeat: Option<Interval>,
   pub conn: Connection,
 }
 
@@ -134,7 +136,6 @@ impl<T> AMQPTransport<T>
     };
     let mut t = AMQPTransport {
       upstream:  stream.framed(codec),
-      heartbeat: None,
       conn:      conn,
     };
 
@@ -157,22 +158,27 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
-  pub fn start_heartbeat(&mut self) {
+  pub fn start_heartbeat(&self, transport: Arc<Mutex<AMQPTransport<T>>>) -> io::Result<()> {
       let heartbeat = self.conn.configuration.heartbeat as u64;
       if heartbeat > 0 {
-          self.heartbeat = Some(Timer::default().interval(Duration::from_secs(heartbeat)));
+          thread::Builder::new().name("lapin heartbeat".to_string()).spawn(move || {
+              Core::new().unwrap().run(Timer::default().interval(Duration::from_secs(heartbeat)).map_err(From::from).for_each(|_| {
+                  debug!("poll heartbeat");
+                  if let Ok(mut transport) = transport.lock() {
+                      debug!("Sending heartbeat");
+                      if let Err(e) = transport.send_frame(Frame::Heartbeat(0)) {
+                          error!("Failed to send heartbeat: {:?}", e);
+                          return Err(e);
+                      } else {
+                          Ok(())
+                      }
+                  } else {
+                      Ok(())
+                  }
+              })).unwrap()
+          })?;
       }
-  }
-
-  fn poll_heartbeat(&mut self) -> Result<(), io::Error> {
-    if let Some(Ok(Async::Ready(_))) = self.heartbeat.as_mut().map(Interval::poll) {
-      debug!("Sending heartbeat");
-      if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
-        error!("Failed to send heartbeat: {:?}", e);
-        return Err(e);
-      }
-    }
-    Ok(())
+      Ok(())
   }
 
   fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
@@ -302,7 +308,6 @@ impl<T> Stream for AMQPTransport<T>
 
     fn poll(&mut self) -> Poll<Option<()>, io::Error> {
       trace!("stream poll");
-      self.poll_heartbeat()?;
       self.poll_upstream()
     }
 }

@@ -44,16 +44,24 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   /// this method returns a future that resolves once the connection handshake is done.
   /// The result is a client that can be used to create a channel
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = Client<T>, Error = io::Error>> {
-    Box::new(AMQPTransport::connect(stream, options).and_then(|mut transport| {
+    Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      transport.start_heartbeat();
-      let config = transport.conn.configuration.clone();
-      let client = Client {
-        transport:     Arc::new(Mutex::new(transport)),
-        configuration: config,
-      };
+      let config        = transport.conn.configuration.clone();
+      let arc_transport = Arc::new(Mutex::new(transport));
 
-      future::ok(client)
+      if let Ok(transport) = arc_transport.lock() {
+          if let Err(err) = transport.start_heartbeat(arc_transport.clone()) {
+              return Box::new(future::err(err));
+          }
+      } else {
+          return Box::new(future::err(io::Error::new(io::ErrorKind::Other, "Failed to lock transport")))
+      }
+
+      let client = Client {
+          transport:     arc_transport,
+          configuration: config,
+      };
+      Box::new(future::ok(client))
     }))
   }
 
