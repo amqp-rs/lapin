@@ -15,7 +15,7 @@ pub struct Consumer<T> {
   pub consumer_tag: String,
 }
 
-impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
+impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   type Item = Message;
   type Error = io::Error;
 

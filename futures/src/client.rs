@@ -38,7 +38,7 @@ impl Default for ConnectionOptions {
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
-impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
+impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
   /// this method returns a future that resolves once the connection handshake is done.
@@ -55,7 +55,6 @@ impl<T: AsyncRead+AsyncWrite+'static> Client<T> {
 
       future::ok(client)
     }))
-
   }
 
   /// creates a new channel

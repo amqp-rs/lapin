@@ -19,7 +19,8 @@ pub struct Channel<T> {
   pub id:    u16,
 }
 
-impl<T> Clone for Channel<T> {
+impl<T> Clone for Channel<T>
+    where T: Sync+Send {
   fn clone(&self) -> Channel<T> {
     Channel {
       transport: self.transport.clone(),
@@ -125,7 +126,7 @@ pub struct QueueDeleteOptions {
   pub no_wait:   bool,
 }
 
-impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
+impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Channel<T> {
     /// create a channel
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error>> {
         let channel_transport = transport.clone();

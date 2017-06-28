@@ -112,6 +112,7 @@ pub struct AMQPTransport<T> {
 
 impl<T> AMQPTransport<T>
    where T: AsyncRead+AsyncWrite,
+         T: Sync+Send,
          T: 'static               {
 
   /// starts the connection process
@@ -250,6 +251,7 @@ pub struct AMQPTransportConnector<T> {
 
 impl<T> Future for AMQPTransportConnector<T>
     where T: AsyncRead + AsyncWrite,
+          T: Sync+Send,
           T: 'static {
 
   type Item  = AMQPTransport<T>;
@@ -293,6 +295,7 @@ impl<T> Future for AMQPTransportConnector<T>
 
 impl<T> Stream for AMQPTransport<T>
     where T: AsyncRead + AsyncWrite,
+          T: Sync+Send,
           T: 'static {
     type Item = ();
     type Error = io::Error;
@@ -305,7 +308,8 @@ impl<T> Stream for AMQPTransport<T>
 }
 
 impl<T> Sink for AMQPTransport<T>
-    where T: AsyncWrite {
+    where T: AsyncWrite,
+          T: Sync+Send {
     type SinkItem = Frame;
     type SinkError = io::Error;
 
@@ -319,4 +323,3 @@ impl<T> Sink for AMQPTransport<T>
         self.upstream.poll_complete()
     }
 }
-
