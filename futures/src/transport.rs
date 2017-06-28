@@ -166,7 +166,7 @@ impl<T> AMQPTransport<T>
 
   fn poll_heartbeat(&mut self) -> Result<(), io::Error> {
     if let Some(Ok(Async::Ready(_))) = self.heartbeat.as_mut().map(Interval::poll) {
-      trace!("Sending heartbeat");
+      debug!("Sending heartbeat");
       if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
         error!("Failed to send heartbeat: {:?}", e);
         return Err(e);
