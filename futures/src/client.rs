@@ -12,12 +12,21 @@ use transport::*;
 use channel::{Channel, ConfirmSelectOptions};
 
 /// the Client structures connects to a server and creates channels
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct Client<T> {
     transport:         Arc<Mutex<AMQPTransport<T>>>,
     pub configuration: ConnectionConfiguration,
 }
 
+impl<T> Clone for Client<T>
+    where T: Sync+Send {
+  fn clone(&self) -> Client<T> {
+    Client {
+      transport:     self.transport.clone(),
+      configuration: self.configuration.clone(),
+    }
+  }
+}
 #[derive(Clone,Debug,PartialEq)]
 pub struct ConnectionOptions {
   pub username:  String,
