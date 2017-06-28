@@ -1,9 +1,12 @@
 use lapin_async;
+use lapin_async::format::frame::Frame;
 use std::default::Default;
 use std::io;
-use futures::{future,Future};
+use futures::{future,Future,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
+use tokio_timer::Timer;
 use std::sync::{Arc,Mutex};
+use std::time::Duration;
 
 use transport::*;
 use channel::{Channel, ConfirmSelectOptions};
@@ -49,14 +52,6 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
       let config        = transport.conn.configuration.clone();
       let arc_transport = Arc::new(Mutex::new(transport));
 
-      if let Ok(transport) = arc_transport.lock() {
-          if let Err(err) = transport.start_heartbeat(arc_transport.clone()) {
-              return Box::new(future::err(err));
-          }
-      } else {
-          return Box::new(future::err(io::Error::new(io::ErrorKind::Other, "Failed to lock transport")))
-      }
-
       let client = Client {
           transport:     arc_transport,
           configuration: config,
@@ -64,6 +59,30 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
       Box::new(future::ok(client))
     }))
   }
+
+  pub fn start_heartbeat(&self) -> Box<Future<Item = (), Error = io::Error>> {
+      let heartbeat = self.configuration.heartbeat as u64;
+      if heartbeat > 0 {
+          let transport = self.transport.clone();
+          Box::new(Timer::default().interval(Duration::from_secs(heartbeat)).map_err(From::from).for_each(move |_| {
+              debug!("poll heartbeat");
+              if let Ok(mut transport) = transport.lock() {
+                  debug!("Sending heartbeat");
+                  if let Err(e) = transport.send_frame(Frame::Heartbeat(0)) {
+                      error!("Failed to send heartbeat: {:?}", e);
+                      return Err(e);
+                  } else {
+                      Ok(())
+                  }
+              } else {
+                  Ok(())
+              }
+          }))
+      } else {
+          Box::new(future::ok(()))
+      }
+  }
+
 
   /// creates a new channel
   ///

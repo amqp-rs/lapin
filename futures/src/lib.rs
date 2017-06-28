@@ -135,7 +135,6 @@ extern crate bytes;
 extern crate lapin_async;
 #[macro_use] extern crate log;
 extern crate nom;
-extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_timer;
 

@@ -8,14 +8,9 @@ use bytes::BytesMut;
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use std::sync::{Arc,Mutex};
-use std::thread;
-use std::time::Duration;
 use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
-use tokio_core::reactor::Core;
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
-use tokio_timer::Timer;
 use channel::BasicProperties;
 use client::ConnectionOptions;
 
@@ -158,29 +153,6 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
-  pub fn start_heartbeat(&self, transport: Arc<Mutex<AMQPTransport<T>>>) -> io::Result<()> {
-      let heartbeat = self.conn.configuration.heartbeat as u64;
-      if heartbeat > 0 {
-          thread::Builder::new().name("lapin heartbeat".to_string()).spawn(move || {
-              Core::new().unwrap().run(Timer::default().interval(Duration::from_secs(heartbeat)).map_err(From::from).for_each(|_| {
-                  debug!("poll heartbeat");
-                  if let Ok(mut transport) = transport.lock() {
-                      debug!("Sending heartbeat");
-                      if let Err(e) = transport.send_frame(Frame::Heartbeat(0)) {
-                          error!("Failed to send heartbeat: {:?}", e);
-                          return Err(e);
-                      } else {
-                          Ok(())
-                      }
-                  } else {
-                      Ok(())
-                  }
-              })).unwrap()
-          })?;
-      }
-      Ok(())
-  }
-
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames()?;
     self.handle_frames()
@@ -204,7 +176,7 @@ impl<T> AMQPTransport<T>
     Ok(())
   }
 
-  fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
+  pub fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
       self.start_send(frame).and_then(|_| self.poll_complete())
   }
 
