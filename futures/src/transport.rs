@@ -181,34 +181,6 @@ impl<T> AMQPTransport<T>
       Ok(())
   }
 
-  fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
-    trace!("poll upstream");
-    let value = match self.upstream.poll() {
-      Ok(Async::Ready(t)) => t,
-      Ok(Async::NotReady) => {
-        trace!("upstream poll gave NotReady");
-        return Ok(Async::NotReady);
-      },
-      Err(e) => {
-        error!("upstream poll gave error: {:?}", e);
-        return Err(From::from(e));
-      },
-    };
-
-    if let Some(frame) = value {
-      trace!("upstream poll gave frame: {:?}", frame);
-      if let Err(e) = self.conn.handle_frame(frame) {
-        let err = format!("failed to handle frame: {:?}", e);
-        return Err(io::Error::new(io::ErrorKind::Other, err));
-      }
-      self.send_frames()?;
-      Ok(Async::Ready(Some(())))
-    } else {
-      error!("upstream poll gave Ready(None)");
-      Ok(Async::Ready(None))
-    }
-  }
-
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames()?;
     self.handle_frames()
@@ -307,8 +279,31 @@ impl<T> Stream for AMQPTransport<T>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<()>, io::Error> {
-      trace!("stream poll");
-      self.poll_upstream()
+        trace!("stream poll");
+        let value = match self.upstream.poll() {
+            Ok(Async::Ready(t)) => t,
+            Ok(Async::NotReady) => {
+                trace!("upstream poll gave NotReady");
+                return Ok(Async::NotReady);
+            },
+            Err(e) => {
+                error!("upstream poll gave error: {:?}", e);
+                return Err(From::from(e));
+            },
+        };
+
+        if let Some(frame) = value {
+            trace!("upstream poll gave frame: {:?}", frame);
+            if let Err(e) = self.conn.handle_frame(frame) {
+                let err = format!("failed to handle frame: {:?}", e);
+                return Err(io::Error::new(io::ErrorKind::Other, err));
+            }
+            self.send_frames()?;
+            Ok(Async::Ready(Some(())))
+        } else {
+            error!("upstream poll gave Ready(None)");
+            Ok(Async::Ready(None))
+        }
     }
 }
 
