@@ -81,6 +81,7 @@ use tokio_core::net::TcpStream;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 use lapin::types::FieldTable;
+use std::thread;
 
 fn main() {
 
@@ -97,6 +98,10 @@ fn main() {
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
     }).and_then(|client| {
+      let heartbeat_client = client.clone();
+      thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
+        Core::new().unwrap().run(heartbeat_client.start_heartbeat()).unwrap();
+      }).unwrap();
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created

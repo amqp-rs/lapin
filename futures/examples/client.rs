@@ -11,6 +11,7 @@ use tokio_core::net::TcpStream;
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ConfirmSelectOptions,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
+use std::thread;
 
 fn main() {
   env_logger::init().unwrap();
@@ -26,6 +27,10 @@ fn main() {
         ..Default::default()
       })
     }).and_then(|client| {
+      let heartbeat_client = client.clone();
+      thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
+        Core::new().unwrap().run(heartbeat_client.start_heartbeat()).unwrap();
+      }).unwrap();
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
