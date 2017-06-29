@@ -55,21 +55,23 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   ///
   /// this method returns a future that resolves once the connection handshake is done.
   /// The result is a client that can be used to create a channel
-  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = Client<T>, Error = io::Error>> {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>), Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      let config        = transport.conn.configuration.clone();
-      let arc_transport = Arc::new(Mutex::new(transport));
-
-      let client = Client {
-          transport:     arc_transport,
-          configuration: config,
-      };
-      Box::new(future::ok(client))
+      Box::new(future::ok(Self::connect_internal(transport)))
     }))
   }
 
-  pub fn start_heartbeat(&self) -> Box<Future<Item = (), Error = io::Error>> {
+  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>) {
+      (Client {
+          configuration: transport.conn.configuration.clone(),
+          transport:     Arc::new(Mutex::new(transport)),
+      }, Box::new(move |client: &Self| {
+          client.start_heartbeat()
+      }))
+  }
+
+  fn start_heartbeat(&self) -> Box<Future<Item = (), Error = io::Error> + Send> {
       let heartbeat = self.configuration.heartbeat as u64;
       if heartbeat > 0 {
           let transport = self.transport.clone();

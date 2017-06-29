@@ -24,7 +24,7 @@ fn connection() {
   core.run(
     TcpStream::connect(&addr, &handle).and_then(|stream| {
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-    }).and_then(|client| {
+    }).and_then(|(client, _)| {
 
       client.create_channel().and_then(|channel| {
         let id = channel.id;

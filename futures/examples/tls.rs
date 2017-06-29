@@ -40,7 +40,7 @@ fn main() {
         password: password.to_string(),
         ..Default::default()
       })
-    }).and_then(|client| {
+    }).and_then(|(client, _)| {
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
         info!("created channel with id: {}", id);

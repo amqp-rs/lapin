@@ -43,7 +43,7 @@ fn main() {
       // connect() returns a future of an AMQP Client
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-    }).and_then(|client| {
+    }).and_then(|(client, )| {
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created
@@ -97,10 +97,10 @@ fn main() {
       // connect() returns a future of an AMQP Client
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-    }).and_then(|client| {
+    }).and_then(|(client, heartbeat_future_fn)| {
       let heartbeat_client = client.clone();
       thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
-        Core::new().unwrap().run(heartbeat_client.start_heartbeat()).unwrap();
+        Core::new().unwrap().run(heartbeat_future_fn(&heartbeat_client)).unwrap();
       }).unwrap();
 
       // create_channel returns a future that is resolved
