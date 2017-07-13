@@ -58,6 +58,8 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   /// to which you need to pass the client to get a future that will handle the Heartbeat. The
   /// heartbeat future should be run in a dedicated thread so that nothing can prevent it from
   /// dispatching events on time.
+  /// If we ran it as part of the "main" chain of futures, we might end up not sending
+  /// some heartbeats if we don't poll often enough (because of some blocking task or such).
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>), Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
