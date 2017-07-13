@@ -8,11 +8,10 @@ use bytes::BytesMut;
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use std::time::Duration;
 use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
-use tokio_timer::{Interval,Timer};
+use channel::BasicProperties;
 use client::ConnectionOptions;
 
 /// implements tokio-io's Decoder and Encoder
@@ -105,12 +104,12 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream: Framed<T,AMQPCodec>,
-  heartbeat: Interval,
   pub conn: Connection,
 }
 
 impl<T> AMQPTransport<T>
    where T: AsyncRead+AsyncWrite,
+         T: Sync+Send,
          T: 'static               {
 
   /// starts the connection process
@@ -132,7 +131,6 @@ impl<T> AMQPTransport<T>
     };
     let mut t = AMQPTransport {
       upstream:  stream.framed(codec),
-      heartbeat: Timer::default().interval(Duration::from_secs(conn.configuration.heartbeat as u64)),
       conn:      conn,
     };
 
@@ -142,7 +140,7 @@ impl<T> AMQPTransport<T>
     }
 
     let mut connector = AMQPTransportConnector {
-      transport: Some(t)
+      transport: Some(t),
     };
 
     trace!("pre-poll");
@@ -155,48 +153,15 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
-  fn poll_heartbeat(&mut self) -> Result<(), io::Error> {
-    if let Ok(Async::Ready(_)) = self.heartbeat.poll() {
-      trace!("Sending heartbeat");
-      if let Err(e) = self.send_frame(Frame::Heartbeat(0)) {
-        error!("Failed to send heartbeat: {:?}", e);
-        return Err(e);
-      }
-    }
-    Ok(())
-  }
-
-  fn poll_upstream(&mut self) -> Poll<Option<()>, io::Error> {
-    trace!("poll upstream");
-    let value = match self.upstream.poll() {
-      Ok(Async::Ready(t)) => t,
-      Ok(Async::NotReady) => {
-        trace!("upstream poll gave NotReady");
-        return Ok(Async::NotReady);
-      },
-      Err(e) => {
-        error!("upstream poll gave error: {:?}", e);
-        return Err(From::from(e));
-      },
-    };
-
-    if let Some(frame) = value {
-      trace!("upstream poll gave frame: {:?}", frame);
-      if let Err(e) = self.conn.handle_frame(frame) {
-        let err = format!("failed to handle frame: {:?}", e);
-        return Err(io::Error::new(io::ErrorKind::Other, err));
-      }
-      self.send_frames()?;
-      Ok(Async::Ready(Some(())))
-    } else {
-      error!("upstream poll gave Ready(None)");
-      Ok(Async::Ready(None))
-    }
-  }
-
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames()?;
     self.handle_frames()
+  }
+
+  pub fn send_and_handle_frames_with_payload(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) -> Poll<Option<()>, io::Error> {
+      self.send_and_handle_frames()?;
+      self.conn.send_content_frames(channel_id, 60, payload, properties);
+      self.send_and_handle_frames()
   }
 
   fn send_frames(&mut self) -> Result<(), io::Error> {
@@ -211,11 +176,11 @@ impl<T> AMQPTransport<T>
     Ok(())
   }
 
-  fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
+  pub fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
       self.start_send(frame).and_then(|_| self.poll_complete())
   }
 
-  pub fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
+  fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     trace!("handle frames");
     for _ in 0..30 {
       if try_ready!(self.poll()).is_none() {
@@ -236,6 +201,7 @@ pub struct AMQPTransportConnector<T> {
 
 impl<T> Future for AMQPTransportConnector<T>
     where T: AsyncRead + AsyncWrite,
+          T: Sync+Send,
           T: 'static {
 
   type Item  = AMQPTransport<T>;
@@ -279,19 +245,43 @@ impl<T> Future for AMQPTransportConnector<T>
 
 impl<T> Stream for AMQPTransport<T>
     where T: AsyncRead + AsyncWrite,
+          T: Sync+Send,
           T: 'static {
     type Item = ();
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<()>, io::Error> {
-      trace!("stream poll");
-      self.poll_heartbeat()?;
-      self.poll_upstream()
+        trace!("stream poll");
+        let value = match self.upstream.poll() {
+            Ok(Async::Ready(t)) => t,
+            Ok(Async::NotReady) => {
+                trace!("upstream poll gave NotReady");
+                return Ok(Async::NotReady);
+            },
+            Err(e) => {
+                error!("upstream poll gave error: {:?}", e);
+                return Err(From::from(e));
+            },
+        };
+
+        if let Some(frame) = value {
+            trace!("upstream poll gave frame: {:?}", frame);
+            if let Err(e) = self.conn.handle_frame(frame) {
+                let err = format!("failed to handle frame: {:?}", e);
+                return Err(io::Error::new(io::ErrorKind::Other, err));
+            }
+            self.send_frames()?;
+            Ok(Async::Ready(Some(())))
+        } else {
+            error!("upstream poll gave Ready(None)");
+            Ok(Async::Ready(None))
+        }
     }
 }
 
 impl<T> Sink for AMQPTransport<T>
-    where T: AsyncWrite {
+    where T: AsyncWrite,
+          T: Sync+Send {
     type SinkItem = Frame;
     type SinkError = io::Error;
 
@@ -305,4 +295,3 @@ impl<T> Sink for AMQPTransport<T>
         self.upstream.poll_complete()
     }
 }
-

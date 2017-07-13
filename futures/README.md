@@ -43,7 +43,7 @@ fn main() {
       // connect() returns a future of an AMQP Client
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-    }).and_then(|client| {
+    }).and_then(|(client, _ /* heartbeat_future_fn */)| {
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created
@@ -55,7 +55,7 @@ fn main() {
       // we using a "move" closure to reuse the channel
       // once the queue is declared. We could also clone
       // the channel
-      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
           channel.basic_publish("hello", b"hello from tokio", &BasicPublishOptions::default(),
@@ -81,6 +81,7 @@ use tokio_core::net::TcpStream;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 use lapin::types::FieldTable;
+use std::thread;
 
 fn main() {
 
@@ -96,7 +97,15 @@ fn main() {
       // connect() returns a future of an AMQP Client
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-    }).and_then(|client| {
+    }).and_then(|(client, heartbeat_future_fn)| {
+      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
+      // dispatching events on time.
+      // If we ran it as part of the "main" chain of futures, we might end up not sending
+      // some heartbeats if we don't poll often enough (because of some blocking task or such).
+      let heartbeat_client = client.clone();
+      thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
+        Core::new().unwrap().run(heartbeat_future_fn(&heartbeat_client)).unwrap();
+      }).unwrap();
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created
@@ -106,13 +115,13 @@ fn main() {
       info!("created channel with id: {}", id);
 
       let ch = channel.clone();
-      channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+      channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
         // basic_consume returns a future of a message
         // stream. Any time a message arrives for this consumer,
         // the for_each method would be called
-        channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+        channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
       }).and_then(|stream| {
         info!("got consumer stream");
 

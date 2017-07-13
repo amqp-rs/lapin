@@ -181,7 +181,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingChannelOpenOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
@@ -261,7 +261,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingChannelFlowOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
             self.get_next_answer(_channel_id);
           },
@@ -356,7 +356,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingChannelCloseOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.set_channel_state(_channel_id, ChannelState::Closed);
           },
           _ => {
@@ -423,7 +423,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingAccessRequestOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -492,7 +492,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingExchangeDeclareOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -552,7 +552,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingExchangeDeleteOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -616,7 +616,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingExchangeBindOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -680,7 +680,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingExchangeUnbindOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -750,7 +750,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueueDeclareOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&method.queue).map(|q| {
                 q.message_count  = method.message_count;
@@ -825,7 +825,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueueBindOk(request_id, exchange, routing_key)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             let key = (exchange, routing_key);
             self.channels.get_mut(&_channel_id).map(|c| {
               for ref mut q in c.queues.values_mut() {
@@ -889,7 +889,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueuePurgeOk(request_id, _)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             Ok(())
           },
           _ => {
@@ -950,7 +950,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueueDeleteOk(request_id, key)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| c.queues.remove(&key));
             Ok(())
           },
@@ -1012,7 +1012,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             let key = (exchange, routing_key);
             self.channels.get_mut(&_channel_id).map(|c| {
               for ref mut q in c.queues.values_mut() {
@@ -1075,7 +1075,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             if global {
               self.prefetch_size  = prefetch_size;
               self.prefetch_count = prefetch_count;
@@ -1153,7 +1153,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicConsumeOk(request_id, queue, _, no_local, no_ack, exclusive, nowait)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
                 let consumer = Consumer {
@@ -1225,7 +1225,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicCancelOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
               for ref mut q in c.queues.values_mut() {
                 q.consumers.remove(&method.consumer_tag);
@@ -1521,7 +1521,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicRecoverOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             error!("unimplemented method Basic.RecoverOk, ignoring packet");
             Ok(())
           },
@@ -1762,7 +1762,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingConfirmSelectOk(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.confirm = true;
               c.message_count = 1;
@@ -1791,7 +1791,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
 
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
@@ -1831,7 +1831,7 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
-            self.finished_reqs.insert(request_id);
+            self.finished_reqs.insert(request_id, true);
 
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {

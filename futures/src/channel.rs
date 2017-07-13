@@ -1,15 +1,16 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Stream};
+use futures::{Async,Future,future,Poll,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
+use lapin_async;
 use lapin_async::api::RequestId;
+use lapin_async::connection::Connection;
 use lapin_async::queue::Message;
 use lapin_async::generated::basic;
 
 use transport::*;
 use types::FieldTable;
 use consumer::Consumer;
-use client::wait_for_answer;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -18,7 +19,8 @@ pub struct Channel<T> {
   pub id:    u16,
 }
 
-impl<T> Clone for Channel<T> {
+impl<T> Clone for Channel<T>
+    where T: Sync+Send {
   fn clone(&self) -> Channel<T> {
     Channel {
       transport: self.transport.clone(),
@@ -76,6 +78,11 @@ pub struct QueueDeclareOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
+pub struct ConfirmSelectOptions {
+  pub nowait: bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
   pub ticket: u16,
   pub nowait: bool,
@@ -119,596 +126,298 @@ pub struct QueueDeleteOptions {
   pub no_wait:   bool,
 }
 
-impl<T: AsyncRead+AsyncWrite+'static> Channel<T> {
-  /// request access
-  ///
-  /// returns a future that resolves once the access is granted
-  pub fn access_request(&self, realm: &str, options: &AccessRequestOptions) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
+impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Channel<T> {
+    /// create a channel
+    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error>> {
+        let channel_transport = transport.clone();
+        let create_channel = future::poll_fn(move || {
+            if let Ok(mut transport) = channel_transport.try_lock() {
+                return Ok(Async::Ready(Channel {
+                    id:        transport.conn.create_channel(),
+                    transport: channel_transport.clone(),
+                }))
+            } else {
+                return Ok(Async::NotReady);
+            }
+        });
 
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.access_request(
-        self.id, realm.to_string(), options.exclusive, options.passive, options.active, options.write, options.read) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not request access {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("access_request request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("access_request returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not request access"))
-      ))
+        Box::new(create_channel.and_then(|channel| {
+            let channel_id = channel.id;
+            channel.run_on_locked_transport("create", "Could not create channel", move |mut transport| {
+                transport.conn.channel_open(channel_id, "".to_string()).map(Some)
+            }).map(move |_| {
+                channel
+            })
+        }))
     }
-  }
 
-  /// creates an exchange
-  ///
-  /// returns a future that resolves once the exchange is available
-  pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: &ExchangeDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.exchange_declare(
-        self.id, options.ticket, name.to_string(), exchange_type.to_string(),
-        options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("exchange_declare request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("exchange_declare returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not declare exchange"))
-      ))
+    /// request access
+    ///
+    /// returns a future that resolves once the access is granted
+    pub fn access_request(&self, realm: &str, options: &AccessRequestOptions) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("access_request", "Could not request access", |mut transport| {
+            transport.conn.access_request(self.id, realm.to_string(),
+                options.exclusive, options.passive, options.active, options.write, options.read).map(Some)
+        })
     }
-  }
 
-  /// deletes an exchange
-  ///
-  /// returns a future that resolves once the exchange is deleted
-  pub fn exchange_delete(&self, name: &str, options: &ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.exchange_delete(
-        self.id, options.ticket, name.to_string(), options.if_unused, options.nowait) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("exchange_delete request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("exchange_delete returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
-      ))
+    /// declares an exchange
+    ///
+    /// returns a future that resolves once the exchange is available
+    pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: &ExchangeDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("exchange_declare", "Could not declare exchange", |mut transport| {
+            transport.conn.exchange_declare(self.id, options.ticket, name.to_string(), exchange_type.to_string(),
+                options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments.clone()).map(Some)
+        })
     }
-  }
 
-  /// binds an exchange to another exchange
-  ///
-  /// returns a future that resolves once the exchanges are bound
-  pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.exchange_bind(
-        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("exchange_bind request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("exchange_bind returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not bind exchange"))
-      ))
+    /// deletes an exchange
+    ///
+    /// returns a future that resolves once the exchange is deleted
+    pub fn exchange_delete(&self, name: &str, options: &ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("exchange_delete", "Could not delete exchange", |mut transport| {
+            transport.conn.exchange_delete(self.id, options.ticket, name.to_string(),
+                options.if_unused, options.nowait).map(Some)
+        })
     }
-  }
 
-  /// unbinds an exchange from another one
-  ///
-  /// returns a future that resolves once the exchanges are unbound
-  pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.exchange_unbind(
-        self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(), options.nowait, arguments) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not unbind exchange: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("exchange_unbind request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("exchange_unbind returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete exchange"))
-      ))
+    /// binds an exchange to another exchange
+    ///
+    /// returns a future that resolves once the exchanges are bound
+    pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("exchange_bind", "Could not bind exchange", |mut transport| {
+            transport.conn.exchange_bind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
+                options.nowait, arguments.clone()).map(Some)
+        })
     }
-  }
 
-  /// creates a queue
-  ///
-  /// returns a future that resolves once the queue is available
-  ///
-  /// the `mandatory` and `ìmmediate` options can be set to true,
-  /// but the return message will not be handled
-  pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_declare(
-        self.id, options.ticket, name.to_string(),
-        options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not declare queue: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("queue_declare request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("queue_declare returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// unbinds an exchange from another one
+    ///
+    /// returns a future that resolves once the exchanges are unbound
+    pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("exchange_unbind", "Could not unbind exchange", |mut transport| {
+            transport.conn.exchange_unbind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
+                options.nowait, arguments.clone()).map(Some)
+        })
     }
-  }
 
-  /// binds a queue to an exchange
-  ///
-  /// returns a future that resolves once the queue is bound to the exchange
-  pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_bind(
-        self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
-        options.nowait, arguments) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not bind queue: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("queue_bind request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("queue_bind returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// declares a queue
+    ///
+    /// returns a future that resolves once the queue is available
+    ///
+    /// the `mandatory` and `ìmmediate` options can be set to true,
+    /// but the return message will not be handled
+    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("queue_declare", "Could not declare queue", |mut transport| {
+            transport.conn.queue_declare(self.id, options.ticket, name.to_string(),
+                options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.clone()).map(Some)
+        })
     }
-  }
 
-  /// sets up confirm extension for this channel
-  pub fn confirm_select(&self) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.confirm_select(self.id, false) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("confirm select request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-      Error::new(ErrorKind::ConnectionAborted, format!("could not activate confirm extension"))
-      ))
+    /// binds a queue to an exchange
+    ///
+    /// returns a future that resolves once the queue is bound to the exchange
+    pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("queue_bind", "Could not bind queue", |mut transport| {
+            transport.conn.queue_bind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
+                options.nowait, arguments.clone()).map(Some)
+        })
     }
-  }
 
-  /// publishes a message on a queue
-  ///
-  /// the future's result is:
-  /// - `Some(true)` if we're on a confirm channel and the message was ack'd
-  /// - `Some(false)` if we're on a confirm channel and the message was nack'd
-  /// - `None` if we're not on a confirm channel
-  pub fn basic_publish(&self, exchange: &str, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      //FIXME: does not handle the return messages with mandatory and immediate
-      match transport.conn.basic_publish(self.id, options.ticket, exchange.to_string(),
-        queue.to_string(), options.mandatory, options.immediate) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(delivery_tag) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          transport.conn.send_content_frames(self.id, 60, payload, properties);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          if transport.conn.channels.get_mut(&self.id).map(|c| c.confirm).unwrap_or(false) {
-            wait_for_basic_publish_confirm(cl_transport, delivery_tag, self.id)
-          } else {
-            Box::new(future::ok(None))
-          }
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// sets up confirm extension for this channel
+    pub fn confirm_select(&self, options: &ConfirmSelectOptions) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("confirm_select", "Could not activate confirm extension", |mut transport| {
+            transport.conn.confirm_select(self.id, options.nowait).map(Some)
+        })
     }
-  }
 
-  /// creates a consumer stream
-  ///
-  /// returns a future of a `Consumer` that resolves once the method succeeds
-  ///
-  /// `Consumer` implements `futures::Stream`, so it can be used with any of
-  /// the usual combinators
-  pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
-    let cl_transport = self.transport.clone();
+    /// publishes a message on a queue
+    ///
+    /// the future's result is:
+    /// - `Some(true)` if we're on a confirm channel and the message was ack'd
+    /// - `Some(false)` if we're on a confirm channel and the message was nack'd
+    /// - `None` if we're not on a confirm channel
+    pub fn basic_publish(&self, exchange: &str, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
+        let channel_id = self.id;
 
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
-        options.no_local, options.no_ack, options.exclusive, options.no_wait, FieldTable::new()) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not start consumer: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
+        self.run_on_locked_transport_full("basic_publish", "Could not publish", |mut transport| {
+            transport.conn.basic_publish(channel_id, options.ticket, exchange.to_string(), queue.to_string(),
+                options.mandatory, options.immediate).map(Some)
+        }, move |mut conn, delivery_tag| {
+            conn.channels.get_mut(&channel_id).and_then(|c| {
+                if c.confirm {
+                    if c.acked.remove(&delivery_tag) {
+                        Some(Ok(Async::Ready(Some(true))))
+                    } else if c.nacked.remove(&delivery_tag) {
+                        Some(Ok(Async::Ready(Some(false))))
+                    } else {
+                        info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
+                        Some(Ok(Async::NotReady))
+                    }
+                } else {
+                    None
+                }
+            }).unwrap_or(Ok(Async::Ready(None)))
+        }, Some((channel_id, payload, properties)))
+    }
 
-          let consumer = Consumer {
-            transport:    cl_transport.clone(),
+    /// creates a consumer stream
+    ///
+    /// returns a future of a `Consumer` that resolves once the method succeeds
+    ///
+    /// `Consumer` implements `futures::Stream`, so it can be used with any of
+    /// the usual combinators
+    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error>> {
+        let consumer = Consumer {
+            transport:    self.transport.clone(),
             channel_id:   self.id,
             queue:        queue.to_string(),
             consumer_tag: consumer_tag.to_string(),
-          };
+        };
 
-          trace!("basic_consume returning closure");
-          Box::new(wait_for_answer(cl_transport, request_id).map(move |_| {
+        Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |mut transport| {
+            transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
+            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.clone()).map(Some)
+        }).map(|_| {
             trace!("basic_consume received response, returning consumer");
             consumer
-          }))
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+        }))
     }
-  }
 
-  /// acks a message
-  pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_ack(self.id, delivery_tag, false) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// acks a message
+    pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("basic_ack", "Could not ack message", |mut transport| {
+            transport.conn.basic_ack(self.id, delivery_tag, false).map(|_| None)
+        })
     }
-  }
 
-  /// rejects a message
-  pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_reject(self.id, delivery_tag, requeue) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// rejects a message
+    pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("basic_reject", "Could not reject message", |mut transport| {
+            transport.conn.basic_reject(self.id, delivery_tag, requeue).map(|_| None)
+        })
     }
-  }
 
-  /// acks a message
-  pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = Message, Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not publish: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          wait_for_basic_get_answer(cl_transport, request_id, self.id, queue)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not create channel"))
-      ))
+    /// gets a message
+    pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = Message, Error = io::Error>> {
+        let channel_id = self.id;
+        let _queue = queue.to_string();
+        let receive_transport = self.transport.clone();
+        let receive_future = future::poll_fn(move || {
+            if let Ok(mut transport) = receive_transport.try_lock() {
+                transport.send_and_handle_frames()?;
+                if let Some(message) = transport.conn.next_get_message(channel_id, &_queue) {
+                    Ok(Async::Ready(message))
+                } else {
+                    transport.poll()?;
+                    trace!("basic get[{}-{}] not ready", channel_id, _queue);
+                    Ok(Async::NotReady)
+                }
+            } else {
+                return Ok(Async::NotReady);
+            }
+        });
+
+        Box::new(self.run_on_locked_transport_full("basic_get", "Could not get message", |mut transport| {
+            transport.conn.basic_get(self.id, options.ticket, queue.to_string(), options.no_ack).map(Some)
+        }, |mut conn, request_id| {
+            match conn.finished_get_result(request_id) {
+                Some(answer) => if answer {
+                    Ok(Async::Ready(Some(true)))
+                } else {
+                    Err(Error::new(ErrorKind::Other, "basic get returned empty"))
+                },
+                None         => Ok(Async::NotReady),
+            }
+        }, None).and_then(|_| receive_future))
     }
-  }
 
-  /// Purge a queue.
-  ///
-  /// This method removes all messages from a queue which are not awaiting acknowledgment.
-  pub fn queue_purge(&self, queue_name: &str, options: &QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_purge(self.id, options.ticket, queue_name.to_string(), options.nowait) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("purge request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("purge returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not purge queue {}", queue_name))
-      ))
+    /// Purge a queue.
+    ///
+    /// This method removes all messages from a queue which are not awaiting acknowledgment.
+    pub fn queue_purge(&self, queue_name: &str, options: &QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("queue_purge", "Could not purge queue", |mut transport| {
+            transport.conn.queue_purge(self.id, options.ticket, queue_name.to_string(), options.nowait).map(Some)
+        })
     }
-  }
 
-  /// Delete a queue.
-  ///
-  /// This method deletes a queue. When a queue is deleted any pending messages are sent to a dead-letter queue
-  /// if this is defined in the server configuration, and all consumers on the queue are cancelled.
-  ///
-  /// If `if_unused` is set, the server will only delete the queue if it has no consumers.
-  /// If the queue has consumers the server does not delete it but raises a channel exception instead.
-  ///
-  /// If `if_empty` is set, the server will only delete the queue if it has no messages.
-  pub fn queue_delete(&self, queue_name: &str, options: &QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
-    let cl_transport = self.transport.clone();
-
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.queue_delete(self.id, options.ticket, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue: {:?}", e)))
-        ),
-        Ok(request_id) => {
-          trace!("delete request id: {}", request_id);
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-
-          trace!("delete returning closure");
-          wait_for_answer(cl_transport, request_id)
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not delete queue {}", queue_name))
-      ))
+    /// Delete a queue.
+    ///
+    /// This method deletes a queue. When a queue is deleted any pending messages are sent to a dead-letter queue
+    /// if this is defined in the server configuration, and all consumers on the queue are cancelled.
+    ///
+    /// If `if_unused` is set, the server will only delete the queue if it has no consumers.
+    /// If the queue has consumers the server does not delete it but raises a channel exception instead.
+    ///
+    /// If `if_empty` is set, the server will only delete the queue if it has no messages.
+    pub fn queue_delete(&self, queue_name: &str, options: &QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("queue_purge", "Could not purge queue", |mut transport| {
+            transport.conn.queue_delete(self.id, options.ticket, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait).map(Some)
+        })
     }
-  }
 
-  /// closes the cannel
-  pub fn close(&self, code: u16, message: String) -> Box<Future<Item = (), Error = io::Error>> {
-    if let Ok(mut transport) = self.transport.lock() {
-      match transport.conn.channel_close(self.id, code, message, 0, 0) {
-        Err(e) => Box::new(
-          future::err(Error::new(ErrorKind::Other, format!("could not close channel: {:?}", e)))
-        ),
-        Ok(_) => {
-          if let Err(e) = transport.send_and_handle_frames() {
-            let err = format!("Failed to handle frames: {:?}", e);
-            trace!("{}", err);
-            return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-          }
-          Box::new(future::ok(()))
-        },
-      }
-    } else {
-      //FIXME: if we're there, it means the mutex failed
-      Box::new(future::err(
-        Error::new(ErrorKind::ConnectionAborted, format!("could not close channel"))
-      ))
+    /// closes the cannel
+    pub fn close(&self, code: u16, message: &str) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("close", "Could not close channel", |mut transport| {
+            transport.conn.channel_close(self.id, code, message.to_string(), 0, 0).map(|_| None)
+        })
     }
-  }
-}
 
-/// internal method to wait until a basic get succeeded
-pub fn wait_for_basic_get_answer<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>,
-  request_id: RequestId, channel_id: u16, queue: &str) -> Box<Future<Item = Message, Error = io::Error>> {
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<bool>, Error = io::Error>>
+        where Action:   Fn(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
+              Finished: 'static + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
+        if let Ok(mut transport) = self.transport.lock() {
+            match action(&mut transport) {
+                Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
+                Ok(request_id) => {
+                    trace!("{} request id: {:?}", method, request_id);
 
-  let receive_transport = transport.clone();
-  let queue = queue.to_string();
+                    let res = match payload {
+                        Some(payload) => transport.send_and_handle_frames_with_payload(payload.0, payload.1, payload.2),
+                        None          => transport.send_and_handle_frames(),
+                    };
 
-  let request_future = future::poll_fn(move || {
-    let result = if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames()?;
-      match tr.conn.finished_get_result(request_id) {
-        None =>  {
-          tr.handle_frames()?;
-          if let Some(res) = tr.conn.finished_get_result(request_id) {
-            res
-          } else {
-            return Ok(Async::NotReady);
-          }
-        },
-        Some(res) => res,
-      }
-    } else {
-      return Ok(Async::NotReady);
-    };
+                    if let Err(e) = res {
+                        let err = format!("Failed to handle frames: {:?}", e);
+                        trace!("{}", err);
+                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+                    }
 
-    if result {
-      Ok(Async::Ready(()))
-    } else {
-      Err(Error::new(ErrorKind::Other, format!("basic get returned empty")))
-    }
-  });
-
-  let receive_future = future::poll_fn(move || {
-    if let Ok(mut transport) = receive_transport.try_lock() {
-      transport.handle_frames()?;
-      if let Some(message) = transport.conn.next_get_message(channel_id, &queue) {
-        Ok(Async::Ready(message))
-      } else {
-        transport.poll()?;
-        trace!("basic get[{}-{}] not ready", channel_id, queue);
-        Ok(Async::NotReady)
-      }
-    } else {
-      return Ok(Async::NotReady);
-    }
-  });
-
-  Box::new(request_future.and_then(|_| receive_future))
-}
-
-/// internal method to wait until a basic publish confirmation comes back
-pub fn wait_for_basic_publish_confirm<T: AsyncRead+AsyncWrite+'static>(transport: Arc<Mutex<AMQPTransport<T>>>,
-  delivery_tag: u64, channel_id: u16) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
-
-  Box::new(future::poll_fn(move || {
-    if let Ok(mut tr) = transport.try_lock() {
-      tr.handle_frames()?;
-      let acked_opt = tr.conn.channels.get_mut(&channel_id).map(|c| {
-        if c.acked.remove(&delivery_tag) {
-          Some(true)
-        } else if c.nacked.remove(&delivery_tag) {
-          Some(false)
+                    if let Some(request_id) = request_id {
+                        trace!("{} returning closure", method);
+                        Box::new(Self::wait_for_answer(self.transport.clone(), request_id, finished))
+                    } else {
+                        Box::new(future::ok(None))
+                    }
+                },
+            }
         } else {
-          info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
-          None
+            //FIXME: if we're there, it means the mutex failed
+            Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
         }
-      }).unwrap();
+    }
 
-      if acked_opt.is_some() {
-        return Ok(Async::Ready(acked_opt));
-      } else {
-        tr.poll()?;
-        return Ok(Async::NotReady);
-      }
-    } else {
-      return Ok(Async::NotReady);
-    };
+    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error>>
+        where Action: Fn(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
+        Box::new(self.run_on_locked_transport_full(method, error, action, |mut conn, request_id| {
+            match conn.is_finished(request_id) {
+                Some(answer) if answer => Ok(Async::Ready(Some(true))),
+                _                      => Ok(Async::NotReady),
+            }
+        }, None).map(|_| ()))
+    }
 
-  }))
+    /// internal method to wait until a request succeeds
+    pub fn wait_for_answer<Finished>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished) -> Box<Future<Item = Option<bool>, Error = io::Error>>
+        where Finished: 'static + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
+        trace!("wait for answer for request {}", request_id);
+        Box::new(future::poll_fn(move || {
+            if let Ok(mut tr) = transport.try_lock() {
+                tr.send_and_handle_frames()?;
+                finished(&mut tr.conn, request_id)
+            } else {
+                Ok(Async::NotReady)
+            }
+        }))
+    }
 }

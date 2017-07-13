@@ -15,14 +15,14 @@ pub struct Consumer<T> {
   pub consumer_tag: String,
 }
 
-impl<T: AsyncRead+AsyncWrite+'static> Stream for Consumer<T> {
+impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   type Item = Message;
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Option<Message>, io::Error> {
     trace!("consumer[{}] poll", self.consumer_tag);
     if let Ok(mut transport) = self.transport.try_lock() {
-      transport.handle_frames()?;
+      transport.send_and_handle_frames()?;
       //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
       if let Some(message) = transport.conn.next_message(self.channel_id, &self.queue, &self.consumer_tag) {
         transport.poll()?;

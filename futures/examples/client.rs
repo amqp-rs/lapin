@@ -10,7 +10,8 @@ use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ConfirmSelectOptions,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
+use std::thread;
 
 fn main() {
   env_logger::init().unwrap();
@@ -25,17 +26,21 @@ fn main() {
         frame_max: 65535,
         ..Default::default()
       })
-    }).and_then(|client| {
+    }).and_then(|(client, heartbeat_future_fn)| {
+      let heartbeat_client = client.clone();
+      thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
+        Core::new().unwrap().run(heartbeat_future_fn(&heartbeat_client)).unwrap();
+      }).unwrap();
 
-      client.create_confirm_channel().and_then(|channel| {
+      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
         info!("created channel with id: {}", id);
 
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
-            channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), FieldTable::new()).and_then(move |_| {
+          channel.exchange_declare("hello_exchange", "direct", &ExchangeDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
+            channel.queue_bind("hello", "hello_exchange", "hello_2", &QueueBindOptions::default(), &FieldTable::new()).and_then(move |_| {
               channel.basic_publish(
                 "hello_exchange",
                 "hello_2",
@@ -45,10 +50,10 @@ fn main() {
               ).map(|confirmation| {
                 info!("publish got confirmation: {:?}", confirmation)
               }).and_then(move |_| {
-                channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), FieldTable::new()).and_then(move |_| {
-                    channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), FieldTable::new()).and_then(move |_| {
+                channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", &ExchangeBindOptions::default(), &FieldTable::new()).and_then(move |_| {
+                    channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", &ExchangeUnbindOptions::default(), &FieldTable::new()).and_then(move |_| {
                         channel.exchange_delete("hello_exchange", &ExchangeDeleteOptions::default()).and_then(move |_| {
-                            channel.close(200, "Bye".to_string())
+                            channel.close(200, "Bye")
                         })
                     })
                 })
@@ -63,7 +68,7 @@ fn main() {
         info!("created channel with id: {}", id);
 
         let c = channel.clone();
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           let ch = channel.clone();
@@ -72,7 +77,7 @@ fn main() {
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
             channel.basic_ack(message.delivery_tag)
           }).and_then(move |_| {
-            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default())
+            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
           })
         }).and_then(|stream| {
           info!("got consumer stream");
