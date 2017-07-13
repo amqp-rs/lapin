@@ -89,8 +89,10 @@ pub struct Connection {
   /// next request id
   pub request_index:     RequestId,
   /// list of finished requests
+  /// value is true if the requets returned something or false otherwise
   pub finished_reqs:     HashMap<RequestId, bool>,
   /// list of finished basic get requests
+  /// value is true if the requets returned something or false otherwise
   pub finished_get_reqs: HashMap<RequestId, bool>,
   /// credentials are stored in an option to remove them from memory once they are used
   pub credentials:       Option<Credentials>,

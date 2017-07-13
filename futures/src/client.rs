@@ -54,7 +54,10 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
   /// this method returns a future that resolves once the connection handshake is done.
-  /// The result is a client that can be used to create a channel
+  /// The result is a tuple containing a client that can be used to create a channel and a callback
+  /// to which you need to pass the client to get a future that will handle the Heartbeat. The
+  /// heartbeat future should be run in a dedicated thread so that nothing can prevent it from
+  /// dispatching events on time.
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>), Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
