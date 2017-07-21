@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Poll,Stream};
+use futures::{Async,Future,future,Poll};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
@@ -309,7 +309,6 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Channel<T> {
                 if let Some(message) = transport.conn.next_get_message(channel_id, &_queue) {
                     Ok(Async::Ready(message))
                 } else {
-                    transport.poll()?;
                     trace!("basic get[{}-{}] not ready", channel_id, _queue);
                     Ok(Async::NotReady)
                 }
