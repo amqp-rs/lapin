@@ -182,12 +182,12 @@ impl<T> AMQPTransport<T>
 
   fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     trace!("handle frames");
-    for _ in 0..30 {
+    loop {
+      // try_ready will return if we hit an error or NotReady.
       if try_ready!(self.poll()).is_none() {
         return Ok(Async::Ready(None));
       }
     }
-    self.poll()
   }
 }
 
