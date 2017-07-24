@@ -153,6 +153,11 @@ impl<T> AMQPTransport<T>
     Box::new(connector)
   }
 
+  // Note that this can only return one of
+  // - Error
+  // - Async::NotReady
+  // - Async::Ready(None)
+  // All other results are handled until one of these three is reached.
   pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     self.send_frames()?;
     self.handle_frames()
@@ -182,12 +187,12 @@ impl<T> AMQPTransport<T>
 
   fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
     trace!("handle frames");
-    for _ in 0..30 {
+    loop {
+      // try_ready will return if we hit an error or NotReady.
       if try_ready!(self.poll()).is_none() {
         return Ok(Async::Ready(None));
       }
     }
-    self.poll()
   }
 }
 
