@@ -81,7 +81,6 @@ use tokio_core::net::TcpStream;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 use lapin::types::FieldTable;
-use std::thread;
 
 fn main() {
 
@@ -103,9 +102,7 @@ fn main() {
       // If we ran it as part of the "main" chain of futures, we might end up not sending
       // some heartbeats if we don't poll often enough (because of some blocking task or such).
       let heartbeat_client = client.clone();
-      thread::Builder::new().name("heartbeat thread".to_string()).spawn(move || {
-        Core::new().unwrap().run(heartbeat_future_fn(&heartbeat_client)).unwrap();
-      }).unwrap();
+      handle.spawn(heartbeat_future_fn(&heartbeat_client));
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created

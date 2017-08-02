@@ -60,14 +60,14 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
   /// dispatching events on time.
   /// If we ran it as part of the "main" chain of futures, we might end up not sending
   /// some heartbeats if we don't poll often enough (because of some blocking task or such).
-  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>), Error = io::Error>> {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = ()>> + Send>), Error = io::Error>> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       Box::new(future::ok(Self::connect_internal(transport)))
     }))
   }
 
-  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>) {
+  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = ()>> + Send>) {
       (Client {
           configuration: transport.conn.configuration.clone(),
           transport:     Arc::new(Mutex::new(transport)),
@@ -76,7 +76,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
       }))
   }
 
-  fn start_heartbeat(&self) -> Box<Future<Item = (), Error = io::Error> + Send> {
+  fn start_heartbeat(&self) -> Box<Future<Item = (), Error = ()> + Send> {
       let heartbeat = self.configuration.heartbeat as u64;
       if heartbeat > 0 {
           let transport = self.transport.clone();
@@ -86,7 +86,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
                   debug!("Sending heartbeat");
                   if let Err(e) = transport.send_frame(Frame::Heartbeat(0)) {
                       error!("Failed to send heartbeat: {:?}", e);
-                      return Err(e);
+                      return Err(());
                   } else {
                       Ok(())
                   }
