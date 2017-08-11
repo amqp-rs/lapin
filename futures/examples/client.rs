@@ -27,7 +27,7 @@ fn main() {
       })
     }).and_then(|(client, heartbeat_future_fn)| {
       let heartbeat_client = client.clone();
-      handle.spawn(heartbeat_future_fn(&heartbeat_client));
+      handle.spawn(heartbeat_future_fn(&heartbeat_client).map_err(|_| ()));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;

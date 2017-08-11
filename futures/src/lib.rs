@@ -101,7 +101,7 @@
 //!      // If we ran it as part of the "main" chain of futures, we might end up not sending
 //!      // some heartbeats if we don't poll often enough (because of some blocking task or such).
 //!      let heartbeat_client = client.clone();
-//!      handle.spawn(heartbeat_future_fn(&heartbeat_client));
+//!      handle.spawn(heartbeat_future_fn(&heartbeat_client).map_err(|_| ()));
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
