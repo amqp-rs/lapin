@@ -119,6 +119,13 @@ pub struct BasicGetOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
+pub struct BasicQosOption {
+  pub prefetch_size:  u32,
+  pub prefetch_count: u16,
+  pub global:         bool,
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeleteOptions {
   pub ticket:    u16,
   pub if_unused: bool,
@@ -228,6 +235,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn confirm_select(&self, options: &ConfirmSelectOptions) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("confirm_select", "Could not activate confirm extension", |mut transport| {
             transport.conn.confirm_select(self.id, options.nowait).map(Some)
+        })
+    }
+
+    /// specifies quality of service for a channel
+    pub fn basic_qos(&self, options: &BasicQosOption) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("basic_qos", "Could not setup qos", |mut transport| {
+            transport.conn.basic_qos(self.id, options.prefetch_size, options.prefetch_count, options.global).map(|_| None)
         })
     }
 
