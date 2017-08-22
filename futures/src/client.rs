@@ -19,7 +19,7 @@ pub struct Client<T> {
 }
 
 impl<T> Clone for Client<T>
-    where T: Sync+Send {
+    where T: Send {
   fn clone(&self) -> Client<T> {
     Client {
       transport:     self.transport.clone(),
@@ -50,7 +50,7 @@ impl Default for ConnectionOptions {
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
-impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Client<T> {
+impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
   /// this method returns a future that resolves once the connection handshake is done.
