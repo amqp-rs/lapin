@@ -305,6 +305,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         })
     }
 
+    /// nacks a message
+    pub fn basic_nack(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("basic_nack", "Could not nack message", |mut transport| {
+            transport.conn.basic_nack(self.id, delivery_tag, false, requeue).map(|_| None)
+        })
+    }
+
     /// rejects a message
     pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("basic_reject", "Could not reject message", |mut transport| {
