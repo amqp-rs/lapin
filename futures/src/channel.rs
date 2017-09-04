@@ -119,7 +119,7 @@ pub struct BasicGetOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
-pub struct BasicQosOption {
+pub struct BasicQosOptions {
   pub prefetch_size:  u32,
   pub prefetch_count: u16,
   pub global:         bool,
@@ -239,7 +239,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     }
 
     /// specifies quality of service for a channel
-    pub fn basic_qos(&self, options: &BasicQosOption) -> Box<Future<Item = (), Error = io::Error>> {
+    pub fn basic_qos(&self, options: &BasicQosOptions) -> Box<Future<Item = (), Error = io::Error>> {
         self.run_on_locked_transport("basic_qos", "Could not setup qos", |mut transport| {
             transport.conn.basic_qos(self.id, options.prefetch_size, options.prefetch_count, options.global).map(|_| None)
         })
