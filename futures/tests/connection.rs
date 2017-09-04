@@ -11,7 +11,7 @@ use tokio_core::net::TcpStream;
 
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOption,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
+use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
 
 #[test]
 fn connection() {
@@ -45,7 +45,7 @@ fn connection() {
 
         let ch1 = channel.clone();
         let ch2 = channel.clone();
-        channel.basic_qos(&BasicQosOption { prefetch_count: 16, ..Default::default() }).and_then(move |_| {
+        channel.basic_qos(&BasicQosOptions { prefetch_count: 16, ..Default::default() }).and_then(move |_| {
           info!("channel QoS specified");
           channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).map(move |()| channel)
         }).and_then(move |channel| {
