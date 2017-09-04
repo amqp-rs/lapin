@@ -1381,7 +1381,7 @@ impl Connection {
             self.set_channel_state(_channel_id, ChannelState::WillReceiveContent(queue_name.to_string(), None));
 
             self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.get_mut(&queue_name).map(|mut q| {
+              c.queues.get_mut(&queue_name).map(|q| {
                 q.current_get_message = Some(Message::new(
                   method.delivery_tag,
                   method.exchange.to_string(),

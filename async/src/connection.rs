@@ -546,12 +546,12 @@ impl Connection {
         if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
           if let Some(ref consumer_tag) = consumer_tag {
             if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-              if let Some(mut msg) = cs.current_message.as_mut() {
+              if let Some(msg) = cs.current_message.as_mut() {
                 msg.properties = properties;
               }
             }
           } else {
-            if let Some(mut msg) = q.current_get_message.as_mut() {
+            if let Some(msg) = q.current_get_message.as_mut() {
               msg.properties = properties;
             }
           }
