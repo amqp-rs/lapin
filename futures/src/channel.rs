@@ -78,6 +78,11 @@ pub struct QueueDeclareOptions {
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
+pub struct QueueUnbindOptions {
+  pub ticket: u16
+}
+
+#[derive(Clone,Debug,Default,PartialEq)]
 pub struct ConfirmSelectOptions {
   pub nowait: bool,
 }
@@ -228,6 +233,15 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         self.run_on_locked_transport("queue_bind", "Could not bind queue", |transport| {
             transport.conn.queue_bind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
+        })
+    }
+
+    /// unbinds a queue from the exchange
+    ///
+    /// returns a future that resolves once the queue is unbound from the exchange
+    pub fn queue_unbind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueUnbindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error>> {
+        self.run_on_locked_transport("queue_unbind", "Could not unbind queue from the exchange", |transport| {
+            transport.conn.queue_unbind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(), arguments.clone()).map(Some)
         })
     }
 
