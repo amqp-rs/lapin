@@ -15,7 +15,7 @@ use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,Bas
 
 #[test]
 fn connection() {
-  env_logger::init().unwrap();
+  env_logger::init();
   let mut core = Core::new().unwrap();
 
   let handle = core.handle();

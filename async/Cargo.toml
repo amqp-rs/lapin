@@ -12,7 +12,7 @@ license = "MIT"
 build = "build.rs"
 
 [dependencies]
-log = "^0.3"
+log = "^0.4"
 nom = "^3.0"
 cookie-factory = "^0.2"
 amq-protocol = "^0.19"
@@ -25,7 +25,7 @@ default-features = false
 amq-protocol = "^0.19"
 
 [dev-dependencies]
-env_logger = "^0.4"
+env_logger = "^0.5"
 
 [features]
 default = []

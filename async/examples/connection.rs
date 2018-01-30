@@ -11,7 +11,7 @@ use lapin::buffer::Buffer;
 use lapin::generated::basic;
 
 fn main() {
-      env_logger::init().unwrap();
+      env_logger::init();
       let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
       stream.set_nonblocking(true).unwrap();
 

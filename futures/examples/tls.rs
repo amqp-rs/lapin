@@ -17,7 +17,7 @@ use tokio_core::net::TcpStream;
 use tokio_rustls::ClientConfigExt;
 
 fn main() {
-  env_logger::init().unwrap();
+  env_logger::init();
 
   let host       = "localhost";
   let port       = 5671;
