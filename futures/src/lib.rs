@@ -2,7 +2,7 @@
 //!
 //! This library offers a futures based API over the lapin-async library.
 //! It leverages the tokio-io and futures library, so you can use it
-//! with tokio-core, futures-cpupool or any other reactor.
+//! with tokio, futures-cpupool or any other reactor.
 //!
 //! The library is designed so it does not own the socket, so you
 //! can use any TCP, TLS or unix socket based stream.
@@ -11,7 +11,7 @@
 //! use one connection from multiple threads.
 //!
 //! There's an [example available](https://github.com/Geal/lapin/blob/master/futures/examples/client.rs)
-//! using tokio-core.
+//! using tokio.
 //!
 //! ## Publishing a message
 //!
@@ -19,26 +19,20 @@
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate futures;
-//! extern crate tokio_core;
+//! extern crate tokio;
 //!
 //! use futures::future::Future;
 //! use futures::Stream;
-//! use tokio_core::reactor::Core;
-//! use tokio_core::net::TcpStream;
+//! use tokio::net::TcpStream;
 //! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicPublishOptions,BasicProperties,QueueDeclareOptions};
 //! use lapin::types::FieldTable;
 //!
 //! fn main() {
-//!
-//!   // create the reactor
-//!   let mut core = Core::new().unwrap();
-//!   let handle = core.handle();
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
-//!   core.run(
-//!
-//!     TcpStream::connect(&addr, &handle).and_then(|stream| {
+//!   tokio::run(
+//!     TcpStream::connect(&addr).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
@@ -60,8 +54,8 @@
 //!
 //!         channel.basic_publish("", "hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
 //!       })
-//!     })
-//!   ).unwrap();
+//!     }).map(|_| ()).map_err(|_| ())
+//!   )
 //! }
 //! ```
 //!
@@ -71,26 +65,20 @@
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
 //! extern crate futures;
-//! extern crate tokio_core;
+//! extern crate tokio;
 //!
 //! use futures::future::Future;
 //! use futures::Stream;
-//! use tokio_core::reactor::Core;
-//! use tokio_core::net::TcpStream;
+//! use tokio::net::TcpStream;
 //! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 //! use lapin::types::FieldTable;
 //!
 //! fn main() {
-//!
-//!   // create the reactor
-//!   let mut core = Core::new().unwrap();
-//!   let handle = core.handle();
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
-//!   core.run(
-//!
-//!     TcpStream::connect(&addr, &handle).and_then(|stream| {
+//!   tokio::run(
+//!     TcpStream::connect(&addr).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
@@ -100,7 +88,7 @@
 //!      // dispatching events on time.
 //!      // If we ran it as part of the "main" chain of futures, we might end up not sending
 //!      // some heartbeats if we don't poll often enough (because of some blocking task or such).
-//!      handle.spawn(heartbeat.map_err(|_| ()));
+//!      tokio::spawn(heartbeat.map_err(|_| ()));
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
@@ -127,8 +115,8 @@
 //!           Ok(())
 //!         })
 //!       })
-//!     })
-//!   ).unwrap();
+//!     }).map_err(|_| ())
+//!   )
 //! }
 //! ```
 //!

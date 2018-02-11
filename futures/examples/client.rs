@@ -1,32 +1,29 @@
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
 extern crate futures;
-extern crate tokio_core;
+extern crate tokio;
 extern crate env_logger;
 
 use futures::future::Future;
 use futures::Stream;
-use tokio_core::reactor::Core;
-use tokio_core::net::TcpStream;
+use tokio::net::TcpStream;
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,BasicProperties,ConfirmSelectOptions,ExchangeBindOptions,ExchangeUnbindOptions,ExchangeDeclareOptions,ExchangeDeleteOptions,QueueBindOptions,QueueDeclareOptions};
 
 fn main() {
   env_logger::init();
-  let mut core = Core::new().unwrap();
 
-  let handle = core.handle();
   let addr = "127.0.0.1:5672".parse().unwrap();
 
-  core.run(
-    TcpStream::connect(&addr, &handle).and_then(|stream| {
+  tokio::run(
+    TcpStream::connect(&addr).and_then(|stream| {
       lapin::client::Client::connect(stream, &ConnectionOptions {
         frame_max: 65535,
         ..Default::default()
       })
     }).and_then(|(client, heartbeat)| {
-      handle.spawn(heartbeat.map_err(|e| println!("{:?}", e)));
+      tokio::spawn(heartbeat.map_err(|e| println!("{:?}", e)));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
@@ -85,6 +82,6 @@ fn main() {
           })
         })
       })
-    })
-  ).unwrap();
+    }).map_err(|_| ())
+  )
 }
