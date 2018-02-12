@@ -11,10 +11,6 @@ services: rabbitmq
 
 before_install:
   - export ROOT_PATH=`pwd`
-  - wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.0.0_1.0.2g-1ubuntu4.6_amd64.deb
-  - wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl-dev_1.0.2g-1ubuntu4.6_amd64.deb
-  - sudo dpkg -i libssl1.0.0_1.0.2g-1ubuntu4.6_amd64.deb
-  - sudo dpkg -i libssl-dev_1.0.2g-1ubuntu4.6_amd64.deb
 
 before_script:
   - cargo install cargo-travis --force
@@ -28,7 +24,6 @@ script:
 
 after_success:
   - cargo coveralls
-
 
 dist: trusty
 #sudo: false
