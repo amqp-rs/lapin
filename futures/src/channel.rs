@@ -265,11 +265,11 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// - `Some(true)` if we're on a confirm channel and the message was ack'd
     /// - `Some(false)` if we're on a confirm channel and the message was nack'd
     /// - `None` if we're not on a confirm channel
-    pub fn basic_publish(&self, exchange: &str, queue: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error>> {
         let channel_id = self.id;
 
         self.run_on_locked_transport_full("basic_publish", "Could not publish", |transport| {
-            transport.conn.basic_publish(channel_id, options.ticket, exchange.to_string(), queue.to_string(),
+            transport.conn.basic_publish(channel_id, options.ticket, exchange.to_string(), routing_key.to_string(),
                 options.mandatory, options.immediate).map(Some)
         }, move |conn, delivery_tag| {
             conn.channels.get_mut(&channel_id).and_then(|c| {
