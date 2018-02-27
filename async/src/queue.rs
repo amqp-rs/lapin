@@ -1,6 +1,5 @@
 use std::collections::{HashMap,VecDeque};
-use generated::basic;
-use types::*;
+use message::*;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Binding {
@@ -22,41 +21,14 @@ impl Binding {
 }
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct Message {
-  pub delivery_tag: LongLongUInt,
-  pub exchange:     String,
-  pub routing_key:  String,
-  pub redelivered:  bool,
-  pub properties:   basic::Properties,
-  pub data:         Vec<u8>,
-}
-
-impl Message {
-  pub fn new(delivery_tag: LongLongUInt, exchange: String, routing_key: String, redelivered: bool) -> Message {
-    Message {
-      delivery_tag: delivery_tag,
-      exchange:     exchange,
-      routing_key:  routing_key,
-      redelivered:  redelivered,
-      properties:   basic::Properties::default(),
-      data:         Vec::new(),
-    }
-  }
-
-  pub fn receive_content(&mut self, data: Vec<u8>) {
-    self.data.extend(data);
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
 pub struct Consumer {
   pub tag:             String,
   pub no_local:        bool,
   pub no_ack:          bool,
   pub exclusive:       bool,
   pub nowait:          bool,
-  pub messages:        VecDeque<Message>,
-  pub current_message: Option<Message>,
+  pub messages:        VecDeque<Delivery>,
+  pub current_message: Option<Delivery>,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -71,8 +43,8 @@ pub struct Queue {
   pub message_count:       u32,
   pub consumer_count:      u32,
   pub created:             bool,
-  pub get_messages:        VecDeque<Message>,
-  pub current_get_message: Option<Message>,
+  pub get_messages:        VecDeque<BasicGetMessage>,
+  pub current_get_message: Option<BasicGetMessage>,
 }
 
 impl Queue {
@@ -93,12 +65,12 @@ impl Queue {
     }
   }
 
-  pub fn next_message(&mut self, consumer_tag: Option<&str>) -> Option<Message> {
-    if let Some(consumer_tag) = consumer_tag {
-      self.consumers.get_mut(consumer_tag).and_then(|consumer| consumer.messages.pop_front())
-    } else {
-      self.get_messages.pop_front()
-    }
+  pub fn next_delivery(&mut self, consumer_tag: &str) -> Option<Delivery> {
+    self.consumers.get_mut(consumer_tag).and_then(|consumer| consumer.messages.pop_front())
+  }
+
+  pub fn next_basic_get_message(&mut self) -> Option<BasicGetMessage> {
+    self.get_messages.pop_front()
   }
 }
 

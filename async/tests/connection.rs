@@ -82,7 +82,7 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
-      let msg = conn.next_message(channel_b, "hello-async", "my_consumer").unwrap();
+      let msg = conn.next_delivery(channel_b, "hello-async", "my_consumer").unwrap();
       println!("received message: {:?}", msg);
       println!("data: {}", std::str::from_utf8(&msg.data).unwrap());
 

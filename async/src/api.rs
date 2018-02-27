@@ -1,5 +1,6 @@
 use connection::*;
 use queue::*;
+use message::*;
 use generated::*;
 use error::*;
 use types::*;
@@ -1317,7 +1318,7 @@ impl Connection {
             for (ref queue_name, ref mut q) in &mut c.queues {
               c.state = ChannelState::WillReceiveContent(queue_name.to_string(), Some(method.consumer_tag.to_string()));
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
-                cs.current_message = Some(Message::new(
+                cs.current_message = Some(Delivery::new(
                   method.delivery_tag,
                   method.exchange.to_string(),
                   method.routing_key.to_string(),
@@ -1382,11 +1383,12 @@ impl Connection {
 
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue_name).map(|q| {
-                q.current_get_message = Some(Message::new(
+                q.current_get_message = Some(BasicGetMessage::new(
                   method.delivery_tag,
                   method.exchange.to_string(),
                   method.routing_key.to_string(),
-                  method.redelivered
+                  method.redelivered,
+                  method.message_count
                 ));
               })
             });

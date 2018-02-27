@@ -5,10 +5,10 @@ use std::sync::{Arc,Mutex};
 use lapin_async;
 use lapin_async::api::RequestId;
 use lapin_async::connection::Connection;
-use lapin_async::queue::Message;
 use lapin_async::generated::basic;
 
 use transport::*;
+use message::BasicGetMessage;
 use types::FieldTable;
 use consumer::Consumer;
 
@@ -334,14 +334,14 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     }
 
     /// gets a message
-    pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = Message, Error = io::Error> + Send> {
+    pub fn basic_get(&self, queue: &str, options: &BasicGetOptions) -> Box<Future<Item = BasicGetMessage, Error = io::Error> + Send> {
         let channel_id = self.id;
         let _queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
             if let Ok(mut transport) = receive_transport.try_lock() {
                 transport.send_and_handle_frames()?;
-                if let Some(message) = transport.conn.next_get_message(channel_id, &_queue) {
+                if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
                     Ok(Async::Ready(message))
                 } else {
                     trace!("basic get[{}-{}] not ready", channel_id, _queue);

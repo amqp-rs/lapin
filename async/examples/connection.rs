@@ -83,7 +83,7 @@ fn main() {
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
-      info!("received message: {:?}", conn.next_message(channel_b, "hello", "my_consumer").unwrap());
+      info!("received message: {:?}", conn.next_delivery(channel_b, "hello", "my_consumer").unwrap());
       panic!();
 }
 

@@ -11,7 +11,7 @@ use cookie_factory::GenError;
 use format::frame::*;
 use format::content::*;
 use channel::Channel;
-use queue::Message;
+use message::*;
 use api::{Answer,ChannelState,RequestId};
 use generated::*;
 use types::{AMQPValue,FieldTable};
@@ -236,20 +236,20 @@ impl Connection {
   ///
   /// if the channel id, queue and consumer tag have no link, the method
   /// will return None. If there is no message, the method will return None
-  pub fn next_message(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Message> {
+  pub fn next_delivery(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Delivery> {
     self.channels.get_mut(&channel_id)
       .and_then(|channel| channel.queues.get_mut(queue_name))
-      .and_then(|queue| queue.next_message(Some(consumer_tag)))
+      .and_then(|queue| queue.next_delivery(consumer_tag))
   }
 
   /// gets the next message corresponding to a channel and queue, in response to a basic.get
   ///
   /// if the channel id and queue have no link, the method
   /// will return None. If there is no message, the method will return None
-  pub fn next_get_message(&mut self, channel_id: u16, queue_name: &str) -> Option<Message> {
+  pub fn next_basic_get_message(&mut self, channel_id: u16, queue_name: &str) -> Option<BasicGetMessage> {
     self.channels.get_mut(&channel_id)
       .and_then(|channel| channel.queues.get_mut(queue_name))
-      .and_then(|queue| queue.next_message(None))
+      .and_then(|queue| queue.next_basic_get_message())
   }
 
   /// starts the process of connecting to the server
@@ -552,7 +552,7 @@ impl Connection {
             }
           } else {
             if let Some(msg) = q.current_get_message.as_mut() {
-              msg.properties = properties;
+              msg.delivery.properties = properties;
             }
           }
         }
@@ -583,7 +583,7 @@ impl Connection {
                 }
               }
             } else {
-              q.current_get_message.as_mut().map(|msg| msg.receive_content(payload));
+              q.current_get_message.as_mut().map(|msg| msg.delivery.receive_content(payload));
               if remaining_size == payload_size {
                 let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
                 q.get_messages.push_back(message);

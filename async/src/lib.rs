@@ -129,6 +129,7 @@ pub mod io;
 pub mod connection;
 pub mod channel;
 pub mod queue;
+pub mod message;
 pub mod generated;
 pub mod format;
 pub mod api;
