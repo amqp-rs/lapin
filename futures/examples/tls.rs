@@ -5,6 +5,7 @@ extern crate lapin_futures as lapin;
 extern crate rustls;
 extern crate tokio_core;
 extern crate tokio_rustls;
+extern crate webpki;
 extern crate webpki_roots;
 
 use futures::future::Future;
@@ -15,6 +16,7 @@ use std::sync::Arc;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use tokio_rustls::ClientConfigExt;
+use webpki::DNSNameRef;
 
 fn main() {
   env_logger::init();
@@ -33,7 +35,7 @@ fn main() {
 
   core.run(
     TcpStream::from_stream(raw_stream, &handle).map(|stream| futures::future::ok(stream)).unwrap().and_then(|stream| {
-      config.connect_async(host, stream)
+      config.connect_async(DNSNameRef::try_from_ascii_str(host).unwrap(), stream)
     }).and_then(|stream| {
       lapin::client::Client::connect(stream, &ConnectionOptions {
         username: username.to_string(),
