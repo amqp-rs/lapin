@@ -147,4 +147,5 @@ pub mod client;
 pub mod transport;
 pub mod channel;
 pub mod consumer;
+pub mod message;
 pub mod types;

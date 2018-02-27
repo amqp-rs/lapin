@@ -110,7 +110,7 @@ let request_id: u16 = conn.basic_consume(channel_id, 0, "hello".to_string(), "my
 assert!(conn.is_finished(request_id).unwrap_or(false));
 
 // get the next message
-if let Ok(message) = conn.next_message(channel_id, "hello", "my_consumer") {
+if let Ok(message) = conn.next_delivery(channel_id, "hello", "my_consumer") {
  // handle message
 }
 ```
