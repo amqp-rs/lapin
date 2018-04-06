@@ -541,7 +541,11 @@ impl Connection {
       channel.state.clone()
     }).unwrap();
     if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = state {
-      self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
+      if size > 0 {
+        self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
+      } else {
+        self.set_channel_state(channel_id, ChannelState::Connected);
+      }
       if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
         if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
           if let Some(ref consumer_tag) = consumer_tag {
@@ -549,10 +553,18 @@ impl Connection {
               if let Some(msg) = cs.current_message.as_mut() {
                 msg.properties = properties;
               }
+              if size == 0 {
+                let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
+                cs.messages.push_back(message);
+              }
             }
           } else {
             if let Some(msg) = q.current_get_message.as_mut() {
               msg.delivery.properties = properties;
+            }
+            if size == 0 {
+              let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
+              q.get_messages.push_back(message);
             }
           }
         }
