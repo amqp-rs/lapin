@@ -643,3 +643,161 @@ impl Connection {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_consume_small_payload() {
+        use queue::{Consumer, Queue};
+
+        // Bootstrap connection state to a consuming state
+        let mut conn = Connection::new();
+        conn.state = ConnectionState::Connected;
+        let channel_id = conn.create_channel();
+        conn.set_channel_state(channel_id, ChannelState::Connected);
+        let queue_name = "consumed".to_string();
+        let mut queue = Queue::new(queue_name.clone(), false, false, false, false);
+        queue.created = true;
+        let consumer_tag = "consumer-tag".to_string();
+        let consumer = Consumer {
+            tag: consumer_tag.clone(),
+            no_local: false,
+            no_ack: false,
+            exclusive: false,
+            nowait: false,
+            current_message: None,
+            messages: VecDeque::new(),
+        };
+        queue.consumers.insert(consumer_tag.clone(), consumer);
+        conn.channels.get_mut(&channel_id).map(|c| {
+            c.queues.insert(queue_name.clone(), queue);
+        });
+        // Now test the state machine behaviour
+        {
+            let deliver_frame = Frame::Method(
+                channel_id,
+                Class::Basic(
+                    basic::Methods::Deliver(
+                        basic::Deliver {
+                            consumer_tag: consumer_tag.clone(),
+                            delivery_tag: 1,
+                            redelivered: false,
+                            exchange: "".to_string(),
+                            routing_key: queue_name.clone(),
+                        }
+                    )
+                )
+            );
+            conn.handle_frame(deliver_frame).unwrap();
+            let channel_state = conn.channels.get_mut(&channel_id)
+                .map(|channel| channel.state.clone())
+                .unwrap();
+            let expected_state = ChannelState::WillReceiveContent(
+                queue_name.clone(),
+                Some(consumer_tag.clone())
+            );
+            assert_eq!(channel_state, expected_state);
+        }
+        {
+            let header_frame = Frame::Header(
+                channel_id,
+                60,
+                ContentHeader {
+                    class_id: 60,
+                    weight: 0,
+                    body_size: 2,
+                    properties: basic::Properties::default(),
+                }
+            );
+            conn.handle_frame(header_frame).unwrap();
+            let channel_state = conn.channels.get_mut(&channel_id)
+                .map(|channel| channel.state.clone())
+                .unwrap();
+            let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
+            assert_eq!(channel_state, expected_state);
+        }
+        {
+           let body_frame = Frame::Body(channel_id, "{}".as_bytes().to_vec());
+           conn.handle_frame(body_frame).unwrap();
+            let channel_state = conn.channels.get_mut(&channel_id)
+                .map(|channel| channel.state.clone())
+                .unwrap();
+            let expected_state = ChannelState::Connected;
+            assert_eq!(channel_state, expected_state);
+        }
+    }
+
+    #[test]
+    fn basic_consume_empty_payload() {
+        use queue::{Consumer, Queue};
+
+        // Bootstrap connection state to a consuming state
+        let mut conn = Connection::new();
+        conn.state = ConnectionState::Connected;
+        let channel_id = conn.create_channel();
+        conn.set_channel_state(channel_id, ChannelState::Connected);
+        let queue_name = "consumed".to_string();
+        let mut queue = Queue::new(queue_name.clone(), false, false, false, false);
+        queue.created = true;
+        let consumer_tag = "consumer-tag".to_string();
+        let consumer = Consumer {
+            tag: consumer_tag.clone(),
+            no_local: false,
+            no_ack: false,
+            exclusive: false,
+            nowait: false,
+            current_message: None,
+            messages: VecDeque::new(),
+        };
+        queue.consumers.insert(consumer_tag.clone(), consumer);
+        conn.channels.get_mut(&channel_id).map(|c| {
+            c.queues.insert(queue_name.clone(), queue);
+        });
+        // Now test the state machine behaviour
+        {
+            let deliver_frame = Frame::Method(
+                channel_id,
+                Class::Basic(
+                    basic::Methods::Deliver(
+                        basic::Deliver {
+                            consumer_tag: consumer_tag.clone(),
+                            delivery_tag: 1,
+                            redelivered: false,
+                            exchange: "".to_string(),
+                            routing_key: queue_name.clone(),
+                        }
+                    )
+                )
+            );
+            conn.handle_frame(deliver_frame).unwrap();
+            let channel_state = conn.channels.get_mut(&channel_id)
+                .map(|channel| channel.state.clone())
+                .unwrap();
+            let expected_state = ChannelState::WillReceiveContent(
+                queue_name.clone(),
+                Some(consumer_tag.clone())
+            );
+            assert_eq!(channel_state, expected_state);
+        }
+        {
+            let header_frame = Frame::Header(
+                channel_id,
+                60,
+                ContentHeader {
+                    class_id: 60,
+                    weight: 0,
+                    body_size: 0,
+                    properties: basic::Properties::default(),
+                }
+            );
+            conn.handle_frame(header_frame).unwrap();
+            let channel_state = conn.channels.get_mut(&channel_id)
+                .map(|channel| channel.state.clone())
+                .unwrap();
+            let expected_state = ChannelState::Connected;
+            assert_eq!(channel_state, expected_state);
+        }
+    }
+}
