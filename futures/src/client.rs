@@ -60,14 +60,14 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// dispatching events on time.
   /// If we ran it as part of the "main" chain of futures, we might end up not sending
   /// some heartbeats if we don't poll often enough (because of some blocking task or such).
-  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>), Error = io::Error>> {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error> + Send> + Send>), Error = io::Error> + Send> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       Box::new(future::ok(Self::connect_internal(transport)))
     }))
   }
 
-  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error>> + Send>) {
+  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error> + Send> + Send>) {
       (Client {
           configuration: transport.conn.configuration.clone(),
           transport:     Arc::new(Mutex::new(transport)),
@@ -103,13 +103,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// creates a new channel
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
-  pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
+  pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error> + Send> {
     Channel::create(self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
-  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> Box<Future<Item = Channel<T>, Error = io::Error>> {
+  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> Box<Future<Item = Channel<T>, Error = io::Error> + Send> {
 
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
