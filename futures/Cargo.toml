@@ -1,7 +1,7 @@
 [package]
 name = "lapin-futures"
-version = "0.10.0"
-authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+version = "0.11.0"
+authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/Geal/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/lapin-futures"
@@ -17,7 +17,7 @@ bytes = "^0.4"
 futures = "^0.1"
 tokio-io = "^0.1"
 tokio-timer = "^0.2"
-lapin-async = {version = "^0.10", path = "../async"}
+lapin-async = {version = "^0.11", path = "../async"}
 cookie-factory = "^0.2"
 
 [dev-dependencies]

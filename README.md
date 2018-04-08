@@ -30,7 +30,7 @@ lapin-futures is available on [crates.io](https://crates.io/crates/lapin-futures
 
 ```toml
 [dependencies]
-lapin-futures = "^0.10"
+lapin-futures = "^0.11"
 ```
 
 Then include it in your code like this:
@@ -51,7 +51,7 @@ lapin-async is available on [crates.io](https://crates.io/crates/lapin-async) an
 
 ```toml
 [dependencies]
-lapin-async = "^0.10"
+lapin-async = "^0.11"
 ```
 
 Then include it in your code like this:
