@@ -4,7 +4,8 @@ use std::default::Default;
 use std::io;
 use futures::{future,Future,Stream};
 use tokio_io::{AsyncRead,AsyncWrite};
-use tokio_timer::Timer;
+use tokio_timer::Interval;
+use tokio_timer::timer::{Now, SystemNow};
 use std::sync::{Arc,Mutex};
 use std::time::Duration;
 
@@ -80,7 +81,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
       let heartbeat = self.configuration.heartbeat as u64;
       if heartbeat > 0 {
           let transport = self.transport.clone();
-          Box::new(Timer::default().interval(Duration::from_secs(heartbeat)).map_err(From::from).for_each(move |_| {
+          Box::new(Interval::new(SystemNow::new().now(), Duration::from_secs(heartbeat)).map_err(|err| io::Error::new(io::ErrorKind::Other, err)).for_each(move |_| {
               debug!("poll heartbeat");
               if let Ok(mut transport) = transport.lock() {
                   debug!("Sending heartbeat");
