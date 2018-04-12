@@ -16,7 +16,7 @@ log = "^0.4"
 bytes = "^0.4"
 futures = "^0.1"
 tokio-io = "^0.1"
-tokio-timer = "^0.2"
+tokio-timer = "^0.1"
 lapin-async = {version = "^0.11", path = "../async"}
 cookie-factory = "^0.2"
 
