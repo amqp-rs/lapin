@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/Geal/lapin"
 readme = "README.md"
