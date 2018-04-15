@@ -43,7 +43,7 @@
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
 //!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-//!    }).and_then(|(client, _ /* heartbeat_future_fn */)| {
+//!    }).and_then(|(client, _ /* heartbeat */)| {
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
@@ -95,13 +95,13 @@
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
 //!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
-//!    }).and_then(|(client, heartbeat_future_fn)| {
+//!    }).and_then(|(client, heartbeat)| {
 //!      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
 //!      // dispatching events on time.
 //!      // If we ran it as part of the "main" chain of futures, we might end up not sending
 //!      // some heartbeats if we don't poll often enough (because of some blocking task or such).
 //!      let heartbeat_client = client.clone();
-//!      handle.spawn(heartbeat_future_fn(&heartbeat_client).map_err(|_| ()));
+//!      handle.spawn(heartbeat.map_err(|_| ()));
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created

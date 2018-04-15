@@ -2,12 +2,12 @@ use lapin_async;
 use lapin_async::format::frame::Frame;
 use std::default::Default;
 use std::io;
-use futures::{future,Future,Stream};
+use futures::{future,Future,Poll,Stream};
+use futures::sync::oneshot;
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_timer::Interval;
-use tokio_timer::timer::{Now, SystemNow};
 use std::sync::{Arc,Mutex};
-use std::time::Duration;
+use std::time::{Duration,Instant};
 
 use transport::*;
 use channel::{Channel, ConfirmSelectOptions};
@@ -51,6 +51,84 @@ impl Default for ConnectionOptions {
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
+/// A heartbeat task.
+pub struct Heartbeat {
+    handle: Option<HeartbeatHandle>,
+    pulse: Box<Future<Item = (), Error = io::Error> + Send>,
+}
+
+impl Heartbeat {
+    fn new<T>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16) -> Self
+    where
+      T: AsyncRead + AsyncWrite + Send + 'static
+    {
+        use self::future::{loop_fn, Either, Loop};
+        let (tx, rx) = oneshot::channel();
+        let interval = Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+            .into_future();
+        let neverending = loop_fn((interval, rx), move |(f, rx)| {
+            let transport = Arc::clone(&transport);
+            let heartbeat = f.and_then(move |(_instant, interval)| {
+                debug!("poll heartbeat");
+                let mut transport = match transport.lock() {
+                    Ok(mut t) => t,
+                    Err(_err) => return Err((io::Error::new(io::ErrorKind::Other, "Couldn't lock transport mutex"), interval)),
+                };
+                debug!("Sending heartbeat");
+                match transport.send_frame(Frame::Heartbeat(0)) {
+                    Ok(_) => Ok(interval),
+                    Err(e) => Err((e, interval)),
+                }
+            }).or_else(|(err, _interval)| {
+                error!("Error occured in heartbeat interval: {}", err);
+                Err(err)
+            });
+            heartbeat.select2(rx).then(|res| {
+                match res {
+                    Ok(Either::A((interval, rx))) => Ok(Loop::Continue((interval.into_future(), rx))),
+                    Ok(Either::B((_rx, _interval))) => Ok(Loop::Break(())),
+                    Err(Either::A((err, _rx))) => Err(io::Error::new(io::ErrorKind::Other, err)),
+                    Err(Either::B((err, _interval))) => Err(io::Error::new(io::ErrorKind::Other, err)),
+                }
+            })
+        });
+        Heartbeat {
+            handle: Some(HeartbeatHandle(tx)),
+            pulse: Box::new(neverending),
+        }
+    }
+
+    /// Get the handle for this heartbeat.
+    ///
+    /// As there can only be one handle for a given heartbeat task, this function can return
+    /// `None` if the handle to this heartbeat was already acquired.
+    pub fn handle(&mut self) -> Option<HeartbeatHandle> {
+        self.handle.take()
+    }
+}
+
+impl Future for Heartbeat {
+    type Item = ();
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.pulse.poll()
+    }
+}
+
+/// A handle to stop a connection heartbeat.
+pub struct HeartbeatHandle(oneshot::Sender<()>);
+
+impl HeartbeatHandle {
+    /// Signals the heartbeat task to stop sending packets to the broker.
+    pub fn stop(self) {
+        if let Err(_) = self.0.send(()) {
+            warn!("Couldn't send stop signal to heartbeat: already gone");
+        }
+    }
+}
+
 impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
@@ -61,45 +139,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// dispatching events on time.
   /// If we ran it as part of the "main" chain of futures, we might end up not sending
   /// some heartbeats if we don't poll often enough (because of some blocking task or such).
-  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error> + Send> + Send>), Error = io::Error> + Send> {
+  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Heartbeat), Error = io::Error> + Send> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       Box::new(future::ok(Self::connect_internal(transport)))
     }))
   }
 
-  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Box<Fn(&Self) -> Box<Future<Item = (), Error = io::Error> + Send> + Send>) {
-      (Client {
-          configuration: transport.conn.configuration.clone(),
-          transport:     Arc::new(Mutex::new(transport)),
-      }, Box::new(move |client: &Self| {
-          client.start_heartbeat()
-      }))
+  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Heartbeat) {
+      let configuration = transport.conn.configuration.clone();
+      let transport = Arc::new(Mutex::new(transport));
+      let heartbeat = Heartbeat::new(transport.clone(), configuration.heartbeat);
+      let client = Client { configuration, transport };
+      (client, heartbeat)
   }
-
-  fn start_heartbeat(&self) -> Box<Future<Item = (), Error = io::Error> + Send> {
-      let heartbeat = self.configuration.heartbeat as u64;
-      if heartbeat > 0 {
-          let transport = self.transport.clone();
-          Box::new(Interval::new(SystemNow::new().now(), Duration::from_secs(heartbeat)).map_err(|err| io::Error::new(io::ErrorKind::Other, err)).for_each(move |_| {
-              debug!("poll heartbeat");
-              if let Ok(mut transport) = transport.lock() {
-                  debug!("Sending heartbeat");
-                  if let Err(e) = transport.send_frame(Frame::Heartbeat(0)) {
-                      error!("Failed to send heartbeat: {:?}", e);
-                      return Err(e);
-                  } else {
-                      Ok(())
-                  }
-              } else {
-                  Ok(())
-              }
-          }))
-      } else {
-          Box::new(future::ok(()))
-      }
-  }
-
 
   /// creates a new channel
   ///
