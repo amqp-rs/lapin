@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Poll};
+use futures::{Async,Future,future,Poll,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
@@ -149,6 +149,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                     transport: channel_transport.clone(),
                 }))
             } else {
+                task::current().notify();
                 return Ok(Async::NotReady);
             }
         });
@@ -345,10 +346,12 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                     Ok(Async::Ready(message))
                 } else {
                     trace!("basic get[{}-{}] not ready", channel_id, _queue);
+                    task::current().notify();
                     Ok(Async::NotReady)
                 }
             } else {
-                return Ok(Async::NotReady);
+                task::current().notify();
+                Ok(Async::NotReady)
             }
         });
 
@@ -450,6 +453,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 tr.send_and_handle_frames()?;
                 finished(&mut tr.conn, request_id)
             } else {
+                task::current().notify();
                 Ok(Async::NotReady)
             }
         }))
