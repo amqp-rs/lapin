@@ -138,6 +138,11 @@ pub struct QueueDeleteOptions {
   pub no_wait:   bool,
 }
 
+#[derive(Clone,Debug,Default,PartialEq)]
+pub struct ChannelFlowOptions {
+  pub active: bool,
+}
+
 impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// create a channel
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error> + Send> {
@@ -404,6 +409,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn close_ok(&self) -> Box<Future<Item = (), Error = io::Error> + Send> {
         self.run_on_locked_transport("close_ok", "Could not ack closed channel", |transport| {
             transport.conn.channel_close_ok(self.id).map(|_| None)
+        })
+    }
+
+    /// update a channel flow
+    pub fn channel_flow(&self, options: &ChannelFlowOptions) -> Box<Future<Item=(), Error=io::Error> + Send> {
+        self.run_on_locked_transport("channel_flow", "Could not update channel flow", |transport| {
+            transport.conn.channel_flow(self.id, options.active).map(|_| None)
+        })
+    }
+
+    /// ack an update to a channel flow
+    pub fn channel_flow_ok(&self, options: &ChannelFlowOptions) -> Box<Future<Item=(), Error=io::Error> + Send> {
+        self.run_on_locked_transport("channel_flow_ok", "Could not ack update to channel flow", |transport| {
+            transport.conn.channel_flow_ok(self.id, options.active).map(|_| None)
         })
     }
 
