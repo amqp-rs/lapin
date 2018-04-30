@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Poll,Sink,Stream,StartSend,Future,future};
+use futures::{Async,Poll,Sink,Stream,StartSend,Future,future,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use channel::BasicProperties;
@@ -236,12 +236,14 @@ impl<T> Future for AMQPTransportConnector<T>
           let poll_ret = transport.poll();
           self.transport = Some(transport);
           poll_ret?;
+          task::current().notify();
           Ok(Async::NotReady)
         }
       },
       _ => {
         // Upstream had no frames
         self.transport = Some(transport);
+        task::current().notify();
         Ok(Async::NotReady)
       },
     }
@@ -261,6 +263,7 @@ impl<T> Stream for AMQPTransport<T>
             Ok(Async::Ready(t)) => t,
             Ok(Async::NotReady) => {
                 trace!("upstream poll gave NotReady");
+                task::current().notify();
                 return Ok(Async::NotReady);
             },
             Err(e) => {

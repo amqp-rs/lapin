@@ -1,5 +1,5 @@
 use std::io;
-use futures::{Async,Poll,Stream};
+use futures::{Async,Poll,Stream,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
@@ -28,10 +28,12 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
         Ok(Async::Ready(Some(message)))
       } else {
         trace!("consumer[{}] not ready", self.consumer_tag);
+        task::current().notify();
         Ok(Async::NotReady)
       }
     } else {
       //FIXME: return an error in case of mutex failure
+      task::current().notify();
       return Ok(Async::NotReady);
     }
   }
