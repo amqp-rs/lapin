@@ -393,10 +393,17 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         })
     }
 
-    /// closes the cannel
+    /// closes the channel
     pub fn close(&self, code: u16, message: &str) -> Box<Future<Item = (), Error = io::Error> + Send> {
         self.run_on_locked_transport("close", "Could not close channel", |transport| {
             transport.conn.channel_close(self.id, code, message.to_string(), 0, 0).map(|_| None)
+        })
+    }
+
+    /// ack a channel close
+    pub fn close_ok(&self) -> Box<Future<Item = (), Error = io::Error> + Send> {
+        self.run_on_locked_transport("close_ok", "Could not ack closed channel", |transport| {
+            transport.conn.channel_close_ok(self.id).map(|_| None)
         })
     }
 
