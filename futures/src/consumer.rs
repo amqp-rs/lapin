@@ -20,21 +20,24 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
 
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
     trace!("consumer[{}] poll", self.consumer_tag);
-    if let Ok(mut transport) = self.transport.try_lock() {
-      transport.send_and_handle_frames()?;
-      //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
-      if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {
-        trace!("consumer[{}] ready", self.consumer_tag);
-        Ok(Async::Ready(Some(message)))
+    let mut transport = match self.transport.try_lock() {
+      Ok(t) => t,
+      Err(_) => if self.transport.is_poisoned() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"));
       } else {
-        trace!("consumer[{}] not ready", self.consumer_tag);
         task::current().notify();
-        Ok(Async::NotReady)
+        return Ok(Async::NotReady);
       }
+    };
+    transport.send_and_handle_frames()?;
+    //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
+    if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {
+      trace!("consumer[{}] ready", self.consumer_tag);
+      Ok(Async::Ready(Some(message)))
     } else {
-      //FIXME: return an error in case of mutex failure
+      trace!("consumer[{}] not ready", self.consumer_tag);
       task::current().notify();
-      return Ok(Async::NotReady);
+      Ok(Async::NotReady)
     }
   }
 }

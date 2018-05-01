@@ -148,15 +148,19 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error> + Send> {
         let channel_transport = transport.clone();
         let create_channel = future::poll_fn(move || {
-            if let Ok(mut transport) = channel_transport.try_lock() {
-                return Ok(Async::Ready(Channel {
-                    id:        transport.conn.create_channel(),
-                    transport: channel_transport.clone(),
-                }))
-            } else {
-                task::current().notify();
-                return Ok(Async::NotReady);
-            }
+            let mut transport = match channel_transport.try_lock() {
+                Ok(t) => t,
+                Err(_) => if channel_transport.is_poisoned() {
+                    return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"));
+                } else {
+                    task::current().notify();
+                    return Ok(Async::NotReady);
+                }
+            };
+            return Ok(Async::Ready(Channel {
+                id:        transport.conn.create_channel(),
+                transport: channel_transport.clone(),
+            }))
         });
 
         Box::new(create_channel.and_then(|channel| {
@@ -345,16 +349,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let _queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
-            if let Ok(mut transport) = receive_transport.try_lock() {
-                transport.send_and_handle_frames()?;
-                if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
-                    Ok(Async::Ready(message))
+            let mut transport = match receive_transport.try_lock() {
+                Ok(t) => t,
+                Err(_) => if receive_transport.is_poisoned() {
+                    return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"));
                 } else {
-                    trace!("basic get[{}-{}] not ready", channel_id, _queue);
                     task::current().notify();
-                    Ok(Async::NotReady)
+                    return Ok(Async::NotReady);
                 }
+            };
+            transport.send_and_handle_frames()?;
+            if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
+                Ok(Async::Ready(message))
             } else {
+                trace!("basic get[{}-{}] not ready", channel_id, _queue);
                 task::current().notify();
                 Ok(Async::NotReady)
             }
@@ -475,13 +483,17 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
         trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
-            if let Ok(mut tr) = transport.try_lock() {
-                tr.send_and_handle_frames()?;
-                finished(&mut tr.conn, request_id)
-            } else {
-                task::current().notify();
-                Ok(Async::NotReady)
-            }
+            let mut tr = match transport.try_lock() {
+                Ok(t) => t,
+                Err(_) => if transport.is_poisoned() {
+                    return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"));
+                } else {
+                    task::current().notify();
+                    return Ok(Async::NotReady);
+                }
+            };
+            tr.send_and_handle_frames()?;
+            finished(&mut tr.conn, request_id)
         }))
     }
 }
