@@ -4,6 +4,8 @@ extern crate futures;
 extern crate tokio;
 extern crate env_logger;
 
+use std::net::SocketAddr;
+
 use futures::Stream;
 use futures::future::Future;
 use tokio::net::TcpStream;
@@ -12,14 +14,19 @@ use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
 use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
 
+fn amqp_addr() -> SocketAddr {
+  std::env::var("AMQP_ADDR")
+    .unwrap_or("127.0.0.1:5672".to_string())
+    .parse()
+    .unwrap()
+}
+
 #[test]
 fn connection() {
   env_logger::init();
 
-  let addr = "127.0.0.1:5672".parse().unwrap();
-
   tokio::run(
-    TcpStream::connect(&addr).and_then(|stream| {
+    TcpStream::connect(&amqp_addr()).and_then(|stream| {
       lapin::client::Client::connect(stream, &ConnectionOptions::default())
     }).and_then(|(client, _)| {
 
