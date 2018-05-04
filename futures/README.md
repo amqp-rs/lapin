@@ -67,11 +67,11 @@ extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio;
 
-use futures::future::Future;
-use futures::Stream;
+use tokio::prelude::Future;
+use tokio::prelude::Stream;
 use tokio::net::TcpStream;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,QueueDeclareOptions};
 use lapin::types::FieldTable;
 
 fn main() {
@@ -88,7 +88,7 @@ fn main() {
       // dispatching events on time.
       // If we ran it as part of the "main" chain of futures, we might end up not sending
       // some heartbeats if we don't poll often enough (because of some blocking task or such).
-      tokio::spawn(heartbeat.map_err(|_| ()));
+      tokio::spawn(heartbeat(&client).map_err(|_| ()));
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created
