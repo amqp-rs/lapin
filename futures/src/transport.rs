@@ -263,7 +263,6 @@ impl<T> Stream for AMQPTransport<T>
             Ok(Async::Ready(t)) => t,
             Ok(Async::NotReady) => {
                 trace!("upstream poll gave NotReady");
-                task::current().notify();
                 return Ok(Async::NotReady);
             },
             Err(e) => {

@@ -36,7 +36,6 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
       Ok(Async::Ready(Some(message)))
     } else {
       trace!("consumer[{}] not ready", self.consumer_tag);
-      task::current().notify();
       Ok(Async::NotReady)
     }
   }
