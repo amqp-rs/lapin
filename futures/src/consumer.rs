@@ -1,5 +1,5 @@
 use std::io;
-use futures::{Async,Poll,Stream,task};
+use futures::{Async,Future,Poll,Stream,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 
@@ -19,17 +19,17 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
-    trace!("consumer[{}] poll", self.consumer_tag);
+    trace!("poll; consumer_tag={:?}", self.consumer_tag);
     let mut transport = try_lock_transport!(self.transport);
-    transport.send_and_handle_frames()?;
-    //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
-    if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {
-      trace!("consumer[{}] ready", self.consumer_tag);
-      Ok(Async::Ready(Some(message)))
-    } else {
-      trace!("consumer[{}] not ready", self.consumer_tag);
-      Ok(Async::NotReady)
+    if let Async::Ready(_) = transport.poll()? {
+      trace!("poll transport; consumer_tag={:?} status=Ready", self.consumer_tag);
+      return Ok(Async::Ready(None));
     }
+    trace!("poll transport; consumer_tag={:?} status=NotReady", self.consumer_tag);
+    if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {
+      trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, message.delivery_tag);
+      return Ok(Async::Ready(Some(message)));
+    }
+    Ok(Async::NotReady)
   }
 }
-

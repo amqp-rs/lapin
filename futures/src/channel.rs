@@ -342,14 +342,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
             let mut transport = try_lock_transport!(receive_transport);
-            transport.send_and_handle_frames()?;
-            if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
-                Ok(Async::Ready(message))
-            } else {
-                trace!("basic get[{}-{}] not ready", channel_id, _queue);
-                task::current().notify();
-                Ok(Async::NotReady)
+            if let Async::Ready(_) = transport.poll()? {
+                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
             }
+            if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
+                return Ok(Async::Ready(message));
+            }
+            Ok(Async::NotReady)
         });
 
         Box::new(self.run_on_locked_transport_full("basic_get", "Could not get message", |transport| {
@@ -421,28 +420,26 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static>
         where Action:   Fn(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
+        trace!("run on locked transport; method={:?}", method);
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
                 Ok(request_id) => {
-                    trace!("{} request id: {:?}", method, request_id);
+                    trace!("run on locked transport; method={:?} request_id={:?}", method, request_id);
 
-                    let res = match payload {
-                        Some(payload) => transport.send_and_handle_frames_with_payload(payload.0, payload.1, payload.2),
-                        None          => transport.send_and_handle_frames(),
-                    };
-
-                    if let Err(e) = res {
-                        let err = format!("Failed to handle frames: {:?}", e);
-                        trace!("{}", err);
-                        return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
+                    if let Some((channel_id, payload, properties)) = payload {
+                        transport.send_content_frames(channel_id, payload, properties);
                     }
 
+                    let transport = self.transport.clone();
                     if let Some(request_id) = request_id {
                         trace!("{} returning closure", method);
-                        Box::new(Self::wait_for_answer(self.transport.clone(), request_id, finished))
+                        Box::new(Self::wait_for_answer(transport, request_id, finished))
                     } else {
-                        Box::new(future::ok(None))
+                        Box::new(future::poll_fn(move || {
+                            let mut transport = try_lock_transport!(transport);
+                            transport.poll_send()
+                        }).map(|_| None))
                     }
                 },
             }
@@ -465,11 +462,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// internal method to wait until a request succeeds
     pub fn wait_for_answer<Finished>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static>
         where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
-        trace!("wait for answer for request {}", request_id);
         Box::new(future::poll_fn(move || {
+            trace!("wait for answer; request_id={:?}", request_id);
             let mut tr = try_lock_transport!(transport);
-            tr.send_and_handle_frames()?;
-            finished(&mut tr.conn, request_id)
+            if let Async::Ready(_) = tr.poll()? {
+                trace!("wait for answer transport poll; request_id={:?} status=Ready", request_id);
+                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
+            }
+            trace!("wait for answer transport poll; request_id={:?} status=NotReady", request_id);
+            if let Async::Ready(r) = finished(&mut tr.conn, request_id)? {
+                trace!("wait for answer; request_id={:?} status=Ready result={:?}", request_id, r);
+                return Ok(Async::Ready(r));
+            }
+            trace!("wait for answer; request_id={:?} status=NotReady", request_id);
+            Ok(Async::NotReady)
         }))
     }
 }

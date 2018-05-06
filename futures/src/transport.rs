@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Poll,Sink,Stream,StartSend,Future,future,task};
+use futures::{Async,AsyncSink,Poll,Sink,Stream,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use channel::BasicProperties;
@@ -36,7 +36,7 @@ impl Decoder for AMQPCodec {
           }
         };
 
-        trace!("decoded frame: {:?}", f);
+        trace!("amqp decoder; frame={:?}", f);
 
         buf.split_to(consumed);
 
@@ -57,7 +57,7 @@ impl Encoder for AMQPCodec {
         //reserve more capacity and intialize it
         buf.extend(repeat(0).take(frame_max - length));
       }
-      trace!("will encode and write frame: {:?}", frame);
+      trace!("amqp encoder; frame={:?}", frame);
 
       loop {
         let gen_res = match &frame {
@@ -81,7 +81,7 @@ impl Encoder for AMQPCodec {
         match gen_res {
           Ok(sz) => {
             buf.truncate(sz);
-            trace!("serialized frame: {} bytes", sz);
+            trace!("amqp serializer; frame_size={}", sz);
             return Ok(());
           },
           Err(e) => {
@@ -104,6 +104,7 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream: Framed<T,AMQPCodec>,
+  flush_needed: bool,
   pub conn: Connection,
 }
 
@@ -129,71 +130,115 @@ impl<T> AMQPTransport<T>
     let codec = AMQPCodec {
       frame_max: conn.configuration.frame_max,
     };
-    let mut t = AMQPTransport {
-      upstream:  stream.framed(codec),
-      conn:      conn,
+    let t = AMQPTransport {
+      upstream:     stream.framed(codec),
+      flush_needed: false,
+      conn:         conn,
     };
-
-    if let Err(e) = t.send_and_handle_frames() {
-      let err = format!("Failed to handle frames: {:?}", e);
-      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-    }
-
-    let mut connector = AMQPTransportConnector {
+    let connector = AMQPTransportConnector {
       transport: Some(t),
     };
-
-    trace!("pre-poll");
-    if let Err(e) = connector.poll() {
-      let err = format!("Failed to handle frames: {:?}", e);
-      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-    }
-    trace!("post-poll");
-
     Box::new(connector)
   }
 
-  // Note that this can only return one of
-  // - Error
-  // - Async::NotReady
-  // - Async::Ready(None)
-  // All other results are handled until one of these three is reached.
-  pub fn send_and_handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
-    self.send_frames()?;
-    self.handle_frames()
+  /// Send a frame to the broker.
+  ///
+  /// # Notes
+  ///
+  /// This function only appends the frame to a queue, to actually send the frame you have to
+  /// call either `poll` or `poll_send`.
+  pub fn send_frame(&mut self, frame: Frame) {
+    self.conn.frame_queue.push_back(frame);
   }
 
-  pub fn send_and_handle_frames_with_payload(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) -> Poll<Option<()>, io::Error> {
-      self.send_and_handle_frames()?;
-      self.conn.send_content_frames(channel_id, 60, payload, properties);
-      self.send_and_handle_frames()
+  /// Send content frames to the broker.
+  ///
+  /// # Notes
+  ///
+  /// This function only appends the frames to a queue, to actually send the frames you have to
+  /// call either `poll` or `poll_send`.
+  pub fn send_content_frames(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) {
+    self.conn.send_content_frames(channel_id, 60, payload, properties);
   }
 
-  fn send_frames(&mut self) -> Result<(), io::Error> {
-    //FIXME: find a way to use a future here
-    trace!("send frames");
-    while let Some(f) = self.conn.next_frame() {
-      if let Err(e) = self.send_frame(f) {
-        error!("Failed to send frame: {:?}", e);
-        return Err(e);
-      }
-    }
-    Ok(())
-  }
-
-  pub fn send_frame(&mut self, frame: Frame) -> Poll<(), io::Error> {
-      self.start_send(frame).and_then(|_| self.poll_complete())
-  }
-
-  fn handle_frames(&mut self) -> Poll<Option<()>, io::Error> {
-    trace!("handle frames");
+  /// Poll the network to receive & handle incoming frames.
+  ///
+  /// # Return value
+  ///
+  /// This function will always return `Ok(Async::NotReady)` except in two cases:
+  ///
+  /// * In case of error, it will return `Err(e)`
+  /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
+  pub fn poll_recv(&mut self) -> Poll<(), io::Error> {
     loop {
-      // try_ready will return if we hit an error or NotReady.
-      if try_ready!(self.poll()).is_none() {
-        return Ok(Async::Ready(None));
-      }
+      match self.upstream.poll() {
+        Ok(Async::Ready(Some(frame))) => {
+          trace!("transport poll_recv; frame={:?}", frame);
+          if let Err(e) = self.conn.handle_frame(frame) {
+            let err = format!("failed to handle frame: {:?}", e);
+            return Err(io::Error::new(io::ErrorKind::Other, err));
+          }
+        },
+        Ok(Async::Ready(None)) => {
+          trace!("transport poll_recv; status=Ready(None)");
+          return Ok(Async::Ready(()));
+        },
+        Ok(Async::NotReady) => {
+          trace!("transport poll_recv; status=NotReady");
+          return Ok(Async::NotReady);
+        },
+        Err(e) => {
+          error!("transport poll_recv; status=Err({:?})", e);
+          return Err(From::from(e));
+        },
+      };
     }
   }
+
+  /// Poll the network to send outcoming frames.
+  pub fn poll_send(&mut self) -> Poll<(), io::Error> {
+    // Flush any pending frame.
+    if self.flush_needed == true {
+      try_ready!(self.upstream.poll_complete());
+      self.flush_needed = false;
+    }
+    while let Some(frame) = self.conn.next_frame() {
+      trace!("transport poll_send; frame={:?}", frame);
+      match self.upstream.start_send(frame)? {
+        AsyncSink::Ready => {
+          trace!("transport poll_send; status=Ready");
+          // The current `Framed` codec implementation requires us to flush after each send.
+          if let Async::NotReady = self.upstream.poll_complete()? {
+            self.flush_needed = true;
+            return Ok(Async::NotReady);
+          }
+        },
+        AsyncSink::NotReady(frame) => {
+          trace!("transport poll_send; status=NotReady");
+          self.conn.frame_queue.push_front(frame);
+          return Ok(Async::NotReady);
+        }
+      }
+    }
+    Ok(Async::Ready(()))
+  }
+}
+
+impl<T> Future for AMQPTransport<T>
+    where T: AsyncRead + AsyncWrite,
+          T: Send,
+          T: 'static {
+    type Item = ();
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<(), io::Error> {
+        trace!("transport poll");
+        if let Async::Ready(_) = self.poll_recv()? {
+            return Ok(Async::Ready(()));
+        }
+        self.poll_send()?;
+        Ok(Async::NotReady)
+    }
 }
 
 /// implements a future of `AMQPTransport`
@@ -213,94 +258,22 @@ impl<T> Future for AMQPTransportConnector<T>
   type Error = io::Error;
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-    debug!("AMQPTransportConnector poll transport is none? {}", self.transport.is_none());
+    trace!("connector poll; has_transport={:?}", !self.transport.is_none());
     let mut transport = self.transport.take().unwrap();
 
-    //we might have received a frame before here
-    transport.send_and_handle_frames()?;
+    if let Async::Ready(_) = transport.poll()? {
+      trace!("connector poll transport; status=Ready");
+      return Err(io::Error::new(io::ErrorKind::Other, "The connection was closed during the handshake"));
+    }
 
-    debug!("conn state: {:?}", transport.conn.state);
+    trace!("connector poll; state=ConnectionState::{:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
-      debug!("already connected");
       return Ok(Async::Ready(transport))
     }
 
-    trace!("waiting before poll");
-    match transport.poll()? {
-      Async::Ready(Some(_)) => {
-        if transport.conn.state == ConnectionState::Connected {
-          // Upstream had frames available and we're connected, the transport is ready
-          Ok(Async::Ready(transport))
-        } else {
-          // Upstream had frames but we're not yet connected, continue polling
-          let poll_ret = transport.poll();
-          self.transport = Some(transport);
-          poll_ret?;
-          task::current().notify();
-          Ok(Async::NotReady)
-        }
-      },
-      _ => {
-        // Upstream had no frames
-        self.transport = Some(transport);
-        task::current().notify();
-        Ok(Async::NotReady)
-      },
-    }
+    self.transport = Some(transport);
+    Ok(Async::NotReady)
   }
-}
-
-impl<T> Stream for AMQPTransport<T>
-    where T: AsyncRead + AsyncWrite,
-          T: Send,
-          T: 'static {
-    type Item = ();
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Option<()>, io::Error> {
-        trace!("stream poll");
-        let value = match self.upstream.poll() {
-            Ok(Async::Ready(t)) => t,
-            Ok(Async::NotReady) => {
-                trace!("upstream poll gave NotReady");
-                return Ok(Async::NotReady);
-            },
-            Err(e) => {
-                error!("upstream poll gave error: {:?}", e);
-                return Err(From::from(e));
-            },
-        };
-
-        if let Some(frame) = value {
-            trace!("upstream poll gave frame: {:?}", frame);
-            if let Err(e) = self.conn.handle_frame(frame) {
-                let err = format!("failed to handle frame: {:?}", e);
-                return Err(io::Error::new(io::ErrorKind::Other, err));
-            }
-            self.send_frames()?;
-            Ok(Async::Ready(Some(())))
-        } else {
-            error!("upstream poll gave Ready(None)");
-            Ok(Async::Ready(None))
-        }
-    }
-}
-
-impl<T> Sink for AMQPTransport<T>
-    where T: AsyncWrite,
-          T: Send {
-    type SinkItem = Frame;
-    type SinkError = io::Error;
-
-    fn start_send(&mut self, item: Frame) -> StartSend<Frame, io::Error> {
-        trace!("sink start send");
-        self.upstream.start_send(item)
-    }
-
-    fn poll_complete(&mut self) -> Poll<(), io::Error> {
-        trace!("sink poll_complete");
-        self.upstream.poll_complete()
-    }
 }
 
 #[macro_export]

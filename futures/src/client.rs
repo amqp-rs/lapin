@@ -2,7 +2,7 @@ use lapin_async;
 use lapin_async::format::frame::Frame;
 use std::default::Default;
 use std::io;
-use futures::{future,Future,Poll,Stream};
+use futures::{future,task,Async,Future,Poll,Stream};
 use futures::sync::oneshot;
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_timer::Interval;
@@ -68,18 +68,22 @@ impl Heartbeat {
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
             .into_future();
         let neverending = loop_fn((interval, rx), move |(f, rx)| {
+            let transport_send = Arc::clone(&transport);
             let transport = Arc::clone(&transport);
             let heartbeat = f.and_then(move |(_instant, interval)| {
                 debug!("poll heartbeat");
-                let mut transport = match transport.lock() {
-                    Ok(mut t) => t,
-                    Err(_err) => return Err((io::Error::new(io::ErrorKind::Other, "Couldn't lock transport mutex"), interval)),
-                };
-                debug!("Sending heartbeat");
-                match transport.send_frame(Frame::Heartbeat(0)) {
+                future::poll_fn(move || {
+                    let mut transport = try_lock_transport!(transport_send);
+                    debug!("Sending heartbeat");
+                    transport.send_frame(Frame::Heartbeat(0));
+                    Ok(Async::Ready(()))
+                }).and_then(move |_| future::poll_fn(move || {
+                    let mut transport = try_lock_transport!(transport);
+                    transport.poll_send()
+                })).then(move |r| match r {
                     Ok(_) => Ok(interval),
-                    Err(e) => Err((e, interval)),
-                }
+                    Err(cause) => Err((cause, interval)),
+                })
             }).or_else(|(err, _interval)| {
                 error!("Error occured in heartbeat interval: {}", err);
                 Err(err)
