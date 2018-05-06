@@ -130,8 +130,8 @@ extern crate nom;
 extern crate tokio_io;
 extern crate tokio_timer;
 
-pub mod client;
 #[macro_use] pub mod transport;
+pub mod client;
 pub mod channel;
 pub mod consumer;
 pub mod message;
