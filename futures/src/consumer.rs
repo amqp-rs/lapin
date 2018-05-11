@@ -20,15 +20,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
 
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
     trace!("consumer[{}] poll", self.consumer_tag);
-    let mut transport = match self.transport.try_lock() {
-      Ok(t) => t,
-      Err(_) => if self.transport.is_poisoned() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"));
-      } else {
-        task::current().notify();
-        return Ok(Async::NotReady);
-      }
-    };
+    let mut transport = try_lock_transport!(self.transport);
     transport.send_and_handle_frames()?;
     //FIXME: if the consumer closed, we should return Ok(Async::Ready(None))
     if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {

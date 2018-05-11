@@ -302,3 +302,18 @@ impl<T> Sink for AMQPTransport<T>
         self.upstream.poll_complete()
     }
 }
+
+#[macro_export]
+macro_rules! try_lock_transport (
+    ($t: expr) => ({
+        match $t.try_lock() {
+            Ok(t) => t,
+            Err(_) => if $t.is_poisoned() {
+                return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"))
+            } else {
+                task::current().notify();
+                return Ok(Async::NotReady)
+            }
+        }
+    });
+);
