@@ -207,35 +207,35 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// );
   /// # }
   /// ```
-  pub fn connect(stream: T, options: ConnectionOptions) -> Box<Future<Item = (Self, Heartbeat), Error = io::Error> + Send> {
-    Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
+  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = (Self, Heartbeat), Error = io::Error> + Send {
+    AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
       let transport = Arc::new(Mutex::new(transport));
       let heartbeat = Heartbeat::new(transport.clone(), configuration.heartbeat);
       let client = Client { configuration, transport };
       Ok((client, heartbeat))
-    }))
+    })
   }
 
   /// creates a new channel
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
-  pub fn create_channel(&self) -> Box<Future<Item = Channel<T>, Error = io::Error> + Send> {
+  pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = io::Error> + Send {
     Channel::create(self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
-  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> Box<Future<Item = Channel<T>, Error = io::Error> + Send> {
+  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = io::Error> + Send {
 
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
     //but not on the confirm channel. And the basic publish method should have different results
-    Box::new(self.create_channel().and_then(move |channel| {
+    self.create_channel().and_then(move |channel| {
       let ch = channel.clone();
 
       channel.confirm_select(options).map(|_| ch)
-    }))
+    })
   }
 }

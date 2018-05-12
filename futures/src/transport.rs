@@ -116,14 +116,14 @@ impl<T> AMQPTransport<T>
   /// starts the connection process
   ///
   /// returns a future of a `AMQPTransport` that is connected
-  pub fn connect(stream: T, options: ConnectionOptions) -> Box<Future<Item = AMQPTransport<T>, Error = io::Error> + Send> {
+  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = io::Error> + Send {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
     conn.set_frame_max(options.frame_max);
     conn.set_heartbeat(options.heartbeat);
 
-    Box::new(future::result(conn.connect()).map_err(|e| {
+    future::result(conn.connect()).map_err(|e| {
       let err = format!("Failed to connect: {:?}", e);
       Error::new(ErrorKind::ConnectionAborted, err)
     }).and_then(|_| {
@@ -139,7 +139,7 @@ impl<T> AMQPTransport<T>
         AMQPTransportConnector {
           transport: Some(t),
         }
-    }))
+    })
   }
 
   /// Send a frame to the broker.
