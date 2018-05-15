@@ -2,7 +2,7 @@
 name = "lapin-futures"
 version = "0.11.1"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
-repository = "https://github.com/Geal/lapin"
+repository = "https://github.com/sozu-proxy/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/lapin-futures"
 description = "AMQP client library with a futures based API"
