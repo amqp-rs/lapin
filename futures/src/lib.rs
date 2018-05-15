@@ -10,7 +10,7 @@
 //! Calls to the underlying stream are guarded by a mutex, so you could
 //! use one connection from multiple threads.
 //!
-//! There's an [example available](https://github.com/Geal/lapin/blob/master/futures/examples/client.rs)
+//! There's an [example available](https://github.com/sozu-proxy/lapin/blob/master/futures/examples/client.rs)
 //! using tokio.
 //!
 //! ## Publishing a message
