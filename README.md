@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/sozu-proxy/lapin.svg?branch=master)](https://travis-ci.org/sozu-proxy/lapin)
-[![Coverage Status](https://coveralls.io/repos/sozu-proxy/lapin/badge.svg?branch=master)](https://coveralls.io/r/sozu-proxy/lapin?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/sozu-proxy/lapin/badge.svg?branch=master)](https://coveralls.io/github/sozu-proxy/lapin?branch=master)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 # lapin, a Rust AMQP client library
