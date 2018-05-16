@@ -134,28 +134,57 @@ impl HeartbeatHandle {
 }
 
 impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
-  /// takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
+  /// Takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
-  /// this method returns a future that resolves once the connection handshake is done.
-  /// The result is a tuple containing a client that can be used to create a channel and a callback
-  /// to which you need to pass the client to get a future that will handle the Heartbeat. The
-  /// heartbeat future should be run in a dedicated thread so that nothing can prevent it from
-  /// dispatching events on time.
-  /// If we ran it as part of the "main" chain of futures, we might end up not sending
-  /// some heartbeats if we don't poll often enough (because of some blocking task or such).
+  /// This function returns a future that resolves once the connection handshake is done.
+  /// The result is a tuple containing a `Client` that can be used to create `Channel`s and a
+  /// `Heartbeat` instance. The heartbeat is a task (it implements `Future`) that should be
+  /// spawned independently of the other futures.
+  ///
+  /// To stop the heartbeat task, see `HeartbeatHandle`.
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// # extern crate lapin_futures;
+  /// # extern crate tokio;
+  /// #
+  /// # use tokio::prelude::*;
+  /// #
+  /// # fn main() {
+  /// use tokio::net::TcpStream;
+  /// use lapin_futures::client::{Client, ConnectionOptions};
+  ///
+  /// let addr = "127.0.0.1:5672".parse().unwrap();
+  /// let f = TcpStream::connect(&addr)
+  ///     .and_then(|stream| {
+  ///         Client::connect(stream, &ConnectionOptions::default())
+  ///     })
+  ///     .and_then(|(client, mut heartbeat)| {
+  ///         let handle = heartbeat.handle().unwrap();
+  ///         tokio::spawn(
+  ///             heartbeat.map_err(|e| eprintln!("The heartbeat task errored: {}", e))
+  ///         );
+  ///
+  ///         /// ...
+  ///
+  ///         handle.stop();
+  ///         Ok(())
+  ///     });
+  /// tokio::run(
+  ///     f.map_err(|e| eprintln!("An error occured: {}", e))
+  /// );
+  /// # }
+  /// ```
   pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Heartbeat), Error = io::Error> + Send> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      Box::new(future::ok(Self::connect_internal(transport)))
-    }))
-  }
-
-  fn connect_internal(transport: AMQPTransport<T>) -> (Self, Heartbeat) {
       let configuration = transport.conn.configuration.clone();
       let transport = Arc::new(Mutex::new(transport));
       let heartbeat = Heartbeat::new(transport.clone(), configuration.heartbeat);
       let client = Client { configuration, transport };
-      (client, heartbeat)
+      Ok((client, heartbeat))
+    }))
   }
 
   /// creates a new channel
