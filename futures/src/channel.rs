@@ -3,7 +3,7 @@ use futures::{Async,Future,future,Poll,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
-use lapin_async::api::RequestId;
+use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
 use lapin_async::generated::basic;
 
@@ -159,6 +159,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
             let channel_id = channel.id;
             channel.run_on_locked_transport("create", "Could not create channel", move |transport| {
                 transport.conn.channel_open(channel_id, "".to_string()).map(Some)
+            }).and_then(move |_| {
+                future::poll_fn(move || {
+                    let transport = try_lock_transport!(transport);
+
+                    match transport.conn.get_state(channel_id) {
+                        Some(ChannelState::Connected) => return Ok(Async::Ready(())),
+                        Some(ChannelState::Error)     => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
+                        Some(ChannelState::Closed)    => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
+                        _                             => {
+                            task::current().notify();
+                            return Ok(Async::NotReady);
+                        }
+                    }
+                })
             }).map(move |_| {
                 channel
             })
