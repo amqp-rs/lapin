@@ -432,7 +432,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     }
 
     fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static>
-        where Action:   Fn(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
+        where Action:   FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
         trace!("run on locked transport; method={:?}", method);
         if let Ok(mut transport) = self.transport.lock() {
@@ -464,7 +464,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     }
 
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error> + Send + 'static>
-        where Action: Fn(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
+        where Action: FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         Box::new(self.run_on_locked_transport_full(method, error, action, |conn, request_id| {
             match conn.is_finished(request_id) {
                 Some(answer) if answer => Ok(Async::Ready(Some(true))),
