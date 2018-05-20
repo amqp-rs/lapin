@@ -14,7 +14,7 @@ build = "build.rs"
 [dependencies]
 log = "^0.4"
 nom = "^3.0"
-cookie-factory = "^0.2"
+cookie-factory = "^0.2.4"
 amq-protocol = "^0.19"
 
 [dependencies.sasl]
