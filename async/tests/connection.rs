@@ -1,6 +1,6 @@
 extern crate lapin_async as lapin;
 
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpStream};
 use std::{thread,time};
 
 use lapin::types::*;
@@ -8,9 +8,16 @@ use lapin::connection::*;
 use lapin::buffer::Buffer;
 use lapin::generated::basic;
 
+fn amqp_addr() -> SocketAddr {
+  std::env::var("AMQP_ADDR")
+    .unwrap_or("127.0.0.1:5672".to_string())
+    .parse()
+    .unwrap()
+}
+
 #[test]
 fn connection() {
-      let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
+      let mut stream = TcpStream::connect(&amqp_addr()).unwrap();
       stream.set_nonblocking(true).unwrap();
 
       let capacity = 8192;
