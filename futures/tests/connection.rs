@@ -179,38 +179,34 @@ fn consume_before_publish() {
         })
       });
 
-      // (JP:) Both "Example 1" and "Example 2" below should work,
-      // but only "Example 2" works in practice.
-      //
-      // Note that the test itself won't fail; you'll just see a
-      // panic in a worker thread. If a solution is found
-      // to the underlying problem, I'll happily write a thorough
-      // test suite demonstrating a bunch of different orders of
-      // operations that should work, structured to be a bit more
-      // easily readable than this. :)
-      //
-      // Maybe if we get lucky (?) then https://github.com/rust-lang/rust/pull/50850
-      // will land first, and all of this will become beautiful!
-
       // Example 1: Consume before publish.
       //
-      // This doesn't work. The message is never received.
-      purge_queue_future.and_then({|_|
-        consume_one_message_future.and_then(|_| {
-          // Wait a little bit to make sure that we really
-          // do start consuming first.
-          let when = Instant::now() + Duration::from_millis(100);
-          Delay::new(when)
-            .map_err(|e| panic!("timer failed; err={:?}", e))
-            .and_then(move |_| {
-              publish_future
+      // This now appears to work. The message is received!
+      purge_queue_future.and_then(|_| {
+        tokio::spawn(
+          consume_one_message_future
+            .map(|message| {
+              info!("got message: {:?}", message);
+              ()
             })
-        })
+            .map_err(|err| {
+              panic!("uh oh: {:?}", err);
+            })
+        );
+
+        // Wait a little bit to make sure that we really
+        // do start consuming first.
+        let when = Instant::now() + Duration::from_millis(100);
+        Delay::new(when)
+          .map_err(|e| panic!("timer failed; err={:?}", e))
+          .and_then(move |_| {
+            publish_future
+          })
       })
 
       // Example 2: Publish before consume.
       //
-      // This works. The message is received.
+      // This always worked. The message is received.
       // purge_queue_future.and_then(|_| {
       //   publish_future.and_then(|_| {
       //     let when = Instant::now() + Duration::from_millis(100);
