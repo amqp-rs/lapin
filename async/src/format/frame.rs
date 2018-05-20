@@ -110,29 +110,14 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
 }
 
 pub fn gen_method_frame<'a>(input:(&'a mut [u8],usize), channel: u16, class: &Class) -> Result<(&'a mut [u8],usize),GenError> {
-  //FIXME: this does not take into account the BufferTooSmall errors
-  let r = gen_be_u8!(input, constants::FRAME_METHOD);
-  //println!("r: {:?}", r);
-  if let Ok(input1) = r {
-    if let Ok((sl2, index2)) = gen_be_u16!(input1, channel) {
-      if let Ok((sl3, index3)) = gen_class((sl2, index2 + 4), class) {
-        if let Ok((sl4, _)) = gen_be_u32!((sl3, index2), index3 - index2 - 4) {
-          gen_be_u8!((sl4, index3), constants::FRAME_END)
-          //if let Ok((sl5, index5)) = gen_be_u8!((sl4, index3), constants::FRAME_END)
-          //{
-          //}
-        } else {
-          Err(GenError::CustomError(1))
-        }
-      } else {
-        Err(GenError::CustomError(2))
-      }
-    } else {
-      Err(GenError::CustomError(3))
-    }
-  } else {
-    Err(GenError::CustomError(4))
-  }
+  do_gen!(input,
+    gen_be_u8!(constants::FRAME_METHOD)                  >>
+    gen_be_u16!(channel)                                 >>
+    len:   gen_skip!(4)                                  >>
+    start: gen_class(class)                              >>
+    end:   gen_at_offset!(len, gen_be_u32!(end - start)) >>
+    gen_be_u8!(constants::FRAME_END)
+  )
 }
 
 pub fn gen_heartbeat_frame<'a>(input:(&'a mut [u8],usize)) -> Result<(&'a mut [u8],usize),GenError> {
