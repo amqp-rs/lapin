@@ -44,7 +44,7 @@ fn connection() {
         let ch2 = channel.clone();
         channel.basic_qos(&BasicQosOptions { prefetch_count: 16, ..Default::default() }).and_then(move |_| {
           info!("channel QoS specified");
-          channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).map(move |()| channel)
+          channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).map(move |_| channel)
         }).and_then(move |channel| {
           info!("channel {} declared queue {}", id, "hello");
 

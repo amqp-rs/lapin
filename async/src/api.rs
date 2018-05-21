@@ -746,6 +746,7 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingQueueDeclareOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
+            self.generated_names.insert(request_id, method.queue.clone());
             self.channels.get_mut(&_channel_id).map(|c| {
               let q = Queue::new(method.queue.clone(), method.message_count, method.consumer_count);
               c.queues.insert(method.queue.clone(), q);

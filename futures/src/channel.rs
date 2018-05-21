@@ -235,11 +235,23 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// the `mandatory` and `ìmmediate` options can be set to true,
     /// but the return message will not be handled
-    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
+    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = String, Error = io::Error> + Send + 'static> {
+        let transport = self.transport.clone();
+
         Box::new(self.run_on_locked_transport("queue_declare", "Could not declare queue", |transport| {
             transport.conn.queue_declare(self.id, options.ticket, name.to_string(),
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.clone()).map(Some)
-        }).map(|_| ()))
+          }).and_then(|request_id| {
+            future::poll_fn(move || {
+              let mut transport = try_lock_transport!(transport);
+              if let Some(queue) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
+                return Ok(Async::Ready(queue))
+              } else {
+                task::current().notify();
+                return Ok(Async::NotReady)
+              }
+            })
+        }))
     }
 
     /// binds a queue to an exchange
