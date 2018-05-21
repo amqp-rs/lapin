@@ -479,7 +479,6 @@ impl Connection {
               debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
-              self.configuration.channel_max = t.channel_max;
               if self.configuration.heartbeat == 0 {
                 // If we disable the heartbeat but the server don't, follow him and enable it too
                 self.configuration.heartbeat = t.heartbeat;
@@ -497,6 +496,9 @@ impl Connection {
                   self.configuration.channel_max = t.channel_max;
                 }
               }
+              if self.configuration.channel_max == 0 {
+                  self.configuration.channel_max = u16::max_value();
+              }
 
               if t.frame_max != 0 {
                 if self.configuration.frame_max == 0 {
@@ -506,6 +508,9 @@ impl Connection {
                   // If both us and the server specified a frame_max, pick the lowest value.
                   self.configuration.frame_max = t.frame_max;
                 }
+              }
+              if self.configuration.frame_max == 0 {
+                  self.configuration.frame_max = u32::max_value();
               }
 
               let tune_ok = Class::Connection(connection::Methods::TuneOk(
