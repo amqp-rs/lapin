@@ -54,9 +54,9 @@ pub enum ClosingState {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct Configuration {
-  channel_max:   u16,
-  pub frame_max: u32,
-  pub heartbeat: u16,
+  pub channel_max: u16,
+  pub frame_max:   u32,
+  pub heartbeat:   u16,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -138,6 +138,10 @@ impl Connection {
 
   pub fn set_heartbeat(&mut self, heartbeat: u16) {
     self.configuration.heartbeat = heartbeat;
+  }
+
+  pub fn set_channel_max(&mut self, channel_max: u16) {
+    self.configuration.channel_max = channel_max;
   }
 
   pub fn set_frame_max(&mut self, frame_max: u32) {
@@ -468,6 +472,16 @@ impl Connection {
               } else if t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat {
                 // If both us and the server want heartbeat enabled, pick the lowest value.
                 self.configuration.heartbeat = t.heartbeat;
+              }
+
+              if t.channel_max != 0 {
+                if self.configuration.channel_max == 0 {
+                  // 0 means we want to take the server's value
+                  self.configuration.channel_max = t.channel_max;
+                } else if t.channel_max < self.configuration.channel_max {
+                  // If both us and the server specified a channel_max, pick the lowest value.
+                  self.configuration.channel_max = t.channel_max;
+                }
               }
 
               if t.frame_max != 0 {
