@@ -311,14 +311,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
     pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error> + Send + 'static> {
+        let transport    = self.transport.clone();
         let mut consumer = Consumer {
             transport:    self.transport.clone(),
             channel_id:   self.id,
             queue:        queue.to_string(),
             consumer_tag: consumer_tag.to_string(),
         };
-        let transport  = self.transport.clone();
-        let channel_id = self.id.clone();
 
         Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |transport| {
             transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
@@ -326,7 +325,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
           }).and_then(move |request_id| {
             future::poll_fn(move || {
               let mut transport = try_lock_transport!(transport);
-              if let Some(consumer_tag) = transport.conn.get_generated_name(channel_id, request_id.expect("expected request_id")) {
+              if let Some(consumer_tag) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 return Ok(Async::Ready(consumer_tag))
               } else {
                 task::current().notify();

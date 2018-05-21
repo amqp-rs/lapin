@@ -94,6 +94,8 @@ pub struct Connection {
   /// list of finished basic get requests
   /// value is true if the request returned something or false otherwise
   pub finished_get_reqs: HashMap<RequestId, bool>,
+  /// list of generated names (e.g. when supplying empty string for consumer tag or queue name)
+  pub generated_names:   HashMap<RequestId, String>,
   /// credentials are stored in an option to remove them from memory once they are used
   pub credentials:       Option<Credentials>,
 }
@@ -118,6 +120,7 @@ impl Connection {
       request_index:     0,
       finished_reqs:     HashMap::new(),
       finished_get_reqs: HashMap::new(),
+      generated_names:   HashMap::new(),
       credentials:       None,
     }
   }
@@ -220,8 +223,8 @@ impl Connection {
   ///
   /// this method can only be called once per request id, as it will be
   /// removed from the list afterwards
-  pub fn get_generated_name(&mut self, channel_id: u16, id: RequestId) -> Option<String> {
-    self.channels.get_mut(&channel_id).and_then(|channel| channel.generated_names.remove(&id))
+  pub fn get_generated_name(&mut self, id: RequestId) -> Option<String> {
+    self.generated_names.remove(&id)
   }
 
   /// verifies if the request identified with the `RequestId` is finished
