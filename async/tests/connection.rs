@@ -31,7 +31,7 @@ fn connection() {
         }
         thread::sleep(time::Duration::from_millis(100));
       }
-      println!("CONNECTED");
+      println!("CONNECTED with configuration: {:?}", conn.configuration);
 
       //now connected
 
