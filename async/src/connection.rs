@@ -2,6 +2,7 @@ use std::{result,str};
 use std::default::Default;
 use std::io::{Error,ErrorKind,Result};
 use std::collections::{HashMap,VecDeque};
+use std::sync::{Arc, Mutex};
 use nom::{IResult,Offset};
 use sasl;
 use sasl::client::Mechanism;
@@ -74,7 +75,7 @@ impl Default for Credentials {
   }
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub state:             ConnectionState,
@@ -82,6 +83,7 @@ pub struct Connection {
   pub configuration:     Configuration,
   pub vhost:             String,
   pub channel_index:     u16,
+  pub channel_id_lock:   Arc<Mutex<()>>,
   pub prefetch_size:     u32,
   pub prefetch_count:    u16,
   /// list of message to send
@@ -114,6 +116,7 @@ impl Connection {
       configuration:     configuration,
       vhost:             "/".to_string(),
       channel_index:     0,
+      channel_id_lock:   Arc::new(Mutex::new(())),
       prefetch_size:     0,
       prefetch_count:    0,
       frame_queue:       VecDeque::new(),
@@ -154,19 +157,23 @@ impl Connection {
   ///
   /// The channel will not be usable until `channel_open`
   /// is called with the channel id
-  pub fn create_channel(&mut self) -> u16 {
-    let channel_index = if self.channel_index == self.configuration.channel_max {
+  pub fn create_channel(&mut self) -> Option<u16> {
+    let _lock  = self.channel_id_lock.lock();
+    let offset = if self.channel_index == self.configuration.channel_max {
       // skip 0 and go straight to 1
-      // FIXME: loop over still used channels to find the next available one
       1
     } else {
       self.channel_index + 1
     };
-    let c = Channel::new(channel_index);
-    self.channel_index = channel_index;
-    self.channels.insert(channel_index, c);
 
-    channel_index
+    let id = (offset..self.configuration.channel_max).chain(1..offset).find(|id| {
+      self.channels.get(&id).map(|channel| !channel.is_connected()).unwrap_or(true)
+    })?;
+
+    let c = Channel::new(id);
+    self.channel_index = id;
+    self.channels.insert(id, c);
+    Some(id)
   }
 
   pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
@@ -678,16 +685,21 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
+
     use super::*;
 
     #[test]
     fn basic_consume_small_payload() {
+        let _ = env_logger::try_init();
+
         use queue::{Consumer, Queue};
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();
         conn.state = ConnectionState::Connected;
-        let channel_id = conn.create_channel();
+        conn.configuration.channel_max = 2047;
+        let channel_id = conn.create_channel().unwrap();
         conn.set_channel_state(channel_id, ChannelState::Connected);
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);
@@ -762,12 +774,15 @@ mod tests {
 
     #[test]
     fn basic_consume_empty_payload() {
+        let _ = env_logger::try_init();
+
         use queue::{Consumer, Queue};
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();
         conn.state = ConnectionState::Connected;
-        let channel_id = conn.create_channel();
+        conn.configuration.channel_max = 2047;
+        let channel_id = conn.create_channel().unwrap();
         conn.set_channel_state(channel_id, ChannelState::Connected);
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);

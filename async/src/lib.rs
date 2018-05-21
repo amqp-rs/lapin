@@ -73,7 +73,7 @@
 //! ## Creating a channel
 //!
 //! ```rust,ignore
-//! let channel_id: u16 = conn.create_channel();
+//! let channel_id: u16 = conn.create_channel().unwrap();
 //! conn.channel_open(channel_a, "".to_string()).expect("channel_open");
 //!
 //! // update state here until:

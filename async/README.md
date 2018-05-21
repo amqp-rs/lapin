@@ -73,7 +73,7 @@ In the current case, we wait until the state machine gets to the `ConnectionStat
 ## Creating a channel
 
 ```rust
-let channel_id: u16 = conn.create_channel();
+let channel_id: u16 = conn.create_channel().unwrap();
 conn.channel_open(channel_a, "".to_string()).expect("channel_open");
 
 // update state here until:

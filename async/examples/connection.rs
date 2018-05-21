@@ -40,8 +40,8 @@ fn main() {
         receive_buffer.grow(frame_max as usize);
       }
 
-      let channel_a: u16 = conn.create_channel();
-      let channel_b: u16 = conn.create_channel();
+      let channel_a: u16 = conn.create_channel().unwrap();
+      let channel_b: u16 = conn.create_channel().unwrap();
       //send channel
       conn.channel_open(channel_a, "".to_string()).expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

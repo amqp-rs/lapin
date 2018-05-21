@@ -150,10 +150,14 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let channel_transport = transport.clone();
         let create_channel = future::poll_fn(move || {
             let mut transport = try_lock_transport!(channel_transport);
-            return Ok(Async::Ready(Channel {
-                id:        transport.conn.create_channel(),
-                transport: channel_transport.clone(),
-            }))
+            if let Some(id) = transport.conn.create_channel() {
+                return Ok(Async::Ready(Channel {
+                    id,
+                    transport: channel_transport.clone(),
+                }))
+            } else {
+                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The maximum number of channels for this connection has been reached"));
+            }
         });
 
         Box::new(create_channel.and_then(|channel| {
