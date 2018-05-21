@@ -30,9 +30,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
                 println!("consumer '{}' got '{}'", n, std::str::from_utf8(&message.data).unwrap());
                 channel.basic_ack(message.delivery_tag)
             })
-        }).map_err(move |err| {
-            eprintln!("got error in consumer '{}': {:?}", n, err)
-        })
+        }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {:?}", n, err))
     )
 }
 
@@ -71,8 +69,6 @@ fn main() {
                     })
                 })
             })
-        }).map_err(|err| {
-            eprintln!("error: {:?}", err)
-        })
+        }).map(|_| ()).map_err(|err| eprintln!("error: {:?}", err))
     );
 }

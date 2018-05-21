@@ -183,50 +183,50 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// returns a future that resolves once the access is granted
     pub fn access_request(&self, realm: &str, options: &AccessRequestOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("access_request", "Could not request access", |transport| {
+        Box::new(self.run_on_locked_transport("access_request", "Could not request access", |transport| {
             transport.conn.access_request(self.id, realm.to_string(),
                 options.exclusive, options.passive, options.active, options.write, options.read).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// declares an exchange
     ///
     /// returns a future that resolves once the exchange is available
     pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: &ExchangeDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("exchange_declare", "Could not declare exchange", |transport| {
+        Box::new(self.run_on_locked_transport("exchange_declare", "Could not declare exchange", |transport| {
             transport.conn.exchange_declare(self.id, options.ticket, name.to_string(), exchange_type.to_string(),
                 options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// deletes an exchange
     ///
     /// returns a future that resolves once the exchange is deleted
     pub fn exchange_delete(&self, name: &str, options: &ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("exchange_delete", "Could not delete exchange", |transport| {
+        Box::new(self.run_on_locked_transport("exchange_delete", "Could not delete exchange", |transport| {
             transport.conn.exchange_delete(self.id, options.ticket, name.to_string(),
                 options.if_unused, options.nowait).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// binds an exchange to another exchange
     ///
     /// returns a future that resolves once the exchanges are bound
     pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("exchange_bind", "Could not bind exchange", |transport| {
+        Box::new(self.run_on_locked_transport("exchange_bind", "Could not bind exchange", |transport| {
             transport.conn.exchange_bind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// unbinds an exchange from another one
     ///
     /// returns a future that resolves once the exchanges are unbound
     pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: &ExchangeUnbindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("exchange_unbind", "Could not unbind exchange", |transport| {
+        Box::new(self.run_on_locked_transport("exchange_unbind", "Could not unbind exchange", |transport| {
             transport.conn.exchange_unbind(self.id, options.ticket, destination.to_string(), source.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// declares a queue
@@ -236,64 +236,63 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// the `mandatory` and `ìmmediate` options can be set to true,
     /// but the return message will not be handled
     pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("queue_declare", "Could not declare queue", |transport| {
+        Box::new(self.run_on_locked_transport("queue_declare", "Could not declare queue", |transport| {
             transport.conn.queue_declare(self.id, options.ticket, name.to_string(),
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// binds a queue to an exchange
     ///
     /// returns a future that resolves once the queue is bound to the exchange
     pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueBindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("queue_bind", "Could not bind queue", |transport| {
+        Box::new(self.run_on_locked_transport("queue_bind", "Could not bind queue", |transport| {
             transport.conn.queue_bind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(),
                 options.nowait, arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// unbinds a queue from the exchange
     ///
     /// returns a future that resolves once the queue is unbound from the exchange
     pub fn queue_unbind(&self, name: &str, exchange: &str, routing_key: &str, options: &QueueUnbindOptions, arguments: &FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("queue_unbind", "Could not unbind queue from the exchange", |transport| {
+        Box::new(self.run_on_locked_transport("queue_unbind", "Could not unbind queue from the exchange", |transport| {
             transport.conn.queue_unbind(self.id, options.ticket, name.to_string(), exchange.to_string(), routing_key.to_string(), arguments.clone()).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// sets up confirm extension for this channel
     pub fn confirm_select(&self, options: &ConfirmSelectOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("confirm_select", "Could not activate confirm extension", |transport| {
+        Box::new(self.run_on_locked_transport("confirm_select", "Could not activate confirm extension", |transport| {
             transport.conn.confirm_select(self.id, options.nowait).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// specifies quality of service for a channel
     pub fn basic_qos(&self, options: &BasicQosOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("basic_qos", "Could not setup qos", |transport| {
+        Box::new(self.run_on_locked_transport("basic_qos", "Could not setup qos", |transport| {
             transport.conn.basic_qos(self.id, options.prefetch_size, options.prefetch_count, options.global).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// publishes a message on a queue
     ///
     /// the future's result is:
-    /// - `Some(true)` if we're on a confirm channel and the message was ack'd
-    /// - `Some(false)` if we're on a confirm channel and the message was nack'd
-    /// - `None` if we're not on a confirm channel
-    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static> {
+    /// - `Some(request_id)` if we're on a confirm channel and the message was ack'd
+    /// - `None` if we're not on a confirm channel or the message was nack'd
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: &[u8], options: &BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
 
-        self.run_on_locked_transport_full("basic_publish", "Could not publish", |transport| {
+        Box::new(self.run_on_locked_transport_full("basic_publish", "Could not publish", |transport| {
             transport.conn.basic_publish(channel_id, options.ticket, exchange.to_string(), routing_key.to_string(),
                 options.mandatory, options.immediate).map(Some)
         }, move |conn, delivery_tag| {
             conn.channels.get_mut(&channel_id).and_then(|c| {
                 if c.confirm {
                     if c.acked.remove(&delivery_tag) {
-                        Some(Ok(Async::Ready(Some(true))))
+                        Some(Ok(Async::Ready(Some(delivery_tag))))
                     } else if c.nacked.remove(&delivery_tag) {
-                        Some(Ok(Async::Ready(Some(false))))
+                        Some(Ok(Async::Ready(None)))
                     } else {
                         info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
                         Some(Ok(Async::NotReady))
@@ -302,7 +301,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                     None
                 }
             }).unwrap_or(Ok(Async::Ready(None)))
-        }, Some((channel_id, payload, properties)))
+        }, Some((channel_id, payload, properties))))
     }
 
     /// creates a consumer stream
@@ -312,41 +311,54 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
     pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error> + Send + 'static> {
-        let consumer = Consumer {
+        let mut consumer = Consumer {
             transport:    self.transport.clone(),
             channel_id:   self.id,
             queue:        queue.to_string(),
             consumer_tag: consumer_tag.to_string(),
         };
+        let transport  = self.transport.clone();
+        let channel_id = self.id.clone();
 
         Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |transport| {
             transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
             options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.clone()).map(Some)
-        }).map(|_| {
+          }).and_then(move |request_id| {
+            future::poll_fn(move || {
+              let mut transport = try_lock_transport!(transport);
+              if let Some(consumer_tag) = transport.conn.get_generated_name(channel_id, request_id.expect("expected request_id")) {
+                return Ok(Async::Ready(consumer_tag))
+              } else {
+                task::current().notify();
+                return Ok(Async::NotReady)
+              }
+            })
+          }).map(|consumer_tag| {
             trace!("basic_consume received response, returning consumer");
+            consumer.consumer_tag = consumer_tag;
             consumer
         }))
     }
 
     /// acks a message
     pub fn basic_ack(&self, delivery_tag: u64) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("basic_ack", "Could not ack message", |transport| {
+        Box::new(self.run_on_locked_transport("basic_ack", "Could not ack message", |transport| {
             transport.conn.basic_ack(self.id, delivery_tag, false).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// nacks a message
     pub fn basic_nack(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("basic_nack", "Could not nack message", |transport| {
+        Box::new(self.run_on_locked_transport("basic_nack", "Could not nack message", |transport| {
             transport.conn.basic_nack(self.id, delivery_tag, false, requeue).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// rejects a message
     pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("basic_reject", "Could not reject message", |transport| {
+        Box::new(self.run_on_locked_transport("basic_reject", "Could not reject message", |transport| {
             transport.conn.basic_reject(self.id, delivery_tag, requeue).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// gets a message
@@ -370,7 +382,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         }, |conn, request_id| {
             match conn.finished_get_result(request_id) {
                 Some(answer) => if answer {
-                    Ok(Async::Ready(Some(true)))
+                    Ok(Async::Ready(Some(request_id)))
                 } else {
                     Err(Error::new(ErrorKind::Other, "basic get returned empty"))
                 },
@@ -383,9 +395,9 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// This method removes all messages from a queue which are not awaiting acknowledgment.
     pub fn queue_purge(&self, queue_name: &str, options: &QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("queue_purge", "Could not purge queue", |transport| {
+        Box::new(self.run_on_locked_transport("queue_purge", "Could not purge queue", |transport| {
             transport.conn.queue_purge(self.id, options.ticket, queue_name.to_string(), options.nowait).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// Delete a queue.
@@ -398,42 +410,42 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// If `if_empty` is set, the server will only delete the queue if it has no messages.
     pub fn queue_delete(&self, queue_name: &str, options: &QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("queue_purge", "Could not purge queue", |transport| {
+        Box::new(self.run_on_locked_transport("queue_purge", "Could not purge queue", |transport| {
             transport.conn.queue_delete(self.id, options.ticket, queue_name.to_string(), options.if_unused, options.if_empty, options.no_wait).map(Some)
-        })
+        }).map(|_| ()))
     }
 
     /// closes the channel
     pub fn close(&self, code: u16, message: &str) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("close", "Could not close channel", |transport| {
+        Box::new(self.run_on_locked_transport("close", "Could not close channel", |transport| {
             transport.conn.channel_close(self.id, code, message.to_string(), 0, 0).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// ack a channel close
     pub fn close_ok(&self) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
-        self.run_on_locked_transport("close_ok", "Could not ack closed channel", |transport| {
+        Box::new(self.run_on_locked_transport("close_ok", "Could not ack closed channel", |transport| {
             transport.conn.channel_close_ok(self.id).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// update a channel flow
-    pub fn channel_flow(&self, options: &ChannelFlowOptions) -> Box<Future<Item=(), Error=io::Error> + Send + 'static> {
-        self.run_on_locked_transport("channel_flow", "Could not update channel flow", |transport| {
+    pub fn channel_flow(&self, options: &ChannelFlowOptions) -> Box<Future<Item = (), Error=io::Error> + Send + 'static> {
+        Box::new(self.run_on_locked_transport("channel_flow", "Could not update channel flow", |transport| {
             transport.conn.channel_flow(self.id, options.active).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
     /// ack an update to a channel flow
-    pub fn channel_flow_ok(&self, options: &ChannelFlowOptions) -> Box<Future<Item=(), Error=io::Error> + Send + 'static> {
-        self.run_on_locked_transport("channel_flow_ok", "Could not ack update to channel flow", |transport| {
+    pub fn channel_flow_ok(&self, options: &ChannelFlowOptions) -> Box<Future<Item = (), Error=io::Error> + Send + 'static> {
+        Box::new(self.run_on_locked_transport("channel_flow_ok", "Could not ack update to channel flow", |transport| {
             transport.conn.channel_flow_ok(self.id, options.active).map(|_| None)
-        })
+        }).map(|_| ()))
     }
 
-    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static>
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
         where Action:   FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
-              Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
+              Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         trace!("run on locked transport; method={:?}", method);
         if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
@@ -463,19 +475,19 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         }
     }
 
-    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = (), Error = io::Error> + Send + 'static>
+    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
         where Action: FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         Box::new(self.run_on_locked_transport_full(method, error, action, |conn, request_id| {
             match conn.is_finished(request_id) {
-                Some(answer) if answer => Ok(Async::Ready(Some(true))),
+                Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
                 _                      => Ok(Async::NotReady),
             }
-        }, None).map(|_| ()))
+        }, None))
     }
 
     /// internal method to wait until a request succeeds
-    pub fn wait_for_answer<Finished>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished) -> Box<Future<Item = Option<bool>, Error = io::Error> + Send + 'static>
-        where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<bool>, io::Error> {
+    pub fn wait_for_answer<Finished>(transport: Arc<Mutex<AMQPTransport<T>>>, request_id: RequestId, finished: Finished) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
+        where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         Box::new(future::poll_fn(move || {
             trace!("wait for answer; request_id={:?}", request_id);
             let mut tr = try_lock_transport!(transport);
