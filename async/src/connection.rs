@@ -113,7 +113,7 @@ impl Connection {
       channels:          h,
       configuration:     configuration,
       vhost:             "/".to_string(),
-      channel_index:     1,
+      channel_index:     0,
       prefetch_size:     0,
       prefetch_count:    0,
       frame_queue:       VecDeque::new(),
@@ -155,11 +155,18 @@ impl Connection {
   /// The channel will not be usable until `channel_open`
   /// is called with the channel id
   pub fn create_channel(&mut self) -> u16 {
-    let c  = Channel::new(self.channel_index);
-    self.channels.insert(self.channel_index, c);
-    self.channel_index += 1;
+    let channel_index = if self.channel_index == self.configuration.channel_max {
+      // skip 0 and go straight to 1
+      // FIXME: loop over still used channels to find the next available one
+      1
+    } else {
+      self.channel_index + 1
+    };
+    let c = Channel::new(channel_index);
+    self.channel_index = channel_index;
+    self.channels.insert(channel_index, c);
 
-    self.channel_index - 1
+    channel_index
   }
 
   pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
