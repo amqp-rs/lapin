@@ -722,11 +722,8 @@ impl Connection {
         self.send_method_frame(_channel_id, method).map(|_| {
           let request_id = self.next_request_id();
           self.channels.get_mut(&_channel_id).map(|c| {
-              let q  = Queue::new(queue.clone(), passive, durable, exclusive, auto_delete);
-              c.queues.insert(queue.clone(), q);
-              //FIXME: when we set passive, the server might return an error if the queue exists
-              c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
-              trace!("channel {} state is now {:?}", _channel_id, c.state);
+            c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
           });
           request_id
         })
@@ -750,11 +747,8 @@ impl Connection {
           Some(Answer::AwaitingQueueDeclareOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.get_mut(&method.queue).map(|q| {
-                q.message_count  = method.message_count;
-                q.consumer_count = method.consumer_count;
-                q.created = true;
-              });
+              let q = Queue::new(method.queue.clone(), method.message_count, method.consumer_count);
+              c.queues.insert(method.queue.clone(), q);
             });
             Ok(())
           },

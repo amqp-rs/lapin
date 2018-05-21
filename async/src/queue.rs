@@ -34,32 +34,22 @@ pub struct Consumer {
 #[derive(Clone,Debug,PartialEq)]
 pub struct Queue {
   pub name:                String,
-  pub passive:             bool,
-  pub durable:             bool,
-  pub exclusive:           bool,
-  pub auto_delete:         bool,
   pub bindings:            HashMap<(String, String), Binding>,
   pub consumers:           HashMap<String, Consumer>,
   pub message_count:       u32,
   pub consumer_count:      u32,
-  pub created:             bool,
   pub get_messages:        VecDeque<BasicGetMessage>,
   pub current_get_message: Option<BasicGetMessage>,
 }
 
 impl Queue {
-  pub fn new(name: String, passive: bool, durable: bool, exclusive: bool, auto_delete: bool) -> Queue {
+  pub fn new(name: String, message_count: u32, consumer_count: u32) -> Queue {
     Queue {
-      name:                name,
-      passive:             passive,
-      durable:             durable,
-      exclusive:           exclusive,
-      auto_delete:         auto_delete,
+      name,
       bindings:            HashMap::new(),
       consumers:           HashMap::new(),
-      message_count:       0,
-      consumer_count:      0,
-      created:             false,
+      message_count,
+      consumer_count,
       get_messages:        VecDeque::new(),
       current_get_message: None,
     }

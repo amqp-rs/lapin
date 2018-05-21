@@ -669,8 +669,7 @@ mod tests {
         let channel_id = conn.create_channel();
         conn.set_channel_state(channel_id, ChannelState::Connected);
         let queue_name = "consumed".to_string();
-        let mut queue = Queue::new(queue_name.clone(), false, false, false, false);
-        queue.created = true;
+        let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
         let consumer = Consumer {
             tag: consumer_tag.clone(),
@@ -750,8 +749,7 @@ mod tests {
         let channel_id = conn.create_channel();
         conn.set_channel_state(channel_id, ChannelState::Connected);
         let queue_name = "consumed".to_string();
-        let mut queue = Queue::new(queue_name.clone(), false, false, false, false);
-        queue.created = true;
+        let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
         let consumer = Consumer {
             tag: consumer_tag.clone(),
