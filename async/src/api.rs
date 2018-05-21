@@ -1153,6 +1153,7 @@ impl Connection {
           Some(Answer::AwaitingBasicConsumeOk(request_id, queue, _, no_local, no_ack, exclusive, nowait)) => {
             self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
+              c.generated_names.insert(request_id, method.consumer_tag.clone());
               c.queues.get_mut(&queue).map(|q| {
                 let consumer = Consumer {
                   tag:             method.consumer_tag.clone(),
