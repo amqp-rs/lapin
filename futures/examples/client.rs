@@ -61,7 +61,7 @@ fn main() {
         info!("created channel with id: {}", id);
 
         let c = channel.clone();
-        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |queue| {
           info!("channel {} declared queue {}", id, "hello");
 
           let ch = channel.clone();
@@ -70,7 +70,7 @@ fn main() {
             info!("decoded message: {:?}", std::str::from_utf8(&message.delivery.data).unwrap());
             channel.basic_ack(message.delivery.delivery_tag)
           }).and_then(move |_| {
-            ch.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
+            ch.basic_consume(&queue, "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
           })
         }).and_then(|stream| {
           info!("got consumer stream");

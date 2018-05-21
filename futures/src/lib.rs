@@ -98,13 +98,13 @@
 //!       info!("created channel with id: {}", id);
 //!
 //!       let ch = channel.clone();
-//!       channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
+//!       channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |queue| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
 //!         // basic_consume returns a future of a message
 //!         // stream. Any time a message arrives for this consumer,
 //!         // the for_each method would be called
-//!         channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
+//!         channel.basic_consume(&queue, "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
 //!       }).and_then(|stream| {
 //!         info!("got consumer stream");
 //!
@@ -134,5 +134,6 @@ extern crate tokio_timer;
 pub mod client;
 pub mod channel;
 pub mod consumer;
+pub mod queue;
 pub mod message;
 pub mod types;

@@ -11,6 +11,7 @@ use transport::*;
 use message::BasicGetMessage;
 use types::FieldTable;
 use consumer::Consumer;
+use queue::Queue;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -235,7 +236,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// the `mandatory` and `ìmmediate` options can be set to true,
     /// but the return message will not be handled
-    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = String, Error = io::Error> + Send + 'static> {
+    pub fn queue_declare(&self, name: &str, options: &QueueDeclareOptions, arguments: &FieldTable) -> Box<Future<Item = Queue, Error = io::Error> + Send + 'static> {
         let transport = self.transport.clone();
 
         Box::new(self.run_on_locked_transport("queue_declare", "Could not declare queue", |transport| {
@@ -251,7 +252,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 return Ok(Async::NotReady)
               }
             })
-        }))
+        }).map(Queue::new))
     }
 
     /// binds a queue to an exchange
@@ -322,17 +323,17 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     ///
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
-    pub fn basic_consume(&self, queue: &str, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error> + Send + 'static> {
+    pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: &BasicConsumeOptions, arguments: &FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error> + Send + 'static> {
         let transport    = self.transport.clone();
         let mut consumer = Consumer {
             transport:    self.transport.clone(),
             channel_id:   self.id,
-            queue:        queue.to_string(),
+            queue:        queue.name(),
             consumer_tag: consumer_tag.to_string(),
         };
 
         Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |transport| {
-            transport.conn.basic_consume(self.id, options.ticket, queue.to_string(), consumer_tag.to_string(),
+            transport.conn.basic_consume(self.id, options.ticket, queue.name(), consumer_tag.to_string(),
             options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.clone()).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {

@@ -44,11 +44,11 @@ fn connection() {
         let ch2 = channel.clone();
         channel.basic_qos(&BasicQosOptions { prefetch_count: 16, ..Default::default() }).and_then(move |_| {
           info!("channel QoS specified");
-          channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).map(move |_| channel)
-        }).and_then(move |channel| {
+          channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).map(move |queue| (channel, queue))
+        }).and_then(move |(channel, queue)| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_consume("hello", "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
+          channel.basic_consume(&queue, "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
         }).and_then(move |stream| {
           info!("got consumer stream");
 

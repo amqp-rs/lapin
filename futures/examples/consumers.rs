@@ -20,7 +20,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 
     Box::new(
         client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
-            channel.queue_declare(&queue, &QueueDeclareOptions::default(), &FieldTable::new()).map(move |_| (channel, queue.clone()))
+            channel.queue_declare(&queue, &QueueDeclareOptions::default(), &FieldTable::new()).map(move |queue| (channel, queue))
         }).and_then(move |(channel, queue)| {
             info!("creating consumer {}", n);
             channel.basic_consume(&queue, "", &BasicConsumeOptions::default(), &FieldTable::new()).map(move |stream| (channel, stream))
