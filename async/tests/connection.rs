@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate lapin_async as lapin;
 
 use std::net::TcpStream;
@@ -10,6 +11,8 @@ use lapin::generated::basic;
 
 #[test]
 fn connection() {
+      env_logger::init();
+
       let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
       stream.set_nonblocking(true).unwrap();
 
