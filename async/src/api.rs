@@ -188,7 +188,6 @@ impl Connection {
         }
 
         self.set_channel_state(_channel_id, ChannelState::Connected);
-        self.get_next_answer(_channel_id);
         Ok(())
     }
 
@@ -261,7 +260,6 @@ impl Connection {
           Some(Answer::AwaitingChannelFlowOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| c.receive_flow = method.active);
-            self.get_next_answer(_channel_id);
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
