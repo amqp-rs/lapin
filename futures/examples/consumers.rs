@@ -13,6 +13,9 @@ use lapin::types::FieldTable;
 use lapin::client::{Client, ConnectionOptions};
 use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions};
 
+const N_CONSUMERS : u8 = 8;
+const N_MESSAGES  : u8 = 5;
+
 fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &Client<T>, n: u8) -> Box<Future<Item = (), Error = ()> + Send + 'static> {
     info!("will create consumer {}", n);
 
@@ -48,13 +51,13 @@ fn main() {
         }).and_then(|(client, heartbeat)| {
             tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)));
 
-            for n in 1..9 {
+            for n in 0..N_CONSUMERS {
                 tokio::spawn(create_consumer(&client, n));
             }
 
             client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
-                futures::stream::iter_ok((1..9).flat_map(|c| {
-                    (1..6).map(move |m| (c, m))
+                futures::stream::iter_ok((0..N_CONSUMERS).flat_map(|c| {
+                    (0..N_MESSAGES).map(move |m| (c, m))
                 })).for_each(move |(c, m)| {
                     let queue   = format!("test-queue-{}", c);
                     let message = format!("message {} for consumer {}", m, c);
