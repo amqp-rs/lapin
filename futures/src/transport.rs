@@ -196,7 +196,7 @@ impl<T> AMQPTransport<T>
   pub fn poll_send(&mut self) -> Poll<(), io::Error> {
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
-      match self.upstream.start_send(frame)? {
+      match self.start_send(frame)? {
         AsyncSink::Ready => {
           trace!("transport poll_send; status=Ready");
         },
@@ -207,7 +207,7 @@ impl<T> AMQPTransport<T>
         }
       }
     }
-    self.upstream.poll_complete()
+    self.poll_complete()
   }
 }
 
