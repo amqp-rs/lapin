@@ -8,7 +8,7 @@ use bytes::{BufMut, BytesMut};
 use std::cmp;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,AsyncSink,Poll,Sink,Stream,Future,future};
+use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use channel::BasicProperties;
@@ -224,6 +224,24 @@ impl<T> Future for AMQPTransport<T>
         }
         self.poll_send()?;
         Ok(Async::NotReady)
+    }
+}
+
+impl <T> Sink for AMQPTransport<T>
+    where T: AsyncWrite,
+          T: Send,
+          T: 'static {
+    type SinkItem = Frame;
+    type SinkError = io::Error;
+
+    fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        trace!("transport start_send; frame={:?}", frame);
+        self.upstream.start_send(frame)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        trace!("transport poll_complete");
+        self.upstream.poll_complete()
     }
 }
 
