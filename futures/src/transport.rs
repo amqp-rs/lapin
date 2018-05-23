@@ -49,16 +49,17 @@ impl Encoder for AMQPCodec {
     type Error = io::Error;
 
     fn encode(&mut self, frame: Frame, buf: &mut BytesMut) -> Result<(), Self::Error> {
-      // Ensure we at least allocate room for two complete frames, to make sure that forthcoming
-      // `BytesMut::extend` calls do not call the allocator each time.
       let frame_max = cmp::max(self.frame_max, 8192) as usize;
-      if buf.remaining_mut() < frame_max / 2 {
-        trace!("encoder; reserve={}", frame_max * 2);
-        buf.reserve(frame_max * 2);
-      }
       trace!("encoder; frame={:?}", frame);
       let offset = buf.len();
       loop {
+        // If the buffer starts running out of capacity (the threshold is 1/4 of a frame), we
+        // reserve more bytes upfront to avoid putting too much strain on the allocator.
+        if buf.remaining_mut() < frame_max / 4 {
+          trace!("encoder; reserve={}", frame_max * 2);
+          buf.reserve(frame_max * 2);
+        }
+
         let gen_res = match &frame {
           &Frame::ProtocolHeader => {
             gen_protocol_header((buf, offset)).map(|tup| tup.1)
