@@ -298,10 +298,14 @@ macro_rules! try_lock_transport (
 
 #[cfg(test)]
 mod tests {
+  extern crate env_logger;
+
   use super::*;
 
   #[test]
   fn encode_multiple_frames() {
+    let _ = env_logger::try_init();
+
     let mut codec = AMQPCodec { frame_max: 8192 };
     let mut buffer = BytesMut::with_capacity(8192);
     let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
@@ -316,12 +320,65 @@ mod tests {
   }
 
   #[test]
-  fn encode_extend_buffer() {
+  fn encode_nested_frame() {
+    use lapin_async::content::ContentHeader;
+
+    let _ = env_logger::try_init();
+
     let mut codec = AMQPCodec { frame_max: 8192 };
+    let mut buffer = BytesMut::with_capacity(8192);
+    let frame = Frame::Header(0, 10, ContentHeader {
+      class_id: 10,
+      weight: 0,
+      body_size: 64,
+      properties: BasicProperties::default()
+    });
+    let r = codec.encode(frame, &mut buffer);
+    assert_eq!(false, r.is_err());
+    assert_eq!(22, buffer.len());
+  }
+
+  #[test]
+  fn encode_initial_extend_buffer() {
+    let _ = env_logger::try_init();
+
+    let mut codec = AMQPCodec { frame_max: 8192 };
+    let frame_max = codec.frame_max as usize;
     let mut buffer = BytesMut::new();
+
     let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
-    assert_eq!(true, buffer.capacity() >= (codec.frame_max as usize));
-    assert_ne!(0, buffer.len());
+    assert_eq!(true, buffer.capacity() >= frame_max);
+    assert_eq!(8, buffer.len());
+  }
+
+  #[test]
+  fn encode_anticipation_extend_buffer() {
+    let _ = env_logger::try_init();
+
+    let mut codec = AMQPCodec { frame_max: 8192 };
+    let frame_max = codec.frame_max as usize;
+    let mut buffer = BytesMut::new();
+
+    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    assert_eq!(false, r.is_err());
+    assert_eq!(frame_max * 2, buffer.capacity());
+    assert_eq!(8, buffer.len());
+
+    let payload = repeat(0u8)
+      // Use 80% of the remaining space (it shouldn't trigger buffer capacity expansion)
+      .take(((buffer.capacity() as f64 - buffer.len() as f64) * 0.8) as usize)
+      .collect::<Vec<u8>>();
+    let r = codec.encode(Frame::Body(1, payload), &mut buffer);
+    assert_eq!(false, r.is_err());
+    assert_eq!(frame_max * 2, buffer.capacity());
+
+    let payload = repeat(0u8)
+      // Use 80% of the remaining space (it should trigger a buffer capacity expansion)
+      .take(((buffer.capacity() as f64 - buffer.len() as f64) * 0.8) as usize)
+      .collect::<Vec<u8>>();
+    let r = codec.encode(Frame::Body(1, payload), &mut buffer);
+    assert_eq!(false, r.is_err());
+    assert_eq!(frame_max * 4, buffer.capacity());
   }
 }
