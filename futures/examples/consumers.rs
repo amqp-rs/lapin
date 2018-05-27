@@ -5,8 +5,10 @@ extern crate log;
 extern crate futures;
 extern crate tokio;
 
+use std::io;
+
 use futures::future::Future;
-use futures::Stream;
+use futures::{IntoFuture, Stream};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use lapin::types::FieldTable;
@@ -23,6 +25,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 
     Box::new(
         client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
+            info!("creating queue {}", queue);
             channel.queue_declare(&queue, &QueueDeclareOptions::default(), &FieldTable::new()).map(move |queue| (channel, queue))
         }).and_then(move |(channel, queue)| {
             info!("creating consumer {}", n);
@@ -42,6 +45,7 @@ fn main() {
 
     let addr = "127.0.0.1:5672".parse().unwrap();
 
+    // tokio::runtime::current_thread::Runtime::new().unwrap().block_on(
     tokio::run(
         TcpStream::connect(&addr).and_then(|stream| {
             Client::connect(stream, &ConnectionOptions {
@@ -49,12 +53,13 @@ fn main() {
                 ..Default::default()
             })
         }).and_then(|(client, heartbeat)| {
-            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)));
-
-            for n in 0..N_CONSUMERS {
-                tokio::spawn(create_consumer(&client, n));
-            }
-
+            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+                .into_future().map(|_| client).map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+        }).and_then(|client| {
+            let _client = client.clone();
+            futures::stream::iter_ok(0..N_CONSUMERS).for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
+                .into_future().map(move |_| client).map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+        }).and_then(|client| {
             client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
                 futures::stream::iter_ok((0..N_CONSUMERS).flat_map(|c| {
                     (0..N_MESSAGES).map(move |m| (c, m))
