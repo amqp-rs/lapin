@@ -79,12 +79,12 @@ impl Heartbeat {
                 let heartbeat = f.and_then(move |(_instant, interval)| {
                     debug!("poll heartbeat");
                     future::poll_fn(move || {
-                        let mut transport = try_lock_transport!(transport_send);
+                        let mut transport = lock_transport!(transport_send);
                         debug!("Sending heartbeat");
                         transport.send_frame(Frame::Heartbeat(0));
                         Ok(Async::Ready(()))
                     }).and_then(move |_| future::poll_fn(move || {
-                        let mut transport = try_lock_transport!(transport);
+                        let mut transport = lock_transport!(transport);
                         transport.poll_send()
                     })).then(move |r| match r {
                         Ok(_) => Ok(interval),

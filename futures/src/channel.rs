@@ -149,7 +149,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> Box<Future<Item = Self, Error = io::Error> + Send + 'static> {
         let channel_transport = transport.clone();
         let create_channel = future::poll_fn(move || {
-            let mut transport = try_lock_transport!(channel_transport);
+            let mut transport = lock_transport!(channel_transport);
             if let Some(id) = transport.conn.create_channel() {
                 return Ok(Async::Ready(Channel {
                     id,
@@ -166,7 +166,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 transport.conn.channel_open(channel_id, "".to_string()).map(Some)
             }).and_then(move |_| {
                 future::poll_fn(move || {
-                    let transport = try_lock_transport!(transport);
+                    let transport = lock_transport!(transport);
 
                     match transport.conn.get_state(channel_id) {
                         Some(ChannelState::Connected) => return Ok(Async::Ready(())),
@@ -248,7 +248,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.clone()).map(Some)
           }).and_then(|request_id| {
             future::poll_fn(move || {
-              let mut transport = try_lock_transport!(transport);
+              let mut transport = lock_transport!(transport);
               if let Some(queue) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 return Ok(Async::Ready(queue))
               } else {
@@ -341,7 +341,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
             options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.clone()).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {
-              let mut transport = try_lock_transport!(transport);
+              let mut transport = lock_transport!(transport);
               if let Some(consumer_tag) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 return Ok(Async::Ready(consumer_tag))
               } else {
@@ -383,7 +383,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let _queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
-            let mut transport = try_lock_transport!(receive_transport);
+            let mut transport = lock_transport!(receive_transport);
             if let Async::Ready(_) = transport.poll()? {
                 return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
             }
@@ -479,7 +479,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                         Box::new(Self::wait_for_answer(transport, request_id, finished))
                     } else {
                         Box::new(future::poll_fn(move || {
-                            let mut transport = try_lock_transport!(transport);
+                            let mut transport = lock_transport!(transport);
                             transport.poll_send()
                         }).map(|_| None))
                     }
@@ -506,7 +506,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         Box::new(future::poll_fn(move || {
             trace!("wait for answer; request_id={:?}", request_id);
-            let mut tr = try_lock_transport!(transport);
+            let mut tr = lock_transport!(transport);
             if let Async::Ready(_) = tr.poll()? {
                 trace!("wait for answer transport poll; request_id={:?} status=Ready", request_id);
                 return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));

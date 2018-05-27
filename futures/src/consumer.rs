@@ -20,7 +20,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
 
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
     trace!("poll; consumer_tag={:?}", self.consumer_tag);
-    let mut transport = try_lock_transport!(self.transport);
+    let mut transport = lock_transport!(self.transport);
     if let Async::Ready(_) = transport.poll()? {
       trace!("poll transport; consumer_tag={:?} status=Ready", self.consumer_tag);
       return Ok(Async::Ready(None));
