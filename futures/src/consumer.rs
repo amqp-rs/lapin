@@ -12,6 +12,7 @@ pub struct Consumer<T> {
   pub channel_id:   u16,
   pub queue:        String,
   pub consumer_tag: String,
+  pub registered:   bool,
 }
 
 impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
@@ -21,6 +22,10 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
     trace!("poll; consumer_tag={:?}", self.consumer_tag);
     let mut transport = lock_transport!(self.transport);
+    if !self.registered {
+        transport.register_consumer(&self.consumer_tag, task::current());
+        self.registered = true;
+    }
     if let Async::Ready(_) = transport.poll()? {
       trace!("poll transport; consumer_tag={:?} status=Ready", self.consumer_tag);
       return Ok(Async::Ready(None));

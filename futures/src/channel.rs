@@ -335,6 +335,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
             channel_id:   self.id,
             queue:        queue.name(),
             consumer_tag: consumer_tag.to_string(),
+            registered:   false,
         };
 
         Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", |transport| {
