@@ -6,9 +6,10 @@ use nom::{IResult,Offset};
 use cookie_factory::GenError;
 use bytes::{BufMut, BytesMut};
 use std::cmp;
+use std::collections::HashMap;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future};
+use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_io::codec::{Decoder,Encoder,Framed};
 use channel::BasicProperties;
@@ -102,8 +103,9 @@ impl Encoder for AMQPCodec {
 
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
-  upstream: Framed<T,AMQPCodec>,
-  pub conn: Connection,
+  upstream:  Framed<T,AMQPCodec>,
+  consumers: HashMap<String, task::Task>,
+  pub conn:  Connection,
 }
 
 impl<T> AMQPTransport<T>
@@ -130,6 +132,7 @@ impl<T> AMQPTransport<T>
     };
     let t = AMQPTransport {
       upstream:     stream.framed(codec),
+      consumers:    HashMap::new(),
       conn:         conn,
     };
     let connector = AMQPTransportConnector {
@@ -208,6 +211,10 @@ impl<T> AMQPTransport<T>
       }
     }
     self.poll_complete()
+  }
+
+  pub fn register_consumer(&mut self, consumer_tag: &str, consumer_task: task::Task) {
+      self.consumers.insert(consumer_tag.to_string(), consumer_task);
   }
 }
 
