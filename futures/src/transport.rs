@@ -185,6 +185,11 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           trace!("transport poll_recv; status=NotReady");
+          if self.conn.has_pending_deliveries() {
+            for t in self.consumers.values() {
+              t.notify();
+            }
+          }
           return Ok(Async::NotReady);
         },
         Err(e) => {
