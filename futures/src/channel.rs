@@ -312,6 +312,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                         Some(Ok(Async::Ready(None)))
                     } else {
                         info!("message with tag {} still in unacked: {:?}", delivery_tag, c.unacked);
+                        task::current().notify();
                         Some(Ok(Async::NotReady))
                     }
                 } else {
@@ -402,7 +403,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 } else {
                     Err(Error::new(ErrorKind::Other, "basic get returned empty"))
                 },
-                None         => Ok(Async::NotReady),
+                None         => {
+                    task::current().notify();
+                    Ok(Async::NotReady)
+                }
             }
         }, None).and_then(|_| receive_future))
     }
@@ -520,6 +524,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 return Ok(Async::Ready(r));
             }
             trace!("wait for answer; request_id={:?} status=NotReady", request_id);
+            task::current().notify();
             Ok(Async::NotReady)
         }))
     }
