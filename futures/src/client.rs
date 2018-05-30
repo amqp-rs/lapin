@@ -1,7 +1,9 @@
+use amq_protocol::uri::AMQPUri;
 use lapin_async;
 use lapin_async::format::frame::Frame;
 use std::default::Default;
 use std::io;
+use std::str::FromStr;
 use futures::{future,task,Async,Future,Poll,Stream};
 use futures::sync::oneshot;
 use tokio_io::{AsyncRead,AsyncWrite};
@@ -37,6 +39,18 @@ pub struct ConnectionOptions {
   pub heartbeat: u16,
 }
 
+impl ConnectionOptions {
+  pub fn from_uri(uri: AMQPUri) -> ConnectionOptions {
+    ConnectionOptions {
+      username: uri.authority.userinfo.username,
+      password: uri.authority.userinfo.password,
+      vhost: uri.vhost,
+      frame_max: uri.query.frame_max.unwrap_or(0),
+      heartbeat: uri.query.heartbeat.unwrap_or(0),
+    }
+  }
+}
+
 impl Default for ConnectionOptions {
   fn default() -> ConnectionOptions {
     ConnectionOptions {
@@ -47,6 +61,15 @@ impl Default for ConnectionOptions {
       heartbeat: 0,
     }
   }
+}
+
+impl FromStr for ConnectionOptions {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let uri = AMQPUri::from_str(s)?;
+        Ok(ConnectionOptions::from_uri(uri))
+    }
 }
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
