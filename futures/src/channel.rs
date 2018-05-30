@@ -496,7 +496,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         Box::new(self.run_on_locked_transport_full(method, error, action, |conn, request_id| {
             match conn.is_finished(request_id) {
                 Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
-                _                      => Ok(Async::NotReady),
+                _                      => {
+                    task::current().notify();
+                    Ok(Async::NotReady)
+                }
             }
         }, None))
     }
