@@ -170,6 +170,7 @@ impl<T> AMQPTransport<T>
   /// * In case of error, it will return `Err(e)`
   /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
   pub fn poll_recv(&mut self) -> Poll<(), io::Error> {
+    let mut got_frame = false;
     loop {
       match self.upstream.poll() {
         Ok(Async::Ready(Some(frame))) => {
@@ -178,6 +179,7 @@ impl<T> AMQPTransport<T>
             let err = format!("failed to handle frame: {:?}", e);
             return Err(io::Error::new(io::ErrorKind::Other, err));
           }
+          got_frame = true;
         },
         Ok(Async::Ready(None)) => {
           trace!("transport poll_recv; status=Ready(None)");
@@ -185,7 +187,7 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           trace!("transport poll_recv; status=NotReady");
-          if self.conn.has_pending_deliveries() {
+          if got_frame && self.conn.has_pending_deliveries() {
             for t in self.consumers.values() {
               t.notify();
             }
