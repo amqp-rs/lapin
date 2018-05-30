@@ -121,6 +121,7 @@
 //! ```
 //!
 
+extern crate amq_protocol;
 extern crate cookie_factory;
 extern crate bytes;
 extern crate futures;
