@@ -261,6 +261,10 @@ impl Connection {
     self.finished_get_reqs.remove(&id)
   }
 
+  pub fn has_pending_deliveries(&self) -> bool {
+    self.channels.values().any(|channel| channel.queues.values().any(|queue| queue.consumers.values().any(|consumer| !consumer.messages.is_empty())))
+  }
+
   /// gets the next message corresponding to a channel, queue and consumer tag
   ///
   /// if the channel id, queue and consumer tag have no link, the method
