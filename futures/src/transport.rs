@@ -161,6 +161,14 @@ impl<T> AMQPTransport<T>
     self.conn.send_content_frames(channel_id, 60, payload, properties);
   }
 
+  fn maybe_notify_consumers(&self) {
+    if self.conn.has_pending_deliveries() {
+      for t in self.consumers.values() {
+        t.notify();
+      }
+    }
+  }
+
   /// Poll the network to receive & handle incoming frames.
   ///
   /// # Return value
@@ -187,10 +195,8 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           trace!("transport poll_recv; status=NotReady");
-          if got_frame && self.conn.has_pending_deliveries() {
-            for t in self.consumers.values() {
-              t.notify();
-            }
+          if got_frame {
+            self.maybe_notify_consumers();
           }
           return Ok(Async::NotReady);
         },
