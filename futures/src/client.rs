@@ -40,11 +40,11 @@ pub struct ConnectionOptions {
 }
 
 impl ConnectionOptions {
-  pub fn from_uri(uri: AMQPUri) -> ConnectionOptions {
+  pub fn from_uri(uri: &AMQPUri) -> ConnectionOptions {
     ConnectionOptions {
-      username: uri.authority.userinfo.username,
-      password: uri.authority.userinfo.password,
-      vhost: uri.vhost,
+      username: uri.authority.userinfo.username.to_string(),
+      password: uri.authority.userinfo.password.to_string(),
+      vhost: uri.vhost.to_string(),
       frame_max: uri.query.frame_max.unwrap_or(0),
       heartbeat: uri.query.heartbeat.unwrap_or(0),
     }
@@ -68,7 +68,7 @@ impl FromStr for ConnectionOptions {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = AMQPUri::from_str(s)?;
-        Ok(ConnectionOptions::from_uri(uri))
+        Ok(ConnectionOptions::from_uri(&uri))
     }
 }
 
