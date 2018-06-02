@@ -193,7 +193,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// let addr = "127.0.0.1:5672".parse().unwrap();
   /// let f = TcpStream::connect(&addr)
   ///     .and_then(|stream| {
-  ///         Client::connect(stream, &ConnectionOptions::default())
+  ///         Client::connect(stream, ConnectionOptions::default())
   ///     })
   ///     .and_then(|(client, mut heartbeat)| {
   ///         let handle = heartbeat.handle().unwrap();
@@ -211,7 +211,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// );
   /// # }
   /// ```
-  pub fn connect(stream: T, options: &ConnectionOptions) -> Box<Future<Item = (Self, Heartbeat), Error = io::Error> + Send> {
+  pub fn connect(stream: T, options: ConnectionOptions) -> Box<Future<Item = (Self, Heartbeat), Error = io::Error> + Send> {
     Box::new(AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
@@ -239,7 +239,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
     Box::new(self.create_channel().and_then(move |channel| {
       let ch = channel.clone();
 
-      channel.confirm_select(&options).map(|_| ch)
+      channel.confirm_select(options).map(|_| ch)
     }))
   }
 }

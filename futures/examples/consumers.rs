@@ -26,10 +26,10 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
     Box::new(
         client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
             info!("creating queue {}", queue);
-            channel.queue_declare(&queue, &QueueDeclareOptions::default(), &FieldTable::new()).map(move |queue| (channel, queue))
+            channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
         }).and_then(move |(channel, queue)| {
             info!("creating consumer {}", n);
-            channel.basic_consume(&queue, "", &BasicConsumeOptions::default(), &FieldTable::new()).map(move |stream| (channel, stream))
+            channel.basic_consume(&queue, "", BasicConsumeOptions::default(), FieldTable::new()).map(move |stream| (channel, stream))
         }).and_then(move |(channel, stream)| {
             info!("got stream for consumer {}", n);
             stream.for_each(move |message| {
@@ -48,7 +48,7 @@ fn main() {
     // tokio::runtime::current_thread::Runtime::new().unwrap().block_on(
     tokio::run(
         TcpStream::connect(&addr).and_then(|stream| {
-            Client::connect(stream, &ConnectionOptions {
+            Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
                 ..Default::default()
             })
@@ -70,8 +70,8 @@ fn main() {
 
                     info!("will publish {}", message);
 
-                    channel.queue_declare(&queue, &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
-                        channel.basic_publish("", &queue, message.as_str().as_bytes(), &BasicPublishOptions::default(), BasicProperties::default()).map(move |confirmation| {
+                    channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+                        channel.basic_publish("", &queue, message.as_str().as_bytes(), BasicPublishOptions::default(), BasicProperties::default()).map(move |confirmation| {
                             println!("got confirmation (consumer {}, message {}): {:?}", c, m, confirmation);
                         })
                     })

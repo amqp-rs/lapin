@@ -36,7 +36,7 @@
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
+//!       lapin::client::Client::connect(stream, ConnectionOptions::default())
 //!    }).and_then(|(client, _ /* heartbeat */)| {
 //!
 //!       // create_channel returns a future that is resolved
@@ -49,10 +49,10 @@
 //!       // we using a "move" closure to reuse the channel
 //!       // once the queue is declared. We could also clone
 //!       // the channel
-//!       channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |_| {
+//!       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
-//!         channel.basic_publish("", "hello", b"hello from tokio", &BasicPublishOptions::default(), BasicProperties::default())
+//!         channel.basic_publish("", "hello", b"hello from tokio", BasicPublishOptions::default(), BasicProperties::default())
 //!       })
 //!     }).map(|_| ()).map_err(|_| ())
 //!   )
@@ -82,7 +82,7 @@
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream, &ConnectionOptions::default())
+//!       lapin::client::Client::connect(stream, ConnectionOptions::default())
 //!    }).and_then(|(client, heartbeat)| {
 //!      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
 //!      // dispatching events on time.
@@ -98,13 +98,13 @@
 //!       info!("created channel with id: {}", id);
 //!
 //!       let ch = channel.clone();
-//!       channel.queue_declare("hello", &QueueDeclareOptions::default(), &FieldTable::new()).and_then(move |queue| {
+//!       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
 //!         // basic_consume returns a future of a message
 //!         // stream. Any time a message arrives for this consumer,
 //!         // the for_each method would be called
-//!         channel.basic_consume(&queue, "my_consumer", &BasicConsumeOptions::default(), &FieldTable::new())
+//!         channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::new())
 //!       }).and_then(|stream| {
 //!         info!("got consumer stream");
 //!
