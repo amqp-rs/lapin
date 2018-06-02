@@ -14,7 +14,7 @@ use lapin::channel::{BasicConsumeOptions,BasicGetOptions,BasicPublishOptions,Bas
 fn main() {
   env_logger::init();
 
-  let addr = "127.0.0.1:5672".parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
   tokio::run(
     TcpStream::connect(&addr).and_then(|stream| {

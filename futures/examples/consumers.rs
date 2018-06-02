@@ -43,7 +43,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 fn main() {
     env_logger::init();
 
-    let addr = "127.0.0.1:5672".parse().unwrap();
+    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
     // tokio::runtime::current_thread::Runtime::new().unwrap().block_on(
     tokio::run(

@@ -11,9 +11,10 @@ use lapin::generated::basic;
 
 #[test]
 fn connection() {
-      env_logger::init();
+      let _ = env_logger::try_init();
 
-      let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string());
+      let mut stream = TcpStream::connect(&addr).unwrap();
       stream.set_nonblocking(true).unwrap();
 
       let capacity = 8192;
