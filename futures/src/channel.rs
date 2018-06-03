@@ -548,6 +548,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                     } else {
                         Box::new(future::poll_fn(move || {
                             let mut transport = lock_transport!(transport);
+                            // poll_recv is not strictly necessary here but it ensures we read and
+                            // notify consumers on a regular basis if there is no other rabbitmq
+                            // activity
+                            transport.poll_recv()?;
                             transport.poll_send()
                         }).map(|_| None))
                     }
