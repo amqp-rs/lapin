@@ -559,17 +559,19 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         }
     }
 
+    fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, io::Error> {
+        match conn.is_finished(request_id) {
+            Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
+            _                      => {
+                task::current().notify();
+                Ok(Async::NotReady)
+            }
+        }
+    }
+
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
         where Action: 'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
-        Box::new(self.run_on_locked_transport_full(method, error, action, |conn, request_id| {
-            match conn.is_finished(request_id) {
-                Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
-                _                      => {
-                    task::current().notify();
-                    Ok(Async::NotReady)
-                }
-            }
-        }, None))
+        Box::new(self.run_on_locked_transport_full(method, error, action, Self::run_on_lock_transport_basic_finished, None))
     }
 
     /// internal method to wait until a request succeeds
