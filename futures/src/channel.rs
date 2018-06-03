@@ -189,10 +189,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the access is granted
     pub fn access_request(&self, realm: &str, options: AccessRequestOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut realm = Some(realm.to_string());
+        let realm = realm.to_string();
 
         Box::new(self.run_on_locked_transport("access_request", "Could not request access", move |transport| {
-            transport.conn.access_request(channel_id, realm.take().unwrap(),
+            transport.conn.access_request(channel_id, realm,
                 options.exclusive, options.passive, options.active, options.write, options.read).map(Some)
         }).map(|_| ()))
     }
@@ -202,13 +202,12 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the exchange is available
     pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: ExchangeDeclareOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut name = Some(name.to_string());
-        let mut exchange_type = Some(exchange_type.to_string());
-        let mut arguments = Some(arguments);
+        let name = name.to_string();
+        let exchange_type = exchange_type.to_string();
 
         Box::new(self.run_on_locked_transport("exchange_declare", "Could not declare exchange", move |transport| {
-            transport.conn.exchange_declare(channel_id, options.ticket, name.take().unwrap(), exchange_type.take().unwrap(),
-                options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments.take().unwrap()).map(Some)
+            transport.conn.exchange_declare(channel_id, options.ticket, name, exchange_type,
+                options.passive, options.durable, options.auto_delete, options.internal, options.nowait, arguments).map(Some)
         }).map(|_| ()))
     }
 
@@ -217,10 +216,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the exchange is deleted
     pub fn exchange_delete(&self, name: &str, options: ExchangeDeleteOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut name = Some(name.to_string());
+        let name = name.to_string();
 
         Box::new(self.run_on_locked_transport("exchange_delete", "Could not delete exchange", move |transport| {
-            transport.conn.exchange_delete(channel_id, options.ticket, name.take().unwrap(),
+            transport.conn.exchange_delete(channel_id, options.ticket, name,
                 options.if_unused, options.nowait).map(Some)
         }).map(|_| ()))
     }
@@ -230,14 +229,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the exchanges are bound
     pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut destination = Some(destination.to_string());
-        let mut source = Some(source.to_string());
-        let mut routing_key = Some(routing_key.to_string());
-        let mut arguments = Some(arguments);
+        let destination = destination.to_string();
+        let source = source.to_string();
+        let routing_key = routing_key.to_string();
 
         Box::new(self.run_on_locked_transport("exchange_bind", "Could not bind exchange", move |transport| {
-            transport.conn.exchange_bind(channel_id, options.ticket, destination.take().unwrap(), source.take().unwrap(), routing_key.take().unwrap(),
-                options.nowait, arguments.take().unwrap()).map(Some)
+            transport.conn.exchange_bind(channel_id, options.ticket, destination, source, routing_key,
+                options.nowait, arguments).map(Some)
         }).map(|_| ()))
     }
 
@@ -246,14 +244,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the exchanges are unbound
     pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut destination = Some(destination.to_string());
-        let mut source = Some(source.to_string());
-        let mut routing_key = Some(routing_key.to_string());
-        let mut arguments = Some(arguments);
+        let destination = destination.to_string();
+        let source = source.to_string();
+        let routing_key = routing_key.to_string();
 
         Box::new(self.run_on_locked_transport("exchange_unbind", "Could not unbind exchange", move |transport| {
-            transport.conn.exchange_unbind(channel_id, options.ticket, destination.take().unwrap(), source.take().unwrap(), routing_key.take().unwrap(),
-                options.nowait, arguments.take().unwrap()).map(Some)
+            transport.conn.exchange_unbind(channel_id, options.ticket, destination, source, routing_key,
+                options.nowait, arguments).map(Some)
         }).map(|_| ()))
     }
 
@@ -265,13 +262,12 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// but the return message will not be handled
     pub fn queue_declare(&self, name: &str, options: QueueDeclareOptions, arguments: FieldTable) -> Box<Future<Item = Queue, Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut name = Some(name.to_string());
-        let mut arguments = Some(arguments);
+        let name = name.to_string();
         let transport = self.transport.clone();
 
         Box::new(self.run_on_locked_transport("queue_declare", "Could not declare queue", move |transport| {
-            transport.conn.queue_declare(channel_id, options.ticket, name.take().unwrap(),
-                options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments.take().unwrap()).map(Some)
+            transport.conn.queue_declare(channel_id, options.ticket, name,
+                options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments).map(Some)
           }).and_then(|request_id| {
             future::poll_fn(move || {
               let mut transport = lock_transport!(transport);
@@ -290,14 +286,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the queue is bound to the exchange
     pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueBindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut name = Some(name.to_string());
-        let mut exchange = Some(exchange.to_string());
-        let mut routing_key = Some(routing_key.to_string());
-        let mut arguments = Some(arguments);
+        let name = name.to_string();
+        let exchange = exchange.to_string();
+        let routing_key = routing_key.to_string();
 
         Box::new(self.run_on_locked_transport("queue_bind", "Could not bind queue", move |transport| {
-            transport.conn.queue_bind(channel_id, options.ticket, name.take().unwrap(), exchange.take().unwrap(), routing_key.take().unwrap(),
-                options.nowait, arguments.take().unwrap()).map(Some)
+            transport.conn.queue_bind(channel_id, options.ticket, name, exchange, routing_key,
+                options.nowait, arguments).map(Some)
         }).map(|_| ()))
     }
 
@@ -306,13 +301,12 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// returns a future that resolves once the queue is unbound from the exchange
     pub fn queue_unbind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueUnbindOptions, arguments: FieldTable) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut name = Some(name.to_string());
-        let mut exchange = Some(exchange.to_string());
-        let mut routing_key = Some(routing_key.to_string());
-        let mut arguments = Some(arguments);
+        let name = name.to_string();
+        let exchange = exchange.to_string();
+        let routing_key = routing_key.to_string();
 
         Box::new(self.run_on_locked_transport("queue_unbind", "Could not unbind queue from the exchange", move |transport| {
-            transport.conn.queue_unbind(channel_id, options.ticket, name.take().unwrap(), exchange.take().unwrap(), routing_key.take().unwrap(), arguments.take().unwrap()).map(Some)
+            transport.conn.queue_unbind(channel_id, options.ticket, name, exchange, routing_key, arguments).map(Some)
         }).map(|_| ()))
     }
 
@@ -341,11 +335,11 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// - `None` if we're not on a confirm channel or the message was nack'd
     pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: &[u8], options: BasicPublishOptions, properties: BasicProperties) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut exchange = Some(exchange.to_string());
-        let mut routing_key = Some(routing_key.to_string());
+        let exchange = exchange.to_string();
+        let routing_key = routing_key.to_string();
 
         Box::new(self.run_on_locked_transport_full("basic_publish", "Could not publish", move |transport| {
-            transport.conn.basic_publish(channel_id, options.ticket, exchange.take().unwrap(), routing_key.take().unwrap(),
+            transport.conn.basic_publish(channel_id, options.ticket, exchange, routing_key,
                 options.mandatory, options.immediate).map(Some)
         }, move |conn, delivery_tag| {
             conn.channels.get_mut(&channel_id).and_then(|c| {
@@ -375,20 +369,19 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> Box<Future<Item = Consumer<T>, Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
         let transport = self.transport.clone();
-        let mut consumer_tag = Some(consumer_tag.to_string());
-        let mut queue_name = Some(queue.name());
-        let mut arguments = Some(arguments);
+        let consumer_tag = consumer_tag.to_string();
+        let queue_name = queue.name();
         let mut consumer = Consumer {
             transport:    self.transport.clone(),
             channel_id:   self.id,
             queue:        queue.name(),
-            consumer_tag: consumer_tag.clone().unwrap(),
+            consumer_tag: consumer_tag.to_string(),
             registered:   false,
         };
 
         Box::new(self.run_on_locked_transport("basic_consume", "Could not start consumer", move |transport| {
-            transport.conn.basic_consume(channel_id, options.ticket, queue_name.take().unwrap(), consumer_tag.take().unwrap(),
-            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments.take().unwrap()).map(Some)
+            transport.conn.basic_consume(channel_id, options.ticket, queue_name, consumer_tag,
+            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {
               let mut transport = lock_transport!(transport);
@@ -437,7 +430,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn basic_get(&self, queue: &str, options: BasicGetOptions) -> Box<Future<Item = BasicGetMessage, Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
         let _queue = queue.to_string();
-        let mut queue = Some(queue.to_string());
+        let queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
             let mut transport = lock_transport!(receive_transport);
@@ -451,7 +444,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         });
 
         Box::new(self.run_on_locked_transport_full("basic_get", "Could not get message", move |transport| {
-            transport.conn.basic_get(channel_id, options.ticket, queue.take().unwrap(), options.no_ack).map(Some)
+            transport.conn.basic_get(channel_id, options.ticket, queue, options.no_ack).map(Some)
         }, |conn, request_id| {
             match conn.finished_get_result(request_id) {
                 Some(answer) => if answer {
@@ -472,10 +465,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// This method removes all messages from a queue which are not awaiting acknowledgment.
     pub fn queue_purge(&self, queue_name: &str, options: QueuePurgeOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut queue_name = Some(queue_name.to_string());
+        let queue_name = queue_name.to_string();
 
         Box::new(self.run_on_locked_transport("queue_purge", "Could not purge queue", move |transport| {
-            transport.conn.queue_purge(channel_id, options.ticket, queue_name.take().unwrap(), options.nowait).map(Some)
+            transport.conn.queue_purge(channel_id, options.ticket, queue_name, options.nowait).map(Some)
         }).map(|_| ()))
     }
 
@@ -490,20 +483,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     /// If `if_empty` is set, the server will only delete the queue if it has no messages.
     pub fn queue_delete(&self, queue_name: &str, options: QueueDeleteOptions) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut queue_name = Some(queue_name.to_string());
+        let queue_name = queue_name.to_string();
 
         Box::new(self.run_on_locked_transport("queue_purge", "Could not purge queue", move |transport| {
-            transport.conn.queue_delete(channel_id, options.ticket, queue_name.take().unwrap(), options.if_unused, options.if_empty, options.no_wait).map(Some)
+            transport.conn.queue_delete(channel_id, options.ticket, queue_name, options.if_unused, options.if_empty, options.no_wait).map(Some)
         }).map(|_| ()))
     }
 
     /// closes the channel
     pub fn close(&self, code: u16, message: &str) -> Box<Future<Item = (), Error = io::Error> + Send + 'static> {
         let channel_id = self.id;
-        let mut message = Some(message.to_string());
+        let message = message.to_string();
 
         Box::new(self.run_on_locked_transport("close", "Could not close channel", move |transport| {
-            transport.conn.channel_close(channel_id, code, message.take().unwrap(), 0, 0).map(|_| None)
+            transport.conn.channel_close(channel_id, code, message, 0, 0).map(|_| None)
         }).map(|_| ()))
     }
 
@@ -534,8 +527,8 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         }).map(|_| ()))
     }
 
-    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, mut action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
-        where Action:   'static + Send + FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
+        where Action:   'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         trace!("run on locked transport; method={:?}", method);
         let channel_id = self.id;
@@ -544,11 +537,20 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let _method = method.to_string();
         let method = method.to_string();
         let error = error.to_string();
+        // Tweak to make the borrow checker happy, see below for more explaination
+        let mut action = Some(action);
         let mut payload = Some(payload);
 
         Box::new(future::poll_fn(move || {
             let mut transport = lock_transport!(transport);
-            match action(&mut transport) {
+            // The poll_fn here is only there for the lock_transport call above.
+            // Once the lock_transport yields a Async::Ready transport, the rest of the function is
+            // ran only once as we either return an error or an Async::Ready, it's thus safe to .take().unwrap()
+            // the action, which is always Some() the first time, and never called twice.
+            // This is needed because we're in an FnMut and thus cannot transfer ownership as an
+            // FnMut can be called several time and action which is an FnOnce can only be called
+            // once (which is implemented as a ownership transfer).
+            match action.take().unwrap()(&mut transport) {
                 Err(e)         => Err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e))),
                 Ok(request_id) => {
                     trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
@@ -588,7 +590,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     }
 
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
-        where Action: 'static + Send + FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
+        where Action: 'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         Box::new(self.run_on_locked_transport_full(method, error, action, Self::run_on_lock_transport_basic_finished, None))
     }
 
