@@ -363,7 +363,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                     None
                 }
             }).unwrap_or(Ok(Async::Ready(None)))
-        }, Some((channel_id, payload, properties))))
+        }, Some((payload.to_vec(), properties))))
     }
 
     /// creates a consumer stream
@@ -534,32 +534,33 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         }).map(|_| ()))
     }
 
-    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, mut action: Action, finished: Finished, payload: Option<(u16, &[u8], BasicProperties)>) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, mut action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> Box<Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static>
         where Action:   'static + Send + FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         trace!("run on locked transport; method={:?}", method);
+        let channel_id = self.id;
+        let transport = self.transport.clone();
         let _transport = self.transport.clone();
+        let _method = method.to_string();
         let method = method.to_string();
         let error = error.to_string();
-        let request = if let Ok(mut transport) = self.transport.lock() {
-            match action(&mut transport) {
-                Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
-                Ok(request_id) => {
-                    trace!("run on locked transport; method={:?} request_id={:?}", method, request_id);
+        let mut payload = Some(payload);
 
-                    if let Some((channel_id, payload, properties)) = payload {
-                        transport.send_content_frames(channel_id, payload, properties);
+        Box::new(future::poll_fn(move || {
+            let mut transport = lock_transport!(transport);
+            match action(&mut transport) {
+                Err(e)         => Err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e))),
+                Ok(request_id) => {
+                    trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
+
+                    if let Some((payload, mut properties)) = payload.take().unwrap() {
+                        transport.send_content_frames(channel_id, payload.as_slice(), properties);
                     }
 
-                    Box::new(future::ok(request_id))
+                    Ok(Async::Ready(request_id))
                 },
             }
-        } else {
-            //FIXME: if we're there, it means the mutex failed
-            Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
-        };
-
-        Box::new(request.and_then(move |request_id| {
+        }).and_then(move |request_id| {
             if let Some(request_id) = request_id {
                 trace!("{} returning closure", method);
                 Self::wait_for_answer(_transport, request_id, finished)
