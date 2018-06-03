@@ -538,7 +538,10 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         where Action:   'static + Send + FnMut(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
         trace!("run on locked transport; method={:?}", method);
-        if let Ok(mut transport) = self.transport.lock() {
+        let _transport = self.transport.clone();
+        let method = method.to_string();
+        let error = error.to_string();
+        let request = if let Ok(mut transport) = self.transport.lock() {
             match action(&mut transport) {
                 Err(e)         => Box::new(future::err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e)))),
                 Ok(request_id) => {
@@ -548,26 +551,29 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                         transport.send_content_frames(channel_id, payload, properties);
                     }
 
-                    let transport = self.transport.clone();
-                    if let Some(request_id) = request_id {
-                        trace!("{} returning closure", method);
-                        Box::new(Self::wait_for_answer(transport, request_id, finished))
-                    } else {
-                        Box::new(future::poll_fn(move || {
-                            let mut transport = lock_transport!(transport);
-                            // poll_recv is not strictly necessary here but it ensures we read and
-                            // notify consumers on a regular basis if there is no other rabbitmq
-                            // activity
-                            transport.poll_recv()?;
-                            transport.poll_send()
-                        }).map(|_| None))
-                    }
+                    Box::new(future::ok(request_id))
                 },
             }
         } else {
             //FIXME: if we're there, it means the mutex failed
             Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, "Failed to acquire AMQPTransport mutex")))
-        }
+        };
+
+        Box::new(request.and_then(move |request_id| {
+            if let Some(request_id) = request_id {
+                trace!("{} returning closure", method);
+                Self::wait_for_answer(_transport, request_id, finished)
+            } else {
+                Box::new(future::poll_fn(move || {
+                    let mut transport = lock_transport!(_transport);
+                    // poll_recv is not strictly necessary here but it ensures we read and
+                    // notify consumers on a regular basis if there is no other rabbitmq
+                    // activity
+                    transport.poll_recv()?;
+                    transport.poll_send()
+                }).map(|_| None))
+            }
+        }))
     }
 
     fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, io::Error> {
