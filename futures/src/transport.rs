@@ -242,7 +242,8 @@ impl<T> Future for AMQPTransport<T>
     fn poll(&mut self) -> Poll<(), io::Error> {
         trace!("transport poll");
         if let Async::Ready(()) = self.poll_recv()? {
-            return Ok(Async::Ready(()));
+          trace!("poll transport; status=Ready");
+          return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
         }
         self.poll_send()?;
         Ok(Async::NotReady)
@@ -287,10 +288,7 @@ impl<T> Future for AMQPTransportConnector<T>
     trace!("connector poll; has_transport={:?}", !self.transport.is_none());
     let mut transport = self.transport.take().unwrap();
 
-    if let Async::Ready(()) = transport.poll()? {
-      trace!("connector poll transport; status=Ready");
-      return Err(io::Error::new(io::ErrorKind::Other, "The connection was closed during the handshake"));
-    }
+    transport.poll()?;
 
     trace!("connector poll; state=ConnectionState::{:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {

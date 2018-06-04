@@ -433,9 +433,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
             let mut transport = lock_transport!(receive_transport);
-            if let Async::Ready(()) = transport.poll()? {
-                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
-            }
+            transport.poll()?;
             if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
                 return Ok(Async::Ready(message));
             }
@@ -603,10 +601,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
     pub fn wait_for_answer<Finished>(tr: &mut AMQPTransport<T>, request_id: RequestId, finished: &Finished) -> Poll<Option<RequestId>, io::Error>
         where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
             trace!("wait for answer; request_id={:?}", request_id);
-            if let Async::Ready(()) = tr.poll()? {
-                trace!("wait for answer transport poll; request_id={:?} status=Ready", request_id);
-                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
-            }
+            tr.poll()?;
             trace!("wait for answer transport poll; request_id={:?} status=NotReady", request_id);
             if let Async::Ready(r) = finished(&mut tr.conn, request_id)? {
                 trace!("wait for answer; request_id={:?} status=Ready result={:?}", request_id, r);

@@ -26,10 +26,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
         transport.register_consumer(&self.consumer_tag, task::current());
         self.registered = true;
     }
-    if let Async::Ready(()) = transport.poll()? {
-      trace!("poll transport; consumer_tag={:?} status=Ready", self.consumer_tag);
-      return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
-    }
+    transport.poll()?;
     trace!("poll transport; consumer_tag={:?} status=NotReady", self.consumer_tag);
     if let Some(message) = transport.conn.next_delivery(self.channel_id, &self.queue, &self.consumer_tag) {
       trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, message.delivery_tag);
