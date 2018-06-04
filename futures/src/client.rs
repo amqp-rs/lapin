@@ -108,10 +108,7 @@ impl Heartbeat {
                         Ok(Async::Ready(()))
                     }).and_then(move |_| future::poll_fn(move || {
                         let mut transport = lock_transport!(transport);
-                        // poll_recv is not strictly necessary here but it ensures we read and
-                        // notify consumers on a regular basis if there is no other rabbitmq
-                        // activity
-                        transport.poll_recv_send()
+                        transport.poll()
                     })).then(move |r| match r {
                         Ok(_) => Ok(interval),
                         Err(cause) => Err((cause, interval)),

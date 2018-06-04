@@ -1,5 +1,5 @@
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,Future,future,Poll,task};
+use futures::{Async,Future,future,Poll,Stream,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 use lapin_async;
@@ -570,10 +570,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
                 if let Some(request_id) = request_id {
                     Self::wait_for_answer(&mut transport, request_id, &finished)
                 } else {
-                    // poll_recv is not strictly necessary here but it ensures we read and
-                    // notify consumers on a regular basis if there is no other rabbitmq
-                    // activity
-                    transport.poll_recv_send().map(|r| r.map(|()| None))
+                    transport.poll().map(|r| r.map(|_| None))
                 }
             }))
         }))

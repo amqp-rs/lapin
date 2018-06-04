@@ -1,5 +1,5 @@
 use std::io;
-use futures::{Async,Future,Poll,Stream,task};
+use futures::{Async,Poll,Stream,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
 

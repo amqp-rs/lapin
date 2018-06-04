@@ -231,28 +231,22 @@ impl<T> AMQPTransport<T>
   pub fn register_consumer(&mut self, consumer_tag: &str, consumer_task: task::Task) {
     self.consumers.insert(consumer_tag.to_string(), consumer_task);
   }
-
-  /// poll_recv + poll_send with bubbling up of connection error
-  pub fn poll_recv_send(&mut self) -> Poll<(), io::Error> {
-    trace!("transport poll");
-    if let Async::Ready(()) = self.poll_recv()? {
-      trace!("poll transport; status=Ready");
-      return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
-    }
-    self.poll_send()
-  }
 }
 
-impl<T> Future for AMQPTransport<T>
+impl<T> Stream for AMQPTransport<T>
     where T: AsyncRead + AsyncWrite,
           T: Send,
           T: 'static {
     type Item = ();
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<(), io::Error> {
-      self.poll_recv_send()?;
-      Ok(Async::NotReady)
+    fn poll(&mut self) -> Poll<Option<()>, io::Error> {
+      trace!("transport poll");
+      if let Async::Ready(()) = self.poll_recv()? {
+        trace!("poll transport; status=Ready");
+        return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
+      }
+      self.poll_send().map(|r| r.map(Some))
     }
 }
 
