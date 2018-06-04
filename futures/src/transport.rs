@@ -122,23 +122,24 @@ impl<T> AMQPTransport<T>
     conn.set_vhost(&options.vhost);
     conn.set_frame_max(options.frame_max);
     conn.set_heartbeat(options.heartbeat);
-    if let Err(e) = conn.connect() {
-      let err = format!("Failed to connect: {:?}", e);
-      return Box::new(future::err(Error::new(ErrorKind::ConnectionAborted, err)));
-    }
 
-    let codec = AMQPCodec {
-      frame_max: conn.configuration.frame_max,
-    };
-    let t = AMQPTransport {
-      upstream:     stream.framed(codec),
-      consumers:    HashMap::new(),
-      conn:         conn,
-    };
-    let connector = AMQPTransportConnector {
-      transport: Some(t),
-    };
-    Box::new(connector)
+    Box::new(future::result(conn.connect()).map_err(|e| {
+      let err = format!("Failed to connect: {:?}", e);
+      Error::new(ErrorKind::ConnectionAborted, err)
+    }).and_then(|_| {
+        let codec = AMQPCodec {
+          frame_max: conn.configuration.frame_max,
+        };
+        let t = AMQPTransport {
+          upstream:     stream.framed(codec),
+          consumers:    HashMap::new(),
+          conn:         conn,
+        };
+
+        AMQPTransportConnector {
+          transport: Some(t),
+        }
+    }))
   }
 
   /// Send a frame to the broker.
@@ -240,7 +241,7 @@ impl<T> Future for AMQPTransport<T>
 
     fn poll(&mut self) -> Poll<(), io::Error> {
         trace!("transport poll");
-        if let Async::Ready(_) = self.poll_recv()? {
+        if let Async::Ready(()) = self.poll_recv()? {
             return Ok(Async::Ready(()));
         }
         self.poll_send()?;
@@ -286,7 +287,7 @@ impl<T> Future for AMQPTransportConnector<T>
     trace!("connector poll; has_transport={:?}", !self.transport.is_none());
     let mut transport = self.transport.take().unwrap();
 
-    if let Async::Ready(_) = transport.poll()? {
+    if let Async::Ready(()) = transport.poll()? {
       trace!("connector poll transport; status=Ready");
       return Err(io::Error::new(io::ErrorKind::Other, "The connection was closed during the handshake"));
     }
