@@ -227,8 +227,9 @@ impl<T> AMQPTransport<T>
     self.poll_complete()
   }
 
+  /// Register a consumer so that it gets notified when messages are ready
   pub fn register_consumer(&mut self, consumer_tag: &str, consumer_task: task::Task) {
-      self.consumers.insert(consumer_tag.to_string(), consumer_task);
+    self.consumers.insert(consumer_tag.to_string(), consumer_task);
   }
 }
 
