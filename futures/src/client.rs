@@ -111,7 +111,9 @@ impl Heartbeat {
                         // poll_recv is not strictly necessary here but it ensures we read and
                         // notify consumers on a regular basis if there is no other rabbitmq
                         // activity
-                        transport.poll_recv()?;
+                        if let Async::Ready(()) = transport.poll_recv()? {
+                            return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
+                        }
                         transport.poll_send()
                     })).then(move |r| match r {
                         Ok(_) => Ok(interval),
