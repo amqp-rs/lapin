@@ -77,7 +77,7 @@ pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 /// A heartbeat task.
 pub struct Heartbeat {
     handle: Option<HeartbeatHandle>,
-    pulse: Box<Future<Item = (), Error = io::Error> + Send>,
+    pulse:  Box<Future<Item = (), Error = io::Error> + Send + 'static>,
 }
 
 impl Heartbeat {
@@ -85,22 +85,28 @@ impl Heartbeat {
     where
       T: AsyncRead + AsyncWrite + Send + 'static
     {
-        use self::future::{loop_fn, Either, Loop};
+        use self::future::{Either, Loop};
+
         let (tx, rx) = oneshot::channel();
+
         debug!("heartbeat; interval={}", heartbeat);
-        let neverending: Box<Future<Item = (), Error = io::Error> + Send> = if heartbeat == 0 {
-            Box::new(
-              rx.then(|_| Ok(()))
-            )
+
+        let interval = if heartbeat == 0 {
+            Err(())
         } else {
-            let interval = Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
+            Ok(Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-                .into_future();
-            let f = loop_fn((interval, rx), move |(f, rx)| {
+                .into_future())
+        };
+
+        let neverending = future::result(interval).or_else(|_| future::empty()).and_then(|interval| {
+            future::loop_fn((interval, rx), move |(interval, rx)| {
                 let transport_send = Arc::clone(&transport);
                 let transport = Arc::clone(&transport);
-                let heartbeat = f.and_then(move |(_instant, interval)| {
+
+                interval.and_then(move |(_instant, interval)| {
                     debug!("poll heartbeat");
+
                     future::poll_fn(move || {
                         let mut transport = lock_transport!(transport_send);
                         debug!("Sending heartbeat");
@@ -116,21 +122,20 @@ impl Heartbeat {
                 }).or_else(|(err, _interval)| {
                     error!("Error occured in heartbeat interval: {}", err);
                     Err(err)
-                });
-                heartbeat.select2(rx).then(|res| {
+                }).select2(rx).then(|res| {
                     match res {
-                        Ok(Either::A((interval, rx))) => Ok(Loop::Continue((interval.into_future(), rx))),
-                        Ok(Either::B((_rx, _interval))) => Ok(Loop::Break(())),
-                        Err(Either::A((err, _rx))) => Err(io::Error::new(io::ErrorKind::Other, err)),
+                        Ok(Either::A((interval, rx)))    => Ok(Loop::Continue((interval.into_future(), rx))),
+                        Ok(Either::B((_rx, _interval)))  => { trace!("stopping heartbeat"); Ok(Loop::Break(())) },
+                        Err(Either::A((err, _rx)))       => Err(io::Error::new(io::ErrorKind::Other, err)),
                         Err(Either::B((err, _interval))) => Err(io::Error::new(io::ErrorKind::Other, err)),
                     }
                 })
-            });
-            Box::new(f)
-        };
+            })
+        });
+
         Heartbeat {
             handle: Some(HeartbeatHandle(tx)),
-            pulse: neverending,
+            pulse:  Box::new(neverending),
         }
     }
 
