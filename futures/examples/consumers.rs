@@ -18,26 +18,24 @@ use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, 
 const N_CONSUMERS : u8 = 8;
 const N_MESSAGES  : u8 = 5;
 
-fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &Client<T>, n: u8) -> Box<Future<Item = (), Error = ()> + Send + 'static> {
+fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &Client<T>, n: u8) -> impl Future<Item = (), Error = ()> + Send + 'static {
     info!("will create consumer {}", n);
 
     let queue = format!("test-queue-{}", n);
 
-    Box::new(
-        client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
-            info!("creating queue {}", queue);
-            channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
-        }).and_then(move |(channel, queue)| {
-            info!("creating consumer {}", n);
-            channel.basic_consume(&queue, "", BasicConsumeOptions::default(), FieldTable::new()).map(move |stream| (channel, stream))
-        }).and_then(move |(channel, stream)| {
-            info!("got stream for consumer {}", n);
-            stream.for_each(move |message| {
-                println!("consumer '{}' got '{}'", n, std::str::from_utf8(&message.data).unwrap());
-                channel.basic_ack(message.delivery_tag)
-            })
-        }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {:?}", n, err))
-    )
+    client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
+        info!("creating queue {}", queue);
+        channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
+    }).and_then(move |(channel, queue)| {
+        info!("creating consumer {}", n);
+        channel.basic_consume(&queue, "", BasicConsumeOptions::default(), FieldTable::new()).map(move |stream| (channel, stream))
+    }).and_then(move |(channel, stream)| {
+        info!("got stream for consumer {}", n);
+        stream.for_each(move |message| {
+            println!("consumer '{}' got '{}'", n, std::str::from_utf8(&message.data).unwrap());
+            channel.basic_ack(message.delivery_tag)
+        })
+    }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {:?}", n, err))
 }
 
 fn main() {
