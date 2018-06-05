@@ -207,7 +207,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// );
   /// # }
   /// ```
-  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = (Self, Heartbeat), Error = io::Error> + Send {
+  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = (Self, Heartbeat), Error = io::Error> + Send + 'static {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
@@ -221,14 +221,13 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// creates a new channel
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
-  pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = io::Error> + Send {
+  pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = io::Error> + Send + 'static {
     Channel::create(self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
-  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = io::Error> + Send {
-
+  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = io::Error> + Send + 'static {
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
     //but not on the confirm channel. And the basic publish method should have different results
