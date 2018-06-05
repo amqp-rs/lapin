@@ -178,7 +178,7 @@ impl<T> AMQPTransport<T>
   ///
   /// * In case of error, it will return `Err(e)`
   /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
-  pub fn poll_recv(&mut self) -> Poll<(), io::Error> {
+  fn poll_recv(&mut self) -> Poll<(), io::Error> {
     let mut got_frame = false;
     loop {
       match self.upstream.poll() {
@@ -210,7 +210,7 @@ impl<T> AMQPTransport<T>
   }
 
   /// Poll the network to send outcoming frames.
-  pub fn poll_send(&mut self) -> Poll<(), io::Error> {
+  fn poll_send(&mut self) -> Poll<(), io::Error> {
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
       match self.start_send(frame)? {
