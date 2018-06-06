@@ -75,49 +75,37 @@ impl FromStr for ConnectionOptions {
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
 fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
-    use self::future::{Either, Loop};
-
-    let interval = if heartbeat == 0 {
+    let interval  = if heartbeat == 0 {
         Err(())
     } else {
         Ok(Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
-           .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-           .into_future())
+           .map_err(|err| io::Error::new(io::ErrorKind::Other, err)))
     };
 
-    future::result(interval).or_else(|_| future::empty()).and_then(|interval| {
-        future::loop_fn((interval, rx), move |(interval, rx)| {
-            let transport_send = Arc::clone(&transport);
-            let transport = Arc::clone(&transport);
-
-            interval.and_then(move |(_instant, interval)| {
+    future::select_all(vec![
+        future::Either::A(rx.map(|_| debug!("Stopping heartbeat")).map_err(|err| io::Error::new(io::ErrorKind::Other, err))),
+        future::Either::B(future::result(interval).or_else(|_| future::empty()).and_then(move |interval| {
+            interval.for_each(move |_| {
                 debug!("poll heartbeat");
 
+                let send_transport = Arc::clone(&transport);
+                let poll_transport = Arc::clone(&transport);
+
                 future::poll_fn(move || {
-                    let mut transport = lock_transport!(transport_send);
+                    let mut transport = lock_transport!(send_transport);
                     debug!("Sending heartbeat");
                     transport.send_frame(Frame::Heartbeat(0));
                     Ok(Async::Ready(()))
                 }).and_then(move |_| future::poll_fn(move || {
-                    let mut transport = lock_transport!(transport);
+                    let mut transport = lock_transport!(poll_transport);
                     transport.poll()
-                })).then(move |r| match r {
-                    Ok(_) => Ok(interval),
-                    Err(cause) => Err((cause, interval)),
+                })).map(|_| ()).map_err(|err| {
+                    error!("Error occured in heartbeat interval: {}", err);
+                    err
                 })
-            }).or_else(|(err, _interval)| {
-                error!("Error occured in heartbeat interval: {}", err);
-                Err(err)
-            }).select2(rx).then(|res| {
-                match res {
-                    Ok(Either::A((interval, rx)))    => Ok(Loop::Continue((interval.into_future(), rx))),
-                    Ok(Either::B((_rx, _interval)))  => { trace!("stopping heartbeat"); Ok(Loop::Break(())) },
-                    Err(Either::A((err, _rx)))       => Err(io::Error::new(io::ErrorKind::Other, err)),
-                    Err(Either::B((err, _interval))) => Err(io::Error::new(io::ErrorKind::Other, err)),
-                }
             })
-        })
-    })
+        })),
+    ]).map(|_| ()).map_err(|(err, ..)| err)
 }
 
 /// A heartbeat task.
