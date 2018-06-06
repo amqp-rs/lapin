@@ -109,26 +109,12 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
 }
 
 /// A heartbeat task.
-pub struct Heartbeat {
+pub struct Heartbeat<Pulse> {
     handle: Option<HeartbeatHandle>,
-    pulse:  Box<Future<Item = (), Error = io::Error> + Send + 'static>,
+    pulse:  Pulse,
 }
 
-impl Heartbeat {
-    fn new<T>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16) -> Self
-    where
-      T: AsyncRead + AsyncWrite + Send + 'static
-    {
-        let (tx, rx) = oneshot::channel();
-
-        debug!("heartbeat; interval={}", heartbeat);
-
-        Heartbeat {
-            handle: Some(HeartbeatHandle(tx)),
-            pulse:  Box::new(heartbeat_pulse(transport, heartbeat, rx)),
-        }
-    }
-
+impl<Pulse> Heartbeat<Pulse> {
     /// Get the handle for this heartbeat.
     ///
     /// As there can only be one handle for a given heartbeat task, this function can return
@@ -138,9 +124,18 @@ impl Heartbeat {
     }
 }
 
-impl Future for Heartbeat {
-    type Item = ();
-    type Error = io::Error;
+fn make_heartbeat<F, Pulse>(pulse_maker: F) -> Heartbeat<Pulse> where F: FnOnce(oneshot::Receiver<()>) -> Pulse {
+    let (tx, rx) = oneshot::channel();
+
+    Heartbeat {
+        handle: Some(HeartbeatHandle(tx)),
+        pulse:  pulse_maker(rx),
+    }
+}
+
+impl<F> Future for Heartbeat<F> where F: Future {
+    type Item = F::Item;
+    type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.pulse.poll()
@@ -202,12 +197,17 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// );
   /// # }
   /// ```
-  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = (Self, Heartbeat), Error = io::Error> + Send + 'static {
+  pub fn connect(stream: T, options: ConnectionOptions) ->
+    impl Future<Item = (Self, Heartbeat<impl Future<Item = (), Error = io::Error> + Send + 'static>), Error = io::Error> + Send + 'static
+  {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
       let transport = Arc::new(Mutex::new(transport));
-      let heartbeat = Heartbeat::new(transport.clone(), configuration.heartbeat);
+      let heartbeat = make_heartbeat(|rx| {
+        debug!("heartbeat; interval={}", configuration.heartbeat);
+        heartbeat_pulse(transport.clone(), configuration.heartbeat, rx)
+      });
       let client = Client { configuration, transport };
       Ok((client, heartbeat))
     })
