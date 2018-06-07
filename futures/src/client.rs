@@ -179,6 +179,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   /// #
   /// # fn main() {
   /// use tokio::net::TcpStream;
+  /// use tokio::runtime::Runtime;
   /// use lapin_futures::client::{Client, ConnectionOptions};
   ///
   /// let addr = "127.0.0.1:5672".parse().unwrap();
@@ -197,9 +198,9 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
   ///         handle.stop();
   ///         Ok(())
   ///     });
-  /// tokio::run(
+  /// Runtime::new().unwrap().block_on(
   ///     f.map_err(|e| eprintln!("An error occured: {}", e))
-  /// );
+  /// ).expect("runtime exited with failure");
   /// # }
   /// ```
   pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = (Self, Heartbeat), Error = io::Error> + Send + 'static {

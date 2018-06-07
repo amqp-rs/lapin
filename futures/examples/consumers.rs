@@ -11,6 +11,7 @@ use futures::future::Future;
 use futures::{IntoFuture, Stream};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
+use tokio::runtime::Runtime;
 use lapin::types::FieldTable;
 use lapin::client::{Client, ConnectionOptions};
 use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions};
@@ -44,7 +45,7 @@ fn main() {
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
     // tokio::runtime::current_thread::Runtime::new().unwrap().block_on(
-    tokio::run(
+    Runtime::new().unwrap().block_on(
         TcpStream::connect(&addr).and_then(|stream| {
             Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
@@ -75,6 +76,6 @@ fn main() {
                     })
                 })
             })
-        }).map(|_| ()).map_err(|err| eprintln!("error: {:?}", err))
-    );
+        }).map_err(|err| eprintln!("error: {:?}", err))
+    ).expect("runtime exited with failure");
 }
