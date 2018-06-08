@@ -42,10 +42,11 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 fn main() {
     env_logger::init();
 
-    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+    let addr        = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+    let mut runtime = Runtime::new().unwrap();
+    // let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
-    // tokio::runtime::current_thread::Runtime::new().unwrap().block_on(
-    Runtime::new().unwrap().block_on(
+    runtime.block_on(
         TcpStream::connect(&addr).and_then(|stream| {
             Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
@@ -78,4 +79,6 @@ fn main() {
             })
         }).map_err(|err| eprintln!("error: {:?}", err))
     ).expect("runtime exited with failure");
+
+    runtime.shutdown_on_idle().wait().expect("runtime shutdown exited with error");
 }
