@@ -128,6 +128,7 @@ extern crate futures;
 extern crate lapin_async;
 #[macro_use] extern crate log;
 extern crate nom;
+extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_timer;
 

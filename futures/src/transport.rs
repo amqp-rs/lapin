@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
 use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future,task};
+use tokio_codec::{Decoder,Encoder,Framed};
 use tokio_io::{AsyncRead,AsyncWrite};
-use tokio_io::codec::{Decoder,Encoder,Framed};
 use channel::BasicProperties;
 use client::ConnectionOptions;
 
@@ -131,7 +131,7 @@ impl<T> AMQPTransport<T>
           frame_max: conn.configuration.frame_max,
         };
         let t = AMQPTransport {
-          upstream:     stream.framed(codec),
+          upstream:     codec.framed(stream),
           consumers:    HashMap::new(),
           conn:         conn,
         };
