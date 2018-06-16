@@ -370,13 +370,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let transport = self.transport.clone();
         let consumer_tag = consumer_tag.to_string();
         let queue_name = queue.name();
-        let mut consumer = Consumer {
-            transport:    self.transport.clone(),
-            channel_id:   self.id,
-            queue:        queue.name(),
-            consumer_tag: consumer_tag.to_string(),
-            registered:   false,
-        };
+        let mut consumer = Consumer::new(self.transport.clone(), self.id, queue.name(), consumer_tag.to_owned());
 
         self.run_on_locked_transport("basic_consume", "Could not start consumer", move |transport| {
             transport.conn.basic_consume(channel_id, options.ticket, queue_name, consumer_tag,
@@ -393,7 +387,7 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
             })
           }).map(|consumer_tag| {
             trace!("basic_consume received response, returning consumer");
-            consumer.consumer_tag = consumer_tag;
+            consumer.update_consumer_tag(consumer_tag);
             consumer
         })
     }

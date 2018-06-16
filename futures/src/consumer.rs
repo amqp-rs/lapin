@@ -8,11 +8,27 @@ use transport::*;
 
 #[derive(Clone)]
 pub struct Consumer<T> {
-  pub transport:    Arc<Mutex<AMQPTransport<T>>>,
-  pub channel_id:   u16,
-  pub queue:        String,
-  pub consumer_tag: String,
-  pub registered:   bool,
+  transport:    Arc<Mutex<AMQPTransport<T>>>,
+  channel_id:   u16,
+  queue:        String,
+  consumer_tag: String,
+  registered:   bool,
+}
+
+impl<T> Consumer<T> {
+  pub fn new(transport: Arc<Mutex<AMQPTransport<T>>>, channel_id: u16, queue: String, consumer_tag: String) -> Consumer<T> {
+    Consumer {
+      transport,
+      channel_id,
+      queue,
+      consumer_tag,
+      registered: false,
+    }
+  }
+
+  pub fn update_consumer_tag(&mut self, consumer_tag: String) {
+    self.consumer_tag = consumer_tag;
+  }
 }
 
 impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
