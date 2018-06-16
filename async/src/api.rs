@@ -1,10 +1,11 @@
 use connection::*;
+use consumer::*;
 use queue::*;
 use message::*;
 use generated::*;
 use error::*;
 use types::*;
-use std::collections::{HashSet,VecDeque};
+use std::collections::HashSet;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -1148,15 +1149,7 @@ impl Connection {
             self.generated_names.insert(request_id, method.consumer_tag.clone());
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
-                let consumer = Consumer {
-                  tag:             method.consumer_tag.clone(),
-                  no_local:        no_local,
-                  no_ack:          no_ack,
-                  exclusive:       exclusive,
-                  nowait:          nowait,
-                  current_message: None,
-                  messages:        VecDeque::new(),
-                };
+                let consumer = Consumer::new(method.consumer_tag.clone(), no_local, no_ack, exclusive, nowait);
                 q.consumers.insert(
                   method.consumer_tag.clone(),
                   consumer

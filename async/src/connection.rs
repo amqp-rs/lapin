@@ -262,7 +262,7 @@ impl Connection {
   }
 
   pub fn has_pending_deliveries(&self) -> bool {
-    self.channels.values().any(|channel| channel.queues.values().any(|queue| queue.consumers.values().any(|consumer| !consumer.messages.is_empty())))
+    self.channels.values().any(|channel| channel.queues.values().any(|queue| queue.consumers.values().any(|consumer| consumer.has_deliveries())))
   }
 
   /// gets the next message corresponding to a channel, queue and consumer tag
@@ -602,8 +602,7 @@ impl Connection {
                 msg.properties = properties;
               }
               if size == 0 {
-                let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
-                cs.messages.push_back(message);
+                cs.new_delivery_complete();
               }
             }
           } else {
@@ -638,8 +637,7 @@ impl Connection {
               if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
                 cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
                 if remaining_size == payload_size {
-                  let message = cs.current_message.take().expect("there should be an in flight message in the consumer");
-                  cs.messages.push_back(message);
+                  cs.new_delivery_complete();
                 }
               }
             } else {
@@ -702,7 +700,8 @@ mod tests {
     fn basic_consume_small_payload() {
         let _ = env_logger::try_init();
 
-        use queue::{Consumer, Queue};
+        use consumer::Consumer;
+        use queue::Queue;
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();
@@ -713,15 +712,7 @@ mod tests {
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer {
-            tag: consumer_tag.clone(),
-            no_local: false,
-            no_ack: false,
-            exclusive: false,
-            nowait: false,
-            current_message: None,
-            messages: VecDeque::new(),
-        };
+        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false);
         queue.consumers.insert(consumer_tag.clone(), consumer);
         conn.channels.get_mut(&channel_id).map(|c| {
             c.queues.insert(queue_name.clone(), queue);
@@ -785,7 +776,8 @@ mod tests {
     fn basic_consume_empty_payload() {
         let _ = env_logger::try_init();
 
-        use queue::{Consumer, Queue};
+        use consumer::Consumer;
+        use queue::Queue;
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();
@@ -796,15 +788,7 @@ mod tests {
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer {
-            tag: consumer_tag.clone(),
-            no_local: false,
-            no_ack: false,
-            exclusive: false,
-            nowait: false,
-            current_message: None,
-            messages: VecDeque::new(),
-        };
+        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false);
         queue.consumers.insert(consumer_tag.clone(), consumer);
         conn.channels.get_mut(&channel_id).map(|c| {
             c.queues.insert(queue_name.clone(), queue);

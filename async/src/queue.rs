@@ -1,4 +1,5 @@
 use std::collections::{HashMap,VecDeque};
+use consumer::Consumer;
 use message::*;
 
 #[derive(Clone,Debug,PartialEq)]
@@ -18,17 +19,6 @@ impl Binding {
       active:      false,
     }
   }
-}
-
-#[derive(Clone,Debug,PartialEq)]
-pub struct Consumer {
-  pub tag:             String,
-  pub no_local:        bool,
-  pub no_ack:          bool,
-  pub exclusive:       bool,
-  pub nowait:          bool,
-  pub messages:        VecDeque<Delivery>,
-  pub current_message: Option<Delivery>,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -56,7 +46,7 @@ impl Queue {
   }
 
   pub fn next_delivery(&mut self, consumer_tag: &str) -> Option<Delivery> {
-    self.consumers.get_mut(consumer_tag).and_then(|consumer| consumer.messages.pop_front())
+    self.consumers.get_mut(consumer_tag).and_then(|consumer| consumer.next_delivery())
   }
 
   pub fn next_basic_get_message(&mut self) -> Option<BasicGetMessage> {

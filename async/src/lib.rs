@@ -127,6 +127,7 @@ extern crate sasl;
 pub mod buffer;
 pub mod io;
 pub mod connection;
+pub mod consumer;
 pub mod channel;
 pub mod queue;
 pub mod message;
