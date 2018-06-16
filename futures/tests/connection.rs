@@ -56,7 +56,7 @@ fn connection() {
             let msg = message.unwrap();
             info!("got message: {:?}", msg);
             assert_eq!(msg.data, b"hello from tokio");
-            ch1.basic_ack(msg.delivery_tag)
+            ch1.basic_ack(msg.delivery_tag, false)
           }).and_then(move |_| {
             ch2.queue_delete("hello", QueueDeleteOptions::default())
           })

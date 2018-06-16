@@ -69,7 +69,7 @@ fn main() {
           channel.basic_get("hello", BasicGetOptions::default()).and_then(move |message| {
             info!("got message: {:?}", message);
             info!("decoded message: {:?}", std::str::from_utf8(&message.delivery.data).unwrap());
-            channel.basic_ack(message.delivery.delivery_tag)
+            channel.basic_ack(message.delivery.delivery_tag, false)
           }).and_then(move |_| {
             ch.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::new())
           })
@@ -79,7 +79,7 @@ fn main() {
           stream.for_each(move |message| {
             debug!("got message: {:?}", message);
             info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
-            c.basic_ack(message.delivery_tag)
+            c.basic_ack(message.delivery_tag, false)
           })
         })
       })
