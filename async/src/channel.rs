@@ -4,7 +4,7 @@ use generated::Class;
 use api::{Answer,ChannelState};
 use queue::*;
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Debug)]
 pub struct Channel {
   pub id:             u16,
   pub state:          ChannelState,

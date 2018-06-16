@@ -20,7 +20,7 @@ pub enum ChannelState {
 
 pub type RequestId = u64;
 
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Debug)]
 pub enum Answer {
     AwaitingChannelOpenOk(RequestId),
     AwaitingChannelFlowOk(RequestId),
@@ -40,7 +40,7 @@ pub enum Answer {
     AwaitingQueueUnbindOk(RequestId, String, String),
 
     AwaitingBasicQosOk(RequestId, u32,u16,bool),
-    AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool),
+    AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool, Box<ConsumerSubscriber>),
     AwaitingBasicCancelOk(RequestId),
     AwaitingBasicGetAnswer(RequestId, String),
     AwaitingBasicRecoverOk(RequestId),
@@ -1095,7 +1095,8 @@ impl Connection {
                          no_ack: Boolean,
                          exclusive: Boolean,
                          nowait: Boolean,
-                         arguments: FieldTable)
+                         arguments: FieldTable,
+                         subscriber: Box<ConsumerSubscriber>)
                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1121,7 +1122,7 @@ impl Connection {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
-                  request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait
+                  request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait, subscriber
                 ));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
@@ -1144,12 +1145,12 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicConsumeOk(request_id, queue, _, no_local, no_ack, exclusive, nowait)) => {
+          Some(Answer::AwaitingBasicConsumeOk(request_id, queue, _, no_local, no_ack, exclusive, nowait, subscriber)) => {
             self.finished_reqs.insert(request_id, true);
             self.generated_names.insert(request_id, method.consumer_tag.clone());
             self.channels.get_mut(&_channel_id).map(|c| {
               c.queues.get_mut(&queue).map(|q| {
-                let consumer = Consumer::new(method.consumer_tag.clone(), no_local, no_ack, exclusive, nowait);
+                let consumer = Consumer::new(method.consumer_tag.clone(), no_local, no_ack, exclusive, nowait, subscriber);
                 q.consumers.insert(
                   method.consumer_tag.clone(),
                   consumer

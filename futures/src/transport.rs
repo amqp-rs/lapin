@@ -6,10 +6,9 @@ use nom::{IResult,Offset};
 use cookie_factory::GenError;
 use bytes::{BufMut, BytesMut};
 use std::cmp;
-use std::collections::HashMap;
 use std::iter::repeat;
 use std::io::{self,Error,ErrorKind};
-use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future,task};
+use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future};
 use tokio_codec::{Decoder,Encoder,Framed};
 use tokio_io::{AsyncRead,AsyncWrite};
 use channel::BasicProperties;
@@ -104,7 +103,6 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream:  Framed<T,AMQPCodec>,
-  consumers: HashMap<String, task::Task>,
   pub conn:  Connection,
 }
 
@@ -132,7 +130,6 @@ impl<T> AMQPTransport<T>
         };
         let t = AMQPTransport {
           upstream:     codec.framed(stream),
-          consumers:    HashMap::new(),
           conn:         conn,
         };
 
@@ -162,14 +159,6 @@ impl<T> AMQPTransport<T>
     self.conn.send_content_frames(channel_id, 60, payload, properties);
   }
 
-  fn maybe_notify_consumers(&self) {
-    if self.conn.has_pending_deliveries() {
-      for t in self.consumers.values() {
-        t.notify();
-      }
-    }
-  }
-
   /// Poll the network to receive & handle incoming frames.
   ///
   /// # Return value
@@ -179,7 +168,6 @@ impl<T> AMQPTransport<T>
   /// * In case of error, it will return `Err(e)`
   /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
   fn poll_recv(&mut self) -> Poll<(), io::Error> {
-    let mut got_frame = false;
     loop {
       match self.upstream.poll() {
         Ok(Async::Ready(Some(frame))) => {
@@ -188,7 +176,6 @@ impl<T> AMQPTransport<T>
             let err = format!("failed to handle frame: {:?}", e);
             return Err(io::Error::new(io::ErrorKind::Other, err));
           }
-          got_frame = true;
         },
         Ok(Async::Ready(None)) => {
           trace!("transport poll_recv; status=Ready(None)");
@@ -196,9 +183,6 @@ impl<T> AMQPTransport<T>
         },
         Ok(Async::NotReady) => {
           trace!("transport poll_recv; status=NotReady");
-          if got_frame {
-            self.maybe_notify_consumers();
-          }
           return Ok(Async::NotReady);
         },
         Err(e) => {
@@ -225,11 +209,6 @@ impl<T> AMQPTransport<T>
       }
     }
     self.poll_complete()
-  }
-
-  /// Register a consumer so that it gets notified when messages are ready
-  pub fn register_consumer(&mut self, consumer_tag: &str, consumer_task: task::Task) {
-    self.consumers.insert(consumer_tag.to_string(), consumer_task);
   }
 }
 

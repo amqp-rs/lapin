@@ -154,7 +154,7 @@ impl HeartbeatHandle {
     }
 }
 
-impl<T: AsyncRead+AsyncWrite+Send+'static> Client<T> {
+impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   /// Takes a stream (TCP, TLS, unix socket, etc) and uses it to connect to an AMQP server.
   ///
   /// This function returns a future that resolves once the connection handshake is done.

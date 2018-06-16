@@ -144,7 +144,7 @@ pub struct ChannelFlowOptions {
   pub active: bool,
 }
 
-impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
+impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> impl Future<Item = Self, Error = io::Error> + Send + 'static {
         let channel_transport = transport.clone();
@@ -371,10 +371,11 @@ impl<T: AsyncRead+AsyncWrite+Send+'static> Channel<T> {
         let consumer_tag = consumer_tag.to_string();
         let queue_name = queue.name();
         let mut consumer = Consumer::new(self.transport.clone(), self.id, queue.name(), consumer_tag.to_owned());
+        let subscriber = consumer.subscriber();
 
         self.run_on_locked_transport("basic_consume", "Could not start consumer", move |transport| {
             transport.conn.basic_consume(channel_id, options.ticket, queue_name, consumer_tag,
-            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments).map(Some)
+            options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments, Box::new(subscriber)).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {
               let mut transport = lock_transport!(transport);

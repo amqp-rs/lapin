@@ -75,7 +75,7 @@ impl Default for Credentials {
   }
 }
 
-#[derive(Clone,Debug)]
+#[derive(Debug)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub state:             ConnectionState,
@@ -259,20 +259,6 @@ impl Connection {
   /// removed from the list afterwards
   pub fn finished_get_result(&mut self, id: RequestId) -> Option<bool> {
     self.finished_get_reqs.remove(&id)
-  }
-
-  pub fn has_pending_deliveries(&self) -> bool {
-    self.channels.values().any(|channel| channel.queues.values().any(|queue| queue.consumers.values().any(|consumer| consumer.has_deliveries())))
-  }
-
-  /// gets the next message corresponding to a channel, queue and consumer tag
-  ///
-  /// if the channel id, queue and consumer tag have no link, the method
-  /// will return None. If there is no message, the method will return None
-  pub fn next_delivery(&mut self, channel_id: u16, queue_name: &str, consumer_tag: &str) -> Option<Delivery> {
-    self.channels.get_mut(&channel_id)
-      .and_then(|channel| channel.queues.get_mut(queue_name))
-      .and_then(|queue| queue.next_delivery(consumer_tag))
   }
 
   /// gets the next message corresponding to a channel and queue, in response to a basic.get
@@ -695,6 +681,16 @@ mod tests {
     extern crate env_logger;
 
     use super::*;
+    use consumer::ConsumerSubscriber;
+
+    #[derive(Clone,Debug,PartialEq)]
+    struct DummySubscriber;
+
+    impl ConsumerSubscriber for DummySubscriber {
+      fn new_delivery(&mut self, delivery: Delivery) {
+        let _ = delivery;
+      }
+    }
 
     #[test]
     fn basic_consume_small_payload() {
@@ -712,7 +708,7 @@ mod tests {
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false);
+        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
         queue.consumers.insert(consumer_tag.clone(), consumer);
         conn.channels.get_mut(&channel_id).map(|c| {
             c.queues.insert(queue_name.clone(), queue);
@@ -788,7 +784,7 @@ mod tests {
         let queue_name = "consumed".to_string();
         let mut queue = Queue::new(queue_name.clone(), 0, 0);
         let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false);
+        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
         queue.consumers.insert(consumer_tag.clone(), consumer);
         conn.channels.get_mut(&channel_id).map(|c| {
             c.queues.insert(queue_name.clone(), queue);

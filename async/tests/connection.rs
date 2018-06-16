@@ -3,11 +3,31 @@ extern crate lapin_async as lapin;
 
 use std::net::TcpStream;
 use std::{thread,time};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use lapin::types::*;
-use lapin::connection::*;
 use lapin::buffer::Buffer;
+use lapin::connection::*;
+use lapin::consumer::ConsumerSubscriber;
 use lapin::generated::basic;
+use lapin::message::Delivery;
+use lapin::types::*;
+
+#[derive(Debug)]
+struct Subscriber {
+    hello_world: Arc<AtomicBool>,
+}
+
+impl ConsumerSubscriber for Subscriber {
+    fn new_delivery(&mut self, delivery: Delivery) {
+      println!("received message: {:?}", delivery);
+      println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
+
+      assert_eq!(delivery.data, b"Hello world!");
+
+      self.hello_world.store(true, Ordering::Relaxed);
+    }
+}
 
 #[test]
 fn connection() {
@@ -74,7 +94,9 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       println!("will consume");
-      conn.basic_consume(channel_b, 0, "hello-async".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new()).expect("basic_consume");
+      let hello_world = Arc::new(AtomicBool::new(false));
+      let subscriber = Subscriber { hello_world: hello_world.clone(), };
+      conn.basic_consume(channel_b, 0, "hello-async".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new(), Box::new(subscriber)).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -86,9 +108,6 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
-      let msg = conn.next_delivery(channel_b, "hello-async", "my_consumer").unwrap();
-      println!("received message: {:?}", msg);
-      println!("data: {}", std::str::from_utf8(&msg.data).unwrap());
-
-      assert_eq!(msg.data, b"Hello world!");
+      thread::sleep(time::Duration::from_millis(100));
+      assert!(hello_world.load(Ordering::Relaxed));
 }

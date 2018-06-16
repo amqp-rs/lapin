@@ -21,7 +21,7 @@ impl Binding {
   }
 }
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Debug)]
 pub struct Queue {
   pub name:                String,
   pub bindings:            HashMap<(String, String), Binding>,
@@ -43,10 +43,6 @@ impl Queue {
       get_messages:        VecDeque::new(),
       current_get_message: None,
     }
-  }
-
-  pub fn next_delivery(&mut self, consumer_tag: &str) -> Option<Delivery> {
-    self.consumers.get_mut(consumer_tag).and_then(|consumer| consumer.next_delivery())
   }
 
   pub fn next_basic_get_message(&mut self) -> Option<BasicGetMessage> {

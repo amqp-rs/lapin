@@ -5,10 +5,21 @@ extern crate env_logger;
 use std::net::TcpStream;
 use std::{thread,time};
 
-use lapin::types::*;
-use lapin::connection::*;
 use lapin::buffer::Buffer;
+use lapin::connection::*;
+use lapin::consumer::ConsumerSubscriber;
 use lapin::generated::basic;
+use lapin::message::Delivery;
+use lapin::types::*;
+
+#[derive(Clone,Debug,PartialEq)]
+struct Subscriber;
+
+impl ConsumerSubscriber for Subscriber {
+    fn new_delivery(&mut self, delivery: Delivery) {
+      info!("received message: {:?}", delivery);
+    }
+}
 
 fn main() {
       env_logger::init();
@@ -73,7 +84,7 @@ fn main() {
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       info!("will consume");
-      conn.basic_consume(channel_b, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new()).expect("basic_consume");
+      conn.basic_consume(channel_b, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new(), Box::new(Subscriber)).expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -85,7 +96,6 @@ fn main() {
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
-      info!("received message: {:?}", conn.next_delivery(channel_b, "hello", "my_consumer").unwrap());
       panic!();
 }
 
