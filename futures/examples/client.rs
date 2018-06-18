@@ -63,7 +63,7 @@ fn main() {
 
         let c = channel.clone();
         channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
-          info!("channel {} declared queue {}", id, "hello");
+          info!("channel {} declared queue {:?}", id, queue);
 
           let ch = channel.clone();
           channel.basic_get("hello", BasicGetOptions::default()).and_then(move |message| {

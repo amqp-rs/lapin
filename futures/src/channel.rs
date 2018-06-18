@@ -267,17 +267,22 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         self.run_on_locked_transport("queue_declare", "Could not declare queue", move |transport| {
             transport.conn.queue_declare(channel_id, options.ticket, name,
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments).map(Some)
-          }).and_then(|request_id| {
+          }).and_then(move |request_id| {
             future::poll_fn(move || {
               let mut transport = lock_transport!(transport);
               if let Some(queue) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
-                return Ok(Async::Ready(queue))
+                let (consumer_count, message_count) = if let Some(async_queue) = transport.conn.channels.get(&channel_id).and_then(|channel| channel.queues.get(&queue)) {
+                  (async_queue.consumer_count, async_queue.message_count)
+                } else {
+                  (0, 0)
+                };
+                return Ok(Async::Ready(Queue::new(queue, consumer_count, message_count)))
               } else {
                 task::current().notify();
                 return Ok(Async::NotReady)
               }
             })
-        }).map(Queue::new)
+        })
     }
 
     /// binds a queue to an exchange
