@@ -394,20 +394,20 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// acks a message
-    pub fn basic_ack(&self, delivery_tag: u64) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_ack(&self, delivery_tag: u64, multiple: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_ack", "Could not ack message", move |transport| {
-            transport.conn.basic_ack(channel_id, delivery_tag, false).map(|_| None)
+            transport.conn.basic_ack(channel_id, delivery_tag, multiple).map(|_| None)
         }).map(|_| ())
     }
 
     /// nacks a message
-    pub fn basic_nack(&self, delivery_tag: u64, requeue: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_nack(&self, delivery_tag: u64, multiple: bool, requeue: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_nack", "Could not nack message", move |transport| {
-            transport.conn.basic_nack(channel_id, delivery_tag, false, requeue).map(|_| None)
+            transport.conn.basic_nack(channel_id, delivery_tag, multiple, requeue).map(|_| None)
         }).map(|_| ())
     }
 

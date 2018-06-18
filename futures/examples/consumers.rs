@@ -34,7 +34,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
         info!("got stream for consumer {}", n);
         stream.for_each(move |message| {
             println!("consumer '{}' got '{}'", n, std::str::from_utf8(&message.data).unwrap());
-            channel.basic_ack(message.delivery_tag)
+            channel.basic_ack(message.delivery_tag, false)
         })
     }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {:?}", n, err))
 }
