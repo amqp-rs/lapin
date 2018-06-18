@@ -3,11 +3,11 @@ use lapin_async;
 use std::default::Default;
 use std::io;
 use std::str::FromStr;
-use futures::{future,task,Async,Future,Poll,Stream};
+use futures::{future,Async,Future,Poll,Stream};
 use futures::sync::oneshot;
+use futures_locks::Mutex;
 use tokio_io::{AsyncRead,AsyncWrite};
 use tokio_timer::Interval;
-use std::sync::{Arc,Mutex};
 use std::time::{Duration,Instant};
 
 use transport::*;
@@ -16,7 +16,7 @@ use channel::{Channel, ConfirmSelectOptions};
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
 pub struct Client<T> {
-    transport:         Arc<Mutex<AMQPTransport<T>>>,
+    transport:         Mutex<AMQPTransport<T>>,
     pub configuration: ConnectionConfiguration,
 }
 
@@ -73,7 +73,7 @@ impl FromStr for ConnectionOptions {
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
-fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Mutex<AMQPTransport<T>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
     let interval  = if heartbeat == 0 {
         Err(())
     } else {
@@ -198,7 +198,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
-      let transport = Arc::new(Mutex::new(transport));
+      let transport = Mutex::new(transport);
       let heartbeat = make_heartbeat(|rx| {
         debug!("heartbeat; interval={}", configuration.heartbeat);
         heartbeat_pulse(transport.clone(), configuration.heartbeat, rx)

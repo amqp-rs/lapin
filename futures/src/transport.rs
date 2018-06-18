@@ -292,15 +292,7 @@ impl<T> Future for AMQPTransportConnector<T>
 #[macro_export]
 macro_rules! lock_transport (
     ($t: expr) => ({
-        match $t.lock() {
-            Ok(t) => t,
-            Err(_) => if $t.is_poisoned() {
-                return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"))
-            } else {
-                task::current().notify();
-                return Ok(Async::NotReady)
-            }
-        }
+        $t.lock().wait().unwrap()
     });
 );
 
