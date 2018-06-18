@@ -1,16 +1,17 @@
-use futures::{Async,Poll,Stream,task};
+use futures::{Async,Future,Poll,Stream,task};
+use futures_locks::Mutex;
 use lapin_async::consumer::ConsumerSubscriber;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::collections::VecDeque;
 use std::io;
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc,Mutex as SMutex};
 
 use message::Delivery;
 use transport::*;
 
 #[derive(Clone,Debug)]
 pub struct ConsumerSub {
-  inner: Arc<Mutex<ConsumerInner>>,
+  inner: Arc<SMutex<ConsumerInner>>,
 }
 
 impl ConsumerSubscriber for ConsumerSub {
@@ -30,8 +31,8 @@ impl ConsumerSubscriber for ConsumerSub {
 
 #[derive(Clone)]
 pub struct Consumer<T> {
-  transport:    Arc<Mutex<AMQPTransport<T>>>,
-  inner:        Arc<Mutex<ConsumerInner>>,
+  transport:    Mutex<AMQPTransport<T>>,
+  inner:        Arc<SMutex<ConsumerInner>>,
   channel_id:   u16,
   queue:        String,
   consumer_tag: String,
@@ -53,10 +54,10 @@ impl Default for ConsumerInner {
 }
 
 impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
-  pub fn new(transport: Arc<Mutex<AMQPTransport<T>>>, channel_id: u16, queue: String, consumer_tag: String) -> Consumer<T> {
+  pub fn new(transport: Mutex<AMQPTransport<T>>, channel_id: u16, queue: String, consumer_tag: String) -> Consumer<T> {
     Consumer {
       transport,
-      inner: Arc::new(Mutex::new(ConsumerInner::default())),
+      inner: Arc::new(SMutex::new(ConsumerInner::default())),
       channel_id,
       queue,
       consumer_tag,
