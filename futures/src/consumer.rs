@@ -1,23 +1,22 @@
-use futures::{Async,Future,Poll,Stream,task};
+use futures::{Async,Poll,Stream,task};
 use futures_locks::Mutex;
 use lapin_async::consumer::ConsumerSubscriber;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::collections::VecDeque;
 use std::io;
-use std::sync::{Arc,Mutex as SMutex};
 
 use message::Delivery;
 use transport::*;
 
 #[derive(Clone,Debug)]
 pub struct ConsumerSub {
-  inner: Arc<SMutex<ConsumerInner>>,
+  inner: Mutex<ConsumerInner>,
 }
 
 impl ConsumerSubscriber for ConsumerSub {
   fn new_delivery(&mut self, delivery: Delivery) {
     trace!("new_delivery;");
-    if let Ok(mut inner) = self.inner.lock() {
+    if let Ok(mut inner) = self.inner.try_lock() {
       inner.deliveries.push_back(delivery);
       if let Some(task) = inner.task.as_ref() {
         task.notify();
@@ -32,7 +31,7 @@ impl ConsumerSubscriber for ConsumerSub {
 #[derive(Clone)]
 pub struct Consumer<T> {
   transport:    Mutex<AMQPTransport<T>>,
-  inner:        Arc<SMutex<ConsumerInner>>,
+  inner:        Mutex<ConsumerInner>,
   channel_id:   u16,
   queue:        String,
   consumer_tag: String,
@@ -57,7 +56,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
   pub fn new(transport: Mutex<AMQPTransport<T>>, channel_id: u16, queue: String, consumer_tag: String) -> Consumer<T> {
     Consumer {
       transport,
-      inner: Arc::new(SMutex::new(ConsumerInner::default())),
+      inner: Mutex::new(ConsumerInner::default()),
       channel_id,
       queue,
       consumer_tag,
@@ -81,13 +80,17 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
 
   fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
     trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
-    let mut transport = lock_transport!(self.transport);
+    let mut transport = match self.transport.try_lock() {
+      Ok(transport) => transport,
+      Err(_)        => {
+        task::current().notify();
+        return Ok(Async::NotReady);
+      }
+    };
     transport.poll()?;
-    let mut inner = match self.inner.lock() {
+    let mut inner = match self.inner.try_lock() {
       Ok(inner) => inner,
-      Err(_)    => if self.inner.is_poisoned() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Consumer mutex is poisoned"))
-      } else {
+      Err(_)    => {
         task::current().notify();
         return Ok(Async::NotReady)
       },
