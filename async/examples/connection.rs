@@ -1,17 +1,16 @@
 extern crate lapin_async as lapin;
 #[macro_use] extern crate log;
 extern crate env_logger;
-extern crate amq_protocol;
 
 use std::net::TcpStream;
 use std::{thread,time};
 
 use lapin::buffer::Buffer;
+use lapin::channel::BasicProperties;
 use lapin::connection::*;
 use lapin::consumer::ConsumerSubscriber;
 use lapin::message::Delivery;
 use lapin::types::*;
-use amq_protocol::protocol::basic;
 
 #[derive(Clone,Debug,PartialEq)]
 struct Subscriber;
@@ -93,7 +92,7 @@ fn main() {
       info!("will publish");
       conn.basic_publish(channel_a, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
       let payload = b"Hello world!";
-      conn.send_content_frames(channel_a, 60, payload, basic::AMQPProperties::default());
+      conn.send_content_frames(channel_a, 60, payload, BasicProperties::default());
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

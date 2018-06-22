@@ -5,13 +5,14 @@ use std::sync::{Arc,Mutex};
 use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
-use amq_protocol::protocol::basic;
 
 use transport::*;
 use message::BasicGetMessage;
 use types::FieldTable;
 use consumer::Consumer;
 use queue::Queue;
+
+pub use lapin_async::channel::BasicProperties;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -106,8 +107,6 @@ pub struct BasicPublishOptions {
   pub mandatory: bool,
   pub immediate: bool,
 }
-
-pub type BasicProperties = basic::AMQPProperties;
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicConsumeOptions {

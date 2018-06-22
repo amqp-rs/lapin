@@ -1,8 +1,6 @@
 /// low level wrapper for the state machine, encoding and decoding from lapin-async
 use lapin_async::connection::*;
-use amq_protocol::frame::AMQPFrame;
-use amq_protocol::frame::generation::*;
-use amq_protocol::frame::parsing::parse_frame;
+use amq_protocol::frame::{AMQPFrame, gen_frame, parse_frame};
 
 use nom::Offset;
 use cookie_factory::GenError;
@@ -63,23 +61,7 @@ impl Encoder for AMQPCodec {
           buf.reserve(frame_max * 2);
         }
 
-        let gen_res = match &frame {
-          &AMQPFrame::ProtocolHeader => {
-            gen_protocol_header((buf, offset)).map(|tup| tup.1)
-          },
-          &AMQPFrame::Heartbeat(_) => {
-            gen_heartbeat_frame((buf, offset)).map(|tup| tup.1)
-          },
-          &AMQPFrame::Method(channel, ref method) => {
-            gen_method_frame((buf, offset), channel, method).map(|tup| tup.1)
-          },
-          &AMQPFrame::Header(channel_id, class_id, ref header) => {
-            gen_content_header_frame((buf, offset), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
-          },
-          &AMQPFrame::Body(channel_id, ref data) => {
-            gen_content_body_frame((buf, offset), channel_id, data).map(|tup| tup.1)
-          }
-        };
+        let gen_res = gen_frame((buf, offset), &frame).map(|tup| tup.1);
 
         match gen_res {
           Ok(sz) => {

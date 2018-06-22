@@ -4,6 +4,8 @@ use queue::*;
 use amq_protocol::protocol::AMQPClass;
 use amq_protocol::frame::AMQPFrame;
 
+pub use amq_protocol::protocol::BasicProperties;
+
 #[derive(Debug)]
 pub struct Channel {
   pub id:             u16,

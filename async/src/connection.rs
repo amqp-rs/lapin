@@ -8,12 +8,10 @@ use sasl::client::Mechanism;
 use sasl::client::mechanisms::Plain;
 use cookie_factory::GenError;
 use nom::Offset;
-use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use amq_protocol::frame::generation::*;
-use amq_protocol::frame::parsing::parse_frame;
-use amq_protocol::protocol::{AMQPClass, basic, connection};
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame, gen_frame, parse_frame};
+use amq_protocol::protocol::{AMQPClass, connection};
 
-use channel::Channel;
+use channel::{Channel, BasicProperties};
 use message::*;
 use api::{Answer,ChannelState,RequestId};
 use types::{AMQPValue,FieldTable};
@@ -310,23 +308,7 @@ impl Connection {
     let next_msg = next_msg.unwrap();
     trace!("will write to buffer: {:?}", next_msg);
 
-    let gen_res = match &next_msg {
-      &AMQPFrame::ProtocolHeader => {
-        gen_protocol_header((send_buffer, 0)).map(|tup| tup.1)
-      },
-      &AMQPFrame::Heartbeat(_) => {
-        gen_heartbeat_frame((send_buffer, 0)).map(|tup| tup.1)
-      },
-      &AMQPFrame::Method(channel, ref method) => {
-        gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
-      },
-      &AMQPFrame::Header(channel_id, class_id, ref header) => {
-        gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
-      },
-      &AMQPFrame::Body(channel_id, ref data) => {
-        gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
-      }
-    };
+    let gen_res = gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1);
 
     match gen_res {
       Ok(sz) => {
@@ -569,7 +551,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: basic::AMQPProperties) {
+  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: BasicProperties) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
     }).unwrap();
@@ -653,7 +635,7 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::AMQPProperties) {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: BasicProperties) {
     let header = AMQPContentHeader {
       class_id:       class_id,
       weight:         0,
@@ -681,6 +663,7 @@ mod tests {
 
     use super::*;
     use consumer::ConsumerSubscriber;
+    use amq_protocol::protocol::basic;
 
     #[derive(Clone,Debug,PartialEq)]
     struct DummySubscriber;
@@ -746,7 +729,7 @@ mod tests {
                     class_id: 60,
                     weight: 0,
                     body_size: 2,
-                    properties: basic::AMQPProperties::default(),
+                    properties: BasicProperties::default(),
                 }
             );
             conn.handle_frame(header_frame).unwrap();
@@ -822,7 +805,7 @@ mod tests {
                     class_id: 60,
                     weight: 0,
                     body_size: 0,
-                    properties: basic::AMQPProperties::default(),
+                    properties: BasicProperties::default(),
                 }
             );
             conn.handle_frame(header_frame).unwrap();
