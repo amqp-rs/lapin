@@ -72,7 +72,7 @@ fn main() {
                     info!("will publish {}", message);
 
                     channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
-                        channel.basic_publish("", &queue, message.as_str().as_bytes(), BasicPublishOptions::default(), BasicProperties::default()).map(move |confirmation| {
+                        channel.basic_publish("", &queue, message.into_bytes(), BasicPublishOptions::default(), BasicProperties::default()).map(move |confirmation| {
                             println!("got confirmation (consumer {}, message {}): {:?}", c, m, confirmation);
                         })
                     })

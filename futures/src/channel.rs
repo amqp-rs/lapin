@@ -337,7 +337,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// the future's result is:
     /// - `Some(request_id)` if we're on a confirm channel and the message was ack'd
     /// - `None` if we're not on a confirm channel or the message was nack'd
-    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: &[u8], options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static {
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static {
         let channel_id = self.id;
         let exchange = exchange.to_string();
         let routing_key = routing_key.to_string();
@@ -361,7 +361,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     None
                 }
             }).unwrap_or(Ok(Async::Ready(None)))
-        }, Some((payload.to_vec(), properties)))
+        }, Some((payload, properties)))
     }
 
     /// creates a consumer stream

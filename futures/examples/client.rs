@@ -38,7 +38,7 @@ fn main() {
               channel.basic_publish(
                 "hello_exchange",
                 "hello_2",
-                b"hello from tokio",
+                b"hello from tokio".to_vec(),
                 BasicPublishOptions::default(),
                 BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
               ).map(|confirmation| {

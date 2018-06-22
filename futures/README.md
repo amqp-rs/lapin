@@ -53,7 +53,7 @@ fn main() {
       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
         info!("channel {} declared queue {}", id, "hello");
 
-        channel.basic_publish("", "hello", b"hello from tokio", BasicPublishOptions::default(), BasicProperties::default())
+        channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
       })
     })
   ).expect("runtime exited with error");
