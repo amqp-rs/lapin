@@ -4,7 +4,7 @@ use amq_protocol::frame::AMQPFrame;
 use amq_protocol::frame::generation::*;
 use amq_protocol::frame::parsing::parse_frame;
 
-use nom::{IResult,Offset};
+use nom::Offset;
 use cookie_factory::GenError;
 use bytes::{BufMut, BytesMut};
 use std::cmp;
@@ -27,13 +27,14 @@ impl Decoder for AMQPCodec {
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<AMQPFrame>, io::Error> {
         let (consumed, f) = match parse_frame(buf) {
-          IResult::Incomplete(_) => {
-            return Ok(None)
+          Err(e) => {
+            if e.is_incomplete() {
+              return Ok(None);
+            } else {
+              return Err(io::Error::new(io::ErrorKind::Other, format!("parse error: {:?}", e)));
+            }
           },
-          IResult::Error(e) => {
-            return Err(io::Error::new(io::ErrorKind::Other, format!("parse error: {:?}", e)))
-          },
-          IResult::Done(i, frame) => {
+          Ok((i, frame)) => {
             (buf.offset(i), frame)
           }
         };

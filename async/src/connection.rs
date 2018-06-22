@@ -3,11 +3,11 @@ use std::default::Default;
 use std::io::{Error,ErrorKind,Result};
 use std::collections::{HashMap,VecDeque};
 use std::sync::{Arc, Mutex};
-use nom::{IResult,Offset};
 use sasl;
 use sasl::client::Mechanism;
 use sasl::client::mechanisms::Plain;
 use cookie_factory::GenError;
+use nom::Offset;
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use amq_protocol::frame::generation::*;
 use amq_protocol::frame::parsing::parse_frame;
@@ -356,12 +356,10 @@ impl Connection {
   /// frame with `handle_frame`
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     let parsed_frame = parse_frame(data);
-    match parsed_frame {
-      IResult::Done(_,_)     => {},
-      IResult::Incomplete(_) => {
+    if let Err(e) = parsed_frame {
+      if e.is_incomplete() {
         return Ok((0,self.state));
-      },
-      IResult::Error(e) => {
+      } else {
         //FIXME: should probably disconnect on error here
         let err = format!("parse error: {:?}", e);
         self.state = ConnectionState::Error;

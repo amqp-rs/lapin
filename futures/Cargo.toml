@@ -11,7 +11,7 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-nom = "^3.0"
+nom = "^4.0"
 log = "^0.4"
 bytes = "^0.4"
 futures = "^0.1"
@@ -20,7 +20,7 @@ tokio-io = "^0.1"
 tokio-timer = "^0.2"
 lapin-async = {version = "^0.12", path = "../async"}
 cookie-factory = "^0.2"
-amq-protocol = "^0.19"
+amq-protocol = "^0.20"
 
 [dev-dependencies]
 env_logger = "^0.5"
