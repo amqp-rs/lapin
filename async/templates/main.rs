@@ -122,7 +122,7 @@ pub fn gen_class<'a>(input:(&'a mut [u8],usize), class: &Class) -> Result<(&'a m
 
       pub fn gen_{{snake method.name}}<'a>(input:(&'a mut [u8],usize), method: &{{camel method.name}}) -> Result<(&'a mut [u8],usize),GenError> {
         {{#if method.has_flags ~}}
-          let mut flags = AMQPFlags::new();
+          let mut flags = AMQPFlags::default();
           {{#each_argument method.arguments as |argument| ~}}
             {{#unless argument_is_value ~}}
               {{#each_flag argument as |flag| ~}}
