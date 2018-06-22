@@ -1,4 +1,4 @@
-use generated::basic;
+use amq_protocol::protocol::basic;
 use types::*;
 
 #[derive(Clone,Debug,PartialEq)]
@@ -7,7 +7,7 @@ pub struct Delivery {
   pub exchange:     String,
   pub routing_key:  String,
   pub redelivered:  bool,
-  pub properties:   basic::Properties,
+  pub properties:   basic::AMQPProperties,
   pub data:         Vec<u8>,
 }
 
@@ -18,7 +18,7 @@ impl Delivery {
       exchange,
       routing_key,
       redelivered,
-      properties: basic::Properties::default(),
+      properties: basic::AMQPProperties::default(),
       data:       Vec::new(),
     }
   }

@@ -118,9 +118,7 @@
 extern crate amq_protocol;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate nom;
-#[macro_use]
 extern crate cookie_factory;
 extern crate sasl;
 
@@ -131,10 +129,6 @@ pub mod consumer;
 pub mod channel;
 pub mod queue;
 pub mod message;
-pub mod generated;
-pub mod format;
 pub mod api;
 pub mod error;
 pub mod types;
-
-pub use format::*;

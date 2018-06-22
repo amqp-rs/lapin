@@ -8,13 +8,14 @@ use sasl;
 use sasl::client::Mechanism;
 use sasl::client::mechanisms::Plain;
 use cookie_factory::GenError;
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use amq_protocol::frame::generation::*;
+use amq_protocol::frame::parsing::parse_frame;
+use amq_protocol::protocol::{AMQPClass, basic, connection};
 
-use format::frame::*;
-use format::content::*;
 use channel::Channel;
 use message::*;
 use api::{Answer,ChannelState,RequestId};
-use generated::*;
 use types::{AMQPValue,FieldTable};
 use error::{self, InvalidState};
 
@@ -87,7 +88,7 @@ pub struct Connection {
   pub prefetch_size:     u32,
   pub prefetch_count:    u16,
   /// list of message to send
-  pub frame_queue:       VecDeque<Frame>,
+  pub frame_queue:       VecDeque<AMQPFrame>,
   /// next request id
   pub request_index:     RequestId,
   /// list of finished requests
@@ -283,7 +284,7 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    self.frame_queue.push_back(Frame::ProtocolHeader);
+    self.frame_queue.push_back(AMQPFrame::ProtocolHeader);
     self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader);
     Ok(self.state)
   }
@@ -291,7 +292,7 @@ impl Connection {
   /// next message to send to the network
   ///
   /// returns None if there's no message to send
-  pub fn next_frame(&mut self) -> Option<Frame> {
+  pub fn next_frame(&mut self) -> Option<AMQPFrame> {
     self.frame_queue.pop_front()
   }
 
@@ -310,19 +311,19 @@ impl Connection {
     trace!("will write to buffer: {:?}", next_msg);
 
     let gen_res = match &next_msg {
-      &Frame::ProtocolHeader => {
+      &AMQPFrame::ProtocolHeader => {
         gen_protocol_header((send_buffer, 0)).map(|tup| tup.1)
       },
-      &Frame::Heartbeat(_) => {
+      &AMQPFrame::Heartbeat(_) => {
         gen_heartbeat_frame((send_buffer, 0)).map(|tup| tup.1)
       },
-      &Frame::Method(channel, ref method) => {
+      &AMQPFrame::Method(channel, ref method) => {
         gen_method_frame((send_buffer, 0), channel, method).map(|tup| tup.1)
       },
-      &Frame::Header(channel_id, class_id, ref header) => {
+      &AMQPFrame::Header(channel_id, class_id, ref header) => {
         gen_content_header_frame((send_buffer, 0), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
       },
-      &Frame::Body(channel_id, ref data) => {
+      &AMQPFrame::Body(channel_id, ref data) => {
         gen_content_body_frame((send_buffer, 0), channel_id, data).map(|tup| tup.1)
       }
     };
@@ -354,7 +355,7 @@ impl Connection {
   /// This method will update the state machine according to the ReceivedStart
   /// frame with `handle_frame`
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
-    let parsed_frame = frame(data);
+    let parsed_frame = parse_frame(data);
     match parsed_frame {
       IResult::Done(_,_)     => {},
       IResult::Incomplete(_) => {
@@ -385,27 +386,27 @@ impl Connection {
   }
 
   /// updates the current state with a new received frame
-  pub fn handle_frame(&mut self, f: Frame) -> result::Result<(), error::Error> {
+  pub fn handle_frame(&mut self, f: AMQPFrame) -> result::Result<(), error::Error> {
     trace!("will handle frame: {:?}", f);
     match f {
-      Frame::ProtocolHeader => {
+      AMQPFrame::ProtocolHeader => {
         error!("error: the client should not receive a protocol header");
         self.state = ConnectionState::Error;
       },
-      Frame::Method(channel_id, method) => {
+      AMQPFrame::Method(channel_id, method) => {
         if channel_id == 0 {
           self.handle_global_method(method);
         } else {
           self.receive_method(channel_id, method)?;
         }
       },
-      Frame::Heartbeat(_) => {
+      AMQPFrame::Heartbeat(_) => {
         debug!("received heartbeat from server");
       },
-      Frame::Header(channel_id, _, header) => {
+      AMQPFrame::Header(channel_id, _, header) => {
         self.handle_content_header_frame(channel_id, header.body_size, header.properties);
       },
-      Frame::Body(channel_id, payload) => {
+      AMQPFrame::Body(channel_id, payload) => {
         self.handle_body_frame(channel_id, payload);
       }
     };
@@ -413,7 +414,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_global_method(&mut self, c: Class) {
+  pub fn handle_global_method(&mut self, c: AMQPClass) {
     match self.state {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
         self.state = ConnectionState::Error
@@ -424,7 +425,7 @@ impl Connection {
             self.state = ConnectionState::Error
           },
           ConnectingState::SentProtocolHeader => {
-            if let Class::Connection(connection::Methods::Start(s)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
               trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
@@ -444,7 +445,7 @@ impl Connection {
 
               //FIXME: fill with user configured data
               //we need to handle the server properties, and have some client properties
-              let start_ok = Class::Connection(connection::Methods::StartOk(
+              let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
                 connection::StartOk {
                   client_properties: h,
                   mechanism: "PLAIN".to_string(),
@@ -454,7 +455,7 @@ impl Connection {
               ));
 
               debug!("client sending Connection::StartOk: {:?}", start_ok);
-              self.frame_queue.push_back(Frame::Method(0, start_ok));
+              self.frame_queue.push_back(AMQPFrame::Method(0, start_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
@@ -465,7 +466,7 @@ impl Connection {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
           },*/
           ConnectingState::SentStartOk => {
-            if let Class::Connection(connection::Methods::Tune(t)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
               debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
@@ -503,7 +504,7 @@ impl Connection {
                   self.configuration.frame_max = u32::max_value();
               }
 
-              let tune_ok = Class::Connection(connection::Methods::TuneOk(
+              let tune_ok = AMQPClass::Connection(connection::AMQPMethod::TuneOk(
                 connection::TuneOk {
                   channel_max : self.configuration.channel_max,
                   frame_max   : self.configuration.frame_max,
@@ -513,10 +514,10 @@ impl Connection {
 
               debug!("client sending Connection::TuneOk: {:?}", tune_ok);
 
-              self.frame_queue.push_back(Frame::Method(0, tune_ok));
+              self.frame_queue.push_back(AMQPFrame::Method(0, tune_ok));
               self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
 
-              let open = Class::Connection(connection::Methods::Open(
+              let open = AMQPClass::Connection(connection::AMQPMethod::Open(
                   connection::Open {
                     virtual_host: self.vhost.clone(),
                     capabilities: "".to_string(),
@@ -525,7 +526,7 @@ impl Connection {
                   ));
 
               debug!("client sending Connection::Open: {:?}", open);
-              self.frame_queue.push_back(Frame::Method(0,open));
+              self.frame_queue.push_back(AMQPFrame::Method(0,open));
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
 
             } else {
@@ -547,7 +548,7 @@ impl Connection {
           },
           ConnectingState::SentOpen => {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
-            if let Class::Connection(connection::Methods::OpenOk(o)) = c {
+            if let AMQPClass::Connection(connection::AMQPMethod::OpenOk(o)) = c {
               debug!("Server sent Connection::OpenOk: {:?}, client now connected", o);
               self.state = ConnectionState::Connected;
             } else {
@@ -570,7 +571,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: basic::Properties) {
+  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: basic::AMQPProperties) {
     let state = self.channels.get_mut(&channel_id).map(|channel| {
       channel.state.clone()
     }).unwrap();
@@ -654,24 +655,24 @@ impl Connection {
   ///
   /// the frames will be stored in the frame queue until they're written
   /// to the network.
-  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::Properties) {
-    let header = ContentHeader {
+  pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: basic::AMQPProperties) {
+    let header = AMQPContentHeader {
       class_id:       class_id,
       weight:         0,
       body_size:      slice.len() as u64,
       properties:     properties,
     };
-    self.frame_queue.push_back(Frame::Header(channel_id, class_id, header));
+    self.frame_queue.push_back(AMQPFrame::Header(channel_id, class_id, header));
 
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(self.configuration.frame_max as usize - 8) {
-      self.frame_queue.push_back(Frame::Body(channel_id, Vec::from(chunk)));
+      self.frame_queue.push_back(AMQPFrame::Body(channel_id, Vec::from(chunk)));
     }
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&mut self, channel: u16, method: Class) -> result::Result<(), error::Error> {
-    self.frame_queue.push_back(Frame::Method(channel,method));
+  pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) -> result::Result<(), error::Error> {
+    self.frame_queue.push_back(AMQPFrame::Method(channel,method));
     Ok(())
   }
 }
@@ -715,10 +716,10 @@ mod tests {
         });
         // Now test the state machine behaviour
         {
-            let deliver_frame = Frame::Method(
+            let deliver_frame = AMQPFrame::Method(
                 channel_id,
-                Class::Basic(
-                    basic::Methods::Deliver(
+                AMQPClass::Basic(
+                    basic::AMQPMethod::Deliver(
                         basic::Deliver {
                             consumer_tag: consumer_tag.clone(),
                             delivery_tag: 1,
@@ -740,14 +741,14 @@ mod tests {
             assert_eq!(channel_state, expected_state);
         }
         {
-            let header_frame = Frame::Header(
+            let header_frame = AMQPFrame::Header(
                 channel_id,
                 60,
-                ContentHeader {
+                AMQPContentHeader {
                     class_id: 60,
                     weight: 0,
                     body_size: 2,
-                    properties: basic::Properties::default(),
+                    properties: basic::AMQPProperties::default(),
                 }
             );
             conn.handle_frame(header_frame).unwrap();
@@ -758,7 +759,7 @@ mod tests {
             assert_eq!(channel_state, expected_state);
         }
         {
-           let body_frame = Frame::Body(channel_id, "{}".as_bytes().to_vec());
+           let body_frame = AMQPFrame::Body(channel_id, "{}".as_bytes().to_vec());
            conn.handle_frame(body_frame).unwrap();
             let channel_state = conn.channels.get_mut(&channel_id)
                 .map(|channel| channel.state.clone())
@@ -791,10 +792,10 @@ mod tests {
         });
         // Now test the state machine behaviour
         {
-            let deliver_frame = Frame::Method(
+            let deliver_frame = AMQPFrame::Method(
                 channel_id,
-                Class::Basic(
-                    basic::Methods::Deliver(
+                AMQPClass::Basic(
+                    basic::AMQPMethod::Deliver(
                         basic::Deliver {
                             consumer_tag: consumer_tag.clone(),
                             delivery_tag: 1,
@@ -816,14 +817,14 @@ mod tests {
             assert_eq!(channel_state, expected_state);
         }
         {
-            let header_frame = Frame::Header(
+            let header_frame = AMQPFrame::Header(
                 channel_id,
                 60,
-                ContentHeader {
+                AMQPContentHeader {
                     class_id: 60,
                     weight: 0,
                     body_size: 0,
-                    properties: basic::Properties::default(),
+                    properties: basic::AMQPProperties::default(),
                 }
             );
             conn.handle_frame(header_frame).unwrap();

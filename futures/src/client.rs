@@ -1,6 +1,6 @@
 use amq_protocol::uri::AMQPUri;
+use amq_protocol::frame::AMQPFrame;
 use lapin_async;
-use lapin_async::format::frame::Frame;
 use std::default::Default;
 use std::io;
 use std::str::FromStr;
@@ -94,7 +94,7 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
                 future::poll_fn(move || {
                     let mut transport = lock_transport!(send_transport);
                     debug!("Sending heartbeat");
-                    transport.send_frame(Frame::Heartbeat(0));
+                    transport.send_frame(AMQPFrame::Heartbeat(0));
                     Ok(Async::Ready(()))
                 }).and_then(move |_| future::poll_fn(move || {
                     let mut transport = lock_transport!(poll_transport);

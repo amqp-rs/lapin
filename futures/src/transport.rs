@@ -1,6 +1,8 @@
 /// low level wrapper for the state machine, encoding and decoding from lapin-async
 use lapin_async::connection::*;
-use lapin_async::format::frame::*;
+use amq_protocol::frame::AMQPFrame;
+use amq_protocol::frame::generation::*;
+use amq_protocol::frame::parsing::parse_frame;
 
 use nom::{IResult,Offset};
 use cookie_factory::GenError;
@@ -20,11 +22,11 @@ pub struct AMQPCodec {
 }
 
 impl Decoder for AMQPCodec {
-    type Item = Frame;
+    type Item = AMQPFrame;
     type Error = io::Error;
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Frame>, io::Error> {
-        let (consumed, f) = match frame(buf) {
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<AMQPFrame>, io::Error> {
+        let (consumed, f) = match parse_frame(buf) {
           IResult::Incomplete(_) => {
             return Ok(None)
           },
@@ -45,10 +47,10 @@ impl Decoder for AMQPCodec {
 }
 
 impl Encoder for AMQPCodec {
-    type Item = Frame;
+    type Item = AMQPFrame;
     type Error = io::Error;
 
-    fn encode(&mut self, frame: Frame, buf: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, frame: AMQPFrame, buf: &mut BytesMut) -> Result<(), Self::Error> {
       let frame_max = cmp::max(self.frame_max, 8192) as usize;
       trace!("encoder; frame={:?}", frame);
       let offset = buf.len();
@@ -61,19 +63,19 @@ impl Encoder for AMQPCodec {
         }
 
         let gen_res = match &frame {
-          &Frame::ProtocolHeader => {
+          &AMQPFrame::ProtocolHeader => {
             gen_protocol_header((buf, offset)).map(|tup| tup.1)
           },
-          &Frame::Heartbeat(_) => {
+          &AMQPFrame::Heartbeat(_) => {
             gen_heartbeat_frame((buf, offset)).map(|tup| tup.1)
           },
-          &Frame::Method(channel, ref method) => {
+          &AMQPFrame::Method(channel, ref method) => {
             gen_method_frame((buf, offset), channel, method).map(|tup| tup.1)
           },
-          &Frame::Header(channel_id, class_id, ref header) => {
+          &AMQPFrame::Header(channel_id, class_id, ref header) => {
             gen_content_header_frame((buf, offset), channel_id, class_id, header.body_size, &header.properties).map(|tup| tup.1)
           },
-          &Frame::Body(channel_id, ref data) => {
+          &AMQPFrame::Body(channel_id, ref data) => {
             gen_content_body_frame((buf, offset), channel_id, data).map(|tup| tup.1)
           }
         };
@@ -145,7 +147,7 @@ impl<T> AMQPTransport<T>
   ///
   /// This function only appends the frame to a queue, to actually send the frame you have to
   /// call either `poll` or `poll_send`.
-  pub fn send_frame(&mut self, frame: Frame) {
+  pub fn send_frame(&mut self, frame: AMQPFrame) {
     self.conn.frame_queue.push_back(frame);
   }
 
@@ -233,7 +235,7 @@ impl <T> Sink for AMQPTransport<T>
     where T: AsyncWrite,
           T: Send,
           T: 'static {
-    type SinkItem = Frame;
+    type SinkItem = AMQPFrame;
     type SinkError = io::Error;
 
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
@@ -306,26 +308,26 @@ mod tests {
 
     let mut codec = AMQPCodec { frame_max: 8192 };
     let mut buffer = BytesMut::with_capacity(8192);
-    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(8, buffer.len());
-    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(16, buffer.len());
-    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(24, buffer.len());
   }
 
   #[test]
   fn encode_nested_frame() {
-    use lapin_async::content::ContentHeader;
+    use amq_protocol::frame::AMQPContentHeader;
 
     let _ = env_logger::try_init();
 
     let mut codec = AMQPCodec { frame_max: 8192 };
     let mut buffer = BytesMut::with_capacity(8192);
-    let frame = Frame::Header(0, 10, ContentHeader {
+    let frame = AMQPFrame::Header(0, 10, AMQPContentHeader {
       class_id: 10,
       weight: 0,
       body_size: 64,
@@ -344,7 +346,7 @@ mod tests {
     let frame_max = codec.frame_max as usize;
     let mut buffer = BytesMut::new();
 
-    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(true, buffer.capacity() >= frame_max);
     assert_eq!(8, buffer.len());
@@ -358,7 +360,7 @@ mod tests {
     let frame_max = codec.frame_max as usize;
     let mut buffer = BytesMut::new();
 
-    let r = codec.encode(Frame::Heartbeat(0), &mut buffer);
+    let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(frame_max * 2, buffer.capacity());
     assert_eq!(8, buffer.len());
@@ -367,7 +369,7 @@ mod tests {
       // Use 80% of the remaining space (it shouldn't trigger buffer capacity expansion)
       .take(((buffer.capacity() as f64 - buffer.len() as f64) * 0.8) as usize)
       .collect::<Vec<u8>>();
-    let r = codec.encode(Frame::Body(1, payload), &mut buffer);
+    let r = codec.encode(AMQPFrame::Body(1, payload), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(frame_max * 2, buffer.capacity());
 
@@ -375,7 +377,7 @@ mod tests {
       // Use 80% of the remaining space (it should trigger a buffer capacity expansion)
       .take(((buffer.capacity() as f64 - buffer.len() as f64) * 0.8) as usize)
       .collect::<Vec<u8>>();
-    let r = codec.encode(Frame::Body(1, payload), &mut buffer);
+    let r = codec.encode(AMQPFrame::Body(1, payload), &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(frame_max * 4, buffer.capacity());
   }

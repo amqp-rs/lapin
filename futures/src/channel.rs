@@ -5,7 +5,7 @@ use std::sync::{Arc,Mutex};
 use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
-use lapin_async::generated::basic;
+use amq_protocol::protocol::basic;
 
 use transport::*;
 use message::BasicGetMessage;
@@ -107,7 +107,7 @@ pub struct BasicPublishOptions {
   pub immediate: bool,
 }
 
-pub type BasicProperties = basic::Properties;
+pub type BasicProperties = basic::AMQPProperties;
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicConsumeOptions {
