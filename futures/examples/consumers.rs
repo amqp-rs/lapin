@@ -50,7 +50,7 @@ fn main() {
         TcpStream::connect(&addr).and_then(|stream| {
             Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
-                heartbeat: 10,
+                heartbeat: 20,
                 ..Default::default()
             })
         }).and_then(|(client, heartbeat)| {
