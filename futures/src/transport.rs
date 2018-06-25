@@ -14,6 +14,15 @@ use tokio_io::{AsyncRead,AsyncWrite};
 use channel::BasicProperties;
 use client::ConnectionOptions;
 
+/// During my testing, it appeared to be the "best" value.
+/// To fine-tune it, use a queue with a very large amount of messages, consume it and compare the
+/// delivery rate with the ack one.
+/// Decreasing this number will increase the ack rate slightly, but decrease the delivery rate by a
+/// lot.
+/// Increasing this number will increate the delivery rate slightly, but the ack rate will be very
+/// close to 0.
+const POLL_RECV_LIMIT: u32 = 128;
+
 /// implements tokio-io's Decoder and Encoder
 pub struct AMQPCodec {
     pub frame_max: u32,
@@ -168,7 +177,7 @@ impl<T> AMQPTransport<T>
   /// * In case of error, it will return `Err(e)`
   /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
   fn poll_recv(&mut self) -> Poll<(), io::Error> {
-    loop {
+    for _ in 0..POLL_RECV_LIMIT {
       match self.upstream.poll() {
         Ok(Async::Ready(Some(frame))) => {
           trace!("transport poll_recv; frame={:?}", frame);
@@ -191,6 +200,7 @@ impl<T> AMQPTransport<T>
         },
       };
     }
+    Ok(Async::NotReady)
   }
 
   /// Poll the network to send outcoming frames.
