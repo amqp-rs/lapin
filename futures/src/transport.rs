@@ -89,6 +89,7 @@ impl Encoder for AMQPCodec {
 pub struct AMQPTransport<T> {
   upstream:  Framed<T,AMQPCodec>,
   pub conn:  Connection,
+  heartbeat: Option<AMQPFrame>,
 }
 
 impl<T> AMQPTransport<T>
@@ -114,8 +115,9 @@ impl<T> AMQPTransport<T>
           frame_max: conn.configuration.frame_max,
         };
         let t = AMQPTransport {
-          upstream:     codec.framed(stream),
-          conn:         conn,
+          upstream:  codec.framed(stream),
+          conn:      conn,
+          heartbeat: Some(AMQPFrame::Heartbeat(0)),
         };
 
         AMQPTransportConnector {
@@ -142,6 +144,19 @@ impl<T> AMQPTransport<T>
   /// call either `poll` or `poll_send`.
   pub fn send_content_frames(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) {
     self.conn.send_content_frames(channel_id, 60, payload, properties);
+  }
+
+  /// Preemptively send an heartbeat frame
+  pub fn send_heartbeat(&mut self) -> Poll<(), io::Error> {
+    if let Some(frame) = self.heartbeat.take() {
+      self.conn.frame_queue.push_front(frame);
+    }
+    self.poll_send().map(|r| r.map(|r| {
+      // poll_send succeeded, reinitialize self.heartbeat so that we sned a new frame on the next
+      // send_heartbeat call
+      self.heartbeat = Some(AMQPFrame::Heartbeat(0));
+      r
+    }))
   }
 
   /// Poll the network to receive & handle incoming frames.
