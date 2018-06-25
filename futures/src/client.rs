@@ -87,17 +87,13 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
             interval.for_each(move |_| {
                 debug!("poll heartbeat");
 
-                let send_transport = Arc::clone(&transport);
-                let poll_transport = Arc::clone(&transport);
+                let transport = transport.clone();
 
                 future::poll_fn(move || {
-                    let mut transport = lock_transport!(send_transport);
+                    let mut transport = lock_transport!(transport);
                     debug!("Sending heartbeat");
                     transport.send_heartbeat()
-                }).and_then(move |_| future::poll_fn(move || {
-                    let mut transport = lock_transport!(poll_transport);
-                    transport.poll()
-                })).map(|_| ()).map_err(|err| {
+                }).map(|_| ()).map_err(|err| {
                     error!("Error occured in heartbeat interval: {}", err);
                     err
                 })
