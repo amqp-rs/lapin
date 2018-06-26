@@ -205,7 +205,6 @@ impl<T> AMQPTransport<T>
 
   /// Poll the network to send outcoming frames.
   fn poll_send(&mut self) -> Poll<(), io::Error> {
-    let mut ret = Ok(Async::Ready(()));
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
       match self.start_send(frame)? {
@@ -215,16 +214,11 @@ impl<T> AMQPTransport<T>
         AsyncSink::NotReady(frame) => {
           trace!("transport poll_send; status=NotReady");
           self.conn.frame_queue.push_front(frame);
-          ret = Ok(Async::NotReady);
-          break;
+          return Ok(Async::NotReady);
         }
       }
     }
-    if self.poll_complete()?.is_ready() {
-      ret
-    } else {
-      Ok(Async::NotReady)
-    }
+    self.poll_complete()
   }
 }
 
