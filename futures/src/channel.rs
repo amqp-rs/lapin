@@ -43,39 +43,89 @@ pub struct AccessRequestOptions {
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeclareOptions {
   pub ticket:      u16,
+  /// If set, the server will reply with Declare-Ok if the exchange already
+  /// exists with the same name, and raise an error if not. The client can
+  /// use this to check whether an exchange exists without modifying the
+  /// server state. When set, all other method fields except name and no-wait
+  /// are ignored. A declare with both passive and no-wait has no effect.
+  /// Arguments are compared for semantic equivalence.
   pub passive:     bool,
+  /// If set when creating a new exchange, the exchange will be marked as
+  /// durable. Durable exchanges remain active when a server restarts.
+  /// Non-durable exchanges (transient exchanges) are purged if/when a
+  /// server restarts.
   pub durable:     bool,
+  /// If set, the exchange is deleted when all queues have finished using it.
   pub auto_delete: bool,
+  /// If set, the exchange may not be used directly by publishers, but only
+  /// when bound to other exchanges. Internal exchanges are used to construct
+  /// wiring that is not visible to applications.
   pub internal:    bool,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait:      bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeDeleteOptions {
   pub ticket:    u16,
+  /// If set, the server will only delete the exchange if it has no queue bindings.
   pub if_unused: bool,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait:    bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeBindOptions {
   pub ticket: u16,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait: bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ExchangeUnbindOptions {
   pub ticket: u16,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait: bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeclareOptions {
   pub ticket:      u16,
+  /// If set, the server will reply with Declare-Ok if the queue already exists
+  /// with the same name, and raise an error if not. The client can use this to
+  /// check whether a queue exists without modifying the server state.
+  /// When set, all other method fields except name and no-wait are ignored.
+  /// A declare with both passive and no-wait has no effect.
+  /// Arguments are compared for semantic equivalence.
   pub passive:     bool,
+  /// If set when creating a new queue, the queue will be marked as durable.
+  /// Durable queues remain active when a server restarts.
+  /// Non-durable queues (transient queues) are purged if/when a server
+  /// restarts. Note that durable queues do not necessarily hold persistent
+  /// messages, although it does not make sense to send persistent messages
+  /// to a transient queue.
   pub durable:     bool,
+  /// Exclusive queues may only be accessed by the current connection, and
+  /// are deleted when that connection closes. Passive declaration of an
+  /// exclusive queue by other connections are not allowed.
   pub exclusive:   bool,
+  /// If set, the queue is deleted when all consumers have finished using it.
+  /// The last consumer can be cancelled either explicitly or because its
+  /// channel is closed. If there was no consumer ever on the queue, it won't
+  /// be deleted. Applications can explicitly delete auto-delete queues using
+  /// the Delete method as normal.
   pub auto_delete: bool,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait:      bool,
 }
 
@@ -86,25 +136,43 @@ pub struct QueueUnbindOptions {
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ConfirmSelectOptions {
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait: bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueBindOptions {
   pub ticket: u16,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait: bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueuePurgeOptions {
   pub ticket: u16,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub nowait: bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicPublishOptions {
   pub ticket:    u16,
+  /// This flag tells the server how to react if the message cannot be routed to
+  /// a queue. If this flag is set, the server will return an unroutable message
+  /// with a Return method. If this flag is zero, the server silently drops
+  /// the message.
   pub mandatory: bool,
+  /// This flag tells the server how to react if the message cannot be routed
+  /// to a queue consumer immediately. If this flag is set, the server will
+  /// return an undeliverable message with a Return method. If this flag is
+  /// zero, the server will queue the message, but with no guarantee that
+  /// it will ever be consumed.
   pub immediate: bool,
 }
 
@@ -112,34 +180,80 @@ pub struct BasicPublishOptions {
 pub struct BasicConsumeOptions {
   pub ticket:    u16,
   pub no_local:  bool,
+  /// If this field is set the server does not expect acknowledgements
+  /// for messages. That is, when a message is delivered to the client
+  /// the server assumes the delivery will succeed and immediately dequeues it.
   pub no_ack:    bool,
+  /// Request exclusive consumer access, meaning only this consumer can access the queue.
   pub exclusive: bool,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub no_wait:   bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicGetOptions {
   pub ticket:    u16,
+  /// If this field is set the server does not expect acknowledgements
+  /// for messages. That is, when a message is delivered to the client
+  /// the server assumes the delivery will succeed and immediately dequeues it.
   pub no_ack:    bool,
 }
 
+/// Quality of service" settings.
+/// The QoS can be specified for the current channel or for all channels on the
+/// connection. The particular properties and semantics of a qos method always
+/// depend on the content class semantics. Though the qos method could in
+/// principle apply to both peers, it is currently meaningful only for the server.
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct BasicQosOptions {
+  /// The client can request that messages be sent in advance so that when the
+  /// client finishes processing a message, the following message is already
+  /// held locally, rather than needing to be sent down the channel.
+  /// Prefetching gives a performance improvement. This field specifies the
+  /// prefetch window size in octets. The server will send a message in advance
+  /// if it is equal to or smaller in size than the available prefetch size
+  /// (and also falls into other prefetch limits). May be set to zero, meaning
+  /// "no specific limit", although other prefetch limits may still apply.
+  /// The prefetch-size is ignored if the no-ack option is set.
   pub prefetch_size:  u32,
+  /// Specifies a prefetch window in terms of whole messages. This field may be
+  /// used in combination with the prefetch-size field; a message will only be
+  /// sent in advance if both prefetch windows (and those at the channel and
+  /// connection level) allow it. The prefetch-count is ignored if the
+  /// no-ack option is set.
   pub prefetch_count: u16,
+  /// RabbitMQ has reinterpreted this field. The original specification said:
+  /// "By default the QoS settings apply to the current channel only. If this
+  /// field is set, they are applied to the entire connection." Instead, RabbitMQ
+  /// takes global=false to mean that the QoS settings should apply per-consumer
+  /// (for new consumers on the channel; existing ones being unaffected) and global=true
+  /// to mean that the QoS settings should apply per-channel.
   pub global:         bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct QueueDeleteOptions {
   pub ticket:    u16,
+  /// If set, the server will only delete the queue if it has no consumers.
+  /// If the queue has consumers the server does does not delete it but raises
+  /// a channel exception instead.
   pub if_unused: bool,
+  /// If set, the server will only delete the queue if it has no messages.
   pub if_empty:  bool,
+  /// If set, the server will not respond to the method. The client should
+  /// not wait for a reply method. If the server could not complete the method
+  /// it will raise a channel or connection exception.
   pub no_wait:   bool,
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
 pub struct ChannelFlowOptions {
+  /// Asks the peer to pause or restart the flow of content data sent by a
+  /// consumer. This is a simple flow-control mechanism that a peer can use
+  /// to avoid overflowing its queues or otherwise finding itself receiving
+  /// more messages than it can process.
   pub active: bool,
 }
 
