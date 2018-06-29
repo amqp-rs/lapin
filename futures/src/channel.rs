@@ -262,32 +262,35 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     pub fn create(transport: Mutex<AMQPTransport<T>>) -> impl Future<Item = Self, Error = io::Error> + Send + 'static {
         let channel_transport = transport.clone();
 
-        future::lazy(move || channel_transport.clone().with(move |mut transport| {
+        future::poll_fn(move || {
+            let mut transport = lock_transport!(channel_transport);
             if let Some(id) = transport.conn.create_channel() {
-                Ok(Channel {
+                return Ok(Async::Ready(Channel {
                     id,
-                    transport: channel_transport,
-                })
+                    transport: channel_transport.clone(),
+                }))
             } else {
-                Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The maximum number of channels for this connection has been reached"))
+                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The maximum number of channels for this connection has been reached"));
             }
-        }).expect("transport lock")).and_then(|channel| {
+        }).and_then(|channel| {
             let channel_id = channel.id;
             channel.run_on_locked_transport("create", "Could not create channel", move |transport| {
                 transport.conn.channel_open(channel_id, "".to_string()).map(Some)
-            }).and_then(move |_| future::loop_fn((), move |()| {
-                transport.with(move |transport| {
+            }).and_then(move |_| {
+                future::poll_fn(move || {
+                    let transport = lock_transport!(transport);
+
                     match transport.conn.get_state(channel_id) {
-                        Some(ChannelState::Connected) => Ok(future::Loop::Break(())),
-                        Some(ChannelState::Error)     => Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
-                        Some(ChannelState::Closed)    => Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
+                        Some(ChannelState::Connected) => return Ok(Async::Ready(())),
+                        Some(ChannelState::Error)     => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
+                        Some(ChannelState::Closed)    => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
                         _                             => {
                             task::current().notify();
-                            Ok(future::Loop::Continue(()))
+                            return Ok(Async::NotReady);
                         }
                     }
-                }).expect("transport lock")
-            })).map(move |_| {
+                })
+            }).map(move |_| {
                 channel
             })
         })
@@ -377,21 +380,22 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         self.run_on_locked_transport("queue_declare", "Could not declare queue", move |transport| {
             transport.conn.queue_declare(channel_id, options.ticket, name,
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments).map(Some)
-          }).and_then(move |request_id| future::loop_fn(request_id, move |request_id| {
-            transport.with(move |mut transport| {
+          }).and_then(move |request_id| {
+            future::poll_fn(move || {
+              let mut transport = lock_transport!(transport);
               if let Some(queue) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 let (consumer_count, message_count) = if let Some(async_queue) = transport.conn.channels.get(&channel_id).and_then(|channel| channel.queues.get(&queue)) {
                   (async_queue.consumer_count, async_queue.message_count)
                 } else {
                   (0, 0)
                 };
-                return Ok(future::Loop::Break(Queue::new(queue, consumer_count, message_count)))
+                return Ok(Async::Ready(Queue::new(queue, consumer_count, message_count)))
               } else {
                 task::current().notify();
-                return Ok(future::Loop::Continue(request_id))
+                return Ok(Async::NotReady)
               }
-            }).expect("transport lock")
-        }))
+            })
+        })
     }
 
     /// binds a queue to an exchange
@@ -490,16 +494,17 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         self.run_on_locked_transport("basic_consume", "Could not start consumer", move |transport| {
             transport.conn.basic_consume(channel_id, options.ticket, queue_name, consumer_tag,
             options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments, Box::new(subscriber)).map(Some)
-          }).and_then(move |request_id| future::loop_fn(request_id, move |request_id| {
-            transport.with(move |mut transport| {
+          }).and_then(move |request_id| {
+            future::poll_fn(move || {
+              let mut transport = lock_transport!(transport);
               if let Some(consumer_tag) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
-                Ok(future::Loop::Break(consumer_tag))
+                return Ok(Async::Ready(consumer_tag))
               } else {
                 task::current().notify();
-                Ok(future::Loop::Continue(request_id))
+                return Ok(Async::NotReady)
               }
-            }).expect("transport lock")
-          })).map(|consumer_tag| {
+            })
+          }).map(|consumer_tag| {
             trace!("basic_consume received response, returning consumer");
             consumer.update_consumer_tag(consumer_tag);
             consumer
@@ -536,17 +541,16 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// gets a message
     pub fn basic_get(&self, queue: &str, options: BasicGetOptions) -> impl Future<Item = BasicGetMessage, Error = io::Error> + Send + 'static {
         let channel_id = self.id;
-        let queue = queue.to_owned();
+        let _queue = queue.to_string();
+        let queue = queue.to_string();
         let receive_transport = self.transport.clone();
-        let receive_future = future::loop_fn((queue.clone(), channel_id), move |(queue, channel_id)| {
-          receive_transport.with(move |mut transport| {
+        let receive_future = future::poll_fn(move || {
+            let mut transport = lock_transport!(receive_transport);
             transport.poll()?;
-            if let Some(message) = transport.conn.next_basic_get_message(channel_id, &queue) {
-              Ok(future::Loop::Break(message))
-            } else {
-              Ok(future::Loop::Continue((queue, channel_id)))
+            if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
+                return Ok(Async::Ready(message));
             }
-          }).expect("transport lock")
+            Ok(Async::NotReady)
         });
 
         self.run_on_locked_transport_full("basic_get", "Could not get message", move |transport| {
@@ -639,44 +643,53 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         trace!("run on locked transport; method={:?}", method);
         let channel_id = self.id;
         let transport = self.transport.clone();
+        let _transport = self.transport.clone();
         let _method = method.to_string();
         let method = method.to_string();
         let error = error.to_string();
+        // Tweak to make the borrow checker happy, see below for more explaination
+        let mut action = Some(action);
+        let mut payload = Some(payload);
 
-        self.transport.with(move |mut transport| {
-            match action(&mut transport) {
+        future::poll_fn(move || {
+            let mut transport = lock_transport!(transport);
+            // The poll_fn here is only there for the lock_transport call above.
+            // Once the lock_transport yields a Async::Ready transport, the rest of the function is
+            // ran only once as we either return an error or an Async::Ready, it's thus safe to .take().unwrap()
+            // the action, which is always Some() the first time, and never called twice.
+            // This is needed because we're in an FnMut and thus cannot transfer ownership as an
+            // FnMut can be called several time and action which is an FnOnce can only be called
+            // once (which is implemented as a ownership transfer).
+            match action.take().unwrap()(&mut transport) {
                 Err(e)         => Err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e))),
                 Ok(request_id) => {
                     trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
 
-                    if let Some((payload, mut properties)) = payload {
+                    if let Some((payload, mut properties)) = payload.take().unwrap() {
                         transport.send_content_frames(channel_id, payload.as_slice(), properties);
                     }
 
-                    Ok(request_id)
+                    Ok(Async::Ready(request_id))
                 },
             }
-        }).expect("transport lock").and_then(move |request_id| {
+        }).and_then(move |request_id| {
             if request_id.is_some() {
                 trace!("{} returning closure", method);
             }
 
-            future::loop_fn((transport, finished), move |(tr, finished)| {
-                tr.clone().with(move |mut transport| {
-                    if let Some(request_id) = request_id {
-                        Self::wait_for_answer(&mut transport, request_id, &finished)
-                    } else {
-                        transport.poll().map(|r| r.map(|_| None))
-                    }.map(|res| match res {
-                        Async::Ready(r) => future::Loop::Break(r),
-                        Async::NotReady => future::Loop::Continue((tr, finished)),
-                    })
-                }).expect("transport lock")
+            future::poll_fn(move || {
+                let mut transport = lock_transport!(_transport);
+
+                if let Some(request_id) = request_id {
+                    Self::wait_for_answer(&mut transport, request_id, &finished)
+                } else {
+                    transport.poll().map(|r| r.map(|_| None))
+                }
             })
         })
     }
 
-    fn run_on_locked_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, io::Error> {
+    fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, io::Error> {
         match conn.is_finished(request_id) {
             Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
             _                      => {
@@ -688,7 +701,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
 
     fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static
         where Action: 'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
-        self.run_on_locked_transport_full(method, error, action, &Self::run_on_locked_transport_basic_finished, None)
+        self.run_on_locked_transport_full(method, error, action, Self::run_on_lock_transport_basic_finished, None)
     }
 
     /// internal method to wait until a request succeeds

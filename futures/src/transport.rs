@@ -289,6 +289,13 @@ impl<T> Future for AMQPTransportConnector<T>
   }
 }
 
+#[macro_export]
+macro_rules! lock_transport (
+    ($t: expr) => ({
+        $t.lock().wait().unwrap()
+    });
+);
+
 #[cfg(test)]
 mod tests {
   extern crate env_logger;

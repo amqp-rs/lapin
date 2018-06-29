@@ -3,7 +3,7 @@ use lapin_async;
 use std::default::Default;
 use std::io;
 use std::str::FromStr;
-use futures::{future,Future,Poll,Stream};
+use futures::{future,Async,Future,Poll,Stream};
 use futures::sync::oneshot;
 use futures_locks::Mutex;
 use tokio_io::{AsyncRead,AsyncWrite};
@@ -87,10 +87,13 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Mutex<AMQPTr
             interval.for_each(move |_| {
                 debug!("poll heartbeat");
 
-                transport.with(|mut transport| {
+                let transport = transport.clone();
+
+                future::poll_fn(move || {
+                    let mut transport = lock_transport!(transport);
                     debug!("Sending heartbeat");
                     transport.send_heartbeat()
-                }).expect("transport lock").map(|_| ()).map_err(|err| {
+                }).map(|_| ()).map_err(|err| {
                     error!("Error occured in heartbeat interval: {}", err);
                     err
                 })

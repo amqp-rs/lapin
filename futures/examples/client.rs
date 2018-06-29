@@ -1,5 +1,3 @@
-#![type_length_limit="2097152"]
-
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
 extern crate futures;
