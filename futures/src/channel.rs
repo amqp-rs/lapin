@@ -1,7 +1,7 @@
 use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Poll,Stream,task};
-use futures_locks::Mutex;
 use tokio_io::{AsyncRead,AsyncWrite};
+use std::sync::{Arc,Mutex};
 use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
@@ -17,8 +17,8 @@ pub use lapin_async::channel::BasicProperties;
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
 pub struct Channel<T> {
-  pub transport: Mutex<AMQPTransport<T>>,
-  pub id:        u16,
+  pub transport: Arc<Mutex<AMQPTransport<T>>>,
+  pub id:    u16,
 }
 
 impl<T> Clone for Channel<T>
@@ -259,7 +259,7 @@ pub struct ChannelFlowOptions {
 
 impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
-    pub fn create(transport: Mutex<AMQPTransport<T>>) -> impl Future<Item = Self, Error = io::Error> + Send + 'static {
+    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> impl Future<Item = Self, Error = io::Error> + Send + 'static {
         let channel_transport = transport.clone();
 
         future::poll_fn(move || {
