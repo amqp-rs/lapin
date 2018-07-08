@@ -24,6 +24,7 @@
 //! use futures::future::Future;
 //! use futures::Stream;
 //! use tokio::net::TcpStream;
+//! use tokio::runtime::Runtime;
 //! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicPublishOptions,BasicProperties,QueueDeclareOptions};
 //! use lapin::types::FieldTable;
@@ -31,7 +32,7 @@
 //! fn main() {
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
-//!   tokio::run(
+//!   Runtime::new().unwrap().block_on(
 //!     TcpStream::connect(&addr).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
@@ -54,8 +55,8 @@
 //!
 //!         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
 //!       })
-//!     }).map(|_| ()).map_err(|_| ())
-//!   )
+//!     })
+//!   ).expect("runtime failure");
 //! }
 //! ```
 //!
@@ -70,6 +71,7 @@
 //! use futures::future::Future;
 //! use futures::Stream;
 //! use tokio::net::TcpStream;
+//! use tokio::runtime::Runtime;
 //! use lapin::client::ConnectionOptions;
 //! use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
 //! use lapin::types::FieldTable;
@@ -77,7 +79,7 @@
 //! fn main() {
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
-//!   tokio::run(
+//!   Runtime::new().unwrap().block_on(
 //!     TcpStream::connect(&addr).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
@@ -114,8 +116,8 @@
 //!           ch.basic_ack(message.delivery_tag, false)
 //!         })
 //!       })
-//!     }).map_err(|_| ())
-//!   )
+//!     })
+//!   ).expect("runtime failure");
 //! }
 //! ```
 //!

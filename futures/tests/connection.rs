@@ -7,6 +7,7 @@ extern crate env_logger;
 use futures::Stream;
 use futures::future::Future;
 use tokio::net::TcpStream;
+use tokio::runtime::Runtime;
 
 use lapin::types::FieldTable;
 use lapin::client::ConnectionOptions;
@@ -18,7 +19,7 @@ fn connection() {
 
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
-  tokio::run(
+  Runtime::new().unwrap().block_on(
     TcpStream::connect(&addr).and_then(|stream| {
       lapin::client::Client::connect(stream, ConnectionOptions::default())
     }).and_then(|(client, _)| {
@@ -62,6 +63,6 @@ fn connection() {
           })
         })
       })
-    }).map_err(|_| ())
-  )
+    })
+  ).expect("runtime failure");
 }
