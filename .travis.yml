@@ -23,6 +23,6 @@ script:
 
 after_success: |
     if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-        cargo install --force cargo-tarpaulin`
+        `RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin`
         cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
     fi
