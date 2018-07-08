@@ -5,7 +5,7 @@
 * **futures:**
   * `basic_ack` and `basic_nack` API now support passing the `multiple` flag
   * Port to the new `tokio-codec` crate
-  * The object returned by `queue_declare` now holds the messages count and the conssumers count too
+  * The object returned by `queue_declare` now holds the messages count and the consumers count too
 
 #### Bug Fixes
 
