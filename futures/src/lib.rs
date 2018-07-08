@@ -111,8 +111,7 @@
 //!         stream.for_each(move |message| {
 //!           debug!("got message: {:?}", message);
 //!           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
-//!           ch.basic_ack(message.delivery_tag, false);
-//!           Ok(())
+//!           ch.basic_ack(message.delivery_tag, false)
 //!         })
 //!       })
 //!     }).map_err(|_| ())
