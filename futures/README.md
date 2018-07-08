@@ -64,6 +64,7 @@ fn main() {
 
 ```rust,no_run
 #[macro_use] extern crate log;
+extern crate env_logger;
 extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio;
@@ -73,10 +74,12 @@ use futures::Stream;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,QueueDeclareOptions};
+use lapin::channel::{BasicConsumeOptions,QueueDeclareOptions};
 use lapin::types::FieldTable;
 
 fn main() {
+  env_logger::init();
+
   let addr = "127.0.0.1:5672".parse().unwrap();
 
   Runtime::new().unwrap().block_on(
@@ -113,7 +116,7 @@ fn main() {
         stream.for_each(move |message| {
           debug!("got message: {:?}", message);
           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
-          ch.basic_ack(message.delivery_tag)
+          ch.basic_ack(message.delivery_tag, false)
         })
       })
     })
