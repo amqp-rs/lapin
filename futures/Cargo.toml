@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/sozu-proxy/lapin"
 readme = "README.md"
@@ -18,7 +18,7 @@ futures = "^0.1"
 tokio-codec = "^0.1"
 tokio-io = "^0.1"
 tokio-timer = "^0.2"
-lapin-async = {version = "^0.12", path = "../async"}
+lapin-async = {version = "^0.13", path = "../async"}
 cookie-factory = "^0.2"
 amq-protocol = "^0.21"
 
