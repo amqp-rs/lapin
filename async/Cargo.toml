@@ -15,14 +15,14 @@ build = "build.rs"
 log = "^0.4"
 nom = "^4.0"
 cookie-factory = "^0.2.4"
-amq-protocol = "^0.21"
+amq-protocol = "^0.22"
 
 [dependencies.sasl]
 version= "^0.4"
 default-features = false
 
 [build-dependencies]
-amq-protocol = "^0.21"
+amq-protocol = "^0.22"
 
 [dev-dependencies]
 env_logger = "^0.5"
