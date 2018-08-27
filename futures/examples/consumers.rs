@@ -46,7 +46,7 @@ fn main() {
     let mut runtime = Runtime::new().unwrap();
     // let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
-    runtime.block_on(
+    runtime.block_on_all(
         TcpStream::connect(&addr).and_then(|stream| {
             Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
@@ -80,6 +80,4 @@ fn main() {
             })
         }).map_err(|err| eprintln!("error: {:?}", err))
     ).expect("runtime exited with failure");
-
-    runtime.shutdown_on_idle().wait().expect("runtime shutdown exited with error");
 }

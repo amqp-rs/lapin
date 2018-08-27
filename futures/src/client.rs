@@ -187,7 +187,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   ///         handle.stop();
   ///         Ok(())
   ///     });
-  /// Runtime::new().unwrap().block_on(
+  /// Runtime::new().unwrap().block_on_all(
   ///     f.map_err(|e| eprintln!("An error occured: {}", e))
   /// ).expect("runtime exited with failure");
   /// # }

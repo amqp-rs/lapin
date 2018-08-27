@@ -32,7 +32,7 @@ use lapin::types::FieldTable;
 fn main() {
   let addr = "127.0.0.1:5672".parse().unwrap();
 
-  Runtime::new().unwrap().block_on(
+  Runtime::new().unwrap().block_on_all(
     TcpStream::connect(&addr).and_then(|stream| {
 
       // connect() returns a future of an AMQP Client
@@ -82,7 +82,7 @@ fn main() {
 
   let addr = "127.0.0.1:5672".parse().unwrap();
 
-  Runtime::new().unwrap().block_on(
+  Runtime::new().unwrap().block_on_all(
     TcpStream::connect(&addr).and_then(|stream| {
 
       // connect() returns a future of an AMQP Client

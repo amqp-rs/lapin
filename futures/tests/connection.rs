@@ -19,7 +19,7 @@ fn connection() {
 
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
-  Runtime::new().unwrap().block_on(
+  Runtime::new().unwrap().block_on_all(
     TcpStream::connect(&addr).and_then(|stream| {
       lapin::client::Client::connect(stream, ConnectionOptions::default())
     }).and_then(|(client, _)| {
