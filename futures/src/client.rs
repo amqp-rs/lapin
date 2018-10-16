@@ -82,7 +82,7 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
     };
 
     future::select_all(vec![
-        future::Either::A(rx.map(|_| debug!("Stopping heartbeat")).or_else(|_| future::empty())),
+        future::Either::A(rx.map(|_| debug!("Stopping heartbeat")).or_else(|_| future::ok(()))),
         future::Either::B(future::result(interval).or_else(|_| future::empty()).and_then(move |interval| {
             interval.for_each(move |_| {
                 debug!("poll heartbeat");
