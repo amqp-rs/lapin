@@ -140,3 +140,4 @@ pub mod consumer;
 pub mod queue;
 pub mod message;
 pub mod types;
+pub mod uri;

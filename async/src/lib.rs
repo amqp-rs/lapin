@@ -132,3 +132,4 @@ pub mod message;
 pub mod api;
 pub mod error;
 pub mod types;
+pub mod uri;
