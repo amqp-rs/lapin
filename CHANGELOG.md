@@ -1,3 +1,10 @@
+### 0.14.0 (2018-10-17)
+
+#### Housekeeping
+
+* Update amq-protocol dependency
+* Reexport `amq_protocol::uri`
+
 ### 0.13.0 (2018-07-09)
 
 #### Features
