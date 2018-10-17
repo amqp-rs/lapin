@@ -17,8 +17,8 @@ use lapin::channel::{BasicProperties, BasicPublishOptions, ConfirmSelectOptions,
 fn main() {
     env_logger::init();
 
-    let addr        = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
-    let mut runtime = Runtime::new().unwrap();
+    let addr    = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+    let runtime = Runtime::new().unwrap();
 
     runtime.block_on_all(
         TcpStream::connect(&addr).and_then(|stream| {

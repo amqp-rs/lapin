@@ -335,12 +335,12 @@ mod tests {
 
     let mut codec = AMQPCodec { frame_max: 8192 };
     let mut buffer = BytesMut::with_capacity(8192);
-    let frame = AMQPFrame::Header(0, 10, AMQPContentHeader {
+    let frame = AMQPFrame::Header(0, 10, Box::new(AMQPContentHeader {
       class_id: 10,
       weight: 0,
       body_size: 64,
       properties: BasicProperties::default()
-    });
+    }));
     let r = codec.encode(frame, &mut buffer);
     assert_eq!(false, r.is_err());
     assert_eq!(22, buffer.len());

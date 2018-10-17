@@ -20,7 +20,7 @@ tokio-io = "^0.1"
 tokio-timer = "^0.2"
 lapin-async = {version = "^0.13", path = "../async"}
 cookie-factory = "^0.2"
-amq-protocol = "^0.22"
+amq-protocol = "^0.23"
 
 [dev-dependencies]
 env_logger = "^0.5"
