@@ -9,7 +9,6 @@ documentation = "https://docs.rs/lapin-async"
 keywords = ["amqp", "rabbitmq", "mio"]
 categories = ["database"]
 license = "MIT"
-build = "build.rs"
 
 [dependencies]
 log = "^0.4"
@@ -21,13 +20,8 @@ amq-protocol = "^0.23"
 version= "^0.4"
 default-features = false
 
-[build-dependencies]
-amq-protocol = "^0.23"
-
 [dev-dependencies]
 env_logger = "^0.5"
 
 [features]
 default = []
-
-
