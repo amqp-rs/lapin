@@ -6,13 +6,31 @@ use nom::Offset;
 use cookie_factory::GenError;
 use bytes::{BufMut, BytesMut};
 use std::cmp;
+use std::io;
 use std::iter::repeat;
-use std::io::{self,Error,ErrorKind};
 use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future};
 use tokio_codec::{Decoder,Encoder,Framed};
 use tokio_io::{AsyncRead,AsyncWrite};
+
 use channel::BasicProperties;
 use client::ConnectionOptions;
+use error::Error;
+
+#[derive(Fail, Debug)]
+pub enum CodecError {
+  #[fail(display = "IO Error: {}", _0)]
+  IoError(io::Error),
+  #[fail(display = "Couldn't parse incoming frame")]
+  ParseError,
+  #[fail(display = "Couldn't generate outcoming frame")]
+  GenerationError,
+}
+
+impl From<io::Error> for CodecError {
+  fn from(err: io::Error) -> Self {
+    CodecError::IoError(err)
+  }
+}
 
 /// During my testing, it appeared to be the "best" value.
 /// To fine-tune it, use a queue with a very large amount of messages, consume it and compare the
@@ -30,15 +48,15 @@ pub struct AMQPCodec {
 
 impl Decoder for AMQPCodec {
     type Item = AMQPFrame;
-    type Error = io::Error;
+    type Error = CodecError;
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<AMQPFrame>, io::Error> {
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<AMQPFrame>, CodecError> {
         let (consumed, f) = match parse_frame(buf) {
           Err(e) => {
             if e.is_incomplete() {
               return Ok(None);
             } else {
-              return Err(io::Error::new(io::ErrorKind::Other, format!("parse error: {:?}", e)));
+              return Err(CodecError::ParseError);
             }
           },
           Ok((i, frame)) => {
@@ -56,7 +74,7 @@ impl Decoder for AMQPCodec {
 
 impl Encoder for AMQPCodec {
     type Item = AMQPFrame;
-    type Error = io::Error;
+    type Error = CodecError;
 
     fn encode(&mut self, frame: AMQPFrame, buf: &mut BytesMut) -> Result<(), Self::Error> {
       let frame_max = cmp::max(self.frame_max, 8192) as usize;
@@ -87,7 +105,7 @@ impl Encoder for AMQPCodec {
           },
           Err(e) => {
             error!("error generating frame: {:?}", e);
-            return Err(Error::new(ErrorKind::InvalidData, "could not generate"));
+            return Err(CodecError::GenerationError);
           }
         }
       }
@@ -109,17 +127,16 @@ impl<T> AMQPTransport<T>
   /// starts the connection process
   ///
   /// returns a future of a `AMQPTransport` that is connected
-  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = io::Error> + Send + 'static {
+  pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = Error> + Send + 'static {
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
     conn.set_frame_max(options.frame_max);
     conn.set_heartbeat(options.heartbeat);
 
-    future::result(conn.connect()).map_err(|e| {
-      let err = format!("Failed to connect: {:?}", e);
-      Error::new(ErrorKind::ConnectionAborted, err)
-    }).and_then(|_| {
+    future::result(conn.connect())
+      .map_err(|e| Error::new(format!("Failed to connect: {:?}", e)))
+      .and_then(|_| {
         let codec = AMQPCodec {
           frame_max: conn.configuration.frame_max,
         };
@@ -156,7 +173,7 @@ impl<T> AMQPTransport<T>
   }
 
   /// Preemptively send an heartbeat frame
-  pub fn send_heartbeat(&mut self) -> Poll<(), io::Error> {
+  pub fn send_heartbeat(&mut self) -> Poll<(), Error> {
     if let Some(frame) = self.heartbeat.take() {
       self.conn.frame_queue.push_front(frame);
     }
@@ -176,14 +193,13 @@ impl<T> AMQPTransport<T>
   ///
   /// * In case of error, it will return `Err(e)`
   /// * If the socket was closed, it will return `Ok(Async::Ready(()))`
-  fn poll_recv(&mut self) -> Poll<(), io::Error> {
+  fn poll_recv(&mut self) -> Poll<(), Error> {
     for _ in 0..POLL_RECV_LIMIT {
       match self.upstream.poll() {
         Ok(Async::Ready(Some(frame))) => {
           trace!("transport poll_recv; frame={:?}", frame);
           if let Err(e) = self.conn.handle_frame(frame) {
-            let err = format!("failed to handle frame: {:?}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, err));
+            return Err(Error::new(format!("failed to handle frame: {:?}", e)));
           }
         },
         Ok(Async::Ready(None)) => {
@@ -196,7 +212,7 @@ impl<T> AMQPTransport<T>
         },
         Err(e) => {
           error!("transport poll_recv; status=Err({:?})", e);
-          return Err(From::from(e));
+          return Err(Error::new(e.to_string()));
         },
       };
     }
@@ -204,17 +220,20 @@ impl<T> AMQPTransport<T>
   }
 
   /// Poll the network to send outcoming frames.
-  fn poll_send(&mut self) -> Poll<(), io::Error> {
+  fn poll_send(&mut self) -> Poll<(), Error> {
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
-      match self.start_send(frame)? {
-        AsyncSink::Ready => {
+      match self.start_send(frame) {
+        Ok(AsyncSink::Ready) => {
           trace!("transport poll_send; status=Ready");
         },
-        AsyncSink::NotReady(frame) => {
+        Ok(AsyncSink::NotReady(frame)) => {
           trace!("transport poll_send; status=NotReady");
           self.conn.frame_queue.push_front(frame);
           return Ok(Async::NotReady);
+        },
+        Err(e) => {
+          return Err(Error::new(e.to_string()));
         }
       }
     }
@@ -227,13 +246,13 @@ impl<T> Stream for AMQPTransport<T>
           T: Send,
           T: 'static {
     type Item = ();
-    type Error = io::Error;
+    type Error = Error;
 
-    fn poll(&mut self) -> Poll<Option<()>, io::Error> {
+    fn poll(&mut self) -> Poll<Option<()>, Error> {
       trace!("transport poll");
       if let Async::Ready(()) = self.poll_recv()? {
         trace!("poll transport; status=Ready");
-        return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The connection was closed by the remote peer"));
+        return Err(Error::new("The connection was closed by the remote peer"));
       }
       self.poll_send().map(|r| r.map(Some))
     }
@@ -244,16 +263,18 @@ impl <T> Sink for AMQPTransport<T>
           T: Send,
           T: 'static {
     type SinkItem = AMQPFrame;
-    type SinkError = io::Error;
+    type SinkError = Error;
 
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         trace!("transport start_send; frame={:?}", frame);
         self.upstream.start_send(frame)
+          .map_err(|e| Error::new(e.to_string()))
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         trace!("transport poll_complete");
         self.upstream.poll_complete()
+          .map_err(|e| Error::new(e.to_string()))
     }
 }
 
@@ -271,7 +292,7 @@ impl<T> Future for AMQPTransportConnector<T>
           T: 'static {
 
   type Item  = AMQPTransport<T>;
-  type Error = io::Error;
+  type Error = Error;
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
     trace!("connector poll; has_transport={:?}", !self.transport.is_none());
@@ -295,7 +316,7 @@ macro_rules! lock_transport (
         match $t.lock() {
             Ok(t) => t,
             Err(_) => if $t.is_poisoned() {
-                return Err(io::Error::new(io::ErrorKind::Other, "Transport mutex is poisoned"))
+                return Err(Error::new("Transport mutex is poisoned"))
             } else {
                 task::current().notify();
                 return Ok(Async::NotReady)

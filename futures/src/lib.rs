@@ -18,9 +18,11 @@
 //! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
+//! extern crate failure;
 //! extern crate futures;
 //! extern crate tokio;
 //!
+//! use failure::Error;
 //! use futures::future::Future;
 //! use futures::Stream;
 //! use tokio::net::TcpStream;
@@ -33,16 +35,18 @@
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!     TcpStream::connect(&addr).and_then(|stream| {
+//!     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
 //!       lapin::client::Client::connect(stream, ConnectionOptions::default())
+//!           .map_err(Error::from)
 //!    }).and_then(|(client, _ /* heartbeat */)| {
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel()
+//!           .map_err(Error::from)
 //!     }).and_then(|channel| {
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
@@ -54,7 +58,7 @@
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
 //!         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
-//!       })
+//!       }).map_err(Error::from)
 //!     })
 //!   ).expect("runtime failure");
 //! }
@@ -65,9 +69,11 @@
 //! ```rust,no_run
 //! #[macro_use] extern crate log;
 //! extern crate lapin_futures as lapin;
+//! extern crate failure;
 //! extern crate futures;
 //! extern crate tokio;
 //!
+//! use failure::Error;
 //! use futures::future::Future;
 //! use futures::Stream;
 //! use tokio::net::TcpStream;
@@ -80,11 +86,12 @@
 //!   let addr = "127.0.0.1:5672".parse().unwrap();
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!     TcpStream::connect(&addr).and_then(|stream| {
+//!     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
 //!
 //!       // connect() returns a future of an AMQP Client
 //!       // that resolves once the handshake is done
 //!       lapin::client::Client::connect(stream, ConnectionOptions::default())
+//!           .map_err(Error::from)
 //!    }).and_then(|(client, heartbeat)| {
 //!      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
 //!      // dispatching events on time.
@@ -94,7 +101,7 @@
 //!
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
-//!       client.create_channel()
+//!       client.create_channel().map_err(Error::from)
 //!     }).and_then(|channel| {
 //!       let id = channel.id;
 //!       info!("created channel with id: {}", id);
@@ -115,7 +122,7 @@
 //!           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
 //!           ch.basic_ack(message.delivery_tag, false)
 //!         })
-//!       })
+//!       }).map_err(Error::from)
 //!     })
 //!   ).expect("runtime failure");
 //! }
@@ -125,6 +132,7 @@
 extern crate amq_protocol;
 extern crate cookie_factory;
 extern crate bytes;
+#[macro_use] extern crate failure;
 extern crate futures;
 extern crate lapin_async;
 #[macro_use] extern crate log;
@@ -137,6 +145,7 @@ extern crate tokio_timer;
 pub mod client;
 pub mod channel;
 pub mod consumer;
+pub mod error;
 pub mod queue;
 pub mod message;
 pub mod types;

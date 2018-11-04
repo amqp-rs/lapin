@@ -1,9 +1,11 @@
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
+extern crate failure;
 extern crate futures;
 extern crate tokio;
 extern crate env_logger;
 
+use failure::Error;
 use futures::Stream;
 use futures::future::Future;
 use tokio::net::TcpStream;
@@ -20,8 +22,8 @@ fn connection() {
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
   Runtime::new().unwrap().block_on_all(
-    TcpStream::connect(&addr).and_then(|stream| {
-      lapin::client::Client::connect(stream, ConnectionOptions::default())
+    TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
+      lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
     }).and_then(|(client, _)| {
 
       client.create_channel().and_then(|channel| {
@@ -62,7 +64,7 @@ fn connection() {
             ch2.queue_delete("hello", QueueDeleteOptions::default())
           })
         })
-      })
+      }).map_err(Error::from)
     })
   ).expect("runtime failure");
 }

@@ -1,7 +1,6 @@
 use amq_protocol::uri::AMQPUri;
 use lapin_async;
 use std::default::Default;
-use std::io;
 use std::str::FromStr;
 use futures::{future,task,Async,Future,Poll,Stream};
 use futures::sync::oneshot;
@@ -12,6 +11,7 @@ use std::time::{Duration,Instant};
 
 use transport::*;
 use channel::{Channel, ConfirmSelectOptions};
+use error::Error;
 
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
@@ -63,22 +63,22 @@ impl Default for ConnectionOptions {
 }
 
 impl FromStr for ConnectionOptions {
-    type Err = String;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uri = AMQPUri::from_str(s)?;
+        let uri = AMQPUri::from_str(s).map_err(|e| Error::new(e.to_string()))?;
         Ok(ConnectionOptions::from_uri(uri))
     }
 }
 
 pub type ConnectionConfiguration = lapin_async::connection::Configuration;
 
-fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = Error> + Send + 'static {
     let interval  = if heartbeat == 0 {
         Err(())
     } else {
         Ok(Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
-           .map_err(|err| io::Error::new(io::ErrorKind::Other, err)))
+           .map_err(|err| Error::new(err.to_string())))
     };
 
     future::select_all(vec![
@@ -161,20 +161,24 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   /// # Example
   ///
   /// ```
+  /// # extern crate failure;
   /// # extern crate lapin_futures;
   /// # extern crate tokio;
   /// #
   /// # use tokio::prelude::*;
   /// #
   /// # fn main() {
+  /// use failure::Error;
+  /// use lapin_futures::client::{Client, ConnectionOptions};
   /// use tokio::net::TcpStream;
   /// use tokio::runtime::Runtime;
-  /// use lapin_futures::client::{Client, ConnectionOptions};
   ///
   /// let addr = "127.0.0.1:5672".parse().unwrap();
   /// let f = TcpStream::connect(&addr)
+  ///     .map_err(Error::from)
   ///     .and_then(|stream| {
   ///         Client::connect(stream, ConnectionOptions::default())
+  ///             .map_err(Error::from)
   ///     })
   ///     .and_then(|(client, mut heartbeat)| {
   ///         let handle = heartbeat.handle().unwrap();
@@ -193,7 +197,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   /// # }
   /// ```
   pub fn connect(stream: T, options: ConnectionOptions) ->
-    impl Future<Item = (Self, Heartbeat<impl Future<Item = (), Error = io::Error> + Send + 'static>), Error = io::Error> + Send + 'static
+    impl Future<Item = (Self, Heartbeat<impl Future<Item = (), Error = Error> + Send + 'static>), Error = Error> + Send + 'static
   {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
@@ -216,13 +220,13 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   /// creates a new channel
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
-  pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = io::Error> + Send + 'static {
+  pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = Error> + Send + 'static {
     Channel::create(self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
-  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = io::Error> + Send + 'static {
+  pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = Error> + Send + 'static {
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
     //but not on the confirm channel. And the basic publish method should have different results

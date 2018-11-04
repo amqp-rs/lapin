@@ -1,4 +1,3 @@
-use std::io::{self,Error,ErrorKind};
 use futures::{Async,Future,future,Poll,Stream,task};
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::sync::{Arc,Mutex};
@@ -6,6 +5,7 @@ use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
 
+use error::Error;
 use transport::*;
 use message::BasicGetMessage;
 use types::FieldTable;
@@ -259,7 +259,7 @@ pub struct ChannelFlowOptions {
 
 impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
-    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> impl Future<Item = Self, Error = io::Error> + Send + 'static {
+    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>) -> impl Future<Item = Self, Error = Error> + Send + 'static {
         let channel_transport = transport.clone();
 
         future::poll_fn(move || {
@@ -270,7 +270,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     transport: channel_transport.clone(),
                 }))
             } else {
-                return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "The maximum number of channels for this connection has been reached"));
+                return Err(Error::new("The maximum number of channels for this connection has been reached"));
             }
         }).and_then(|channel| {
             let channel_id = channel.id;
@@ -282,8 +282,8 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
 
                     match transport.conn.get_state(channel_id) {
                         Some(ChannelState::Connected) => return Ok(Async::Ready(())),
-                        Some(ChannelState::Error)     => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
-                        Some(ChannelState::Closed)    => return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open channel"))),
+                        Some(ChannelState::Error)     => return Err(Error::new("Failed to open channel")),
+                        Some(ChannelState::Closed)    => return Err(Error::new("Failed to open channel")),
                         _                             => {
                             task::current().notify();
                             return Ok(Async::NotReady);
@@ -299,7 +299,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// request access
     ///
     /// returns a future that resolves once the access is granted
-    pub fn access_request(&self, realm: &str, options: AccessRequestOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn access_request(&self, realm: &str, options: AccessRequestOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let realm = realm.to_string();
 
@@ -312,7 +312,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// declares an exchange
     ///
     /// returns a future that resolves once the exchange is available
-    pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: ExchangeDeclareOptions, arguments: FieldTable) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn exchange_declare(&self, name: &str, exchange_type: &str, options: ExchangeDeclareOptions, arguments: FieldTable) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let name = name.to_string();
         let exchange_type = exchange_type.to_string();
@@ -326,7 +326,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// deletes an exchange
     ///
     /// returns a future that resolves once the exchange is deleted
-    pub fn exchange_delete(&self, name: &str, options: ExchangeDeleteOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn exchange_delete(&self, name: &str, options: ExchangeDeleteOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let name = name.to_string();
 
@@ -339,7 +339,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// binds an exchange to another exchange
     ///
     /// returns a future that resolves once the exchanges are bound
-    pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeBindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn exchange_bind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeBindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let destination = destination.to_string();
         let source = source.to_string();
@@ -354,7 +354,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// unbinds an exchange from another one
     ///
     /// returns a future that resolves once the exchanges are unbound
-    pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeUnbindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn exchange_unbind(&self, destination: &str, source: &str, routing_key: &str, options: ExchangeUnbindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let destination = destination.to_string();
         let source = source.to_string();
@@ -372,7 +372,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     ///
     /// the `mandatory` and `ìmmediate` options can be set to true,
     /// but the return message will not be handled
-    pub fn queue_declare(&self, name: &str, options: QueueDeclareOptions, arguments: FieldTable) -> impl Future<Item = Queue, Error = io::Error> + Send + 'static {
+    pub fn queue_declare(&self, name: &str, options: QueueDeclareOptions, arguments: FieldTable) -> impl Future<Item = Queue, Error = Error> + Send + 'static {
         let channel_id = self.id;
         let name = name.to_string();
         let transport = self.transport.clone();
@@ -401,7 +401,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// binds a queue to an exchange
     ///
     /// returns a future that resolves once the queue is bound to the exchange
-    pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueBindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn queue_bind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueBindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let name = name.to_string();
         let exchange = exchange.to_string();
@@ -416,7 +416,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// unbinds a queue from the exchange
     ///
     /// returns a future that resolves once the queue is unbound from the exchange
-    pub fn queue_unbind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueUnbindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn queue_unbind(&self, name: &str, exchange: &str, routing_key: &str, options: QueueUnbindOptions, arguments: FieldTable) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let name = name.to_string();
         let exchange = exchange.to_string();
@@ -428,7 +428,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// sets up confirm extension for this channel
-    pub fn confirm_select(&self, options: ConfirmSelectOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn confirm_select(&self, options: ConfirmSelectOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("confirm_select", "Could not activate confirm extension", move |transport| {
@@ -437,7 +437,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// specifies quality of service for a channel
-    pub fn basic_qos(&self, options: BasicQosOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_qos(&self, options: BasicQosOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_qos", "Could not setup qos", move |transport| {
@@ -450,7 +450,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// the future's result is:
     /// - `Some(request_id)` if we're on a confirm channel and the message was ack'd
     /// - `None` if we're not on a confirm channel or the message was nack'd
-    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static {
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static {
         let channel_id = self.id;
         let exchange = exchange.to_string();
         let routing_key = routing_key.to_string();
@@ -483,7 +483,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     ///
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
-    pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer<T>, Error = io::Error> + Send + 'static {
+    pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer<T>, Error = Error> + Send + 'static {
         let channel_id = self.id;
         let transport = self.transport.clone();
         let consumer_tag = consumer_tag.to_string();
@@ -512,7 +512,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// acks a message
-    pub fn basic_ack(&self, delivery_tag: u64, multiple: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_ack(&self, delivery_tag: u64, multiple: bool) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_ack", "Could not ack message", move |transport| {
@@ -521,7 +521,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// nacks a message
-    pub fn basic_nack(&self, delivery_tag: u64, multiple: bool, requeue: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_nack(&self, delivery_tag: u64, multiple: bool, requeue: bool) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_nack", "Could not nack message", move |transport| {
@@ -530,7 +530,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// rejects a message
-    pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn basic_reject(&self, delivery_tag: u64, requeue: bool) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_reject", "Could not reject message", move |transport| {
@@ -539,7 +539,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// gets a message
-    pub fn basic_get(&self, queue: &str, options: BasicGetOptions) -> impl Future<Item = BasicGetMessage, Error = io::Error> + Send + 'static {
+    pub fn basic_get(&self, queue: &str, options: BasicGetOptions) -> impl Future<Item = BasicGetMessage, Error = Error> + Send + 'static {
         let channel_id = self.id;
         let _queue = queue.to_string();
         let queue = queue.to_string();
@@ -560,7 +560,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                 Some(answer) => if answer {
                     Ok(Async::Ready(Some(request_id)))
                 } else {
-                    Err(Error::new(ErrorKind::Other, "basic get returned empty"))
+                    Err(Error::new("basic get returned empty"))
                 },
                 None         => {
                     task::current().notify();
@@ -573,7 +573,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// Purge a queue.
     ///
     /// This method removes all messages from a queue which are not awaiting acknowledgment.
-    pub fn queue_purge(&self, queue_name: &str, options: QueuePurgeOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn queue_purge(&self, queue_name: &str, options: QueuePurgeOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let queue_name = queue_name.to_string();
 
@@ -591,7 +591,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// If the queue has consumers the server does not delete it but raises a channel exception instead.
     ///
     /// If `if_empty` is set, the server will only delete the queue if it has no messages.
-    pub fn queue_delete(&self, queue_name: &str, options: QueueDeleteOptions) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn queue_delete(&self, queue_name: &str, options: QueueDeleteOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let queue_name = queue_name.to_string();
 
@@ -601,7 +601,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// closes the channel
-    pub fn close(&self, code: u16, message: &str) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn close(&self, code: u16, message: &str) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
         let message = message.to_string();
 
@@ -611,7 +611,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// ack a channel close
-    pub fn close_ok(&self) -> impl Future<Item = (), Error = io::Error> + Send + 'static {
+    pub fn close_ok(&self) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("close_ok", "Could not ack closed channel", move |transport| {
@@ -620,7 +620,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// update a channel flow
-    pub fn channel_flow(&self, options: ChannelFlowOptions) -> impl Future<Item = (), Error=io::Error> + Send + 'static {
+    pub fn channel_flow(&self, options: ChannelFlowOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("channel_flow", "Could not update channel flow", move |transport| {
@@ -629,7 +629,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// ack an update to a channel flow
-    pub fn channel_flow_ok(&self, options: ChannelFlowOptions) -> impl Future<Item = (), Error=io::Error> + Send + 'static {
+    pub fn channel_flow_ok(&self, options: ChannelFlowOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let channel_id = self.id;
 
         self.run_on_locked_transport("channel_flow_ok", "Could not ack update to channel flow", move |transport| {
@@ -637,9 +637,9 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         }).map(|_| ())
     }
 
-    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static
         where Action:   'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
-              Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
+              Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, Error> {
         trace!("run on locked transport; method={:?}", method);
         let channel_id = self.id;
         let transport = self.transport.clone();
@@ -661,7 +661,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             // FnMut can be called several time and action which is an FnOnce can only be called
             // once (which is implemented as a ownership transfer).
             match action.take().unwrap()(&mut transport) {
-                Err(e)         => Err(Error::new(ErrorKind::Other, format!("{}: {:?}", error, e))),
+                Err(e)         => Err(Error::new(format!("{}: {:?}", error, e))),
                 Ok(request_id) => {
                     trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
 
@@ -689,7 +689,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         })
     }
 
-    fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, io::Error> {
+    fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, Error> {
         match conn.is_finished(request_id) {
             Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
             _                      => {
@@ -699,14 +699,14 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         }
     }
 
-    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> impl Future<Item = Option<RequestId>, Error = io::Error> + Send + 'static
+    fn run_on_locked_transport<Action>(&self, method: &str, error: &str, action: Action) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static
         where Action: 'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error> {
         self.run_on_locked_transport_full(method, error, action, Self::run_on_lock_transport_basic_finished, None)
     }
 
     /// internal method to wait until a request succeeds
-    pub fn wait_for_answer<Finished>(tr: &mut AMQPTransport<T>, request_id: RequestId, finished: &Finished) -> Poll<Option<RequestId>, io::Error>
-        where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, io::Error> {
+    pub fn wait_for_answer<Finished>(tr: &mut AMQPTransport<T>, request_id: RequestId, finished: &Finished) -> Poll<Option<RequestId>, Error>
+        where Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, Error> {
             trace!("wait for answer; request_id={:?}", request_id);
             tr.poll()?;
             trace!("wait for answer transport poll; request_id={:?} status=NotReady", request_id);

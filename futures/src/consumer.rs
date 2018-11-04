@@ -2,9 +2,9 @@ use futures::{Async,Poll,Stream,task};
 use lapin_async::consumer::ConsumerSubscriber;
 use tokio_io::{AsyncRead,AsyncWrite};
 use std::collections::VecDeque;
-use std::io;
 use std::sync::{Arc,Mutex};
 
+use error::Error;
 use message::Delivery;
 use transport::*;
 
@@ -76,16 +76,16 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
 
 impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   type Item = Delivery;
-  type Error = io::Error;
+  type Error = Error;
 
-  fn poll(&mut self) -> Poll<Option<Delivery>, io::Error> {
+  fn poll(&mut self) -> Poll<Option<Delivery>, Error> {
     trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
     let mut transport = lock_transport!(self.transport);
     transport.poll()?;
     let mut inner = match self.inner.lock() {
       Ok(inner) => inner,
       Err(_)    => if self.inner.is_poisoned() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Consumer mutex is poisoned"))
+        return Err(Error::new("Consumer mutex is poisoned"))
       } else {
         task::current().notify();
         return Ok(Async::NotReady)
