@@ -1,3 +1,14 @@
+### 0.14.1 (2018-11-16)
+
+#### Housekeeping
+
+* Update `env_logger`
+* Drop unused `build.rs` from async
+
+#### Bug Fixes
+
+* Fix heartbeat interval
+
 ### 0.14.0 (2018-10-17)
 
 #### Housekeeping
