@@ -21,7 +21,7 @@ version= "^0.4"
 default-features = false
 
 [dev-dependencies]
-env_logger = "^0.5"
+env_logger = "^0.6"
 
 [features]
 default = []

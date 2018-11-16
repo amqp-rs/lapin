@@ -23,5 +23,5 @@ cookie-factory = "^0.2"
 amq-protocol = "^0.23"
 
 [dev-dependencies]
-env_logger = "^0.5"
+env_logger = "^0.6"
 tokio = "^0.1.8"
