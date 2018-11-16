@@ -199,9 +199,14 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
       debug!("got client service");
       let configuration = transport.conn.configuration.clone();
       let transport = Arc::new(Mutex::new(transport));
+      // The configured value is the timeout, not the interval.
+      // rabbitmq-server uses half that time as the periodicity for the heartbeat.
+      // Let's do the same.
+      let heartbeat_interval =  configuration.heartbeat / 2;
       let heartbeat = make_heartbeat(|rx| {
-        debug!("heartbeat; interval={}", configuration.heartbeat);
-        heartbeat_pulse(transport.clone(), configuration.heartbeat, rx)
+        debug!("heartbeat; timeout={}; interval={}", configuration.heartbeat, heartbeat_interval);
+
+        heartbeat_pulse(transport.clone(), heartbeat_interval, rx)
       });
       let client = Client { configuration, transport };
       Ok((client, heartbeat))
