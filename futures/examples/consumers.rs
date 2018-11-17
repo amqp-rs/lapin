@@ -54,12 +54,17 @@ fn main() {
                 ..Default::default()
             }).map_err(Error::from)
         }).and_then(|(client, heartbeat)| {
-            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-                .into_future().map(|_| client).map_err(|_| err_msg("spawn error"))
+            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)))
+                .into_future()
+                .map(|_| client)
+                .map_err(|_| err_msg("Couldn't spawn the heartbeat task"))
         }).and_then(|client| {
             let _client = client.clone();
-            futures::stream::iter_ok(0..N_CONSUMERS).for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
-                .into_future().map(move |_| client).map_err(|_| err_msg("spawn error"))
+            futures::stream::iter_ok(0..N_CONSUMERS)
+                .for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
+                .into_future()
+                .map(move |_| client)
+                .map_err(|_| err_msg("Couldn't spawn the consumer task"))
         }).and_then(|client| {
             client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
                 futures::stream::iter_ok((0..N_CONSUMERS).flat_map(|c| {
@@ -78,6 +83,6 @@ fn main() {
                     })
                 })
             }).map_err(Error::from)
-        }).map_err(|err| eprintln!("error: {:?}", err))
+        }).map_err(|err| eprintln!("An error occured: {}", err))
     ).expect("runtime exited with failure");
 }

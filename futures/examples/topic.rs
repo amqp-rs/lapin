@@ -28,20 +28,24 @@ fn main() {
                 ..Default::default()
             }).map_err(Error::from)
         }).and_then(|(client, heartbeat)| {
-            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-                .into_future().map(|_| client).map_err(|_| err_msg("spawn error"))
+            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)))
+                .into_future()
+                .map(|_| client)
+                .map_err(|_| err_msg("spawn error"))
         }).and_then(|client| {
-            client.create_confirm_channel(ConfirmSelectOptions::default()).map_err(Error::from)
-        }).and_then(|channel| {
-            channel.clone().exchange_declare("hello_topic", "topic", ExchangeDeclareOptions::default(), FieldTable::new()).map(move |_| channel).map_err(Error::from)
-        }).and_then(|channel| {
-            channel.clone().queue_declare("topic_queue", QueueDeclareOptions::default(), FieldTable::new()).map(move |_| channel).map_err(Error::from)
-        }).and_then(|channel| {
-            channel.clone().queue_bind("topic_queue", "hello_topic", "*.foo.*", QueueBindOptions::default(), FieldTable::new()).map(move |_| channel).map_err(Error::from)
-        }).and_then(|channel| {
-            channel.basic_publish("hello_topic", "hello.fooo.bar", b"hello".to_vec(), BasicPublishOptions::default(), BasicProperties::default()).map(|confirmation| {
-                println!("got confirmation of publication: {:?}", confirmation);
-            }).map_err(Error::from)
-        }).map_err(|err| eprintln!("error: {:?}", err))
+            client.create_confirm_channel(ConfirmSelectOptions::default())
+                .and_then(|channel| {
+                    channel.clone().exchange_declare("hello_topic", "topic", ExchangeDeclareOptions::default(), FieldTable::new()).map(move |_| channel)
+                }).and_then(|channel| {
+                    channel.clone().queue_declare("topic_queue", QueueDeclareOptions::default(), FieldTable::new()).map(move |_| channel)
+                }).and_then(|channel| {
+                    channel.clone().queue_bind("topic_queue", "hello_topic", "*.foo.*", QueueBindOptions::default(), FieldTable::new()).map(move |_| channel)
+                }).and_then(|channel| {
+                    channel.basic_publish("hello_topic", "hello.fooo.bar", b"hello".to_vec(), BasicPublishOptions::default(), BasicProperties::default()).map(|confirmation| {
+                        println!("got confirmation of publication: {:?}", confirmation);
+                    })
+                })
+                .map_err(Error::from)
+        }).map_err(|err| eprintln!("An error occured: {}", err))
     ).expect("runtime exited with failure");
 }

@@ -26,7 +26,7 @@ fn main() {
         ..Default::default()
       }).map_err(Error::from)
     }).and_then(|(client, heartbeat)| {
-      tokio::spawn(heartbeat.map_err(|e| eprintln!("{:?}", e)));
+      tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
@@ -85,6 +85,6 @@ fn main() {
           })
         })
       }).map_err(Error::from)
-    }).map_err(|err| eprintln!("error: {:?}", err))
+    }).map_err(|err| eprintln!("An error occured: {}", err))
   ).expect("runtime exited with failure")
 }
