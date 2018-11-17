@@ -20,8 +20,8 @@ use error::Error;
 pub enum CodecError {
   #[fail(display = "IO Error: {}", _0)]
   IoError(io::Error),
-  #[fail(display = "Couldn't parse incoming frame")]
-  ParseError,
+  #[fail(display = "Couldn't parse incoming frame: {}", _0)]
+  ParseError(String),
   #[fail(display = "Couldn't generate outcoming frame: {:?}", _0)]
   GenerationError(GenError),
 }
@@ -56,7 +56,7 @@ impl Decoder for AMQPCodec {
             if e.is_incomplete() {
               return Ok(None);
             } else {
-              return Err(CodecError::ParseError);
+              return Err(CodecError::ParseError(format!("{:?}", e)));
             }
           },
           Ok((i, frame)) => {
