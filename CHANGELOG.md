@@ -1,3 +1,10 @@
+### Unreleased
+
+#### Breaking Changes
+
+* **futures:**
+  * Introduce a new `Error` type, replacing occurences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/145))
+
 ### 0.14.1 (2018-11-16)
 
 #### Housekeeping
@@ -8,7 +15,6 @@
 #### Bug Fixes
 
 * Fix heartbeat interval
-
 ### 0.14.0 (2018-10-17)
 
 #### Housekeeping

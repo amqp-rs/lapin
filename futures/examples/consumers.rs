@@ -2,11 +2,11 @@ extern crate env_logger;
 extern crate lapin_futures as lapin;
 #[macro_use]
 extern crate log;
+extern crate failure;
 extern crate futures;
 extern crate tokio;
 
-use std::io;
-
+use failure::{err_msg, Error};
 use futures::future::Future;
 use futures::{IntoFuture, Stream};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -36,7 +36,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
             println!("consumer '{}' got '{}'", n, std::str::from_utf8(&message.data).unwrap());
             channel.basic_ack(message.delivery_tag, false)
         })
-    }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {:?}", n, err))
+    }).map(|_| ()).map_err(move |err| eprintln!("got error in consumer '{}': {}", n, err))
 }
 
 fn main() {
@@ -47,19 +47,24 @@ fn main() {
     // let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
     runtime.block_on_all(
-        TcpStream::connect(&addr).and_then(|stream| {
+        TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
             Client::connect(stream, ConnectionOptions {
                 frame_max: 65535,
                 heartbeat: 20,
                 ..Default::default()
-            })
+            }).map_err(Error::from)
         }).and_then(|(client, heartbeat)| {
-            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-                .into_future().map(|_| client).map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)))
+                .into_future()
+                .map(|_| client)
+                .map_err(|_| err_msg("Couldn't spawn the heartbeat task"))
         }).and_then(|client| {
             let _client = client.clone();
-            futures::stream::iter_ok(0..N_CONSUMERS).for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
-                .into_future().map(move |_| client).map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+            futures::stream::iter_ok(0..N_CONSUMERS)
+                .for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
+                .into_future()
+                .map(move |_| client)
+                .map_err(|_| err_msg("Couldn't spawn the consumer task"))
         }).and_then(|client| {
             client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
                 futures::stream::iter_ok((0..N_CONSUMERS).flat_map(|c| {
@@ -77,7 +82,7 @@ fn main() {
                         })
                     })
                 })
-            })
-        }).map_err(|err| eprintln!("error: {:?}", err))
+            }).map_err(Error::from)
+        }).map_err(|err| eprintln!("An error occured: {}", err))
     ).expect("runtime exited with failure");
 }

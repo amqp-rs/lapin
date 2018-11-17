@@ -1,9 +1,11 @@
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
+extern crate failure;
 extern crate futures;
 extern crate tokio;
 extern crate env_logger;
 
+use failure::Error;
 use futures::future::Future;
 use futures::Stream;
 use tokio::net::TcpStream;
@@ -18,13 +20,13 @@ fn main() {
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
 
   Runtime::new().unwrap().block_on_all(
-    TcpStream::connect(&addr).and_then(|stream| {
+    TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
       lapin::client::Client::connect(stream, ConnectionOptions {
         frame_max: 65535,
         ..Default::default()
-      })
+      }).map_err(Error::from)
     }).and_then(|(client, heartbeat)| {
-      tokio::spawn(heartbeat.map_err(|e| eprintln!("{:?}", e)));
+      tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
         let id = channel.id;
@@ -82,7 +84,7 @@ fn main() {
             c.basic_ack(message.delivery_tag, false)
           })
         })
-      })
-    }).map_err(|err| eprintln!("error: {:?}", err))
+      }).map_err(Error::from)
+    }).map_err(|err| eprintln!("An error occured: {}", err))
   ).expect("runtime exited with failure")
 }
