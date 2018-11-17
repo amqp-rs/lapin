@@ -22,8 +22,8 @@ pub enum CodecError {
   IoError(io::Error),
   #[fail(display = "Couldn't parse incoming frame")]
   ParseError,
-  #[fail(display = "Couldn't generate outcoming frame")]
-  GenerationError,
+  #[fail(display = "Couldn't generate outcoming frame: {:?}", _0)]
+  GenerationError(GenError),
 }
 
 impl From<io::Error> for CodecError {
@@ -105,7 +105,7 @@ impl Encoder for AMQPCodec {
           },
           Err(e) => {
             error!("error generating frame: {:?}", e);
-            return Err(CodecError::GenerationError);
+            return Err(CodecError::GenerationError(e));
           }
         }
       }
