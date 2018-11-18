@@ -11,7 +11,7 @@ use std::time::{Duration,Instant};
 
 use transport::*;
 use channel::{Channel, ConfirmSelectOptions};
-use error::Error;
+use error::{Error, ErrorKind};
 
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
@@ -66,7 +66,7 @@ impl FromStr for ConnectionOptions {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uri = AMQPUri::from_str(s).map_err(|e| Error::new(e.to_string()))?;
+        let uri = AMQPUri::from_str(s).map_err(|e| ErrorKind::InvalidUri(e))?;
         Ok(ConnectionOptions::from_uri(uri))
     }
 }
@@ -78,7 +78,7 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
         Err(())
     } else {
         Ok(Interval::new(Instant::now(), Duration::from_secs(heartbeat.into()))
-           .map_err(|err| Error::new(err.to_string())))
+           .map_err(|e| ErrorKind::HeartbeatTimer(e).into()))
     };
 
     future::select_all(vec![
