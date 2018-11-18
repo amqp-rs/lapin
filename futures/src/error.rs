@@ -1,4 +1,5 @@
 use failure::{Backtrace, Context, Fail};
+use lapin_async;
 use std::fmt;
 use std::io;
 use tokio_timer;
