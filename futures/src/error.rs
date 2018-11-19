@@ -20,11 +20,10 @@ pub struct Error {
 
 /// The different kinds of errors that can be reported.
 ///
-/// This enumeration is deliberately not exported to the end-users of this
-/// crate because it is not yet possible to prevent developers of matching
-/// exhaustively against its variants.
+/// Event though we expose the complete enumeration of possible error variants, it is not
+/// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Debug, Fail)]
-pub(crate) enum ErrorKind {
+pub enum ErrorKind {
     #[fail(display = "The maximum number of channels for this connection has been reached")]
     ChannelLimitReached,
     #[fail(display = "Failed to open channel")]
@@ -50,96 +49,23 @@ pub(crate) enum ErrorKind {
     PoisonedMutex,
     #[fail(display = "{}: {:?}", _0, _1)]
     // FIXME: mark lapin_async's Error as cause once it implements Fail
-    ProtocolError(String, lapin_async::error::Error)
+    ProtocolError(String, lapin_async::error::Error),
+    /// A hack to prevent developers from exhaustively match on the enum's variants
+    ///
+    /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants
+    /// without it being a breaking change for users. It is planned for the language to provide
+    /// this functionnality out of the box, though it has not been [stabilized] yet.
+    ///
+    /// [stabilized]: https://github.com/rust-lang/rust/issues/44109
+    #[doc(hidden)]
+    #[fail(display = "lapin_futures::error::ErrorKind::__Nonexhaustive: this should not be printed")]
+    __Nonexhaustive,
 }
 
 impl Error {
-    /// Returns true if the error is caused by the limit of channels being reached.
-    pub fn is_channel_limit_reached(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::ChannelLimitReached => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a channel that couldn't be opened.
-    pub fn is_channel_open_failed(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::ChannelOpenFailed => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a connection closed unexpectedly.
-    pub fn is_connection_closed(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::ConnectionClosed => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a connection that couldn't be established.
-    pub fn is_connection_failed(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::ConnectionFailed(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a frame that couldn't be decoded.
-    pub fn is_decode(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::Decode(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by the `basic.get` response being empty.
-    pub fn is_empty_basic_get(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::EmptyBasicGet => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a frame that couldn't be encoded.
-    pub fn is_encode(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::Encode(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by the timer used in the heartbeat task.
-    pub fn is_heartbeat_timer(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::HeartbeatTimer(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a malformed AMQP URI.
-    pub fn is_invalid_uri(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::InvalidUri(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a mutex that got poisoned.
-    pub fn is_poisoned_mutex(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::PoisonedMutex => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the error is caused by a protocol error.
-    pub fn is_protocol_error(&self) -> bool {
-        match *self.inner.get_context() {
-            ErrorKind::ProtocolError(_, _) => true,
-            _ => false,
-        }
+    /// Return the underlying `ErrorKind`
+    pub fn kind(&self) -> &ErrorKind {
+        self.inner.get_context()
     }
 }
 
