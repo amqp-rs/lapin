@@ -14,7 +14,7 @@ use tokio_io::{AsyncRead,AsyncWrite};
 
 use channel::BasicProperties;
 use client::ConnectionOptions;
-use error::Error;
+use error::{Error, ErrorKind};
 
 #[derive(Fail, Debug)]
 pub enum CodecError {
@@ -135,7 +135,7 @@ impl<T> AMQPTransport<T>
     conn.set_heartbeat(options.heartbeat);
 
     future::result(conn.connect())
-      .map_err(|e| Error::new(format!("Failed to connect: {:?}", e)))
+      .map_err(|e| ErrorKind::ConnectionFailed(e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
           frame_max: conn.configuration.frame_max,
@@ -199,7 +199,7 @@ impl<T> AMQPTransport<T>
         Ok(Async::Ready(Some(frame))) => {
           trace!("transport poll_recv; frame={:?}", frame);
           if let Err(e) = self.conn.handle_frame(frame) {
-            return Err(Error::new(format!("failed to handle frame: {:?}", e)));
+            return Err(ErrorKind::InvalidFrame(e).into());
           }
         },
         Ok(Async::Ready(None)) => {
@@ -212,7 +212,7 @@ impl<T> AMQPTransport<T>
         },
         Err(e) => {
           error!("transport poll_recv; status=Err({:?})", e);
-          return Err(Error::new(e.to_string()));
+          return Err(ErrorKind::Decode(e).into());
         },
       };
     }
@@ -223,17 +223,14 @@ impl<T> AMQPTransport<T>
   fn poll_send(&mut self) -> Poll<(), Error> {
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
-      match self.start_send(frame) {
-        Ok(AsyncSink::Ready) => {
+      match self.start_send(frame)? {
+        AsyncSink::Ready => {
           trace!("transport poll_send; status=Ready");
-        },
-        Ok(AsyncSink::NotReady(frame)) => {
+        }
+        AsyncSink::NotReady(frame) => {
           trace!("transport poll_send; status=NotReady");
           self.conn.frame_queue.push_front(frame);
           return Ok(Async::NotReady);
-        },
-        Err(e) => {
-          return Err(Error::new(e.to_string()));
         }
       }
     }
@@ -252,7 +249,7 @@ impl<T> Stream for AMQPTransport<T>
       trace!("transport poll");
       if let Async::Ready(()) = self.poll_recv()? {
         trace!("poll transport; status=Ready");
-        return Err(Error::new("The connection was closed by the remote peer"));
+        return Err(ErrorKind::ConnectionClosed.into());
       }
       self.poll_send().map(|r| r.map(Some))
     }
@@ -268,13 +265,13 @@ impl <T> Sink for AMQPTransport<T>
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         trace!("transport start_send; frame={:?}", frame);
         self.upstream.start_send(frame)
-          .map_err(|e| Error::new(e.to_string()))
+          .map_err(|e| ErrorKind::Encode(e).into())
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         trace!("transport poll_complete");
         self.upstream.poll_complete()
-          .map_err(|e| Error::new(e.to_string()))
+          .map_err(|e| ErrorKind::Encode(e).into())
     }
 }
 
@@ -316,7 +313,7 @@ macro_rules! lock_transport (
         match $t.lock() {
             Ok(t) => t,
             Err(_) => if $t.is_poisoned() {
-                return Err(Error::new("Transport mutex is poisoned"))
+                return Err($crate::error::ErrorKind::PoisonedMutex.into());
             } else {
                 task::current().notify();
                 return Ok(Async::NotReady)

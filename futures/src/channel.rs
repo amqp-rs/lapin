@@ -5,7 +5,7 @@ use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
 
-use error::Error;
+use error::{Error, ErrorKind};
 use transport::*;
 use message::BasicGetMessage;
 use types::FieldTable;
@@ -270,7 +270,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     transport: channel_transport.clone(),
                 }))
             } else {
-                return Err(Error::new("The maximum number of channels for this connection has been reached"));
+                return Err(ErrorKind::ChannelLimitReached.into());
             }
         }).and_then(|channel| {
             let channel_id = channel.id;
@@ -281,12 +281,13 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     let transport = lock_transport!(transport);
 
                     match transport.conn.get_state(channel_id) {
-                        Some(ChannelState::Connected) => return Ok(Async::Ready(())),
-                        Some(ChannelState::Error)     => return Err(Error::new("Failed to open channel")),
-                        Some(ChannelState::Closed)    => return Err(Error::new("Failed to open channel")),
-                        _                             => {
+                        Some(ChannelState::Connected) => Ok(Async::Ready(())),
+                        Some(ChannelState::Error) | Some(ChannelState::Closed) => {
+                            Err(ErrorKind::ChannelOpenFailed.into())
+                        },
+                        _ => {
                             task::current().notify();
-                            return Ok(Async::NotReady);
+                            Ok(Async::NotReady)
                         }
                     }
                 })
@@ -560,7 +561,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                 Some(answer) => if answer {
                     Ok(Async::Ready(Some(request_id)))
                 } else {
-                    Err(Error::new("basic get returned empty"))
+                    Err(ErrorKind::EmptyBasicGet.into())
                 },
                 None         => {
                     task::current().notify();
@@ -637,7 +638,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         }).map(|_| ())
     }
 
-    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error: &str, action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static
+    fn run_on_locked_transport_full<Action, Finished>(&self, method: &str, error_msg: &str, action: Action, finished: Finished, payload: Option<(Vec<u8>, BasicProperties)>) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static
         where Action:   'static + Send + FnOnce(&mut AMQPTransport<T>) -> Result<Option<RequestId>, lapin_async::error::Error>,
               Finished: 'static + Send + Fn(&mut Connection, RequestId) -> Poll<Option<RequestId>, Error> {
         trace!("run on locked transport; method={:?}", method);
@@ -646,7 +647,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let _transport = self.transport.clone();
         let _method = method.to_string();
         let method = method.to_string();
-        let error = error.to_string();
+        let error_msg = error_msg.to_string();
         // Tweak to make the borrow checker happy, see below for more explaination
         let mut action = Some(action);
         let mut payload = Some(payload);
@@ -661,7 +662,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             // FnMut can be called several time and action which is an FnOnce can only be called
             // once (which is implemented as a ownership transfer).
             match action.take().unwrap()(&mut transport) {
-                Err(e)         => Err(Error::new(format!("{}: {:?}", error, e))),
+                Err(e)         => Err(ErrorKind::ProtocolError(error_msg.clone(), e).into()),
                 Ok(request_id) => {
                     trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
 

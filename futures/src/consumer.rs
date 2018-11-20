@@ -4,7 +4,7 @@ use tokio_io::{AsyncRead,AsyncWrite};
 use std::collections::VecDeque;
 use std::sync::{Arc,Mutex};
 
-use error::Error;
+use error::{Error, ErrorKind};
 use message::Delivery;
 use transport::*;
 
@@ -85,7 +85,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
     let mut inner = match self.inner.lock() {
       Ok(inner) => inner,
       Err(_)    => if self.inner.is_poisoned() {
-        return Err(Error::new("Consumer mutex is poisoned"))
+        return Err(ErrorKind::PoisonedMutex.into())
       } else {
         task::current().notify();
         return Ok(Async::NotReady)
