@@ -133,7 +133,7 @@ impl Connection {
 
             m => {
                 error!("the client should not receive this method: {:?}", m);
-                return Err(Error::InvalidMethod);
+                return Err(ErrorKind::InvalidMethod(m).into());
             }
         }
     }
@@ -144,7 +144,7 @@ impl Connection {
                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if let Err(err) = self.check_state(_channel_id, ChannelState::Initial) {
@@ -170,7 +170,7 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if let Err(err) = self.check_state(_channel_id, ChannelState::Initial) {
@@ -184,7 +184,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
 
@@ -195,11 +195,11 @@ impl Connection {
     pub fn channel_flow(&mut self, _channel_id: u16, active: Boolean) -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::Flow(channel::Flow { active: active }));
@@ -218,11 +218,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         self.channels.get_mut(&_channel_id).map(|c| c.send_flow = method.active);
@@ -232,11 +232,11 @@ impl Connection {
     pub fn channel_flow_ok(&mut self, _channel_id: u16, active: Boolean) -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::FlowOk(channel::FlowOk { active: active }));
@@ -250,11 +250,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -264,7 +264,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
 
@@ -280,11 +280,11 @@ impl Connection {
                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::Close(channel::Close {
@@ -308,11 +308,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         //FIXME: log the error if there is one
@@ -326,11 +326,11 @@ impl Connection {
     pub fn channel_close_ok(&mut self, _channel_id: u16) -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if ! self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::CloseOk(channel::CloseOk {}));
@@ -344,11 +344,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if ! self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -358,7 +358,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
 
@@ -377,11 +377,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if ! self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Access(access::AMQPMethod::Request(access::Request {
@@ -411,11 +411,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -425,7 +425,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -444,11 +444,11 @@ impl Connection {
                             -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Exchange(exchange::AMQPMethod::Declare(exchange::Declare {
@@ -480,11 +480,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -494,7 +494,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -509,11 +509,11 @@ impl Connection {
                            -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Exchange(exchange::AMQPMethod::Delete(exchange::Delete {
@@ -540,11 +540,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -554,7 +554,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -571,11 +571,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Exchange(exchange::AMQPMethod::Bind(exchange::Bind {
@@ -604,11 +604,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -618,7 +618,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -635,11 +635,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Exchange(exchange::AMQPMethod::Unbind(exchange::Unbind {
@@ -668,11 +668,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -682,7 +682,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -700,11 +700,11 @@ impl Connection {
                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Queue(queue::AMQPMethod::Declare(queue::Declare {
@@ -735,11 +735,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -754,7 +754,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -770,11 +770,11 @@ impl Connection {
                       -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Queue(queue::AMQPMethod::Bind(queue::Bind {
@@ -808,11 +808,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -828,7 +828,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -841,11 +841,11 @@ impl Connection {
                        -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Queue(queue::AMQPMethod::Purge(queue::Purge {
@@ -871,11 +871,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
 
@@ -886,7 +886,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -901,11 +901,11 @@ impl Connection {
                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Queue(queue::AMQPMethod::Delete(queue::Delete {
@@ -933,11 +933,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -948,7 +948,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -963,11 +963,11 @@ impl Connection {
                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Queue(queue::AMQPMethod::Unbind(queue::Unbind {
@@ -995,11 +995,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1015,7 +1015,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1028,11 +1028,11 @@ impl Connection {
                      -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Qos(basic::Qos {
@@ -1058,11 +1058,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1081,7 +1081,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1100,11 +1100,11 @@ impl Connection {
                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Consume(basic::Consume {
@@ -1137,11 +1137,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1161,7 +1161,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1173,11 +1173,11 @@ impl Connection {
                         -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Cancel(basic::Cancel {
@@ -1202,11 +1202,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1221,7 +1221,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1236,11 +1236,11 @@ impl Connection {
                          -> Result<u64, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Publish(basic::Publish {
@@ -1274,11 +1274,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         self.channels.get_mut(&_channel_id).map(|c| {
@@ -1306,11 +1306,11 @@ impl Connection {
                      -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Get(basic::Get {
@@ -1336,11 +1336,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1364,7 +1364,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1376,11 +1376,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1390,7 +1390,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1402,11 +1402,11 @@ impl Connection {
                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Ack(basic::Ack {
@@ -1423,11 +1423,11 @@ impl Connection {
                         -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Reject(basic::Reject {
@@ -1440,11 +1440,11 @@ impl Connection {
     pub fn basic_recover_async(&mut self, _channel_id: u16, requeue: Boolean) -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method =
@@ -1455,11 +1455,11 @@ impl Connection {
     pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Recover(basic::Recover { requeue: requeue }));
@@ -1481,11 +1481,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1496,7 +1496,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1509,11 +1509,11 @@ impl Connection {
                       -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Nack(basic::Nack {
@@ -1526,11 +1526,11 @@ impl Connection {
 
     pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<RequestId, Error> {
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         let method = AMQPClass::Confirm(confirm::AMQPMethod::Select(confirm::Select { nowait: nowait }));
@@ -1552,11 +1552,11 @@ impl Connection {
 
         if !self.channels.contains_key(&_channel_id) {
             trace!("key {} not in channels {:?}", _channel_id, self.channels);
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1570,7 +1570,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1581,11 +1581,11 @@ impl Connection {
                      -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1610,7 +1610,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
@@ -1621,11 +1621,11 @@ impl Connection {
                       -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
-            return Err(Error::InvalidChannel);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
         }
 
         if !self.is_connected(_channel_id) {
-            return Err(Error::NotConnected);
+            return Err(ErrorKind::NotConnected.into());
         }
 
         match self.get_next_answer(_channel_id) {
@@ -1650,7 +1650,7 @@ impl Connection {
           },
           _ => {
             self.set_channel_state(_channel_id, ChannelState::Error);
-            return Err(Error::UnexpectedAnswer);
+            return Err(ErrorKind::UnexpectedAnswer.into());
           }
         }
     }
