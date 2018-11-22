@@ -1,3 +1,6 @@
+// Long and nested future chains can quickly result in large generic types.
+#![type_length_limit="16777216"]
+
 #[macro_use] extern crate log;
 extern crate lapin_futures as lapin;
 extern crate failure;
