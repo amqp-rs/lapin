@@ -41,15 +41,13 @@ pub enum ErrorKind {
     #[fail(display = "The timer of the heartbeat encountered an error: {}", _0)]
     HeartbeatTimer(#[fail(cause)] tokio_timer::Error),
     #[fail(display = "Failed to handle incoming frame: {:?}", _0)]
-    // FIXME: mark lapin_async's Error as cause once it implements Fail
-    InvalidFrame(lapin_async::error::Error),
+    InvalidFrame(#[fail(cause)] lapin_async::error::Error),
     #[fail(display = "Couldn't parse URI: {}", _0)]
     InvalidUri(String),
     #[fail(display = "Transport mutex is poisoned")]
     PoisonedMutex,
     #[fail(display = "{}: {:?}", _0, _1)]
-    // FIXME: mark lapin_async's Error as cause once it implements Fail
-    ProtocolError(String, lapin_async::error::Error),
+    ProtocolError(String, #[fail(cause)] lapin_async::error::Error),
     /// A hack to prevent developers from exhaustively match on the enum's variants
     ///
     /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants
