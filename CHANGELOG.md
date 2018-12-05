@@ -1,7 +1,13 @@
 ### Unreleased
 
+#### Housekeeping
+
+* Update `amq-protocol`
+
 #### Breaking Changes
 
+* **async:**
+  * Introduce a new `Error` type, replacing occurences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/147))
 * **futures:**
   * Introduce a new `Error` type, replacing occurences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/145))
 
