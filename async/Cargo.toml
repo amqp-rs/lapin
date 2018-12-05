@@ -14,7 +14,7 @@ license = "MIT"
 log = "^0.4"
 nom = "^4.0"
 cookie-factory = "^0.2.4"
-amq-protocol = "^0.23"
+amq-protocol = "^1.0"
 failure = "^0.1"
 
 [dependencies.sasl]
