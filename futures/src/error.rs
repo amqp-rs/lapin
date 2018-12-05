@@ -20,7 +20,7 @@ pub struct Error {
 
 /// The different kinds of errors that can be reported.
 ///
-/// Event though we expose the complete enumeration of possible error variants, it is not
+/// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Debug, Fail)]
 pub enum ErrorKind {
