@@ -1,12 +1,14 @@
-use futures::{Async,Poll,Stream,task};
+use futures::{Async, Poll, Stream, task};
 use lapin_async::consumer::ConsumerSubscriber;
-use tokio_io::{AsyncRead,AsyncWrite};
-use std::collections::VecDeque;
-use std::sync::{Arc,Mutex};
+use log::{error, trace};
+use tokio_io::{AsyncRead, AsyncWrite};
 
-use error::{Error, ErrorKind};
-use message::Delivery;
-use transport::*;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
+use crate::error::{Error, ErrorKind};
+use crate::message::Delivery;
+use crate::transport::*;
 
 #[derive(Clone,Debug)]
 pub struct ConsumerSub {

@@ -1,7 +1,9 @@
-use connection::{Connection,ConnectionState};
-use buffer::Buffer;
+use log::{error, trace};
 
-use std::io::{Error,ErrorKind,Read,Result,Write};
+use std::io::{Error, ErrorKind, Read, Result, Write};
+
+use crate::buffer::Buffer;
+use crate::connection::{Connection, ConnectionState};
 
 impl Connection {
   /// helper function to handle reading and writing repeatedly from the network until there's no more state to update
@@ -83,7 +85,7 @@ impl Connection {
   }
 
   /// serializes frames to the send buffer then to the writer (if possible)
-  pub fn write_to_stream(&mut self, writer: &mut Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  pub fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
     match self.serialize(send_buffer.space()) {
       Ok((sz, _)) => {
         send_buffer.fill(sz);
@@ -104,7 +106,7 @@ impl Connection {
   }
 
   /// read data from the network into the receive buffer
-  pub fn read_from_stream(&mut self, reader: &mut Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  pub fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
     if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))

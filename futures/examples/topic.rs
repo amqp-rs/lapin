@@ -1,18 +1,13 @@
-extern crate env_logger;
-extern crate failure;
-extern crate lapin_futures as lapin;
-extern crate log;
-extern crate futures;
-extern crate tokio;
-
+use env_logger;
 use failure::{err_msg, Error};
-use futures::future::Future;
-use futures::IntoFuture;
+use futures::{future::Future, IntoFuture};
+use lapin_futures as lapin;
+use lapin::channel::{BasicProperties, BasicPublishOptions, ConfirmSelectOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions};
+use lapin::client::{Client, ConnectionOptions};
+use lapin::types::FieldTable;
+use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-use lapin::types::FieldTable;
-use lapin::client::{Client, ConnectionOptions};
-use lapin::channel::{BasicProperties, BasicPublishOptions, ConfirmSelectOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions};
 
 fn main() {
     env_logger::init();

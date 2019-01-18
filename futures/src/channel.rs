@@ -1,18 +1,19 @@
-use futures::{Async,Future,future,Poll,Stream,task};
-use tokio_io::{AsyncRead,AsyncWrite};
-use std::sync::{Arc,Mutex};
+pub use lapin_async::channel::BasicProperties;
+
+use futures::{Async, Future, future, Poll, Stream, task};
 use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
+use log::{info, trace};
+use std::sync::{Arc, Mutex};
+use tokio_io::{AsyncRead, AsyncWrite};
 
-use error::{Error, ErrorKind};
-use transport::*;
-use message::BasicGetMessage;
-use types::FieldTable;
-use consumer::Consumer;
-use queue::Queue;
-
-pub use lapin_async::channel::BasicProperties;
+use crate::consumer::Consumer;
+use crate::error::{Error, ErrorKind};
+use crate::message::BasicGetMessage;
+use crate::queue::Queue;
+use crate::transport::*;
+use crate::types::FieldTable;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 //#[derive(Clone)]
@@ -666,7 +667,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                 Ok(request_id) => {
                     trace!("run on locked transport; method={:?} request_id={:?}", _method, request_id);
 
-                    if let Some((payload, mut properties)) = payload.take().unwrap() {
+                    if let Some((payload, properties)) = payload.take().unwrap() {
                         transport.send_content_frames(channel_id, payload.as_slice(), properties);
                     }
 

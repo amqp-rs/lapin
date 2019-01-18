@@ -37,8 +37,7 @@ lapin-futures = "^0.15"
 Then include it in your code like this:
 
 ```rust
-#[macro_use]
-extern crate lapin_futures;
+use lapin_futures;
 ```
 
 ## lapin-async
@@ -58,8 +57,7 @@ lapin-async = "^0.15"
 Then include it in your code like this:
 
 ```rust
-#[macro_use]
-extern crate lapin_async;
+use lapin_async;
 ```
 
 ## TLS integration

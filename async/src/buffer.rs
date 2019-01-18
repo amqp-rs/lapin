@@ -1,7 +1,4 @@
-/// helper buffer implementation
-use std::{cmp, ptr};
-use std::io::{self,Write,Read};
-use std::iter::repeat;
+use std::{cmp, io::{self, Write, Read}, iter::repeat, ptr};
 
 #[derive(Debug,PartialEq,Clone)]
 pub struct Buffer {

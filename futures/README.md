@@ -16,20 +16,17 @@ using tokio.
 ## Publishing a message
 
 ```rust,no_run
-#[macro_use] extern crate log;
-extern crate lapin_futures as lapin;
-extern crate failure;
-extern crate futures;
-extern crate tokio;
-extern crate env_logger;
-
+use env_logger;
 use failure::Error;
 use futures::future::Future;
+use lapin_futures as lapin;
+use lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
+use lapin::client::ConnectionOptions;
+use lapin::types::FieldTable;
+use log::info;
+use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicPublishOptions,BasicProperties,QueueDeclareOptions};
-use lapin::types::FieldTable;
 
 fn main() {
   env_logger::init();
@@ -60,28 +57,24 @@ fn main() {
         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
       }).map_err(Error::from)
     })
-  ).expect("runtime exited with error");
+  ).expect("runtime failure");
 }
 ```
 
 ## Creating a consumer
 
 ```rust,no_run
-#[macro_use] extern crate log;
-extern crate lapin_futures as lapin;
-extern crate failure;
-extern crate futures;
-extern crate tokio;
-extern crate env_logger;
-
+use env_logger;
 use failure::Error;
-use futures::future::Future;
-use futures::Stream;
+use futures::{future::Future, Stream};
+use lapin_futures as lapin;
+use lapin::client::ConnectionOptions;
+use lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
+use lapin::types::FieldTable;
+use log::{debug, info};
+use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,QueueDeclareOptions};
-use lapin::types::FieldTable;
 
 fn main() {
   env_logger::init();
@@ -94,12 +87,12 @@ fn main() {
       // connect() returns a future of an AMQP Client
       // that resolves once the handshake is done
       lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
-    }).and_then(|(client, heartbeat)| {
-      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
-      // dispatching events on time.
-      // If we ran it as part of the "main" chain of futures, we might end up not sending
-      // some heartbeats if we don't poll often enough (because of some blocking task or such).
-      tokio::spawn(heartbeat.map_err(|_| ()));
+   }).and_then(|(client, heartbeat)| {
+     // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
+     // dispatching events on time.
+     // If we ran it as part of the "main" chain of futures, we might end up not sending
+     // some heartbeats if we don't poll often enough (because of some blocking task or such).
+     tokio::spawn(heartbeat.map_err(|_| ()));
 
       // create_channel returns a future that is resolved
       // once the channel is successfully created
@@ -126,6 +119,6 @@ fn main() {
         })
       }).map_err(Error::from)
     })
-  ).expect("runtime exited with error");
+  ).expect("runtime failure");
 }
 ```

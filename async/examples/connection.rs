@@ -1,16 +1,14 @@
-extern crate lapin_async as lapin;
-#[macro_use] extern crate log;
-extern crate env_logger;
-
-use std::net::TcpStream;
-use std::{thread,time};
-
+use env_logger;
+use lapin_async as lapin;
 use lapin::buffer::Buffer;
 use lapin::channel::BasicProperties;
 use lapin::connection::*;
 use lapin::consumer::ConsumerSubscriber;
 use lapin::message::Delivery;
 use lapin::types::*;
+use log::info;
+
+use std::{net::TcpStream, thread, time};
 
 #[derive(Clone,Debug,PartialEq)]
 struct Subscriber;
@@ -22,6 +20,8 @@ impl ConsumerSubscriber for Subscriber {
 }
 
 fn main() {
+      std::env::set_var("RUST_LOG", "trace");
+
       env_logger::init();
 
       let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string());

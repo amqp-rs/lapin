@@ -1,11 +1,14 @@
-use connection::*;
-use consumer::*;
-use queue::*;
-use message::*;
-use error::*;
-use types::*;
 use amq_protocol::protocol::{AMQPClass, access, basic, channel, confirm, exchange, queue};
+use log::{error, trace};
+
 use std::collections::HashSet;
+
+use crate::connection::*;
+use crate::consumer::*;
+use crate::queue::*;
+use crate::message::*;
+use crate::error::*;
+use crate::types::*;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub enum ChannelState {
@@ -40,7 +43,7 @@ pub enum Answer {
     AwaitingQueueUnbindOk(RequestId, String, String),
 
     AwaitingBasicQosOk(RequestId, u32,u16,bool),
-    AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool, Box<ConsumerSubscriber>),
+    AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool, Box<dyn ConsumerSubscriber>),
     AwaitingBasicCancelOk(RequestId),
     AwaitingBasicGetAnswer(RequestId, String),
     AwaitingBasicRecoverOk(RequestId),
@@ -1096,7 +1099,7 @@ impl Connection {
                          exclusive: Boolean,
                          nowait: Boolean,
                          arguments: FieldTable,
-                         subscriber: Box<ConsumerSubscriber>)
+                         subscriber: Box<dyn ConsumerSubscriber>)
                          -> Result<RequestId, Error> {
 
         if !self.channels.contains_key(&_channel_id) {

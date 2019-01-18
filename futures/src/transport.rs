@@ -1,20 +1,20 @@
-/// low level wrapper for the state machine, encoding and decoding from lapin-async
-use lapin_async::connection::*;
 use amq_protocol::frame::{AMQPFrame, gen_frame, parse_frame};
+use lapin_async::connection::*;
 
-use nom::Offset;
-use cookie_factory::GenError;
 use bytes::{BufMut, BytesMut};
-use std::cmp;
-use std::io;
+use cookie_factory::GenError;
+use failure::Fail;
+use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream, Future, future};
+use log::{error, trace};
+use nom::Offset;
+use std::{cmp, io};
 use std::iter::repeat;
-use futures::{Async,AsyncSink,Poll,Sink,StartSend,Stream,Future,future};
-use tokio_codec::{Decoder,Encoder,Framed};
-use tokio_io::{AsyncRead,AsyncWrite};
+use tokio_codec::{Decoder, Encoder, Framed};
+use tokio_io::{AsyncRead, AsyncWrite};
 
-use channel::BasicProperties;
-use client::ConnectionOptions;
-use error::{Error, ErrorKind};
+use crate::channel::BasicProperties;
+use crate::client::ConnectionOptions;
+use crate::error::{Error, ErrorKind};
 
 #[derive(Fail, Debug)]
 pub enum CodecError {
@@ -324,7 +324,7 @@ macro_rules! lock_transport (
 
 #[cfg(test)]
 mod tests {
-  extern crate env_logger;
+  use env_logger;
 
   use super::*;
 

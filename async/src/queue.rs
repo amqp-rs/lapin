@@ -1,6 +1,7 @@
-use std::collections::{HashMap,VecDeque};
-use consumer::Consumer;
-use message::*;
+use std::collections::{HashMap, VecDeque};
+
+use crate::consumer::Consumer;
+use crate::message::*;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Binding {

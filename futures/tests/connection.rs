@@ -1,22 +1,16 @@
 // Long and nested future chains can quickly result in large generic types.
 #![type_length_limit="2097152"]
 
-#[macro_use] extern crate log;
-extern crate lapin_futures as lapin;
-extern crate failure;
-extern crate futures;
-extern crate tokio;
-extern crate env_logger;
-
+use env_logger;
 use failure::Error;
-use futures::Stream;
-use futures::future::Future;
+use futures::{future::Future, Stream};
+use lapin_futures as lapin;
+use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
+use lapin::client::ConnectionOptions;
+use lapin::types::FieldTable;
+use log::info;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-
-use lapin::types::FieldTable;
-use lapin::client::ConnectionOptions;
-use lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
 
 #[test]
 fn connection() {

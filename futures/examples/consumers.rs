@@ -1,20 +1,16 @@
-extern crate env_logger;
-extern crate lapin_futures as lapin;
-#[macro_use]
-extern crate log;
-extern crate failure;
-extern crate futures;
-extern crate tokio;
-
+use env_logger;
 use failure::{err_msg, Error};
-use futures::future::Future;
-use futures::{IntoFuture, Stream};
+use futures::{future::Future, IntoFuture, Stream};
+use lapin_futures as lapin;
+use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions};
+use lapin::client::{Client, ConnectionOptions};
+use lapin::types::FieldTable;
+use log::info;
+use futures;
+use tokio;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-use lapin::types::FieldTable;
-use lapin::client::{Client, ConnectionOptions};
-use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions};
 
 const N_CONSUMERS : u8 = 8;
 const N_MESSAGES  : u8 = 5;

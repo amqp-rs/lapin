@@ -1,5 +1,5 @@
-use channel::BasicProperties;
-use types::*;
+use crate::channel::BasicProperties;
+use crate::types::*;
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Delivery {

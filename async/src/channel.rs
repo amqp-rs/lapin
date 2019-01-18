@@ -1,10 +1,12 @@
-use std::collections::{HashMap,HashSet,VecDeque};
-use api::{Answer,ChannelState};
-use queue::*;
-use amq_protocol::protocol::AMQPClass;
-use amq_protocol::frame::AMQPFrame;
-
 pub use amq_protocol::protocol::BasicProperties;
+
+use amq_protocol::{protocol::AMQPClass, frame::AMQPFrame};
+use log::trace;
+
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use crate::api::{Answer, ChannelState};
+use crate::queue::*;
 
 #[derive(Debug)]
 pub struct Channel {

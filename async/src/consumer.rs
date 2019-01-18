@@ -1,5 +1,6 @@
 use std::fmt::Debug;
-use message::Delivery;
+
+use crate::message::Delivery;
 
 #[derive(Debug)]
 pub struct Consumer {
@@ -8,12 +9,12 @@ pub struct Consumer {
       no_ack:          bool,
       exclusive:       bool,
       nowait:          bool,
-      subscriber:      Box<ConsumerSubscriber>,
+      subscriber:      Box<dyn ConsumerSubscriber>,
   pub current_message: Option<Delivery>,
 }
 
 impl Consumer {
-  pub fn new(tag: String, no_local: bool, no_ack: bool, exclusive: bool, nowait: bool, subscriber: Box<ConsumerSubscriber>) -> Consumer {
+  pub fn new(tag: String, no_local: bool, no_ack: bool, exclusive: bool, nowait: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Consumer {
     Consumer {
       tag,
       no_local,

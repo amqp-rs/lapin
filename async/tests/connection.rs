@@ -1,17 +1,15 @@
-extern crate env_logger;
-extern crate lapin_async as lapin;
+use env_logger;
+use lapin_async as lapin;
 
-use std::net::TcpStream;
-use std::{thread,time};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{net::TcpStream, thread, time};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
-use lapin::buffer::Buffer;
-use lapin::channel::BasicProperties;
-use lapin::connection::*;
-use lapin::consumer::ConsumerSubscriber;
-use lapin::message::Delivery;
-use lapin::types::*;
+use crate::lapin::buffer::Buffer;
+use crate::lapin::channel::BasicProperties;
+use crate::lapin::connection::*;
+use crate::lapin::consumer::ConsumerSubscriber;
+use crate::lapin::message::Delivery;
+use crate::lapin::types::*;
 
 #[derive(Debug)]
 struct Subscriber {

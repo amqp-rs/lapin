@@ -1,21 +1,20 @@
-use std::{result,str};
-use std::default::Default;
-use std::io::{Error,ErrorKind,Result};
-use std::collections::{HashMap,VecDeque};
-use std::sync::{Arc, Mutex};
-use sasl;
-use sasl::client::Mechanism;
-use sasl::client::mechanisms::Plain;
-use cookie_factory::GenError;
-use nom::Offset;
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
+use cookie_factory::GenError;
+use log::{debug, error, trace};
+use nom::Offset;
+use sasl::{self, client::{Mechanism, mechanisms::Plain}};
 
-use channel::{Channel, BasicProperties};
-use message::*;
-use api::{Answer,ChannelState,RequestId};
-use types::{AMQPValue,FieldTable};
-use error;
+use std::{result,str};
+use std::collections::{HashMap, VecDeque};
+use std::io::{Error, ErrorKind, Result};
+use std::sync::{Arc, Mutex};
+
+use crate::api::{Answer, ChannelState, RequestId};
+use crate::channel::{Channel, BasicProperties};
+use crate::error;
+use crate::message::*;
+use crate::types::{AMQPValue, FieldTable};
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum ConnectionState {
@@ -659,10 +658,10 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
-    extern crate env_logger;
+    use env_logger;
 
     use super::*;
-    use consumer::ConsumerSubscriber;
+    use crate::consumer::ConsumerSubscriber;
     use amq_protocol::protocol::basic;
 
     #[derive(Clone,Debug,PartialEq)]
@@ -678,8 +677,8 @@ mod tests {
     fn basic_consume_small_payload() {
         let _ = env_logger::try_init();
 
-        use consumer::Consumer;
-        use queue::Queue;
+        use crate::consumer::Consumer;
+        use crate::queue::Queue;
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();
@@ -754,8 +753,8 @@ mod tests {
     fn basic_consume_empty_payload() {
         let _ = env_logger::try_init();
 
-        use consumer::Consumer;
-        use queue::Queue;
+        use crate::consumer::Consumer;
+        use crate::queue::Queue;
 
         // Bootstrap connection state to a consuming state
         let mut conn = Connection::new();

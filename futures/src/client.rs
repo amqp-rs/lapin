@@ -1,17 +1,16 @@
 use amq_protocol::uri::AMQPUri;
+use futures::{future, task, Async, Future, Poll, Stream, sync::oneshot};
 use lapin_async;
-use std::default::Default;
+use log::{debug, error, warn};
 use std::str::FromStr;
-use futures::{future,task,Async,Future,Poll,Stream};
-use futures::sync::oneshot;
-use tokio_io::{AsyncRead,AsyncWrite};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Interval;
-use std::sync::{Arc,Mutex};
-use std::time::{Duration,Instant};
 
-use transport::*;
-use channel::{Channel, ConfirmSelectOptions};
-use error::{Error, ErrorKind};
+use crate::channel::{Channel, ConfirmSelectOptions};
+use crate::error::{Error, ErrorKind};
+use crate::transport::*;
 
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
@@ -157,45 +156,6 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   /// spawned independently of the other futures.
   ///
   /// To stop the heartbeat task, see `HeartbeatHandle`.
-  ///
-  /// # Example
-  ///
-  /// ```
-  /// # extern crate failure;
-  /// # extern crate lapin_futures;
-  /// # extern crate tokio;
-  /// #
-  /// # use tokio::prelude::*;
-  /// #
-  /// # fn main() {
-  /// use failure::Error;
-  /// use lapin_futures::client::{Client, ConnectionOptions};
-  /// use tokio::net::TcpStream;
-  /// use tokio::runtime::Runtime;
-  ///
-  /// let addr = "127.0.0.1:5672".parse().unwrap();
-  /// let f = TcpStream::connect(&addr)
-  ///     .map_err(Error::from)
-  ///     .and_then(|stream| {
-  ///         Client::connect(stream, ConnectionOptions::default())
-  ///             .map_err(Error::from)
-  ///     })
-  ///     .and_then(|(client, mut heartbeat)| {
-  ///         let handle = heartbeat.handle().unwrap();
-  ///         tokio::spawn(
-  ///             heartbeat.map_err(|e| eprintln!("The heartbeat task errored: {}", e))
-  ///         );
-  ///
-  ///         /// ...
-  ///
-  ///         handle.stop();
-  ///         Ok(())
-  ///     });
-  /// Runtime::new().unwrap().block_on_all(
-  ///     f.map_err(|e| eprintln!("An error occured: {}", e))
-  /// ).expect("runtime exited with failure");
-  /// # }
-  /// ```
   pub fn connect(stream: T, options: ConnectionOptions) ->
     impl Future<Item = (Self, Heartbeat<impl Future<Item = (), Error = Error> + Send + 'static>), Error = Error> + Send + 'static
   {
