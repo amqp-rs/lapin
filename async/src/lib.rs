@@ -14,13 +14,13 @@
 //! ```rust,no_run
 //! use env_logger;
 //! use lapin_async as lapin;
-//! use lapin::api::ChannelState;
-//! use lapin::buffer::Buffer;
-//! use lapin::connection::*;
-//! use lapin::consumer::ConsumerSubscriber;
-//! use lapin::channel::BasicProperties;
-//! use lapin::message::Delivery;
-//! use lapin::types::FieldTable;
+//! use crate::lapin::api::ChannelState;
+//! use crate::lapin::buffer::Buffer;
+//! use crate::lapin::connection::*;
+//! use crate::lapin::consumer::ConsumerSubscriber;
+//! use crate::lapin::channel::BasicProperties;
+//! use crate::lapin::message::Delivery;
+//! use crate::lapin::types::FieldTable;
 //!
 //! use std::{net::TcpStream, thread, time};
 //!

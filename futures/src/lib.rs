@@ -20,9 +20,9 @@
 //! use failure::Error;
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
-//! use lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
-//! use lapin::client::ConnectionOptions;
-//! use lapin::types::FieldTable;
+//! use crate::lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
+//! use crate::lapin::client::ConnectionOptions;
+//! use crate::lapin::types::FieldTable;
 //! use log::info;
 //! use tokio;
 //! use tokio::net::TcpStream;
@@ -68,9 +68,9 @@
 //! use failure::Error;
 //! use futures::{future::Future, Stream};
 //! use lapin_futures as lapin;
-//! use lapin::client::ConnectionOptions;
-//! use lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
-//! use lapin::types::FieldTable;
+//! use crate::lapin::client::ConnectionOptions;
+//! use crate::lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
+//! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
 //! use tokio;
 //! use tokio::net::TcpStream;
