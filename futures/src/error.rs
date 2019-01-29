@@ -44,8 +44,6 @@ pub enum ErrorKind {
     InvalidFrame(#[fail(cause)] lapin_async::error::Error),
     #[fail(display = "Couldn't parse URI: {}", _0)]
     InvalidUri(String),
-    #[fail(display = "Transport mutex is poisoned")]
-    PoisonedMutex,
     #[fail(display = "{}: {:?}", _0, _1)]
     ProtocolError(String, #[fail(cause)] lapin_async::error::Error),
     /// A hack to prevent developers from exhaustively match on the enum's variants
