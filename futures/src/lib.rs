@@ -123,12 +123,12 @@
 //! }
 //! ```
 
-#[macro_use] pub mod transport; // FIXME: drop macro_use
 pub mod channel;
 pub mod client;
 pub mod consumer;
 pub mod error;
 pub mod message;
 pub mod queue;
+pub mod transport;
 pub mod types;
 pub mod uri;

@@ -12,17 +12,21 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-nom = "^4.0"
-log = "^0.4"
+amq-protocol = "^1.1"
 bytes = "^0.4"
+cookie-factory = "^0.2"
 failure = "^0.1"
 futures = "^0.1"
+log = "^0.4"
+nom = "^4.0"
+parking_lot = "^0.7"
 tokio-codec = "^0.1"
 tokio-io = "^0.1"
 tokio-timer = "^0.2"
-lapin-async = {version = "^0.15", path = "../async"}
-cookie-factory = "^0.2"
-amq-protocol = "^1.1"
+
+[dependencies.lapin-async]
+version = "^0.15"
+path = "../async"
 
 [dev-dependencies]
 env_logger = "^0.6"

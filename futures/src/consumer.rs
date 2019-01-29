@@ -1,12 +1,13 @@
 use futures::{Async, Poll, Stream, task};
 use lapin_async::consumer::ConsumerSubscriber;
-use log::{error, trace};
+use log::trace;
+use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::message::Delivery;
 use crate::transport::*;
 
@@ -18,14 +19,10 @@ pub struct ConsumerSub {
 impl ConsumerSubscriber for ConsumerSub {
   fn new_delivery(&mut self, delivery: Delivery) {
     trace!("new_delivery;");
-    if let Ok(mut inner) = self.inner.lock() {
-      inner.deliveries.push_back(delivery);
-      if let Some(task) = inner.task.as_ref() {
-        task.notify();
-      }
-    } else {
-      // FIXME: what do we do here?
-      error!("new_delivery; mutex error");
+    let mut inner = self.inner.lock();
+    inner.deliveries.push_back(delivery);
+    if let Some(task) = inner.task.as_ref() {
+      task.notify();
     }
   }
 }
@@ -82,17 +79,9 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
 
   fn poll(&mut self) -> Poll<Option<Delivery>, Error> {
     trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
-    let mut transport = lock_transport!(self.transport);
+    let mut transport = self.transport.lock();
     transport.poll()?;
-    let mut inner = match self.inner.lock() {
-      Ok(inner) => inner,
-      Err(_)    => if self.inner.is_poisoned() {
-        return Err(ErrorKind::PoisonedMutex.into())
-      } else {
-        task::current().notify();
-        return Ok(Async::NotReady)
-      },
-    };
+    let mut inner = self.inner.lock();
     trace!("consumer poll; consumer_tag={:?} acquired inner lock", self.consumer_tag);
     if inner.task.is_none() {
       let task = task::current();

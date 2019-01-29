@@ -12,11 +12,12 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
+amq-protocol = "^1.1"
+cookie-factory = "^0.2.4"
+failure = "^0.1"
 log = "^0.4"
 nom = "^4.0"
-cookie-factory = "^0.2.4"
-amq-protocol = "^1.1"
-failure = "^0.1"
+parking_lot = '^0.7'
 
 [dependencies.sasl]
 version= "^0.4"
@@ -24,6 +25,3 @@ default-features = false
 
 [dev-dependencies]
 env_logger = "^0.6"
-
-[features]
-default = []

@@ -5,8 +5,10 @@ use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::connection::Connection;
 use log::{info, trace};
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
+
+use std::sync::Arc;
 
 use crate::consumer::Consumer;
 use crate::error::{Error, ErrorKind};
@@ -264,7 +266,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let channel_transport = transport.clone();
 
         future::poll_fn(move || {
-            let mut transport = lock_transport!(channel_transport);
+            let mut transport = channel_transport.lock();
             if let Some(id) = transport.conn.create_channel() {
                 return Ok(Async::Ready(Channel {
                     id,
@@ -279,7 +281,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                 transport.conn.channel_open(channel_id, "".to_string()).map(Some)
             }).and_then(move |_| {
                 future::poll_fn(move || {
-                    let transport = lock_transport!(transport);
+                    let transport = transport.lock();
 
                     match transport.conn.get_state(channel_id) {
                         Some(ChannelState::Connected) => Ok(Async::Ready(())),
@@ -384,7 +386,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                 options.passive, options.durable, options.exclusive, options.auto_delete, options.nowait, arguments).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {
-              let mut transport = lock_transport!(transport);
+              let mut transport = transport.lock();
               if let Some(queue) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 let (consumer_count, message_count) = if let Some(async_queue) = transport.conn.channels.get(&channel_id).and_then(|channel| channel.queues.get(&queue)) {
                   (async_queue.consumer_count, async_queue.message_count)
@@ -498,7 +500,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             options.no_local, options.no_ack, options.exclusive, options.no_wait, arguments, Box::new(subscriber)).map(Some)
           }).and_then(move |request_id| {
             future::poll_fn(move || {
-              let mut transport = lock_transport!(transport);
+              let mut transport = transport.lock();
               if let Some(consumer_tag) = transport.conn.get_generated_name(request_id.expect("expected request_id")) {
                 return Ok(Async::Ready(consumer_tag))
               } else {
@@ -547,7 +549,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let receive_future = future::poll_fn(move || {
-            let mut transport = lock_transport!(receive_transport);
+            let mut transport = receive_transport.lock();
             transport.poll()?;
             if let Some(message) = transport.conn.next_basic_get_message(channel_id, &_queue) {
                 return Ok(Async::Ready(message));
@@ -654,7 +656,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let mut payload = Some(payload);
 
         future::poll_fn(move || {
-            let mut transport = lock_transport!(transport);
+            let mut transport = transport.lock();
             // The poll_fn here is only there for the lock_transport call above.
             // Once the lock_transport yields a Async::Ready transport, the rest of the function is
             // ran only once as we either return an error or an Async::Ready, it's thus safe to .take().unwrap()
@@ -680,7 +682,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             }
 
             future::poll_fn(move || {
-                let mut transport = lock_transport!(_transport);
+                let mut transport = _transport.lock();
 
                 if let Some(request_id) = request_id {
                     Self::wait_for_answer(&mut transport, request_id, &finished)

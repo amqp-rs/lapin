@@ -3,12 +3,13 @@ use amq_protocol::protocol::{AMQPClass, connection};
 use cookie_factory::GenError;
 use log::{debug, error, trace};
 use nom::Offset;
+use parking_lot::Mutex;
 use sasl::{self, client::{Mechanism, mechanisms::Plain}};
 
 use std::{result,str};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Error, ErrorKind, Result};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::api::{Answer, ChannelState, RequestId};
 use crate::channel::{Channel, BasicProperties};

@@ -1,12 +1,14 @@
 use amq_protocol::uri::AMQPUri;
-use futures::{future, task, Async, Future, Poll, Stream, sync::oneshot};
+use futures::{future, Future, Poll, Stream, sync::oneshot};
 use lapin_async;
 use log::{debug, error, warn};
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Interval;
+
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::channel::{Channel, ConfirmSelectOptions};
 use crate::error::{Error, ErrorKind};
@@ -89,7 +91,7 @@ fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AM
                 let transport = transport.clone();
 
                 future::poll_fn(move || {
-                    let mut transport = lock_transport!(transport);
+                    let mut transport = transport.lock();
                     debug!("Sending heartbeat");
                     transport.send_heartbeat()
                 }).map(|_| ()).map_err(|err| {
