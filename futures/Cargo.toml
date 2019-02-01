@@ -22,6 +22,7 @@ nom = "^4.0"
 parking_lot = "^0.7"
 tokio-codec = "^0.1"
 tokio-io = "^0.1"
+tokio-sync = "^0.1"
 tokio-timer = "^0.2"
 
 [dependencies.lapin-async]

@@ -1,9 +1,10 @@
 use amq_protocol::uri::AMQPUri;
-use futures::{future, Future, Poll, Stream, sync::oneshot};
+use futures::{future, Future, Poll, Stream};
 use lapin_async;
 use log::{debug, error, warn};
 use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_sync::oneshot;
 use tokio_timer::Interval;
 
 use std::str::FromStr;
