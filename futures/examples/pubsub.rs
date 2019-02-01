@@ -47,9 +47,9 @@ fn main() {
           })
         })
       });
-      
+
       tokio::spawn(publisher.map_err(|_| ()));
-      
+
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|sub_channel| {
         let id = sub_channel.id;
         info!("created subscriber channel with id: {}", id);
