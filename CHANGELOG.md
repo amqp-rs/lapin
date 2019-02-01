@@ -1,4 +1,4 @@
-### Unreleased
+### 0.15.0 (2018-12-05)
 
 #### Housekeeping
 
