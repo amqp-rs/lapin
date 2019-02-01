@@ -1,3 +1,15 @@
+### 0.16.0 (2019-02-01)
+
+#### Housekeeping
+
+* Switch to edition 2018
+* Switch to `parking_lot` Mutex
+
+#### Breaking hanges
+
+* **futures**
+  * Drop now unused mutex poisoning error
+
 ### 0.15.0 (2018-12-05)
 
 #### Housekeeping
@@ -21,6 +33,7 @@
 #### Bug Fixes
 
 * Fix heartbeat interval
+
 ### 0.14.0 (2018-10-17)
 
 #### Housekeeping
