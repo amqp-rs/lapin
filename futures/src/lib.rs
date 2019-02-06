@@ -1,3 +1,5 @@
+#![warn(rust_2018_idioms)]
+
 //! lapin-futures
 //!
 //! This library offers a futures based API over the lapin-async library.
