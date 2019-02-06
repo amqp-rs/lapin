@@ -1,10 +1,9 @@
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
-use cookie_factory::GenError;
+use cookie_factory::{do_gen, gen_be_u8, gen_copy, gen_slice, GenError};
 use log::{debug, error, trace};
 use nom::Offset;
 use parking_lot::Mutex;
-use sasl::{self, client::{Mechanism, mechanisms::Plain}};
 
 use std::{result,str};
 use std::collections::{HashMap, VecDeque};
@@ -413,15 +412,17 @@ impl Connection {
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
+              let sasl_plain_len = saved_creds.username.len() + saved_creds.password.len() + 2;
+              let mut sasl_plain_creds = vec![0; sasl_plain_len];
 
-              let creds = sasl::common::Credentials::default()
-                .with_username(saved_creds.username)
-                .with_password(saved_creds.password);
+              do_gen!((&mut sasl_plain_creds[..], 0),
+                gen_be_u8!(0)                               >>
+                gen_slice!(saved_creds.username.as_bytes()) >>
+                gen_be_u8!(0)                               >>
+                gen_slice!(saved_creds.password.as_bytes())
+              ).expect("error serializing credentials");
 
-              let mut mechanism = Plain::from_credentials(creds).unwrap();
-
-              let initial_data = mechanism.initial().unwrap();
-              let s = str::from_utf8(&initial_data).unwrap();
+              let s = str::from_utf8(&sasl_plain_creds).unwrap();
 
               //FIXME: fill with user configured data
               //we need to handle the server properties, and have some client properties
