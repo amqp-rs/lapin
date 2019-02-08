@@ -1215,11 +1215,11 @@ impl Connection {
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingBasicCancelOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
-            self.channels.get_mut(&_channel_id).map(|c| {
-              for ref mut q in c.queues.values_mut() {
-                q.consumers.remove(&method.consumer_tag);
+            if let Some(channel) = self.channels.get_mut(&_channel_id) {
+              for queue in channel.queues.values_mut() {
+                queue.consumers.remove(&method.consumer_tag).map(|mut consumer| consumer.cancel());
               }
-            });
+            }
             Ok(())
           },
           _ => {

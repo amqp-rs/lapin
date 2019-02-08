@@ -18,6 +18,7 @@ impl ConsumerSubscriber for Subscriber {
       info!("received message: {:?}", delivery);
     }
     fn drop_prefetched_messages(&mut self) {}
+    fn cancel(&mut self) {}
 }
 
 fn main() {

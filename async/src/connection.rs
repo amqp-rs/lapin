@@ -670,10 +670,9 @@ mod tests {
     struct DummySubscriber;
 
     impl ConsumerSubscriber for DummySubscriber {
-      fn new_delivery(&mut self, delivery: Delivery) {
-        let _ = delivery;
-      }
+      fn new_delivery(&mut self, _delivery: Delivery) {}
       fn drop_prefetched_messages(&mut self) {}
+      fn cancel(&mut self) {}
     }
 
     #[test]

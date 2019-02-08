@@ -98,6 +98,7 @@
 //!     // handle message
 //!   }
 //!   fn drop_prefetched_messages(&mut self) {}
+//!   fn cancel(&mut self) {}
 //! }
 //! ```
 

@@ -30,6 +30,12 @@ impl ConsumerSubscriber for ConsumerSub {
     let mut inner = self.inner.lock();
     inner.deliveries.clear();
   }
+  fn cancel(&mut self) {
+    trace!("cancel;");
+    let mut inner = self.inner.lock();
+    inner.deliveries.clear();
+    inner.canceled = true;
+  }
 }
 
 #[derive(Clone)]
@@ -45,6 +51,7 @@ pub struct Consumer<T> {
 struct ConsumerInner {
   deliveries: VecDeque<Delivery>,
   task:       Option<task::Task>,
+  canceled:   bool,
 }
 
 impl Default for ConsumerInner {
@@ -52,6 +59,7 @@ impl Default for ConsumerInner {
     Self {
       deliveries: VecDeque::new(),
       task:       None,
+      canceled:   false,
     }
   }
 }
@@ -96,6 +104,9 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
     if let Some(delivery) = inner.deliveries.pop_front() {
       trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, delivery.delivery_tag);
       Ok(Async::Ready(Some(delivery)))
+    } else if inner.canceled {
+      trace!("consumer canceled; consumer_tag={:?}", self.consumer_tag);
+      Ok(Async::Ready(None))
     } else {
       trace!("delivery; consumer_tag={:?} status=NotReady", self.consumer_tag);
       Ok(Async::NotReady)
