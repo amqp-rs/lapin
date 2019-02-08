@@ -1416,7 +1416,11 @@ impl Connection {
             delivery_tag: delivery_tag,
             multiple: multiple,
         }));
-        self.send_method_frame(_channel_id, method)
+        let res = self.send_method_frame(_channel_id, method);
+        if multiple && delivery_tag == 0 {
+          self.drop_prefetched_messages(_channel_id);
+        }
+        res
     }
 
     pub fn basic_reject(&mut self,
@@ -1538,7 +1542,11 @@ impl Connection {
             multiple: multiple,
             requeue: requeue,
         }));
-        self.send_method_frame(_channel_id, method)
+        let res = self.send_method_frame(_channel_id, method);
+        if multiple && delivery_tag == 0 {
+          self.drop_prefetched_messages(_channel_id);
+        }
+        res
     }
 
     pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<RequestId, Error> {
