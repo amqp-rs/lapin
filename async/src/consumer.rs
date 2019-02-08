@@ -31,8 +31,13 @@ impl Consumer {
       self.subscriber.new_delivery(delivery);
     }
   }
+
+  pub fn drop_prefetched_messages(&mut self) {
+    self.subscriber.drop_prefetched_messages();
+  }
 }
 
 pub trait ConsumerSubscriber: Debug+Send+Sync {
   fn new_delivery(&mut self, delivery: Delivery);
+  fn drop_prefetched_messages(&mut self);
 }

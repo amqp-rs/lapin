@@ -25,6 +25,7 @@ impl ConsumerSubscriber for Subscriber {
 
       self.hello_world.store(true, Ordering::Relaxed);
     }
+    fn drop_prefetched_messages(&mut self) {}
 }
 
 #[test]

@@ -673,6 +673,7 @@ mod tests {
       fn new_delivery(&mut self, delivery: Delivery) {
         let _ = delivery;
       }
+      fn drop_prefetched_messages(&mut self) {}
     }
 
     #[test]

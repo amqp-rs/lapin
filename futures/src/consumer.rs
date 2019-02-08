@@ -25,6 +25,11 @@ impl ConsumerSubscriber for ConsumerSub {
       task.notify();
     }
   }
+  fn drop_prefetched_messages(&mut self) {
+    trace!("drop_prefetched_messages;");
+    let mut inner = self.inner.lock();
+    inner.deliveries.clear();
+  }
 }
 
 #[derive(Clone)]

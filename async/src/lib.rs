@@ -97,6 +97,7 @@
 //!   fn new_delivery(&mut self, _delivery: Delivery) {
 //!     // handle message
 //!   }
+//!   fn drop_prefetched_messages(&mut self) {}
 //! }
 //! ```
 

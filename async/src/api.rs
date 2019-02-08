@@ -1440,6 +1440,16 @@ impl Connection {
         self.send_method_frame(_channel_id, method)
     }
 
+    fn drop_prefetched_messages(&mut self, channel_id: u16) {
+        if let Some(channel) = self.channels.get_mut(&channel_id) {
+            for queue in channel.queues.values_mut() {
+                for consumer in queue.consumers.values_mut() {
+                    consumer.drop_prefetched_messages();
+                }
+            }
+        }
+    }
+
     pub fn basic_recover_async(&mut self, _channel_id: u16, requeue: Boolean) -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -1452,7 +1462,9 @@ impl Connection {
 
         let method =
             AMQPClass::Basic(basic::AMQPMethod::RecoverAsync(basic::RecoverAsync { requeue: requeue }));
-        self.send_method_frame(_channel_id, method)
+        let res = self.send_method_frame(_channel_id, method);
+        self.drop_prefetched_messages(_channel_id);
+        res
     }
 
     pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<RequestId, Error> {
@@ -1467,14 +1479,16 @@ impl Connection {
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Recover(basic::Recover { requeue: requeue }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
+        let res = self.send_method_frame(_channel_id, method).map(|_| {
             let request_id = self.next_request_id();
             self.channels.get_mut(&_channel_id).map(|c| {
                 c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
                 trace!("channel {} state is now {:?}", _channel_id, c.state);
             });
             request_id
-        })
+        });
+        self.drop_prefetched_messages(_channel_id);
+        res
     }
 
     pub fn receive_basic_recover_ok(&mut self,
