@@ -1,6 +1,7 @@
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
-use cookie_factory::{do_gen, gen_be_u8, gen_copy, gen_slice, GenError};
+use amq_protocol::sasl;
+use cookie_factory::GenError;
 use log::{debug, error, trace};
 use nom::Offset;
 use parking_lot::Mutex;
@@ -412,17 +413,6 @@ impl Connection {
               h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
 
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
-              let sasl_plain_len = saved_creds.username.len() + saved_creds.password.len() + 2;
-              let mut sasl_plain_creds = vec![0; sasl_plain_len];
-
-              do_gen!((&mut sasl_plain_creds[..], 0),
-                gen_be_u8!(0)                               >>
-                gen_slice!(saved_creds.username.as_bytes()) >>
-                gen_be_u8!(0)                               >>
-                gen_slice!(saved_creds.password.as_bytes())
-              ).expect("error serializing credentials");
-
-              let s = str::from_utf8(&sasl_plain_creds).unwrap();
 
               //FIXME: fill with user configured data
               //we need to handle the server properties, and have some client properties
@@ -431,7 +421,7 @@ impl Connection {
                   client_properties: h,
                   mechanism: "PLAIN".to_string(),
                   locale:    "en_US".to_string(), // FIXME: comes from the server
-                  response:  s.to_string(),
+                  response:  sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
                 }
               ));
 
