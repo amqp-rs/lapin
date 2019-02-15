@@ -1,3 +1,13 @@
+### 0.17.0 (2019-02-15)
+
+#### Bug Fixes
+
+* Drop prefetched messages when speicific arguments are passed to `basic_{,n}ack` or `basic_cancel`
+
+#### Housekeeping
+
+* Drop sasl dependency, avoiding likage to LGPL-3 licensed code
+
 ### 0.16.0 (2019-02-01)
 
 #### Housekeeping
