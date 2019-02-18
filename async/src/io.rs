@@ -19,7 +19,7 @@ impl Connection {
       let continue_parsing = self.can_parse(receive_buffer);
 
       if !continue_writing && !continue_reading && !continue_parsing {
-        return Ok(self.state);
+        return Ok(self.state.clone());
       }
 
       if continue_writing {
@@ -99,7 +99,7 @@ impl Connection {
       Ok(sz) => {
         trace!("wrote {} bytes", sz);
         send_buffer.consume(sz);
-        Ok((sz, self.state))
+        Ok((sz, self.state.clone()))
       },
       Err(e) => Err(e),
     }
@@ -116,7 +116,7 @@ impl Connection {
       Ok(sz) => {
         trace!("read {} bytes", sz);
         receive_buffer.fill(sz);
-        Ok((sz, self.state))
+        Ok((sz, self.state.clone()))
       },
       Err(e) => Err(e),
     }

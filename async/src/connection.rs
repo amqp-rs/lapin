@@ -6,7 +6,7 @@ use log::{debug, error, trace};
 use nom::Offset;
 use parking_lot::Mutex;
 
-use std::{result,str};
+use std::{fmt, result,str};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
@@ -17,7 +17,7 @@ use crate::error;
 use crate::message::*;
 use crate::types::{AMQPValue, FieldTable};
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq)]
 pub enum ConnectionState {
   Initial,
   Connecting(ConnectingState),
@@ -27,10 +27,10 @@ pub enum ConnectionState {
   Error,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq)]
 pub enum ConnectingState {
   Initial,
-  SentProtocolHeader,
+  SentProtocolHeader(ConnectionProperties),
   ReceivedStart,
   SentStartOk,
   ReceivedSecure,
@@ -50,6 +50,34 @@ pub enum ClosingState {
   SentCloseOk,
   ReceivedCloseOk,
   Error,
+}
+
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub enum ConnectionSASLMechanism {
+  PLAIN,
+}
+
+impl fmt::Display for ConnectionSASLMechanism {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub struct ConnectionProperties {
+  pub mechanism:         ConnectionSASLMechanism,
+  pub locale:            String,
+  pub client_properties: FieldTable,
+}
+
+impl Default for ConnectionProperties {
+  fn default() -> Self {
+    Self {
+      mechanism:         ConnectionSASLMechanism::PLAIN,
+      locale:            "en_US".to_string(),
+      client_properties: FieldTable::new(),
+    }
+  }
 }
 
 #[derive(Clone,Debug,Default,PartialEq)]
@@ -276,15 +304,15 @@ impl Connection {
   /// The messages will not be sent until calls to `serialize`
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
-  pub fn connect(&mut self) -> Result<ConnectionState> {
+  pub fn connect(&mut self, options: ConnectionProperties) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
     self.frame_queue.push_back(AMQPFrame::ProtocolHeader);
-    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader);
-    Ok(self.state)
+    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(options));
+    Ok(self.state.clone())
   }
 
   /// next message to send to the network
@@ -312,7 +340,7 @@ impl Connection {
 
     match gen_res {
       Ok(sz) => {
-        Ok((sz, self.state))
+        Ok((sz, self.state.clone()))
       },
       Err(e) => {
         error!("error generating frame: {:?}", e);
@@ -340,7 +368,7 @@ impl Connection {
     let parsed_frame = parse_frame(data);
     if let Err(e) = parsed_frame {
       if e.is_incomplete() {
-        return Ok((0,self.state));
+        return Ok((0,self.state.clone()));
       } else {
         //FIXME: should probably disconnect on error here
         let err = format!("parse error: {:?}", e);
@@ -362,7 +390,7 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, err))
     }
 
-    return Ok((consumed, self.state));
+    return Ok((consumed, self.state.clone()));
   }
 
   /// updates the current state with a new received frame
@@ -395,7 +423,7 @@ impl Connection {
 
   #[doc(hidden)]
   pub fn handle_global_method(&mut self, c: AMQPClass) {
-    match self.state {
+    match self.state.clone() {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
         self.state = ConnectionState::Error
       },
@@ -404,23 +432,36 @@ impl Connection {
           ConnectingState::Initial => {
             self.state = ConnectionState::Error
           },
-          ConnectingState::SentProtocolHeader => {
+          ConnectingState::SentProtocolHeader(mut options) => {
             if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
               trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
 
-              let mut h = FieldTable::new();
-              h.insert("product".to_string(), AMQPValue::LongString("lapin".to_string()));
+              let mechanism = options.mechanism.to_string();
+              let locale    = options.locale.clone();
+
+              if !s.mechanisms.split_whitespace().any(|m| m == mechanism) {
+                  error!("unsupported mechanism: {}", mechanism);
+                  self.state = ConnectionState::Error;
+              }
+              if !s.locales.split_whitespace().any(|l| l == locale) {
+                  error!("unsupported locale: {}", mechanism);
+                  self.state = ConnectionState::Error;
+              }
+
+              if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {
+                options.client_properties.insert("product".to_string(), AMQPValue::LongString(env!("CARGO_PKG_NAME").to_string()));
+                options.client_properties.insert("version".to_string(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").to_string()));
+              }
+              // FIXME: fill in "platform" too
 
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
 
-              //FIXME: fill with user configured data
-              //we need to handle the server properties, and have some client properties
               let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
                 connection::StartOk {
-                  client_properties: h,
-                  mechanism: "PLAIN".to_string(),
-                  locale:    "en_US".to_string(), // FIXME: comes from the server
+                  client_properties: options.client_properties,
+                  mechanism,
+                  locale,
                   response:  sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
                 }
               ));

@@ -15,6 +15,8 @@ use crate::channel::{Channel, ConfirmSelectOptions};
 use crate::error::{Error, ErrorKind};
 use crate::transport::*;
 
+pub use lapin_async::connection::{ConnectionSASLMechanism, ConnectionProperties};
+
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
 pub struct Client<T> {
@@ -33,11 +35,12 @@ impl<T> Clone for Client<T>
 }
 #[derive(Clone,Debug,PartialEq)]
 pub struct ConnectionOptions {
-  pub username:  String,
-  pub password:  String,
-  pub vhost:     String,
-  pub frame_max: u32,
-  pub heartbeat: u16,
+  pub username:          String,
+  pub password:          String,
+  pub vhost:             String,
+  pub frame_max:         u32,
+  pub heartbeat:         u16,
+  pub properties:        ConnectionProperties,
 }
 
 impl ConnectionOptions {
@@ -48,6 +51,7 @@ impl ConnectionOptions {
       vhost: uri.vhost,
       frame_max: uri.query.frame_max.unwrap_or(0),
       heartbeat: uri.query.heartbeat.unwrap_or(0),
+      properties: ConnectionProperties::default(),
     }
   }
 }
@@ -55,11 +59,12 @@ impl ConnectionOptions {
 impl Default for ConnectionOptions {
   fn default() -> ConnectionOptions {
     ConnectionOptions {
-      username:  "guest".to_string(),
-      password:  "guest".to_string(),
-      vhost:     "/".to_string(),
+      username: "guest".to_string(),
+      password: "guest".to_string(),
+      vhost: "/".to_string(),
       frame_max: 0,
       heartbeat: 0,
+      properties: ConnectionProperties::default(),
     }
   }
 }

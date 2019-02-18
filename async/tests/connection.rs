@@ -43,7 +43,7 @@ fn connection() {
 
       let mut conn: Connection = Connection::new();
       conn.set_frame_max(capacity);
-      assert_eq!(conn.connect().unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader));
+      assert_eq!(conn.connect(ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(ConnectionProperties::default())));
       loop {
         match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
           Err(e) => panic!("could not connect: {:?}", e),
