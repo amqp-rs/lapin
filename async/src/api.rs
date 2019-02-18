@@ -1620,14 +1620,14 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
-            self.finished_reqs.insert(request_id, true);
-
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
-                  let h: HashSet<u64> = c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect();
-                  c.unacked = c.unacked.difference(&h).cloned().collect();
-                  c.acked = c.acked.union(&h).cloned().collect();
+                  for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
+                    if c.unacked.remove(&tag) {
+                      c.acked.insert(tag);
+                    }
+                  }
                 } else {
                   if c.unacked.remove(&method.delivery_tag) {
                     c.acked.insert(method.delivery_tag);
@@ -1635,6 +1635,8 @@ impl Connection {
                 }
               }
             });
+
+            self.finished_reqs.insert(request_id, true);
 
             Ok(())
           },
@@ -1660,14 +1662,14 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm(request_id)) => {
-            self.finished_reqs.insert(request_id, true);
-
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
-                  let h: HashSet<u64> = c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect();
-                  c.unacked = c.unacked.difference(&h).cloned().collect();
-                  c.acked = c.nacked.union(&h).cloned().collect();
+                  for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
+                    if c.unacked.remove(&tag) {
+                      c.nacked.insert(tag);
+                    }
+                  }
                 } else {
                   if c.unacked.remove(&method.delivery_tag) {
                     c.nacked.insert(method.delivery_tag);
@@ -1675,6 +1677,8 @@ impl Connection {
                 }
               }
             });
+
+            self.finished_reqs.insert(request_id, true);
 
             Ok(())
           },
