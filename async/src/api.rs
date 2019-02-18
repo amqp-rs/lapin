@@ -1266,9 +1266,8 @@ impl Connection {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 c.awaiting.push_back(await_confirm.unwrap());
-                let delivery_tag = c.message_count;
+                let delivery_tag = c.next_delivery_tag();
                 c.unacked.insert(delivery_tag);
-                c.message_count += 1;
                 delivery_tag
               } else { 0 }
             }).unwrap_or(0)
@@ -1594,7 +1593,6 @@ impl Connection {
             self.finished_reqs.insert(request_id, true);
             self.channels.get_mut(&_channel_id).map(|c| {
               c.confirm = true;
-              c.message_count = 1;
             });
             Ok(())
           },

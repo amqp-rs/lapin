@@ -16,7 +16,7 @@ pub struct Channel {
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
   pub confirm:        bool,
-  pub message_count:  u64,
+  pub delivery_tag:   u64,
   pub acked:          HashSet<u64>,
   pub nacked:         HashSet<u64>,
   pub unacked:        HashSet<u64>,
@@ -34,7 +34,7 @@ impl Channel {
       prefetch_count: 0,
       awaiting:       VecDeque::new(),
       confirm:        false,
-      message_count:  0,
+      delivery_tag:   1,
       acked:          HashSet::new(),
       nacked:         HashSet::new(),
       unacked:        HashSet::new(),
@@ -47,5 +47,14 @@ impl Channel {
 
   pub fn is_connected(&self) -> bool {
     self.state != ChannelState::Initial && self.state != ChannelState::Closed && self.state != ChannelState::Error
+  }
+
+  pub fn next_delivery_tag(&mut self) -> u64 {
+    let tag = self.delivery_tag;
+    self.delivery_tag += 1;
+    if self.delivery_tag == 0 {
+      self.delivery_tag = 1;
+    }
+    tag
   }
 }
