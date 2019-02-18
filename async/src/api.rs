@@ -1258,12 +1258,14 @@ impl Connection {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-            //FIXME: if we're not on a confirm channel, we're jumping over some request id
-            // this is not a big issue, since we only need them to be unique
-            let request_id = self.next_request_id();
+            let await_confirm = if self.channels.get(&_channel_id).map(|c| c.confirm).unwrap_or(false) {
+              Some(Answer::AwaitingPublishConfirm(self.next_request_id()))
+            } else {
+              None
+            };
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
-                c.awaiting.push_back(Answer::AwaitingPublishConfirm(request_id));
+                c.awaiting.push_back(await_confirm.unwrap());
                 let delivery_tag = c.message_count;
                 c.unacked.insert(delivery_tag);
                 c.message_count += 1;
