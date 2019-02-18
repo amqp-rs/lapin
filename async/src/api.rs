@@ -1,5 +1,5 @@
-use amq_protocol::protocol::{AMQPClass, access, basic, channel, confirm, exchange, queue};
-use log::{error, trace};
+use amq_protocol::protocol::{AMQPClass, AMQPError, access, basic, channel, confirm, exchange, queue};
+use log::{error, info, trace};
 
 use std::collections::HashSet;
 
@@ -306,7 +306,7 @@ impl Connection {
 
     pub fn receive_channel_close(&mut self,
                                  _channel_id: u16,
-                                 _: channel::Close)
+                                 close: channel::Close)
                                  -> Result<(), Error> {
 
         if !self.channels.contains_key(&_channel_id) {
@@ -318,8 +318,11 @@ impl Connection {
             return Err(ErrorKind::NotConnected.into());
         }
 
-        //FIXME: log the error if there is one
-        //FIXME: handle reply codes
+        if let Some(error) = AMQPError::from_id(close.reply_code) {
+            error!("Channel {} closed by {}:{} => {:?} => {}", _channel_id, close.class_id, close.method_id, error, close.reply_text);
+        } else {
+            info!("Channel {} closed: {:?}", _channel_id, close);
+        }
 
         self.get_next_answer(_channel_id);
         self.set_channel_state(_channel_id, ChannelState::Closed);
