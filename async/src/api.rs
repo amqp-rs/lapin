@@ -1621,8 +1621,14 @@ impl Connection {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
-                  for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                    if c.unacked.remove(&tag) {
+                  if method.delivery_tag > 0 {
+                    for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
+                      if c.unacked.remove(&tag) {
+                        c.acked.insert(tag);
+                      }
+                    }
+                  } else {
+                    for tag in c.unacked.drain() {
                       c.acked.insert(tag);
                     }
                   }
@@ -1661,8 +1667,14 @@ impl Connection {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
-                  for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                    if c.unacked.remove(&tag) {
+                  if method.delivery_tag > 0 {
+                    for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
+                      if c.unacked.remove(&tag) {
+                        c.nacked.insert(tag);
+                      }
+                    }
+                  } else {
+                    for tag in c.unacked.drain() {
                       c.nacked.insert(tag);
                     }
                   }
