@@ -54,7 +54,7 @@ pub enum Answer {
 
     // RabbitMQ confirm extension
     AwaitingConfirmSelectOk(RequestId),
-    AwaitingPublishConfirm(RequestId),
+    AwaitingPublishConfirm,
 }
 
 impl Connection {
@@ -1258,14 +1258,9 @@ impl Connection {
         }));
 
         self.send_method_frame(_channel_id, method).map(|_| {
-            let await_confirm = if self.channels.get(&_channel_id).map(|c| c.confirm).unwrap_or(false) {
-              Some(Answer::AwaitingPublishConfirm(self.next_request_id()))
-            } else {
-              None
-            };
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
-                c.awaiting.push_back(await_confirm.unwrap());
+                c.awaiting.push_back(Answer::AwaitingPublishConfirm);
                 let delivery_tag = c.next_delivery_tag();
                 c.unacked.insert(delivery_tag);
                 delivery_tag
@@ -1617,7 +1612,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm(_request_id)) => {
+          Some(Answer::AwaitingPublishConfirm) => {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
@@ -1663,7 +1658,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm(_request_id)) => {
+          Some(Answer::AwaitingPublishConfirm) => {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
