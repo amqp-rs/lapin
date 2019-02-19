@@ -1617,7 +1617,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm(request_id)) => {
+          Some(Answer::AwaitingPublishConfirm(_request_id)) => {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
@@ -1633,8 +1633,6 @@ impl Connection {
                 }
               }
             });
-
-            self.finished_reqs.insert(request_id, true);
 
             Ok(())
           },
@@ -1659,7 +1657,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm(request_id)) => {
+          Some(Answer::AwaitingPublishConfirm(_request_id)) => {
             self.channels.get_mut(&_channel_id).map(|c| {
               if c.confirm {
                 if method.multiple {
@@ -1675,8 +1673,6 @@ impl Connection {
                 }
               }
             });
-
-            self.finished_reqs.insert(request_id, true);
 
             Ok(())
           },
