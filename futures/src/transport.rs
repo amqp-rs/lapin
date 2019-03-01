@@ -4,7 +4,7 @@ use lapin_async::connection::*;
 use bytes::{BufMut, BytesMut};
 use cookie_factory::GenError;
 use failure::Fail;
-use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream, Future, future};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream, Future, future, task};
 use log::{error, trace};
 use nom::Offset;
 use std::{cmp, io};
@@ -117,6 +117,7 @@ pub struct AMQPTransport<T> {
   upstream:  Framed<T,AMQPCodec>,
   pub conn:  Connection,
   heartbeat: Option<AMQPFrame>,
+  pub tasks: Vec<task::Task>
 }
 
 impl<T> AMQPTransport<T>
@@ -144,6 +145,7 @@ impl<T> AMQPTransport<T>
           upstream:  codec.framed(stream),
           conn:      conn,
           heartbeat: Some(AMQPFrame::Heartbeat(0)),
+          tasks: vec![]
         };
 
         AMQPTransportConnector {
@@ -200,6 +202,10 @@ impl<T> AMQPTransport<T>
           trace!("transport poll_recv; frame={:?}", frame);
           if let Err(e) = self.conn.handle_frame(frame) {
             return Err(ErrorKind::InvalidFrame(e).into());
+          } else {
+            for task in &self.tasks {
+              task.notify();
+            }
           }
         },
         Ok(Async::Ready(None)) => {

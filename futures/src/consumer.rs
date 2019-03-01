@@ -1,4 +1,4 @@
-use futures::{Async, Poll, Stream, task};
+use futures::{Async, Poll, Stream, task, try_ready};
 use lapin_async::consumer::ConsumerSubscriber;
 use log::trace;
 use parking_lot::Mutex;
@@ -21,9 +21,6 @@ impl ConsumerSubscriber for ConsumerSub {
     trace!("new_delivery;");
     let mut inner = self.inner.lock();
     inner.deliveries.push_back(delivery);
-    if let Some(task) = inner.task.as_ref() {
-      task.notify();
-    }
   }
   fn drop_prefetched_messages(&mut self) {
     trace!("drop_prefetched_messages;");
@@ -45,12 +42,12 @@ pub struct Consumer<T> {
   channel_id:   u16,
   queue:        String,
   consumer_tag: String,
+  task:       Option<task::Task>,
 }
 
 #[derive(Debug)]
 struct ConsumerInner {
   deliveries: VecDeque<Delivery>,
-  task:       Option<task::Task>,
   canceled:   bool,
 }
 
@@ -58,7 +55,6 @@ impl Default for ConsumerInner {
   fn default() -> Self {
     Self {
       deliveries: VecDeque::new(),
-      task:       None,
       canceled:   false,
     }
   }
@@ -72,6 +68,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
       channel_id,
       queue,
       consumer_tag,
+      task: None,
     }
   }
 
@@ -93,14 +90,14 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
   fn poll(&mut self) -> Poll<Option<Delivery>, Error> {
     trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
     let mut transport = self.transport.lock();
-    transport.poll()?;
+    if self.task.is_none() {
+      let task = task::current();
+      self.task = Some(task.clone());
+      transport.tasks.push(task);
+    }
+    try_ready!(transport.poll());
     let mut inner = self.inner.lock();
     trace!("consumer poll; consumer_tag={:?} acquired inner lock", self.consumer_tag);
-    if inner.task.is_none() {
-      let task = task::current();
-      task.notify();
-      inner.task = Some(task);
-    }
     if let Some(delivery) = inner.deliveries.pop_front() {
       trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, delivery.delivery_tag);
       Ok(Async::Ready(Some(delivery)))
