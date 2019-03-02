@@ -3,6 +3,7 @@ pub use amq_protocol::protocol::BasicProperties;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::api::{Answer, ChannelState};
+use crate::error::{Error, ErrorKind};
 use crate::queue::*;
 
 #[derive(Debug)]
@@ -56,5 +57,24 @@ impl Channel {
       self.delivery_tag = 1;
     }
     tag
+  }
+
+  pub fn ack(&mut self, delivery_tag: u64) -> Result<(), Error> {
+    self.drop_unacked(delivery_tag)?;
+    self.acked.insert(delivery_tag);
+    Ok(())
+  }
+
+  pub fn nack(&mut self, delivery_tag: u64) -> Result<(), Error> {
+    self.drop_unacked(delivery_tag)?;
+    self.nacked.insert(delivery_tag);
+    Ok(())
+  }
+
+  fn drop_unacked(&mut self, delivery_tag: u64) -> Result<(), Error> {
+    if !self.unacked.remove(&delivery_tag) {
+      return Err(ErrorKind::PreconditionFailed.into());
+    }
+    Ok(())
   }
 }

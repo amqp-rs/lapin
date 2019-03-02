@@ -1,4 +1,4 @@
-use amq_protocol::protocol::{AMQPClass, AMQPError, access, basic, channel, confirm, exchange, queue};
+use amq_protocol::protocol::{AMQPClass, AMQPError, AMQPSoftError, access, basic, channel, confirm, exchange, queue};
 use log::{error, info, trace};
 
 use std::collections::HashSet;
@@ -56,6 +56,15 @@ pub enum Answer {
     AwaitingConfirmSelectOk(RequestId),
     AwaitingPublishConfirm,
 }
+
+macro_rules! try_unacked (
+  ($self: expr, $channel_id:expr, $ack: expr) => ({
+    if let Err(e) = $ack {
+      $self.channel_close($channel_id, AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed".to_string(), 0, 0)?; /*FIXME: fill in class and method ids */
+      return Err(e);
+    }
+  });
+);
 
 impl Connection {
     pub fn receive_method(&mut self, channel_id: u16, method: AMQPClass) -> Result<(), Error> {
@@ -1613,14 +1622,12 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm) => {
-            self.channels.get_mut(&_channel_id).map(|c| {
+            if let Some(c) = self.channels.get_mut(&_channel_id) {
               if c.confirm {
                 if method.multiple {
                   if method.delivery_tag > 0 {
                     for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                      if c.unacked.remove(&tag) {
-                        c.acked.insert(tag);
-                      }
+                      try_unacked!(self, _channel_id, c.ack(tag));
                     }
                   } else {
                     for tag in c.unacked.drain() {
@@ -1628,12 +1635,10 @@ impl Connection {
                     }
                   }
                 } else {
-                  if c.unacked.remove(&method.delivery_tag) {
-                    c.acked.insert(method.delivery_tag);
-                  }
+                  try_unacked!(self, _channel_id, c.ack(method.delivery_tag));
                 }
               }
-            });
+            };
 
             Ok(())
           },
@@ -1659,14 +1664,12 @@ impl Connection {
 
         match self.get_next_answer(_channel_id) {
           Some(Answer::AwaitingPublishConfirm) => {
-            self.channels.get_mut(&_channel_id).map(|c| {
+            if let Some(c) = self.channels.get_mut(&_channel_id) {
               if c.confirm {
                 if method.multiple {
                   if method.delivery_tag > 0 {
                     for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                      if c.unacked.remove(&tag) {
-                        c.nacked.insert(tag);
-                      }
+                      try_unacked!(self, _channel_id, c.nack(tag));
                     }
                   } else {
                     for tag in c.unacked.drain() {
@@ -1674,12 +1677,10 @@ impl Connection {
                     }
                   }
                 } else {
-                  if c.unacked.remove(&method.delivery_tag) {
-                    c.nacked.insert(method.delivery_tag);
-                  }
+                  try_unacked!(self, _channel_id, c.nack(method.delivery_tag));
                 }
               }
-            });
+            };
 
             Ok(())
           },

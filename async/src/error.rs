@@ -37,6 +37,8 @@ pub enum ErrorKind {
   NotConnected,
   #[fail(display = "unexpected answer")]
   UnexpectedAnswer,
+  #[fail(display = "precondition failed")]
+  PreconditionFailed,
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants
