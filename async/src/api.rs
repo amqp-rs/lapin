@@ -58,9 +58,9 @@ pub enum Answer {
 }
 
 macro_rules! try_unacked (
-  ($self: expr, $channel_id:expr, $ack: expr) => ({
+  ($self: ident, $channel_id: ident, $method: ident, $ack: expr) => ({
     if let Err(e) = $ack {
-      $self.channel_close($channel_id, AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed".to_string(), 0, 0)?; /*FIXME: fill in class and method ids */
+      $self.channel_close($channel_id, AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed".to_string(), basic::$method::get_class_id(), basic::$method::get_id())?;
       return Err(e);
     }
   });
@@ -1627,7 +1627,7 @@ impl Connection {
                 if method.multiple {
                   if method.delivery_tag > 0 {
                     for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                      try_unacked!(self, _channel_id, c.ack(tag));
+                      try_unacked!(self, _channel_id, Ack, c.ack(tag));
                     }
                   } else {
                     for tag in c.unacked.drain() {
@@ -1635,7 +1635,7 @@ impl Connection {
                     }
                   }
                 } else {
-                  try_unacked!(self, _channel_id, c.ack(method.delivery_tag));
+                  try_unacked!(self, _channel_id, Ack, c.ack(method.delivery_tag));
                 }
               }
             };
@@ -1669,7 +1669,7 @@ impl Connection {
                 if method.multiple {
                   if method.delivery_tag > 0 {
                     for tag in c.unacked.iter().filter(|elem| *elem <= &method.delivery_tag).cloned().collect::<HashSet<u64>>() {
-                      try_unacked!(self, _channel_id, c.nack(tag));
+                      try_unacked!(self, _channel_id, Nack, c.nack(tag));
                     }
                   } else {
                     for tag in c.unacked.drain() {
@@ -1677,7 +1677,7 @@ impl Connection {
                     }
                   }
                 } else {
-                  try_unacked!(self, _channel_id, c.nack(method.delivery_tag));
+                  try_unacked!(self, _channel_id, Nack, c.nack(method.delivery_tag));
                 }
               }
             };
