@@ -6,7 +6,7 @@ use log::{debug, error, trace};
 use nom::Offset;
 use parking_lot::Mutex;
 
-use std::{fmt, result,str};
+use std::{fmt, result, str};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
@@ -442,11 +442,9 @@ impl Connection {
 
               if !s.mechanisms.split_whitespace().any(|m| m == mechanism) {
                   error!("unsupported mechanism: {}", mechanism);
-                  self.state = ConnectionState::Error;
               }
               if !s.locales.split_whitespace().any(|l| l == locale) {
                   error!("unsupported locale: {}", mechanism);
-                  self.state = ConnectionState::Error;
               }
 
               if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {

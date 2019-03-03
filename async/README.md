@@ -39,7 +39,7 @@ fn main() {
   conn.set_frame_max(capacity);
 
   /* Connect tp RabbitMQ server */
-  assert_eq!(conn.connect(FieldTable::new()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(FieldTable::new())));
+  assert_eq!(conn.connect(ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(ConnectionProperties::default())));
   loop {
     match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
       Err(e) => panic!("could not connect: {:?}", e),

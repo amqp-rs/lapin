@@ -35,12 +35,12 @@ impl<T> Clone for Client<T>
 }
 #[derive(Clone,Debug,PartialEq)]
 pub struct ConnectionOptions {
-  pub username:          String,
-  pub password:          String,
-  pub vhost:             String,
-  pub frame_max:         u32,
-  pub heartbeat:         u16,
-  pub properties:        ConnectionProperties,
+  pub username:   String,
+  pub password:   String,
+  pub vhost:      String,
+  pub frame_max:  u32,
+  pub heartbeat:  u16,
+  pub properties: ConnectionProperties,
 }
 
 impl ConnectionOptions {

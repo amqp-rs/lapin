@@ -1,3 +1,20 @@
+### 0.18.0 (2019-03-03)
+
+#### Bug Fixes
+
+* Better `delivery_tag` handling
+* Adapt our behaviour wrt ack/nack to be specifications-compliant
+* We now pass several additional information to the server when connecting, such as capabilities
+
+#### Breaking changes
+
+* Connect now takes an additional `ConnectionProperties` for better configuration
+
+#### Features
+
+* Better logging when channel gets closed by server
+* Support receiving BasicCancel from the server
+
 ### 0.17.0 (2019-02-15)
 
 #### Bug Fixes
@@ -15,7 +32,7 @@
 * Switch to edition 2018
 * Switch to `parking_lot` Mutex
 
-#### Breaking hanges
+#### Breaking changes
 
 * **futures**
   * Drop now unused mutex poisoning error
