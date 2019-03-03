@@ -115,6 +115,9 @@ impl Connection {
             AMQPClass::Basic(basic::AMQPMethod::ConsumeOk(m)) => {
                 self.receive_basic_consume_ok(channel_id, m)
             }
+            AMQPClass::Basic(basic::AMQPMethod::Cancel(m)) => {
+                self.receive_basic_cancel(channel_id, m)
+            }
             AMQPClass::Basic(basic::AMQPMethod::CancelOk(m)) => {
                 self.receive_basic_cancel_ok(channel_id, m)
             }
@@ -1208,6 +1211,51 @@ impl Connection {
             });
             request_id
         })
+    }
+
+    pub fn receive_basic_cancel(&mut self,
+                                _channel_id: u16,
+                                method: basic::Cancel)
+                                -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            trace!("key {} not in channels {:?}", _channel_id, self.channels);
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(ErrorKind::NotConnected.into());
+        }
+
+        if let Some(channel) = self.channels.get_mut(&_channel_id) {
+            for queue in channel.queues.values_mut() {
+                queue.consumers.remove(&method.consumer_tag).map(|mut consumer| consumer.cancel());
+            }
+        }
+        if !method.nowait {
+            self.basic_cancel_ok(_channel_id, method.consumer_tag)?;
+        }
+        Ok(())
+    }
+
+    pub fn basic_cancel_ok(&mut self,
+                           _channel_id: u16,
+                           consumer_tag: ShortString)
+                           -> Result<(), Error> {
+
+        if !self.channels.contains_key(&_channel_id) {
+            return Err(ErrorKind::InvalidChannel(_channel_id).into());
+        }
+
+        if !self.is_connected(_channel_id) {
+            return Err(ErrorKind::NotConnected.into());
+        }
+
+        let method = AMQPClass::Basic(basic::AMQPMethod::CancelOk(basic::CancelOk {
+            consumer_tag: consumer_tag,
+        }));
+
+        self.send_method_frame(_channel_id, method)
     }
 
     pub fn receive_basic_cancel_ok(&mut self,

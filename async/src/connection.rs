@@ -460,7 +460,7 @@ impl Connection {
               capabilities.insert("publisher_confirms".to_string(), AMQPValue::Boolean(true));
               capabilities.insert("exchange_exchange_bindings".to_string(), AMQPValue::Boolean(true));
               capabilities.insert("basic.nack".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(false)); // FIXME
+              capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(true));
               capabilities.insert("connection.blocked".to_string(), AMQPValue::Boolean(true));
               capabilities.insert("authentication_failure_close".to_string(), AMQPValue::Boolean(true));
 
