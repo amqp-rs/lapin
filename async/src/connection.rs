@@ -453,7 +453,18 @@ impl Connection {
                 options.client_properties.insert("product".to_string(), AMQPValue::LongString(env!("CARGO_PKG_NAME").to_string()));
                 options.client_properties.insert("version".to_string(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").to_string()));
               }
-              // FIXME: fill in "platform" too
+
+              options.client_properties.insert("platform".to_string(), AMQPValue::LongString("rust".to_string()));
+
+              let mut capabilities = FieldTable::new();
+              capabilities.insert("publisher_confirms".to_string(), AMQPValue::Boolean(true));
+              capabilities.insert("exchange_exchange_bindings".to_string(), AMQPValue::Boolean(true));
+              capabilities.insert("basic.nack".to_string(), AMQPValue::Boolean(true));
+              capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(false)); // FIXME
+              capabilities.insert("connection.blocked".to_string(), AMQPValue::Boolean(true));
+              capabilities.insert("authentication_failure_close".to_string(), AMQPValue::Boolean(true));
+
+              options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
 
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
 
