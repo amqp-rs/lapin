@@ -15,7 +15,7 @@ use std::sync::Arc;
 use crate::api::{Answer, ChannelState, RequestId};
 use crate::channel::{Channel, BasicProperties};
 use crate::error;
-use crate::message::*;
+use crate::message::BasicGetMessage;
 use crate::types::{AMQPValue, FieldTable};
 
 #[derive(Clone,Debug,PartialEq)]
@@ -217,17 +217,17 @@ impl Connection {
   /// does not exists
   pub fn check_state(&self, channel_id: u16, state: ChannelState) -> result::Result<(), error::Error> {
     self.channels
-          .get(&channel_id)
-          .map_or(Err(error::ErrorKind::InvalidChannel(channel_id).into()), |c| {
-              if c.state == state {
-                  Ok(())
-              } else {
-                Err(error::ErrorKind::InvalidState {
-                    expected: state,
-                    actual:   c.state.clone(),
-                }.into())
-              }
-          })
+      .get(&channel_id)
+      .map_or(Err(error::ErrorKind::InvalidChannel(channel_id).into()), |c| {
+        if c.state == state {
+          Ok(())
+        } else {
+          Err(error::ErrorKind::InvalidState {
+            expected: state,
+            actual:   c.state.clone(),
+          }.into())
+        }
+      })
   }
 
   /// returns the channel's state
@@ -236,8 +236,8 @@ impl Connection {
   /// does not exists
   pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
     self.channels
-          .get(&channel_id)
-          .map(|c| c.state.clone())
+      .get(&channel_id)
+      .map(|c| c.state.clone())
   }
 
   #[doc(hidden)]
@@ -250,15 +250,15 @@ impl Connection {
   #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
     self.channels
-          .get_mut(&channel_id)
-          .and_then(|c| c.awaiting.pop_front())
+      .get_mut(&channel_id)
+      .and_then(|c| c.awaiting.pop_front())
   }
 
   /// verifies if the channel is connecyed
   pub fn is_connected(&self, channel_id: u16) -> bool {
     self.channels
-          .get(&channel_id)
-          .map(|c| c.is_connected()).unwrap_or(false)
+      .get(&channel_id)
+      .map(|c| c.is_connected()).unwrap_or(false)
   }
 
   #[doc(hidden)]
@@ -446,10 +446,10 @@ impl Connection {
               let locale    = options.locale.clone();
 
               if !s.mechanisms.split_whitespace().any(|m| m == mechanism) {
-                  error!("unsupported mechanism: {}", mechanism);
+                error!("unsupported mechanism: {}", mechanism);
               }
               if !s.locales.split_whitespace().any(|l| l == locale) {
-                  error!("unsupported locale: {}", mechanism);
+                error!("unsupported locale: {}", mechanism);
               }
 
               if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {
@@ -472,12 +472,12 @@ impl Connection {
               let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
 
               let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
-                connection::StartOk {
-                  client_properties: options.client_properties,
-                  mechanism,
-                  locale,
-                  response:  sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
-                }
+                  connection::StartOk {
+                    client_properties: options.client_properties,
+                    mechanism,
+                    locale,
+                    response:  sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
+                  }
               ));
 
               debug!("client sending Connection::StartOk: {:?}", start_ok);
@@ -490,7 +490,7 @@ impl Connection {
           },
           /*ConnectingState::ReceivedStart => {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
-          },*/
+            },*/
           ConnectingState::SentStartOk => {
             if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
               debug!("Server sent Connection::Tune: {:?}", t);
@@ -514,7 +514,7 @@ impl Connection {
                 }
               }
               if self.configuration.channel_max == 0 {
-                  self.configuration.channel_max = u16::max_value();
+                self.configuration.channel_max = u16::max_value();
               }
 
               if t.frame_max != 0 {
@@ -527,15 +527,15 @@ impl Connection {
                 }
               }
               if self.configuration.frame_max == 0 {
-                  self.configuration.frame_max = u32::max_value();
+                self.configuration.frame_max = u32::max_value();
               }
 
               let tune_ok = AMQPClass::Connection(connection::AMQPMethod::TuneOk(
-                connection::TuneOk {
-                  channel_max : self.configuration.channel_max,
-                  frame_max   : self.configuration.frame_max,
-                  heartbeat   : self.configuration.heartbeat,
-                }
+                  connection::TuneOk {
+                    channel_max : self.configuration.channel_max,
+                    frame_max   : self.configuration.frame_max,
+                    heartbeat   : self.configuration.heartbeat,
+                  }
               ));
 
               debug!("client sending Connection::TuneOk: {:?}", tune_ok);
@@ -549,7 +549,7 @@ impl Connection {
                     capabilities: "".to_string(),
                     insist:       false,
                   }
-                  ));
+              ));
 
               debug!("client sending Connection::Open: {:?}", open);
               self.send_method_frame(0,open);
@@ -704,161 +704,162 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
-    use env_logger;
+  use env_logger;
 
-    use super::*;
-    use crate::consumer::ConsumerSubscriber;
-    use amq_protocol::protocol::basic;
+  use super::*;
+  use crate::consumer::ConsumerSubscriber;
+  use crate::message::Delivery;
+  use amq_protocol::protocol::basic;
 
-    #[derive(Clone,Debug,PartialEq)]
-    struct DummySubscriber;
+  #[derive(Clone,Debug,PartialEq)]
+  struct DummySubscriber;
 
-    impl ConsumerSubscriber for DummySubscriber {
-      fn new_delivery(&mut self, _delivery: Delivery) {}
-      fn drop_prefetched_messages(&mut self) {}
-      fn cancel(&mut self) {}
+  impl ConsumerSubscriber for DummySubscriber {
+    fn new_delivery(&mut self, _delivery: Delivery) {}
+    fn drop_prefetched_messages(&mut self) {}
+    fn cancel(&mut self) {}
+  }
+
+  #[test]
+  fn basic_consume_small_payload() {
+    let _ = env_logger::try_init();
+
+    use crate::consumer::Consumer;
+    use crate::queue::Queue;
+
+    // Bootstrap connection state to a consuming state
+    let mut conn = Connection::new();
+    conn.state = ConnectionState::Connected;
+    conn.configuration.channel_max = 2047;
+    let channel_id = conn.create_channel().unwrap();
+    conn.set_channel_state(channel_id, ChannelState::Connected);
+    let queue_name = "consumed".to_string();
+    let mut queue = Queue::new(queue_name.clone(), 0, 0);
+    let consumer_tag = "consumer-tag".to_string();
+    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
+    queue.consumers.insert(consumer_tag.clone(), consumer);
+    conn.channels.get_mut(&channel_id).map(|c| {
+      c.queues.insert(queue_name.clone(), queue);
+    });
+    // Now test the state machine behaviour
+    {
+      let deliver_frame = AMQPFrame::Method(
+        channel_id,
+        AMQPClass::Basic(
+          basic::AMQPMethod::Deliver(
+            basic::Deliver {
+              consumer_tag: consumer_tag.clone(),
+              delivery_tag: 1,
+              redelivered: false,
+              exchange: "".to_string(),
+              routing_key: queue_name.clone(),
+            }
+          )
+        )
+      );
+      conn.handle_frame(deliver_frame).unwrap();
+      let channel_state = conn.channels.get_mut(&channel_id)
+        .map(|channel| channel.state.clone())
+        .unwrap();
+      let expected_state = ChannelState::WillReceiveContent(
+        queue_name.clone(),
+        Some(consumer_tag.clone())
+      );
+      assert_eq!(channel_state, expected_state);
     }
-
-    #[test]
-    fn basic_consume_small_payload() {
-        let _ = env_logger::try_init();
-
-        use crate::consumer::Consumer;
-        use crate::queue::Queue;
-
-        // Bootstrap connection state to a consuming state
-        let mut conn = Connection::new();
-        conn.state = ConnectionState::Connected;
-        conn.configuration.channel_max = 2047;
-        let channel_id = conn.create_channel().unwrap();
-        conn.set_channel_state(channel_id, ChannelState::Connected);
-        let queue_name = "consumed".to_string();
-        let mut queue = Queue::new(queue_name.clone(), 0, 0);
-        let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
-        queue.consumers.insert(consumer_tag.clone(), consumer);
-        conn.channels.get_mut(&channel_id).map(|c| {
-            c.queues.insert(queue_name.clone(), queue);
-        });
-        // Now test the state machine behaviour
-        {
-            let deliver_frame = AMQPFrame::Method(
-                channel_id,
-                AMQPClass::Basic(
-                    basic::AMQPMethod::Deliver(
-                        basic::Deliver {
-                            consumer_tag: consumer_tag.clone(),
-                            delivery_tag: 1,
-                            redelivered: false,
-                            exchange: "".to_string(),
-                            routing_key: queue_name.clone(),
-                        }
-                    )
-                )
-            );
-            conn.handle_frame(deliver_frame).unwrap();
-            let channel_state = conn.channels.get_mut(&channel_id)
-                .map(|channel| channel.state.clone())
-                .unwrap();
-            let expected_state = ChannelState::WillReceiveContent(
-                queue_name.clone(),
-                Some(consumer_tag.clone())
-            );
-            assert_eq!(channel_state, expected_state);
-        }
-        {
-            let header_frame = AMQPFrame::Header(
-                channel_id,
-                60,
-                Box::new(AMQPContentHeader {
-                    class_id: 60,
-                    weight: 0,
-                    body_size: 2,
-                    properties: BasicProperties::default(),
-                })
-            );
-            conn.handle_frame(header_frame).unwrap();
-            let channel_state = conn.channels.get_mut(&channel_id)
-                .map(|channel| channel.state.clone())
-                .unwrap();
-            let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
-            assert_eq!(channel_state, expected_state);
-        }
-        {
-           let body_frame = AMQPFrame::Body(channel_id, "{}".as_bytes().to_vec());
-           conn.handle_frame(body_frame).unwrap();
-            let channel_state = conn.channels.get_mut(&channel_id)
-                .map(|channel| channel.state.clone())
-                .unwrap();
-            let expected_state = ChannelState::Connected;
-            assert_eq!(channel_state, expected_state);
-        }
+    {
+      let header_frame = AMQPFrame::Header(
+        channel_id,
+        60,
+        Box::new(AMQPContentHeader {
+          class_id: 60,
+          weight: 0,
+          body_size: 2,
+          properties: BasicProperties::default(),
+        })
+      );
+      conn.handle_frame(header_frame).unwrap();
+      let channel_state = conn.channels.get_mut(&channel_id)
+        .map(|channel| channel.state.clone())
+        .unwrap();
+      let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
+      assert_eq!(channel_state, expected_state);
     }
-
-    #[test]
-    fn basic_consume_empty_payload() {
-        let _ = env_logger::try_init();
-
-        use crate::consumer::Consumer;
-        use crate::queue::Queue;
-
-        // Bootstrap connection state to a consuming state
-        let mut conn = Connection::new();
-        conn.state = ConnectionState::Connected;
-        conn.configuration.channel_max = 2047;
-        let channel_id = conn.create_channel().unwrap();
-        conn.set_channel_state(channel_id, ChannelState::Connected);
-        let queue_name = "consumed".to_string();
-        let mut queue = Queue::new(queue_name.clone(), 0, 0);
-        let consumer_tag = "consumer-tag".to_string();
-        let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
-        queue.consumers.insert(consumer_tag.clone(), consumer);
-        conn.channels.get_mut(&channel_id).map(|c| {
-            c.queues.insert(queue_name.clone(), queue);
-        });
-        // Now test the state machine behaviour
-        {
-            let deliver_frame = AMQPFrame::Method(
-                channel_id,
-                AMQPClass::Basic(
-                    basic::AMQPMethod::Deliver(
-                        basic::Deliver {
-                            consumer_tag: consumer_tag.clone(),
-                            delivery_tag: 1,
-                            redelivered: false,
-                            exchange: "".to_string(),
-                            routing_key: queue_name.clone(),
-                        }
-                    )
-                )
-            );
-            conn.handle_frame(deliver_frame).unwrap();
-            let channel_state = conn.channels.get_mut(&channel_id)
-                .map(|channel| channel.state.clone())
-                .unwrap();
-            let expected_state = ChannelState::WillReceiveContent(
-                queue_name.clone(),
-                Some(consumer_tag.clone())
-            );
-            assert_eq!(channel_state, expected_state);
-        }
-        {
-            let header_frame = AMQPFrame::Header(
-                channel_id,
-                60,
-                Box::new(AMQPContentHeader {
-                    class_id: 60,
-                    weight: 0,
-                    body_size: 0,
-                    properties: BasicProperties::default(),
-                })
-            );
-            conn.handle_frame(header_frame).unwrap();
-            let channel_state = conn.channels.get_mut(&channel_id)
-                .map(|channel| channel.state.clone())
-                .unwrap();
-            let expected_state = ChannelState::Connected;
-            assert_eq!(channel_state, expected_state);
-        }
+    {
+      let body_frame = AMQPFrame::Body(channel_id, "{}".as_bytes().to_vec());
+      conn.handle_frame(body_frame).unwrap();
+      let channel_state = conn.channels.get_mut(&channel_id)
+        .map(|channel| channel.state.clone())
+        .unwrap();
+      let expected_state = ChannelState::Connected;
+      assert_eq!(channel_state, expected_state);
     }
+  }
+
+  #[test]
+  fn basic_consume_empty_payload() {
+    let _ = env_logger::try_init();
+
+    use crate::consumer::Consumer;
+    use crate::queue::Queue;
+
+    // Bootstrap connection state to a consuming state
+    let mut conn = Connection::new();
+    conn.state = ConnectionState::Connected;
+    conn.configuration.channel_max = 2047;
+    let channel_id = conn.create_channel().unwrap();
+    conn.set_channel_state(channel_id, ChannelState::Connected);
+    let queue_name = "consumed".to_string();
+    let mut queue = Queue::new(queue_name.clone(), 0, 0);
+    let consumer_tag = "consumer-tag".to_string();
+    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
+    queue.consumers.insert(consumer_tag.clone(), consumer);
+    conn.channels.get_mut(&channel_id).map(|c| {
+      c.queues.insert(queue_name.clone(), queue);
+    });
+    // Now test the state machine behaviour
+    {
+      let deliver_frame = AMQPFrame::Method(
+        channel_id,
+        AMQPClass::Basic(
+          basic::AMQPMethod::Deliver(
+            basic::Deliver {
+              consumer_tag: consumer_tag.clone(),
+              delivery_tag: 1,
+              redelivered: false,
+              exchange: "".to_string(),
+              routing_key: queue_name.clone(),
+            }
+          )
+        )
+      );
+      conn.handle_frame(deliver_frame).unwrap();
+      let channel_state = conn.channels.get_mut(&channel_id)
+        .map(|channel| channel.state.clone())
+        .unwrap();
+      let expected_state = ChannelState::WillReceiveContent(
+        queue_name.clone(),
+        Some(consumer_tag.clone())
+      );
+      assert_eq!(channel_state, expected_state);
+    }
+    {
+      let header_frame = AMQPFrame::Header(
+        channel_id,
+        60,
+        Box::new(AMQPContentHeader {
+          class_id: 60,
+          weight: 0,
+          body_size: 0,
+          properties: BasicProperties::default(),
+        })
+      );
+      conn.handle_frame(header_frame).unwrap();
+      let channel_state = conn.channels.get_mut(&channel_id)
+        .map(|channel| channel.state.clone())
+        .unwrap();
+      let expected_state = ChannelState::Connected;
+      assert_eq!(channel_state, expected_state);
+    }
+  }
 }
