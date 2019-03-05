@@ -47,10 +47,6 @@ impl Channel {
     }
   }
 
-  pub fn global(frame_sender: Sender<AMQPFrame>) -> Channel {
-    Channel::new(0, frame_sender)
-  }
-
   pub fn is_connected(&self) -> bool {
     self.state != ChannelState::Initial && self.state != ChannelState::Closed && self.state != ChannelState::Error
   }

@@ -139,7 +139,8 @@ impl Connection {
   pub fn new() -> Connection {
     let (sender, receiver) = crossbeam_channel::unbounded();
     let mut h = HashMap::new();
-    h.insert(0, Channel::global(sender.clone()));
+    // The global channel
+    h.insert(0, Channel::new(0, sender.clone()));
 
     Connection {
       state:             ConnectionState::Initial,
