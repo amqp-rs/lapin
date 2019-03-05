@@ -617,12 +617,9 @@ impl Connection {
               }
             }
           } else {
-            if let Some(msg) = q.current_get_message.as_mut() {
-              msg.delivery.properties = properties;
-            }
+            q.set_delivery_properties(properties);
             if size == 0 {
-              let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
-              q.get_messages.push_back(message);
+              q.new_delivery_complete();
             }
           }
         }
@@ -652,10 +649,9 @@ impl Connection {
                 }
               }
             } else {
-              q.current_get_message.as_mut().map(|msg| msg.delivery.receive_content(payload));
+              q.receive_delivery_content(payload);
               if remaining_size == payload_size {
-                let message = q.current_get_message.take().expect("there should be an in flight message in the queue");
-                q.get_messages.push_back(message);
+                q.new_delivery_complete();
               }
             }
           }

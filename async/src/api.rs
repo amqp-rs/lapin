@@ -1375,17 +1375,17 @@ impl Connection {
             self.finished_get_reqs.insert(request_id, true);
             self.set_channel_state(_channel_id, ChannelState::WillReceiveContent(queue_name.to_string(), None));
 
-            self.channels.get_mut(&_channel_id).map(|c| {
-              c.queues.get_mut(&queue_name).map(|q| {
-                q.current_get_message = Some(BasicGetMessage::new(
+            if let Some(c) = self.channels.get_mut(&_channel_id) {
+              if let Some(q) = c.queues.get_mut(&queue_name) {
+                q.start_new_delivery(BasicGetMessage::new(
                   method.delivery_tag,
                   method.exchange.to_string(),
                   method.routing_key.to_string(),
                   method.redelivered,
                   method.message_count
                 ));
-              })
-            });
+              }
+            }
 
             Ok(())
           },
@@ -1472,7 +1472,7 @@ impl Connection {
     fn drop_prefetched_messages(&mut self, channel_id: u16) {
         if let Some(channel) = self.channels.get_mut(&channel_id) {
             for queue in channel.queues.values_mut() {
-                queue.get_messages.clear();
+                queue.next_basic_get_message();
                 for consumer in queue.consumers.values_mut() {
                     consumer.drop_prefetched_messages();
                 }
