@@ -1,5 +1,8 @@
 pub use amq_protocol::protocol::BasicProperties;
 
+use amq_protocol::frame::AMQPFrame;
+use crossbeam_channel::Sender;
+
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::api::{Answer, ChannelState};
@@ -21,10 +24,11 @@ pub struct Channel {
   pub nacked:         HashSet<u64>,
   pub unacked:        HashSet<u64>,
       delivery_tag:   u64,
+      frame_sender:   Sender<AMQPFrame>,
 }
 
 impl Channel {
-  pub fn new(channel_id: u16) -> Channel {
+  pub fn new(channel_id: u16, frame_sender: Sender<AMQPFrame>) -> Channel {
     Channel {
       id:             channel_id,
       state:          ChannelState::Initial,
@@ -35,15 +39,16 @@ impl Channel {
       prefetch_count: 0,
       awaiting:       VecDeque::new(),
       confirm:        false,
-      delivery_tag:   1,
       acked:          HashSet::new(),
       nacked:         HashSet::new(),
       unacked:        HashSet::new(),
+      delivery_tag:   1,
+      frame_sender,
     }
   }
 
-  pub fn global() -> Channel {
-    Channel::new(0)
+  pub fn global(frame_sender: Sender<AMQPFrame>) -> Channel {
+    Channel::new(0, frame_sender)
   }
 
   pub fn is_connected(&self) -> bool {

@@ -135,10 +135,9 @@ pub struct Connection {
 impl Connection {
   /// creates a `Connection` object in initial state
   pub fn new() -> Connection {
-    let mut h = HashMap::new();
-    h.insert(0, Channel::global());
-
     let (sender, receiver) = crossbeam_channel::unbounded();
+    let mut h = HashMap::new();
+    h.insert(0, Channel::global(sender.clone()));
 
     Connection {
       state:             ConnectionState::Initial,
@@ -201,7 +200,7 @@ impl Connection {
       self.channels.get(&id).map(|channel| !channel.is_connected()).unwrap_or(true)
     })?;
 
-    let c = Channel::new(id);
+    let c = Channel::new(id, self.frame_sender.clone());
     self.channel_index = id;
     self.channels.insert(id, c);
     Some(id)
