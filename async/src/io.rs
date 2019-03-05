@@ -21,38 +21,30 @@ impl Connection {
       }
 
       if continue_writing {
-        match self.write_to_stream(stream, send_buffer) {
-          Ok((_,_)) => {
-
-          },
-          Err(e) => {
-            match e.kind() {
-              ErrorKind::WouldBlock => {
-                write_would_block = true;
-              },
-              k => {
-                error!("error writing: {:?}", k);
-                self.state = ConnectionState::Error;
-                return Err(e);
-              }
+        if let Err(e) = self.write_to_stream(stream, send_buffer) {
+          match e.kind() {
+            ErrorKind::WouldBlock => {
+              write_would_block = true;
+            },
+            k => {
+              error!("error writing: {:?}", k);
+              self.state = ConnectionState::Error;
+              return Err(e);
             }
           }
         }
       }
 
       if continue_reading {
-        match self.read_from_stream(stream, receive_buffer) {
-          Ok(_) => {},
-          Err(e) => {
-            match e.kind() {
-              ErrorKind::WouldBlock => {
-                read_would_block = true;
-              },
-              k => {
-                error!("error reading: {:?}", k);
-                self.state = ConnectionState::Error;
-                return Err(e);
-              }
+        if let Err(e) = self.read_from_stream(stream, receive_buffer) {
+          match e.kind() {
+            ErrorKind::WouldBlock => {
+              read_would_block = true;
+            },
+            k => {
+              error!("error reading: {:?}", k);
+              self.state = ConnectionState::Error;
+              return Err(e);
             }
           }
         }
@@ -68,55 +60,43 @@ impl Connection {
   }
 
   /// tests whether we can write to the send buffer
-  pub fn can_write(&self, send_buffer: &Buffer) -> bool {
+  fn can_write(&self, send_buffer: &Buffer) -> bool {
     send_buffer.available_data() > 0 || !self.frame_receiver.is_empty()
   }
 
   /// tests whether we can read from the receive buffer
-  pub fn can_read(&self, receive_buffer: &Buffer) -> bool {
+  fn can_read(&self, receive_buffer: &Buffer) -> bool {
     receive_buffer.available_space() > 0
   }
 
   /// tests whether we can parse data from the receive buffer
-  pub fn can_parse(&self, receive_buffer: &Buffer) -> bool {
+  fn can_parse(&self, receive_buffer: &Buffer) -> bool {
     receive_buffer.available_data() > 0
   }
 
   /// serializes frames to the send buffer then to the writer (if possible)
-  pub fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
-    match self.serialize(send_buffer.space()) {
-      Ok((sz, _)) => {
-        send_buffer.fill(sz);
-      },
-      Err(e) => {
-        return Err(e);
-      }
-    }
+  fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+    let (sz, _) = self.serialize(send_buffer.space())?;
+    send_buffer.fill(sz);
 
-    match writer.write(&mut send_buffer.data()) {
-      Ok(sz) => {
-        trace!("wrote {} bytes", sz);
-        send_buffer.consume(sz);
-        Ok((sz, self.state.clone()))
-      },
-      Err(e) => Err(e),
-    }
+    writer.write(&mut send_buffer.data()).map(|sz| {
+      trace!("wrote {} bytes", sz);
+      send_buffer.consume(sz);
+      (sz, self.state.clone())
+    })
   }
 
   /// read data from the network into the receive buffer
-  pub fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
     if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
       self.state = ConnectionState::Error;
-      return Err(Error::new(ErrorKind::Other, "invalid state"))
+      return Err(Error::new(ErrorKind::Other, "invalid state"));
     }
 
-    match reader.read(&mut receive_buffer.space()) {
-      Ok(sz) => {
-        trace!("read {} bytes", sz);
-        receive_buffer.fill(sz);
-        Ok((sz, self.state.clone()))
-      },
-      Err(e) => Err(e),
-    }
+    reader.read(&mut receive_buffer.space()).map(|sz| {
+      trace!("read {} bytes", sz);
+      receive_buffer.fill(sz);
+      (sz, self.state.clone())
+    })
   }
 }
