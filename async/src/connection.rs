@@ -3,12 +3,12 @@ use amq_protocol::protocol::{AMQPClass, connection};
 use amq_protocol::sasl;
 use crossbeam_channel::{self, Sender, Receiver};
 use cookie_factory::GenError;
-use log::{debug, error, trace};
+use log::{debug, error, trace, warn};
 use nom::Offset;
 use parking_lot::Mutex;
 
 use std::{fmt, result, str};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 
@@ -34,12 +34,12 @@ pub enum ConnectingState {
   SentProtocolHeader(ConnectionProperties),
   ReceivedStart,
   SentStartOk,
-  ReceivedSecure,
-  SentSecure,
-  ReceivedSecondSecure,
   ReceivedTune,
   SentTuneOk,
   SentOpen,
+  ReceivedSecure,
+  SentSecure,
+  ReceivedSecondSecure,
   Error,
 }
 
@@ -110,16 +110,16 @@ pub struct Connection {
   pub channels:          HashMap<u16, Channel>,
   pub configuration:     Configuration,
   pub vhost:             String,
-  pub channel_index:     u16,
-  pub channel_id_lock:   Arc<Mutex<()>>,
+      channel_index:     u16,
+      channel_id_lock:   Arc<Mutex<()>>,
   pub prefetch_size:     u32,
   pub prefetch_count:    u16,
   /// list of message to send
-  pub frame_receiver:    Receiver<AMQPFrame>,
-  // We keep a copy so that it never gets shutdown and to create new channels
+      frame_receiver:    Receiver<AMQPFrame>,
+  /// We keep a copy so that it never gets shutdown and to create new channels
       frame_sender:      Sender<AMQPFrame>,
   /// next request id
-  pub request_index:     RequestId,
+      request_index:     RequestId,
   /// list of finished requests
   /// value is true if the request returned something or false otherwise
   pub finished_reqs:     HashMap<RequestId, bool>,
@@ -129,7 +129,9 @@ pub struct Connection {
   /// list of generated names (e.g. when supplying empty string for consumer tag or queue name)
   pub generated_names:   HashMap<RequestId, String>,
   /// credentials are stored in an option to remove them from memory once they are used
-  pub credentials:       Option<Credentials>,
+      credentials:       Option<Credentials>,
+  /// Failed frames we need to try and send back + heartbeats
+      priority_frames:   VecDeque<AMQPFrame>,
 }
 
 impl Connection {
@@ -155,6 +157,7 @@ impl Connection {
       finished_get_reqs: HashMap::new(),
       generated_names:   HashMap::new(),
       credentials:       None,
+      priority_frames:   VecDeque::new(),
     }
   }
 
@@ -207,7 +210,9 @@ impl Connection {
   }
 
   pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
-    self.channels.get_mut(&channel_id).map(|c| c.state = new_state);
+    if let Some(c) = self.channels.get_mut(&channel_id) {
+      c.state = new_state;
+    }
   }
 
   /// verifies if the channel's state is the one passed as argument
@@ -215,18 +220,18 @@ impl Connection {
   /// returns a Option of the result. None in the case the channel
   /// does not exists
   pub fn check_state(&self, channel_id: u16, state: ChannelState) -> result::Result<(), error::Error> {
-    self.channels
-      .get(&channel_id)
-      .map_or(Err(error::ErrorKind::InvalidChannel(channel_id).into()), |c| {
-        if c.state == state {
-          Ok(())
-        } else {
-          Err(error::ErrorKind::InvalidState {
-            expected: state,
-            actual:   c.state.clone(),
-          }.into())
-        }
-      })
+    if let Some(c) = self.channels.get(&channel_id) {
+      if c.state == state {
+        Ok(())
+      } else {
+        Err(error::ErrorKind::InvalidState {
+          expected: state,
+          actual:   c.state.clone(),
+        }.into())
+      }
+    } else {
+      Err(error::ErrorKind::InvalidChannel(channel_id).into())
+    }
   }
 
   /// returns the channel's state
@@ -234,30 +239,28 @@ impl Connection {
   /// returns a Option of the state. Non in the case the channel
   /// does not exists
   pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
-    self.channels
-      .get(&channel_id)
-      .map(|c| c.state.clone())
+    self.channels.get(&channel_id).map(|c| c.state.clone())
   }
 
   #[doc(hidden)]
   pub fn push_back_answer(&mut self, channel_id: u16, answer: Answer) {
-    self.channels
-      .get_mut(&channel_id)
-      .map(|c| c.awaiting.push_back(answer));
+    if let Some(c) = self.channels.get_mut(&channel_id) {
+      c.awaiting.push_back(answer);
+    }
   }
 
   #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
-    self.channels
-      .get_mut(&channel_id)
-      .and_then(|c| c.awaiting.pop_front())
+    self.channels.get_mut(&channel_id).and_then(|c| c.awaiting.pop_front())
   }
 
   /// verifies if the channel is connecyed
   pub fn is_connected(&self, channel_id: u16) -> bool {
-    self.channels
-      .get(&channel_id)
-      .map(|c| c.is_connected()).unwrap_or(false)
+    if let Some(c) = self.channels.get(&channel_id) {
+      c.is_connected()
+    } else {
+      false
+    }
   }
 
   #[doc(hidden)]
@@ -322,8 +325,10 @@ impl Connection {
   ///
   /// returns None if there's no message to send
   pub fn next_frame(&mut self) -> Option<AMQPFrame> {
-    // Error means no message
-    self.frame_receiver.try_recv().ok()
+    self.priority_frames.pop_front().or_else(|| {
+      // Error means no message
+      self.frame_receiver.try_recv().ok()
+    })
   }
 
   /// writes the next message to a mutable byte slice
@@ -332,33 +337,29 @@ impl Connection {
   /// this method can be called repeatedly until the buffer is full or
   /// there are no more frames to send
   pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
-    let next_msg = self.next_frame();
-    if next_msg == None {
-      return Err(Error::new(ErrorKind::WouldBlock, "no new message"));
-    }
-
-    let next_msg = next_msg.unwrap();
-    trace!("will write to buffer: {:?}", next_msg);
-
-    let gen_res = gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1);
-
-    match gen_res {
-      Ok(sz) => {
-        Ok((sz, self.state.clone()))
-      },
-      Err(e) => {
-        error!("error generating frame: {:?}", e);
-        self.state = ConnectionState::Error;
-        match e {
-          GenError::BufferTooSmall(_) => {
-            self.send_frame(next_msg);
-            return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
-          },
-          GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
-            return Err(Error::new(ErrorKind::InvalidData, "could not generate"));
+    if let Some(next_msg) = self.next_frame() {
+      trace!("will write to buffer: {:?}", next_msg);
+      match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
+        Ok(sz) => {
+          Ok((sz, self.state.clone()))
+        },
+        Err(e) => {
+          error!("error generating frame: {:?}", e);
+          self.state = ConnectionState::Error;
+          match e {
+            GenError::BufferTooSmall(_) => {
+              // Requeue msg
+              self.requeue_frame(next_msg);
+              Err(Error::new(ErrorKind::InvalidData, "send buffer too small"))
+            },
+            GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+              Err(Error::new(ErrorKind::InvalidData, "could not generate"))
+            }
           }
         }
       }
+    } else {
+      Err(Error::new(ErrorKind::WouldBlock, "no new message"))
     }
   }
 
@@ -369,32 +370,26 @@ impl Connection {
   /// This method will update the state machine according to the ReceivedStart
   /// frame with `handle_frame`
   pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
-    let parsed_frame = parse_frame(data);
-    if let Err(e) = parsed_frame {
-      if e.is_incomplete() {
-        return Ok((0,self.state.clone()));
-      } else {
-        //FIXME: should probably disconnect on error here
-        let err = format!("parse error: {:?}", e);
-        self.state = ConnectionState::Error;
-        return Err(Error::new(ErrorKind::Other, err))
+    match parse_frame(data) {
+      Ok((i, f)) => {
+        let consumed = data.offset(i);
+
+        if let Err(e) = self.handle_frame(f) {
+          self.state = ConnectionState::Error;
+          Err(Error::new(ErrorKind::Other, format!("failed to handle frame: {:?}", e)))
+        } else {
+          Ok((consumed, self.state.clone()))
+        }
+      },
+      Err(e) => {
+        if e.is_incomplete() {
+          Ok((0,self.state.clone()))
+        } else {
+          self.state = ConnectionState::Error;
+          Err(Error::new(ErrorKind::Other, format!("parse error: {:?}", e)))
+        }
       }
     }
-
-    let (i, f) = parsed_frame.unwrap();
-
-    //FIXME: what happens if we fail to parse a packet in a channel?
-    // do we continue?
-    let consumed = data.offset(i);
-
-    if let Err(e) = self.handle_frame(f) {
-      //FIXME: should probably disconnect on error here
-      let err = format!("failed to handle frame: {:?}", e);
-      self.state = ConnectionState::Error;
-      return Err(Error::new(ErrorKind::Other, err))
-    }
-
-    return Ok((consumed, self.state.clone()));
   }
 
   /// updates the current state with a new received frame
@@ -429,11 +424,13 @@ impl Connection {
   pub fn handle_global_method(&mut self, c: AMQPClass) {
     match self.state.clone() {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
-        self.state = ConnectionState::Error
+        error!("Received method in global channel and we're {:?}: {:?}", self.state, c);
+        self.state = ConnectionState::Error;
       },
       ConnectionState::Connecting(connecting_state) => {
         match connecting_state {
           ConnectingState::Initial => {
+            error!("Received method in global channel and we're Conntecting/Initial: {:?}", c);
             self.state = ConnectionState::Error
           },
           ConnectingState::SentProtocolHeader(mut options) => {
@@ -475,7 +472,7 @@ impl Connection {
                     client_properties: options.client_properties,
                     mechanism,
                     locale,
-                    response:  sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
+                    response: sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
                   }
               ));
 
@@ -487,9 +484,10 @@ impl Connection {
               self.state = ConnectionState::Error;
             }
           },
-          /*ConnectingState::ReceivedStart => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
-            },*/
+          ConnectingState::ReceivedStart => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+            self.state = ConnectionState::Error
+          },
           ConnectingState::SentStartOk => {
             if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
               debug!("Server sent Connection::Tune: {:?}", t);
@@ -545,7 +543,7 @@ impl Connection {
               let open = AMQPClass::Connection(connection::AMQPMethod::Open(
                   connection::Open {
                     virtual_host: self.vhost.clone(),
-                    capabilities: "".to_string(),
+                    capabilities: "".to_string(), // legacy, not used
                     insist:       false,
                   }
               ));
@@ -553,23 +551,18 @@ impl Connection {
               debug!("client sending Connection::Open: {:?}", open);
               self.send_method_frame(0,open);
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
-
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
               self.state = ConnectionState::Error;
             }
           },
-          ConnectingState::ReceivedSecure => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
-          },
-          ConnectingState::SentSecure => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
-          },
-          ConnectingState::ReceivedSecondSecure => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
-          },
           ConnectingState::ReceivedTune => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+            self.state = ConnectionState::Error
+          },
+          ConnectingState::SentTuneOk => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+            self.state = ConnectionState::Error
           },
           ConnectingState::SentOpen => {
             trace!("state {:?}\treceived\t{:?}", self.state, c);
@@ -581,33 +574,42 @@ impl Connection {
               self.state = ConnectionState::Error;
             }
           },
-          ConnectingState::Error => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
-          },
-          s => {
-            error!("invalid state {:?}", s);
+          ConnectingState::ReceivedSecure => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
             self.state = ConnectionState::Error;
-          }
+          },
+          ConnectingState::SentSecure => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+            self.state = ConnectionState::Error;
+          },
+          ConnectingState::ReceivedSecondSecure => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+            self.state = ConnectionState::Error;
+          },
+          ConnectingState::Error => {
+            error!("state {:?}\treceived\t{:?}", self.state, c);
+          },
         }
       },
-      ConnectionState::Connected => {},
-      ConnectionState::Closing(_) => {},
+      ConnectionState::Connected => {
+        warn!("Ignoring method from global channel as we are connected {:?}", c);
+      },
+      ConnectionState::Closing(_) => {
+        warn!("Ignoring method from global channel as we are closing: {:?}", c);
+      },
     };
   }
 
   #[doc(hidden)]
   pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: BasicProperties) {
-    let state = self.channels.get_mut(&channel_id).map(|channel| {
-      channel.state.clone()
-    }).unwrap();
-    if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = state {
-      if size > 0 {
-        self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
-      } else {
-        self.set_channel_state(channel_id, ChannelState::Connected);
-      }
-      if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
-        if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
+    if let Some(channel) = self.channels.get_mut(&channel_id) {
+      if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = channel.state.clone() {
+        if size > 0 {
+          channel.state = ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize);
+        } else {
+          channel.state = ChannelState::Connected;
+        }
+        if let Some(ref mut q) = channel.queues.get_mut(&queue_name) {
           if let Some(ref consumer_tag) = consumer_tag {
             if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
               cs.set_delivery_properties(properties);
@@ -622,24 +624,20 @@ impl Connection {
             }
           }
         }
+      } else {
+        channel.state = ChannelState::Error;
       }
-    } else {
-      self.set_channel_state(channel_id, ChannelState::Error);
     }
   }
 
   #[doc(hidden)]
   pub fn handle_body_frame(&mut self, channel_id: u16, payload: Vec<u8>) {
-    let state = self.channels.get_mut(&channel_id).map(|channel| {
-      channel.state.clone()
-    }).unwrap();
+    if let Some(channel) = self.channels.get_mut(&channel_id) {
+      let payload_size = payload.len();
 
-    let payload_size = payload.len();
-
-    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = state {
-      if remaining_size >= payload_size {
-        if let Some(ref mut c) = self.channels.get_mut(&channel_id) {
-          if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
+      if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = channel.state.clone() {
+        if remaining_size >= payload_size {
+          if let Some(ref mut q) = channel.queues.get_mut(&queue_name) {
             if let Some(ref consumer_tag) = opt_consumer_tag {
               if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
                 cs.receive_delivery_content(payload);
@@ -654,19 +652,19 @@ impl Connection {
               }
             }
           }
-        }
 
-        if remaining_size == payload_size {
-          self.set_channel_state(channel_id, ChannelState::Connected);
+          if remaining_size == payload_size {
+            channel.state = ChannelState::Connected;
+          } else {
+            channel.state = ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size);
+          }
         } else {
-          self.set_channel_state(channel_id, ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size));
+          error!("body frame too large");
+          channel.state = ChannelState::Error;
         }
       } else {
-        error!("body frame too large");
-        self.set_channel_state(channel_id, ChannelState::Error);
+        channel.state = ChannelState::Error;
       }
-    } else {
-      self.set_channel_state(channel_id, ChannelState::Error);
     }
   }
 
@@ -691,13 +689,28 @@ impl Connection {
 
   #[doc(hidden)]
   pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) {
-    self.send_frame(AMQPFrame::Method(channel,method));
+    self.send_frame(AMQPFrame::Method(channel, method));
   }
 
   #[doc(hidden)]
   pub fn send_frame(&mut self, frame: AMQPFrame) {
     // We always hold a reference to the receiver so it's safe to unwrap
     self.frame_sender.send(frame).unwrap();
+  }
+
+  #[doc(hidden)]
+  pub fn send_preemptive_frame(&mut self, frame: AMQPFrame) {
+    self.priority_frames.push_front(frame);
+  }
+
+  #[doc(hidden)]
+  pub fn requeue_frame(&mut self, frame: AMQPFrame) {
+    self.priority_frames.push_back(frame);
+  }
+
+  #[doc(hidden)]
+  pub fn has_pending_frames(&self) -> bool {
+    !self.priority_frames.is_empty() || !self.frame_receiver.is_empty()
   }
 }
 
