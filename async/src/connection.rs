@@ -222,14 +222,7 @@ impl Connection {
   /// does not exists
   pub fn check_state(&self, channel_id: u16, state: ChannelState) -> result::Result<(), error::Error> {
     if let Some(c) = self.channels.get(&channel_id) {
-      if c.state == state {
-        Ok(())
-      } else {
-        Err(error::ErrorKind::InvalidState {
-          expected: state,
-          actual:   c.state.clone(),
-        }.into())
-      }
+      c.check_state(state)
     } else {
       Err(error::ErrorKind::InvalidChannel(channel_id).into())
     }
@@ -300,9 +293,7 @@ impl Connection {
   /// if the channel id and queue have no link, the method
   /// will return None. If there is no message, the method will return None
   pub fn next_basic_get_message(&mut self, channel_id: u16, queue_name: &str) -> Option<BasicGetMessage> {
-    self.channels.get_mut(&channel_id)
-      .and_then(|channel| channel.queues.get_mut(queue_name))
-      .and_then(|queue| queue.next_basic_get_message())
+    self.channels.get_mut(&channel_id).and_then(|channel| channel.next_basic_get_message(queue_name))
   }
 
   /// starts the process of connecting to the server
@@ -604,68 +595,14 @@ impl Connection {
   #[doc(hidden)]
   pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: BasicProperties) {
     if let Some(channel) = self.channels.get_mut(&channel_id) {
-      if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = channel.state.clone() {
-        if size > 0 {
-          channel.state = ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize);
-        } else {
-          channel.state = ChannelState::Connected;
-        }
-        if let Some(ref mut q) = channel.queues.get_mut(&queue_name) {
-          if let Some(ref consumer_tag) = consumer_tag {
-            if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-              cs.set_delivery_properties(properties);
-              if size == 0 {
-                cs.new_delivery_complete();
-              }
-            }
-          } else {
-            q.set_delivery_properties(properties);
-            if size == 0 {
-              q.new_delivery_complete();
-            }
-          }
-        }
-      } else {
-        channel.state = ChannelState::Error;
-      }
+      channel.handle_content_header_frame(size, properties);
     }
   }
 
   #[doc(hidden)]
   pub fn handle_body_frame(&mut self, channel_id: u16, payload: Vec<u8>) {
     if let Some(channel) = self.channels.get_mut(&channel_id) {
-      let payload_size = payload.len();
-
-      if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = channel.state.clone() {
-        if remaining_size >= payload_size {
-          if let Some(ref mut q) = channel.queues.get_mut(&queue_name) {
-            if let Some(ref consumer_tag) = opt_consumer_tag {
-              if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-                cs.receive_delivery_content(payload);
-                if remaining_size == payload_size {
-                  cs.new_delivery_complete();
-                }
-              }
-            } else {
-              q.receive_delivery_content(payload);
-              if remaining_size == payload_size {
-                q.new_delivery_complete();
-              }
-            }
-          }
-
-          if remaining_size == payload_size {
-            channel.state = ChannelState::Connected;
-          } else {
-            channel.state = ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size);
-          }
-        } else {
-          error!("body frame too large");
-          channel.state = ChannelState::Error;
-        }
-      } else {
-        channel.state = ChannelState::Error;
-      }
+      channel.handle_body_frame(payload);
     }
   }
 
