@@ -1313,7 +1313,7 @@ impl Connection {
             for (ref queue_name, ref mut q) in &mut c.queues {
               c.state = ChannelState::WillReceiveContent(queue_name.to_string(), Some(method.consumer_tag.to_string()));
               q.consumers.get_mut(&method.consumer_tag).map(|cs| {
-                cs.current_message = Some(Delivery::new(
+                cs.start_new_delivery(Delivery::new(
                   method.delivery_tag,
                   method.exchange.to_string(),
                   method.routing_key.to_string(),

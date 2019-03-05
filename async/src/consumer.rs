@@ -1,16 +1,17 @@
 use std::fmt::Debug;
 
+use crate::channel::BasicProperties;
 use crate::message::Delivery;
 
 #[derive(Debug)]
 pub struct Consumer {
-      tag:             String,
-      no_local:        bool,
-      no_ack:          bool,
-      exclusive:       bool,
-      nowait:          bool,
-      subscriber:      Box<dyn ConsumerSubscriber>,
-  pub current_message: Option<Delivery>,
+  tag:             String,
+  no_local:        bool,
+  no_ack:          bool,
+  exclusive:       bool,
+  nowait:          bool,
+  subscriber:      Box<dyn ConsumerSubscriber>,
+  current_message: Option<Delivery>,
 }
 
 impl Consumer {
@@ -23,6 +24,22 @@ impl Consumer {
       nowait,
       subscriber,
       current_message: None,
+    }
+  }
+
+  pub fn start_new_delivery(&mut self, delivery: Delivery) {
+    self.current_message = Some(delivery)
+  }
+
+  pub fn set_delivery_properties(&mut self, properties: BasicProperties) {
+    if let Some(delivery) = self.current_message.as_mut() {
+      delivery.properties = properties;
+    }
+  }
+
+  pub fn receive_delivery_content(&mut self, payload: Vec<u8>) {
+    if let Some(delivery) = self.current_message.as_mut() {
+      delivery.receive_content(payload);
     }
   }
 

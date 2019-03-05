@@ -611,9 +611,7 @@ impl Connection {
         if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
           if let Some(ref consumer_tag) = consumer_tag {
             if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-              if let Some(msg) = cs.current_message.as_mut() {
-                msg.properties = properties;
-              }
+              cs.set_delivery_properties(properties);
               if size == 0 {
                 cs.new_delivery_complete();
               }
@@ -648,7 +646,7 @@ impl Connection {
           if let Some(ref mut q) = c.queues.get_mut(&queue_name) {
             if let Some(ref consumer_tag) = opt_consumer_tag {
               if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-                cs.current_message.as_mut().map(|msg| msg.receive_content(payload));
+                cs.receive_delivery_content(payload);
                 if remaining_size == payload_size {
                   cs.new_delivery_complete();
                 }
