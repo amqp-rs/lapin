@@ -7,9 +7,7 @@ use crate::connection::{Connection, ConnectionState};
 
 impl Connection {
   /// helper function to handle reading and writing repeatedly from the network until there's no more state to update
-  pub fn run<T>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState>
-    where T: Read + Write {
-
+  pub fn run<T: Read + Write>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState> {
     let mut write_would_block = false;
     let mut read_would_block  = false;
 

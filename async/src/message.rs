@@ -1,5 +1,5 @@
 use crate::channel::BasicProperties;
-use crate::types::*;
+use crate::types::{LongLongUInt, LongUInt};
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct Delivery {
