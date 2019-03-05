@@ -14,7 +14,7 @@ impl Buffer {
     v.extend(repeat(0).take(capacity));
     Buffer {
       memory:   v,
-      capacity: capacity,
+      capacity,
       position: 0,
       end:      0
     }
@@ -42,20 +42,17 @@ impl Buffer {
     let cnt        = cmp::min(count, self.available_data());
     self.position += cnt;
     if self.position > self.capacity / 2 {
-      //trace!("consume shift: pos {}, end {}", self.position, self.end);
       self.shift();
     }
     cnt
   }
 
   pub fn fill(&mut self, count: usize) -> usize {
-    let cnt   = cmp::min(count, self.available_space());
-    self.end += cnt;
-    if self.available_space() < self.available_data() + cnt {
-      //trace!("fill shift: pos {}, end {}", self.position, self.end);
+    if self.available_space() < self.position {
       self.shift();
     }
-
+    let cnt   = cmp::min(count, self.available_space());
+    self.end += cnt;
     cnt
   }
 
@@ -63,28 +60,26 @@ impl Buffer {
     &self.memory[self.position..self.end]
   }
 
-  pub fn space(&mut self) -> &mut[u8] {
+  pub fn space(&mut self) -> &mut [u8] {
     &mut self.memory[self.end..self.capacity]
   }
 
   fn shift(&mut self) {
-    if self.position > 0 {
-      unsafe {
-        let length = self.end - self.position;
-        ptr::copy( (&self.memory[self.position..self.end]).as_ptr(), (&mut self.memory[..length]).as_mut_ptr(), length);
-        self.position = 0;
-        self.end      = length;
-      }
+    let length = self.end - self.position;
+    unsafe {
+      ptr::copy((&self.memory[self.position..self.end]).as_ptr(), (&mut self.memory[..length]).as_mut_ptr(), length);
     }
+    self.position = 0;
+    self.end      = length;
   }
 }
 
 impl Write for Buffer {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    match self.space().write(buf) {
-      Ok(size) => { self.fill(size); Ok(size) },
-      err      => err
-    }
+    self.space().write(buf).map(|size| {
+      self.fill(size);
+      size
+    })
   }
 
   fn flush(&mut self) -> io::Result<()> {
@@ -95,10 +90,8 @@ impl Write for Buffer {
 impl Read for Buffer {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     let len = cmp::min(self.available_data(), buf.len());
-    unsafe {
-      ptr::copy((&self.memory[self.position..len]).as_ptr(), buf.as_mut_ptr(), len);
-      self.position += len;
-    }
+    buf.copy_from_slice(&self.memory[self.position..len]);
+    self.position += len;
     Ok(len)
   }
 }
