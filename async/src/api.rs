@@ -37,10 +37,10 @@ pub enum Answer {
     AwaitingExchangeUnbindOk(RequestId),
 
     AwaitingQueueDeclareOk(RequestId),
-    AwaitingQueueBindOk(RequestId, String, String),
-    AwaitingQueuePurgeOk(RequestId, String),
+    AwaitingQueueBindOk(RequestId),
+    AwaitingQueuePurgeOk(RequestId),
     AwaitingQueueDeleteOk(RequestId, String),
-    AwaitingQueueUnbindOk(RequestId, String, String),
+    AwaitingQueueUnbindOk(RequestId),
 
     AwaitingBasicQosOk(RequestId, u32,u16,bool),
     AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool, Box<dyn ConsumerSubscriber>),
@@ -800,12 +800,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            let key = (exchange.clone(), routing_key.clone());
-            c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id, exchange.clone(), routing_key.clone()));
-            c.queues.get_mut(&queue).map(|q| {
-                q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
-                );
-            });
+            c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -826,14 +821,8 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingQueueBindOk(request_id, exchange, routing_key)) => {
+          Some(Answer::AwaitingQueueBindOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
-            let key = (exchange, routing_key);
-            self.channels.get_mut(&_channel_id).map(|c| {
-              for ref mut q in c.queues.values_mut() {
-                q.bindings.get_mut(&key).map(|b| b.active = true);
-              }
-            });
             Ok(())
           },
           _ => {
@@ -867,7 +856,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id, queue.clone()));
+            c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -889,7 +878,7 @@ impl Connection {
 
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingQueuePurgeOk(request_id, _)) => {
+          Some(Answer::AwaitingQueuePurgeOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
             Ok(())
           },
@@ -989,7 +978,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-          c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key));
+          c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id));
           trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1010,14 +999,8 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key)) => {
+          Some(Answer::AwaitingQueueUnbindOk(request_id)) => {
             self.finished_reqs.insert(request_id, true);
-            let key = (exchange, routing_key);
-            self.channels.get_mut(&_channel_id).map(|c| {
-              for ref mut q in c.queues.values_mut() {
-                q.bindings.remove(&key);
-              }
-            });
             Ok(())
           },
           _ => {
