@@ -1472,6 +1472,7 @@ impl Connection {
     fn drop_prefetched_messages(&mut self, channel_id: u16) {
         if let Some(channel) = self.channels.get_mut(&channel_id) {
             for queue in channel.queues.values_mut() {
+                queue.get_messages.clear();
                 for consumer in queue.consumers.values_mut() {
                     consumer.drop_prefetched_messages();
                 }
