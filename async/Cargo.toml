@@ -14,6 +14,7 @@ license = "MIT"
 [dependencies]
 amq-protocol = "^1.2.0"
 cookie-factory = "^0.2.4"
+crossbeam-channel = "^0.3"
 failure = "^0.1"
 log = "^0.4"
 nom = "^4.2"

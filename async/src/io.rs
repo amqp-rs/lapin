@@ -71,7 +71,7 @@ impl Connection {
 
   /// tests whether we can write to the send buffer
   pub fn can_write(&self, send_buffer: &Buffer) -> bool {
-    send_buffer.available_data() > 0 || !self.frame_queue.is_empty()
+    send_buffer.available_data() > 0 || !self.frame_receiver.is_empty()
   }
 
   /// tests whether we can read from the receive buffer

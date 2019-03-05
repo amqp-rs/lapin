@@ -1,13 +1,14 @@
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
 use amq_protocol::sasl;
+use crossbeam_channel::{self, Sender, Receiver};
 use cookie_factory::GenError;
 use log::{debug, error, trace};
 use nom::Offset;
 use parking_lot::Mutex;
 
 use std::{fmt, result, str};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 
@@ -114,7 +115,9 @@ pub struct Connection {
   pub prefetch_size:     u32,
   pub prefetch_count:    u16,
   /// list of message to send
-  pub frame_queue:       VecDeque<AMQPFrame>,
+  pub frame_receiver:    Receiver<AMQPFrame>,
+  // We keep a copy so that it never gets shutdown and to create new channels
+      frame_sender:      Sender<AMQPFrame>,
   /// next request id
   pub request_index:     RequestId,
   /// list of finished requests
@@ -135,18 +138,19 @@ impl Connection {
     let mut h = HashMap::new();
     h.insert(0, Channel::global());
 
-    let configuration = Configuration::default();
+    let (sender, receiver) = crossbeam_channel::unbounded();
 
     Connection {
       state:             ConnectionState::Initial,
       channels:          h,
-      configuration:     configuration,
+      configuration:     Configuration::default(),
       vhost:             "/".to_string(),
       channel_index:     0,
       channel_id_lock:   Arc::new(Mutex::new(())),
       prefetch_size:     0,
       prefetch_count:    0,
-      frame_queue:       VecDeque::new(),
+      frame_receiver:    receiver,
+      frame_sender:      sender,
       request_index:     0,
       finished_reqs:     HashMap::new(),
       finished_get_reqs: HashMap::new(),
@@ -310,7 +314,7 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    self.frame_queue.push_back(AMQPFrame::ProtocolHeader);
+    self.send_frame(AMQPFrame::ProtocolHeader);
     self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(options));
     Ok(self.state.clone())
   }
@@ -319,7 +323,8 @@ impl Connection {
   ///
   /// returns None if there's no message to send
   pub fn next_frame(&mut self) -> Option<AMQPFrame> {
-    self.frame_queue.pop_front()
+    // Error means no message
+    self.frame_receiver.try_recv().ok()
   }
 
   /// writes the next message to a mutable byte slice
@@ -328,7 +333,7 @@ impl Connection {
   /// this method can be called repeatedly until the buffer is full or
   /// there are no more frames to send
   pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
-    let next_msg = self.frame_queue.pop_front();
+    let next_msg = self.next_frame();
     if next_msg == None {
       return Err(Error::new(ErrorKind::WouldBlock, "no new message"));
     }
@@ -347,7 +352,7 @@ impl Connection {
         self.state = ConnectionState::Error;
         match e {
           GenError::BufferTooSmall(_) => {
-            self.frame_queue.push_front(next_msg);
+            self.send_frame(next_msg);
             return Err(Error::new(ErrorKind::InvalidData, "send buffer too small"));
           },
           GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
@@ -476,7 +481,7 @@ impl Connection {
               ));
 
               debug!("client sending Connection::StartOk: {:?}", start_ok);
-              self.frame_queue.push_back(AMQPFrame::Method(0, start_ok));
+              self.send_method_frame(0, start_ok);
               self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
@@ -535,7 +540,7 @@ impl Connection {
 
               debug!("client sending Connection::TuneOk: {:?}", tune_ok);
 
-              self.frame_queue.push_back(AMQPFrame::Method(0, tune_ok));
+              self.send_method_frame(0, tune_ok);
               self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
 
               let open = AMQPClass::Connection(connection::AMQPMethod::Open(
@@ -547,7 +552,7 @@ impl Connection {
                   ));
 
               debug!("client sending Connection::Open: {:?}", open);
-              self.frame_queue.push_back(AMQPFrame::Method(0,open));
+              self.send_method_frame(0,open);
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
 
             } else {
@@ -683,18 +688,23 @@ impl Connection {
       body_size:      slice.len() as u64,
       properties:     properties,
     };
-    self.frame_queue.push_back(AMQPFrame::Header(channel_id, class_id, Box::new(header)));
+    self.send_frame(AMQPFrame::Header(channel_id, class_id, Box::new(header)));
 
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(self.configuration.frame_max as usize - 8) {
-      self.frame_queue.push_back(AMQPFrame::Body(channel_id, Vec::from(chunk)));
+      self.send_frame(AMQPFrame::Body(channel_id, Vec::from(chunk)));
     }
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) -> result::Result<(), error::Error> {
-    self.frame_queue.push_back(AMQPFrame::Method(channel,method));
-    Ok(())
+  pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) {
+    self.send_frame(AMQPFrame::Method(channel,method));
+  }
+
+  #[doc(hidden)]
+  pub fn send_frame(&mut self, frame: AMQPFrame) {
+    // We always hold a reference to the receiver so it's safe to unwrap
+    self.frame_sender.send(frame).unwrap();
   }
 }
 

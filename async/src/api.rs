@@ -170,12 +170,11 @@ impl Connection {
         let method =
             AMQPClass::Channel(channel::AMQPMethod::Open(channel::Open { out_of_band: out_of_band }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            trace!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
-            let request_id = self.next_request_id();
-            self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk(request_id));
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        trace!("channel[{}] setting state to ChannelState::AwaitingChannelOpenOk", _channel_id);
+        let request_id = self.next_request_id();
+        self.push_back_answer(_channel_id, Answer::AwaitingChannelOpenOk(request_id));
+        Ok(request_id)
     }
 
     pub fn receive_channel_open_ok(&mut self,
@@ -219,11 +218,10 @@ impl Connection {
 
         let method = AMQPClass::Channel(channel::AMQPMethod::Flow(channel::Flow { active: active }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk(request_id));
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.push_back_answer(_channel_id, Answer::AwaitingChannelFlowOk(request_id));
+        Ok(request_id)
     }
 
     pub fn receive_channel_flow(&mut self,
@@ -255,7 +253,8 @@ impl Connection {
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::FlowOk(channel::FlowOk { active: active }));
-        self.send_method_frame(_channel_id, method)
+        self.send_method_frame(_channel_id, method);
+        Ok(())
     }
 
     pub fn receive_channel_flow_ok(&mut self,
@@ -309,11 +308,10 @@ impl Connection {
             method_id: method_id,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-          let request_id = self.next_request_id();
-          self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk(request_id));
-          request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.push_back_answer(_channel_id, Answer::AwaitingChannelCloseOk(request_id));
+        Ok(request_id)
     }
 
     pub fn receive_channel_close(&mut self,
@@ -352,7 +350,8 @@ impl Connection {
         }
 
         let method = AMQPClass::Channel(channel::AMQPMethod::CloseOk(channel::CloseOk {}));
-        self.send_method_frame(_channel_id, method)
+        self.send_method_frame(_channel_id, method);
+        Ok(())
     }
 
     pub fn receive_channel_close_ok(&mut self,
@@ -411,14 +410,13 @@ impl Connection {
             read: read,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingAccessRequestOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingAccessRequestOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
 
@@ -481,14 +479,13 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-          let request_id = self.next_request_id();
-          self.channels.get_mut(&_channel_id).map(|c| {
-              c.awaiting.push_back(Answer::AwaitingExchangeDeclareOk(request_id));
-              trace!("channel {} state is now {:?}", _channel_id, c.state);
-          });
-          request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingExchangeDeclareOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_exchange_declare_ok(&mut self,
@@ -541,14 +538,13 @@ impl Connection {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-          let request_id = self.next_request_id();
-          self.channels.get_mut(&_channel_id).map(|c| {
-              c.awaiting.push_back(Answer::AwaitingExchangeDeleteOk(request_id));
-              trace!("channel {} state is now {:?}", _channel_id, c.state);
-          });
-          request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingExchangeDeleteOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_exchange_delete_ok(&mut self,
@@ -605,14 +601,13 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingExchangeBindOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingExchangeBindOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_exchange_bind_ok(&mut self,
@@ -669,14 +664,13 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingExchangeUnbindOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingExchangeUnbindOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_exchange_unbind_ok(&mut self,
@@ -736,14 +730,13 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-          let request_id = self.next_request_id();
-          self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
-          });
-          request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+          c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
+          trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_queue_declare_ok(&mut self,
@@ -804,19 +797,18 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                let key = (exchange.clone(), routing_key.clone());
-                c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id, exchange.clone(), routing_key.clone()));
-                c.queues.get_mut(&queue).map(|q| {
-                  q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
-                  );
-                });
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            let key = (exchange.clone(), routing_key.clone());
+            c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id, exchange.clone(), routing_key.clone()));
+            c.queues.get_mut(&queue).map(|q| {
+                q.bindings.insert(key, Binding::new(exchange, routing_key, nowait)
+                );
             });
-            request_id
-        })
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_queue_bind_ok(&mut self,
@@ -872,14 +864,13 @@ impl Connection {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id, queue.clone()));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id, queue.clone()));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_queue_purge_ok(&mut self,
@@ -934,14 +925,13 @@ impl Connection {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(request_id, queue));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(request_id, queue));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_queue_delete_ok(&mut self,
@@ -996,14 +986,13 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-              c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key));
-              trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+          c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id, exchange, routing_key));
+          trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_queue_unbind_ok(&mut self,
@@ -1059,14 +1048,13 @@ impl Connection {
             global: global,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_basic_qos_ok(&mut self,
@@ -1136,16 +1124,15 @@ impl Connection {
             arguments: arguments,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
-                  request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait, subscriber
-                ));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
+              request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait, subscriber
+            ));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_basic_consume_ok(&mut self,
@@ -1203,14 +1190,13 @@ impl Connection {
             nowait: nowait,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicCancelOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingBasicCancelOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_basic_cancel(&mut self,
@@ -1255,7 +1241,8 @@ impl Connection {
             consumer_tag: consumer_tag,
         }));
 
-        self.send_method_frame(_channel_id, method)
+        self.send_method_frame(_channel_id, method);
+        Ok(())
     }
 
     pub fn receive_basic_cancel_ok(&mut self,
@@ -1314,16 +1301,15 @@ impl Connection {
             immediate: immediate,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            self.channels.get_mut(&_channel_id).map(|c| {
-              if c.confirm {
-                c.awaiting.push_back(Answer::AwaitingPublishConfirm);
-                let delivery_tag = c.next_delivery_tag();
-                c.unacked.insert(delivery_tag);
-                delivery_tag
-              } else { 0 }
-            }).unwrap_or(0)
-        })
+        self.send_method_frame(_channel_id, method);
+        Ok(self.channels.get_mut(&_channel_id).map(|c| {
+          if c.confirm {
+            c.awaiting.push_back(Answer::AwaitingPublishConfirm);
+            let delivery_tag = c.next_delivery_tag();
+            c.unacked.insert(delivery_tag);
+            delivery_tag
+          } else { 0 }
+        }).unwrap_or(0))
     }
 
     pub fn receive_basic_deliver(&mut self,
@@ -1378,14 +1364,13 @@ impl Connection {
             no_ack: no_ack,
         }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id, queue.clone()));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id, queue.clone()));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_basic_get_ok(&mut self,
@@ -1472,11 +1457,11 @@ impl Connection {
             delivery_tag: delivery_tag,
             multiple: multiple,
         }));
-        let res = self.send_method_frame(_channel_id, method);
+        self.send_method_frame(_channel_id, method);
         if multiple && delivery_tag == 0 {
           self.drop_prefetched_messages(_channel_id);
         }
-        res
+        Ok(())
     }
 
     pub fn basic_reject(&mut self,
@@ -1497,7 +1482,8 @@ impl Connection {
             delivery_tag: delivery_tag,
             requeue: requeue,
         }));
-        self.send_method_frame(_channel_id, method)
+        self.send_method_frame(_channel_id, method);
+        Ok(())
     }
 
     fn drop_prefetched_messages(&mut self, channel_id: u16) {
@@ -1522,9 +1508,9 @@ impl Connection {
 
         let method =
             AMQPClass::Basic(basic::AMQPMethod::RecoverAsync(basic::RecoverAsync { requeue: requeue }));
-        let res = self.send_method_frame(_channel_id, method);
+        self.send_method_frame(_channel_id, method);
         self.drop_prefetched_messages(_channel_id);
-        res
+        Ok(())
     }
 
     pub fn basic_recover(&mut self, _channel_id: u16, requeue: Boolean) -> Result<RequestId, Error> {
@@ -1539,16 +1525,14 @@ impl Connection {
 
         let method = AMQPClass::Basic(basic::AMQPMethod::Recover(basic::Recover { requeue: requeue }));
 
-        let res = self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         self.drop_prefetched_messages(_channel_id);
-        res
+        Ok(request_id)
     }
 
     pub fn receive_basic_recover_ok(&mut self,
@@ -1598,11 +1582,11 @@ impl Connection {
             multiple: multiple,
             requeue: requeue,
         }));
-        let res = self.send_method_frame(_channel_id, method);
+        self.send_method_frame(_channel_id, method);
         if multiple && delivery_tag == 0 {
           self.drop_prefetched_messages(_channel_id);
         }
-        res
+        Ok(())
     }
 
     pub fn confirm_select(&mut self, _channel_id: u16, nowait: Boolean) -> Result<RequestId, Error> {
@@ -1616,14 +1600,13 @@ impl Connection {
 
         let method = AMQPClass::Confirm(confirm::AMQPMethod::Select(confirm::Select { nowait: nowait }));
 
-        self.send_method_frame(_channel_id, method).map(|_| {
-            let request_id = self.next_request_id();
-            self.channels.get_mut(&_channel_id).map(|c| {
-                c.awaiting.push_back(Answer::AwaitingConfirmSelectOk(request_id));
-                trace!("channel {} state is now {:?}", _channel_id, c.state);
-            });
-            request_id
-        })
+        self.send_method_frame(_channel_id, method);
+        let request_id = self.next_request_id();
+        self.channels.get_mut(&_channel_id).map(|c| {
+            c.awaiting.push_back(Answer::AwaitingConfirmSelectOk(request_id));
+            trace!("channel {} state is now {:?}", _channel_id, c.state);
+        });
+        Ok(request_id)
     }
 
     pub fn receive_confirm_select_ok(&mut self,
