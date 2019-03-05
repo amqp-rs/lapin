@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::api::{Answer, ChannelState};
 use crate::error::{Error, ErrorKind};
-use crate::queue::*;
+use crate::queue::Queue;
 
 #[derive(Debug)]
 pub struct Channel {
@@ -17,10 +17,10 @@ pub struct Channel {
   pub prefetch_count: u16,
   pub awaiting:       VecDeque<Answer>,
   pub confirm:        bool,
-  pub delivery_tag:   u64,
   pub acked:          HashSet<u64>,
   pub nacked:         HashSet<u64>,
   pub unacked:        HashSet<u64>,
+      delivery_tag:   u64,
 }
 
 impl Channel {
