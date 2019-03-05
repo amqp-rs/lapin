@@ -20,15 +20,6 @@ impl Buffer {
     }
   }
 
-  pub fn from_slice(sl: &[u8]) -> Buffer {
-    Buffer {
-      memory:   Vec::from(sl),
-      capacity: sl.len(),
-      position: 0,
-      end:      sl.len()
-    }
-  }
-
   pub fn grow(&mut self, new_size: usize) -> bool {
     if self.capacity >= new_size {
       return false;
@@ -45,14 +36,6 @@ impl Buffer {
 
   pub fn available_space(&self) -> usize {
     self.capacity - self.end
-  }
-
-  pub fn capacity(&self) -> usize {
-    self.capacity
-  }
-
-  pub fn empty(&self) -> bool {
-    self.position == self.end
   }
 
   pub fn consume(&mut self, count: usize) -> usize {
@@ -76,11 +59,6 @@ impl Buffer {
     cnt
   }
 
-  pub fn reset(&mut self) {
-    self.position = 0;
-    self.end      = 0;
-  }
-
   pub fn data(&self) -> &[u8] {
     &self.memory[self.position..self.end]
   }
@@ -89,7 +67,7 @@ impl Buffer {
     &mut self.memory[self.end..self.capacity]
   }
 
-  pub fn shift(&mut self) {
+  fn shift(&mut self) {
     if self.position > 0 {
       unsafe {
         let length = self.end - self.position;
@@ -98,68 +76,6 @@ impl Buffer {
         self.end      = length;
       }
     }
-  }
-
-  pub fn delete_slice(&mut self, start: usize, length: usize) -> Option<usize> {
-    if start + length >= self.available_data() {
-      return None
-    }
-
-    unsafe {
-      let begin    = self.position + start;
-      let next_end = self.end - length;
-      ptr::copy(
-        (&self.memory[begin+length..self.end]).as_ptr(),
-        (&mut self.memory[begin..next_end]).as_mut_ptr(),
-        self.end - (begin+length)
-      );
-      self.end = next_end;
-    }
-    Some(self.available_data())
-  }
-
-  pub fn replace_slice(&mut self, data: &[u8], start: usize, length: usize) -> Option<usize> {
-    let data_len = data.len();
-    if start + length > self.available_data() ||
-      self.position + start + data_len > self.capacity {
-      return None
-    }
-
-    unsafe {
-      let begin     = self.position + start;
-      let slice_end = begin + data_len;
-      // we reduced the data size
-      if data_len < length {
-        ptr::copy(data.as_ptr(), (&mut self.memory[begin..slice_end]).as_mut_ptr(), data_len);
-
-        ptr::copy((&self.memory[start+length..self.end]).as_ptr(), (&mut self.memory[slice_end..]).as_mut_ptr(), self.end - (start + length));
-        self.end = self.end - (length - data_len);
-
-      // we put more data in the buffer
-      } else {
-        ptr::copy((&self.memory[start+length..self.end]).as_ptr(), (&mut self.memory[start+data_len..]).as_mut_ptr(), self.end - (start + length));
-        ptr::copy(data.as_ptr(), (&mut self.memory[begin..slice_end]).as_mut_ptr(), data_len);
-        self.end = self.end + data_len - length;
-      }
-    }
-    Some(self.available_data())
-  }
-
-  pub fn insert_slice(&mut self, data: &[u8], start: usize) -> Option<usize> {
-    let data_len = data.len();
-    if start > self.available_data() ||
-      self.position + self.end + data_len > self.capacity {
-      return None
-    }
-
-    unsafe {
-      let begin     = self.position + start;
-      let slice_end = begin + data_len;
-      ptr::copy((&self.memory[start..self.end]).as_ptr(), (&mut self.memory[start+data_len..]).as_mut_ptr(), self.end - start);
-      ptr::copy(data.as_ptr(), (&mut self.memory[begin..slice_end]).as_mut_ptr(), data_len);
-      self.end = self.end + data_len;
-    }
-    Some(self.available_data())
   }
 }
 
@@ -222,47 +138,5 @@ mod tests {
     assert_eq!(b.available_data(), 10);
     assert_eq!(b.available_space(), 0);
     assert_eq!(b.data(), &b"cdefghijkl"[..]);
-  }
-
-  #[test]
-  fn delete() {
-    let mut b = Buffer::with_capacity(10);
-    b.write(&b"abcdefgh"[..]).expect("Failed to write to buffer");
-    assert_eq!(b.available_data(), 8);
-    assert_eq!(b.available_space(), 2);
-
-    assert_eq!(b.delete_slice(2, 3), Some(5));
-    assert_eq!(b.available_data(), 5);
-    assert_eq!(b.available_space(), 5);
-    assert_eq!(b.data(), &b"abfgh"[..]);
-
-    assert_eq!(b.delete_slice(5, 2), None);
-    assert_eq!(b.delete_slice(4, 2), None);
-  }
-
-  #[test]
-  fn replace() {
-    let mut b = Buffer::with_capacity(10);
-    b.write(&b"abcdefgh"[..]).expect("Failed to write to buffer");
-    assert_eq!(b.available_data(), 8);
-    assert_eq!(b.available_space(), 2);
-
-    assert_eq!(b.replace_slice(&b"ABC"[..], 2, 3), Some(8));
-    assert_eq!(b.available_data(), 8);
-    assert_eq!(b.available_space(), 2);
-    assert_eq!(b.data(), &b"abABCfgh"[..]);
-
-    assert_eq!(b.replace_slice(&b"XYZ"[..], 8, 3), None);
-    assert_eq!(b.replace_slice(&b"XYZ"[..], 6, 3), None);
-
-    assert_eq!(b.replace_slice(&b"XYZ"[..], 2, 4), Some(7));
-    assert_eq!(b.available_data(), 7);
-    assert_eq!(b.available_space(), 3);
-    assert_eq!(b.data(), &b"abXYZgh"[..]);
-
-    assert_eq!(b.replace_slice(&b"123"[..], 2, 2), Some(8));
-    assert_eq!(b.available_data(), 8);
-    assert_eq!(b.available_space(), 2);
-    assert_eq!(b.data(), &b"ab123Zgh"[..]);
   }
 }
