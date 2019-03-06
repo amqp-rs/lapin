@@ -45,7 +45,7 @@ pub enum Answer {
     AwaitingBasicQosOk(RequestId, u32,u16,bool),
     AwaitingBasicConsumeOk(RequestId, String, String, bool, bool, bool, bool, Box<dyn ConsumerSubscriber>),
     AwaitingBasicCancelOk(RequestId),
-    AwaitingBasicGetAnswer(RequestId, String),
+    AwaitingBasicGetOk(RequestId, String),
     AwaitingBasicRecoverOk(RequestId),
 
     AwaitingTxSelectOk(RequestId),
@@ -54,7 +54,7 @@ pub enum Answer {
 
     // RabbitMQ confirm extension
     AwaitingConfirmSelectOk(RequestId),
-    AwaitingPublishConfirm,
+    AwaitingPublishConfirm(RequestId),
 }
 
 macro_rules! try_unacked (
@@ -1287,7 +1287,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         Ok(self.channels.get_mut(&_channel_id).map(|c| {
           if c.confirm {
-            c.awaiting.push_back(Answer::AwaitingPublishConfirm);
+            c.awaiting.push_back(Answer::AwaitingPublishConfirm(0));
             let delivery_tag = c.next_delivery_tag();
             c.unacked.insert(delivery_tag);
             delivery_tag
@@ -1350,7 +1350,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicGetAnswer(request_id, queue.clone()));
+            c.awaiting.push_back(Answer::AwaitingBasicGetOk(request_id, queue.clone()));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1371,7 +1371,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicGetAnswer(request_id, queue_name)) => {
+          Some(Answer::AwaitingBasicGetOk(request_id, queue_name)) => {
             self.finished_get_reqs.insert(request_id, true);
             self.set_channel_state(_channel_id, ChannelState::WillReceiveContent(queue_name.to_string(), None));
 
@@ -1411,7 +1411,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingBasicGetAnswer(request_id, _)) => {
+          Some(Answer::AwaitingBasicGetOk(request_id, _)) => {
             self.finished_get_reqs.insert(request_id, false);
             Ok(())
           },
@@ -1636,7 +1636,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm) => {
+          Some(Answer::AwaitingPublishConfirm(_)) => {
             if let Some(c) = self.channels.get_mut(&_channel_id) {
               if c.confirm {
                 if method.multiple {
@@ -1678,7 +1678,7 @@ impl Connection {
         }
 
         match self.get_next_answer(_channel_id) {
-          Some(Answer::AwaitingPublishConfirm) => {
+          Some(Answer::AwaitingPublishConfirm(_)) => {
             if let Some(c) = self.channels.get_mut(&_channel_id) {
               if c.confirm {
                 if method.multiple {
