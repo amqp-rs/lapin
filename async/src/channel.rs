@@ -1,5 +1,6 @@
 pub use amq_protocol::protocol::BasicProperties;
 
+use amq_protocol::protocol::AMQPClass;
 use amq_protocol::frame::AMQPFrame;
 use crossbeam_channel::Sender;
 use log::error;
@@ -60,6 +61,17 @@ impl Channel {
         actual:   self.state.clone(),
       }.into())
     }
+  }
+
+  #[doc(hidden)]
+  pub fn send_method_frame(&mut self, method: AMQPClass) {
+    self.send_frame(AMQPFrame::Method(self.id, method));
+  }
+
+  #[doc(hidden)]
+  pub fn send_frame(&mut self, frame: AMQPFrame) {
+    // We always hold a reference to the receiver so it's safe to unwrap
+    self.frame_sender.send(frame).unwrap();
   }
 
   /// gets the next message corresponding to a queue, in response to a basic.get
