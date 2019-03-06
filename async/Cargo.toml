@@ -12,7 +12,7 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-amq-protocol = "^1.2.0"
+amq-protocol = "^1.4.0"
 cookie-factory = "^0.2.4"
 crossbeam-channel = "^0.3"
 failure = "^0.1"
