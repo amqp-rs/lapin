@@ -445,7 +445,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let channel_id = self.id;
 
         self.run_on_locked_transport("basic_qos", "Could not setup qos", move |transport| {
-            transport.conn.basic_qos(channel_id, options.prefetch_size, options.prefetch_count, options.global).map(|_| None)
+            transport.conn.basic_qos(channel_id, options.prefetch_size, options.prefetch_count, options.global).map(Some)
         }).map(|_| ())
     }
 
