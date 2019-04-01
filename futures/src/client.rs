@@ -169,7 +169,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      let configuration = transport.conn.configuration.clone();
+      let configuration = transport.conn.configuration();
       let transport = Arc::new(Mutex::new(transport));
       // The configured value is the timeout, not the interval.
       // rabbitmq-server uses half that time as the periodicity for the heartbeat.
@@ -198,7 +198,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
     //FIXME: maybe the confirm channel should be a separate type
     //especially, if we implement transactions, the methods should be available on the original channel
     //but not on the confirm channel. And the basic publish method should have different results
-    self.create_channel().and_then(move |channel| {
+    self.create_channel().and_then(move |mut channel| {
       let ch = channel.clone();
 
       channel.confirm_select(options).map(|_| ch)

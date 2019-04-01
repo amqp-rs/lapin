@@ -30,6 +30,13 @@ impl Queue {
     self.get_message.take()
   }
 
+  pub fn drop_prefetched_messages(&mut self) {
+    self.next_basic_get_message();
+    for consumer in self.consumers.values_mut() {
+      consumer.drop_prefetched_messages();
+    }
+  }
+
   pub fn start_new_delivery(&mut self, delivery: BasicGetMessage) {
     self.current_get_message = Some(delivery)
   }

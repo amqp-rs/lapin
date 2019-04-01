@@ -12,13 +12,11 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-amq-protocol = "^1.2.0"
+amq-protocol = {path="../../amq-protocol/protocol"}
 bytes = "^0.4"
-cookie-factory = "^0.2.4"
 failure = "^0.1"
 futures = "^0.1"
 log = "^0.4"
-nom = "^4.2"
 parking_lot = "^0.7"
 tokio-codec = "^0.1"
 tokio-io = "^0.1"

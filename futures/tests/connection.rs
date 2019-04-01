@@ -23,7 +23,7 @@ fn connection() {
       lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
     }).and_then(|(client, _)| {
 
-      client.create_channel().and_then(|channel| {
+      client.create_channel().and_then(|mut channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
@@ -36,16 +36,16 @@ fn connection() {
         })
       }).and_then(move |_| {
         client.create_channel()
-      }).and_then(|channel| {
+      }).and_then(|mut channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
-        let ch1 = channel.clone();
-        let ch2 = channel.clone();
-        channel.basic_qos(BasicQosOptions { prefetch_count: 16, ..Default::default() }).and_then(move |_| {
+        let mut ch1 = channel.clone();
+        let mut ch2 = channel.clone();
+        channel.basic_qos(16, BasicQosOptions::default()).and_then(move |_| {
           info!("channel QoS specified");
           channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
-        }).and_then(move |(channel, queue)| {
+        }).and_then(move |(mut channel, queue)| {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::new())
