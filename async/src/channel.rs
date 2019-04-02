@@ -4,7 +4,7 @@ use amq_protocol::protocol::AMQPClass;
 use amq_protocol::frame::AMQPFrame;
 use crossbeam_channel::{self, Receiver, Sender};
 use log::error;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 
 use std::collections::{HashMap, HashSet};
 use std::result;
@@ -16,10 +16,13 @@ use crate::error::{Error, ErrorKind};
 use crate::message::BasicGetMessage;
 use crate::queue::Queue;
 
+pub type RequestId = u64;
+
 #[derive(Clone, Debug)]
 pub struct ChannelHandle {
   pub id:              u16,
       state:           Arc<RwLock<ChannelState>>,
+      request_index:   Arc<Mutex<RequestId>>,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
 }
@@ -45,6 +48,14 @@ impl ChannelHandle {
     let current_state = self.state.read();
     *current_state != ChannelState::Initial && *current_state != ChannelState::Closed && *current_state != ChannelState::Error
   }
+
+  #[doc(hidden)]
+  pub fn next_request_id(&mut self) -> RequestId {
+    let mut request_index = self.request_index.lock();
+    let id = *request_index;
+    *request_index += 1;
+    id
+  }
 }
 
 #[derive(Debug)]
@@ -61,13 +72,14 @@ pub struct Channel {
   pub unacked:         HashSet<u64>,
   pub awaiting:        Receiver<Answer>,
       state:           Arc<RwLock<ChannelState>>,
+      request_index:   Arc<Mutex<RequestId>>,
       delivery_tag:    u64,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
 }
 
 impl Channel {
-  pub fn new(channel_id: u16, frame_sender: Sender<AMQPFrame>) -> Channel {
+  pub fn new(channel_id: u16, frame_sender: Sender<AMQPFrame>, request_index: Arc<Mutex<RequestId>>) -> Channel {
     let (awaiting_sender, awaiting_receiver) = crossbeam_channel::unbounded();
 
     Channel {
@@ -83,6 +95,7 @@ impl Channel {
       unacked:        HashSet::new(),
       awaiting:       awaiting_receiver,
       state:          Arc::new(RwLock::new(ChannelState::Initial)),
+      request_index,
       delivery_tag:   1,
       frame_sender,
       awaiting_sender,
@@ -93,6 +106,7 @@ impl Channel {
     ChannelHandle {
       id:              self.id,
       state:           self.state.clone(),
+      request_index:   self.request_index.clone(),
       frame_sender:    self.frame_sender.clone(),
       awaiting_sender: self.awaiting_sender.clone(),
     }
