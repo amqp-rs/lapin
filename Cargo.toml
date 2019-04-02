@@ -1,2 +1,2 @@
 [workspace]
-members = ["async/", "futures/"]
+members = ["async/", "futures/", "meta/"]
