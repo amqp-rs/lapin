@@ -13,7 +13,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 
 use crate::api::{Answer, ChannelState, RequestId};
-use crate::channel::{Channel, BasicProperties};
+use crate::channel::{Channel, ChannelHandle, BasicProperties};
 use crate::error;
 use crate::message::BasicGetMessage;
 use crate::types::{AMQPValue, FieldTable};
@@ -191,7 +191,7 @@ impl Connection {
   ///
   /// The channel will not be usable until `channel_open`
   /// is called with the channel id
-  pub fn create_channel(&mut self) -> Option<u16> {
+  pub fn create_channel(&mut self) -> Option<ChannelHandle> {
     let _lock  = self.channel_id_lock.lock();
     let offset = if self.channel_index == self.configuration.channel_max {
       // skip 0 and go straight to 1
@@ -205,9 +205,10 @@ impl Connection {
     })?;
 
     let c = Channel::new(id, self.frame_sender.clone());
+    let h = c.handle();
     self.channel_index = id;
     self.channels.insert(id, c);
-    Some(id)
+    Some(h)
   }
 
   pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
@@ -681,7 +682,7 @@ mod tests {
     let mut conn = Connection::new();
     conn.state = ConnectionState::Connected;
     conn.configuration.channel_max = 2047;
-    let channel_id = conn.create_channel().unwrap();
+    let channel_id = conn.create_channel().unwrap().id;
     conn.set_channel_state(channel_id, ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
@@ -757,7 +758,7 @@ mod tests {
     let mut conn = Connection::new();
     conn.state = ConnectionState::Connected;
     conn.configuration.channel_max = 2047;
-    let channel_id = conn.create_channel().unwrap();
+    let channel_id = conn.create_channel().unwrap().id;
     conn.set_channel_state(channel_id, ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);

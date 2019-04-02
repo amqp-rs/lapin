@@ -24,7 +24,7 @@ fn connection() {
     }).and_then(|(client, _)| {
 
       client.create_channel().and_then(|channel| {
-        let id = channel.id;
+        let id = channel.id();
         info!("created channel with id: {}", id);
 
         channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
@@ -37,7 +37,7 @@ fn connection() {
       }).and_then(move |_| {
         client.create_channel()
       }).and_then(|channel| {
-        let id = channel.id;
+        let id = channel.id();
         info!("created channel with id: {}", id);
 
         let ch1 = channel.clone();

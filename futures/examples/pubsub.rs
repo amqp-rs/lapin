@@ -29,7 +29,7 @@ fn main() {
       client
     }).and_then(|client| {
       let publisher = client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|pub_channel| {
-        let id = pub_channel.id;
+        let id = pub_channel.id();
         info!("created publisher channel with id: {}", id);
 
         pub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
@@ -51,7 +51,7 @@ fn main() {
       tokio::spawn(publisher.map_err(|_| ()));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|sub_channel| {
-        let id = sub_channel.id;
+        let id = sub_channel.id();
         info!("created subscriber channel with id: {}", id);
 
         let ch = sub_channel.clone();

@@ -47,7 +47,7 @@
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
 //!     }).and_then(|channel| {
-//!       let id = channel.id;
+//!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
 //!       // we using a "move" closure to reuse the channel
@@ -100,7 +100,7 @@
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
 //!     }).and_then(|channel| {
-//!       let id = channel.id;
+//!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
 //!       let ch = channel.clone();

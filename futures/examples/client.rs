@@ -28,7 +28,7 @@ fn main() {
       tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
 
       client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
-        let id = channel.id;
+        let id = channel.id();
         info!("created channel with id: {}", id);
 
         channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
@@ -59,7 +59,7 @@ fn main() {
       }).and_then(move |_| {
         client.create_channel()
       }).and_then(|channel| {
-        let id = channel.id;
+        let id = channel.id();
         info!("created channel with id: {}", id);
 
         let c = channel.clone();
