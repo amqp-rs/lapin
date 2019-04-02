@@ -54,6 +54,9 @@ impl ChannelHandle {
     let mut request_index = self.request_index.lock();
     let id = *request_index;
     *request_index += 1;
+    if *request_index == 0 {
+      *request_index += 1;
+    }
     id
   }
 }

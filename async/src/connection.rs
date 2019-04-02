@@ -137,7 +137,7 @@ pub struct Connection {
 impl Default for Connection {
   fn default() -> Self {
     let (sender, receiver) = crossbeam_channel::unbounded();
-    let request_index = Arc::new(Mutex::new(0));
+    let request_index = Arc::new(Mutex::new(1));
     let mut h = HashMap::new();
     // The global channel
     h.insert(0, Channel::new(0, sender.clone(), request_index.clone()));
@@ -270,6 +270,9 @@ impl Connection {
     let mut request_index = self.request_index.lock();
     let id = *request_index;
     *request_index += 1;
+    if *request_index == 0 {
+      *request_index += 1;
+    }
     id
   }
 
