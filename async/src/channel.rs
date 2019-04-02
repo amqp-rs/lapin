@@ -19,6 +19,7 @@ use crate::queue::Queue;
 #[derive(Clone, Debug)]
 pub struct ChannelHandle {
   pub id:              u16,
+      state:           Arc<RwLock<ChannelState>>,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
 }
@@ -38,6 +39,11 @@ impl ChannelHandle {
   pub fn send_frame(&mut self, frame: AMQPFrame) {
     // We always hold a reference to the receiver so it's safe to unwrap
     self.frame_sender.send(frame).unwrap();
+  }
+
+  pub fn is_connected(&self) -> bool {
+    let current_state = self.state.read();
+    *current_state != ChannelState::Initial && *current_state != ChannelState::Closed && *current_state != ChannelState::Error
   }
 }
 
@@ -86,6 +92,7 @@ impl Channel {
   pub fn handle(&self) -> ChannelHandle {
     ChannelHandle {
       id:              self.id,
+      state:           self.state.clone(),
       frame_sender:    self.frame_sender.clone(),
       awaiting_sender: self.awaiting_sender.clone(),
     }
