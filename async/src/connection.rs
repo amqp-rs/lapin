@@ -240,13 +240,13 @@ impl Connection {
   #[doc(hidden)]
   pub fn push_back_answer(&mut self, channel_id: u16, answer: Answer) {
     if let Some(c) = self.channels.get_mut(&channel_id) {
-      c.awaiting.push_back(answer);
+      c.await_answer(answer);
     }
   }
 
   #[doc(hidden)]
   pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
-    self.channels.get_mut(&channel_id).and_then(|c| c.awaiting.pop_front())
+    self.channels.get_mut(&channel_id).and_then(|c| c.next_answer())
   }
 
   /// verifies if the channel is connecyed

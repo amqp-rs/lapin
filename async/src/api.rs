@@ -413,7 +413,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingAccessRequestOk(request_id));
+            c.await_answer(Answer::AwaitingAccessRequestOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -482,7 +482,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingExchangeDeclareOk(request_id));
+            c.await_answer(Answer::AwaitingExchangeDeclareOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -541,7 +541,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingExchangeDeleteOk(request_id));
+            c.await_answer(Answer::AwaitingExchangeDeleteOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -604,7 +604,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingExchangeBindOk(request_id));
+            c.await_answer(Answer::AwaitingExchangeBindOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -667,7 +667,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingExchangeUnbindOk(request_id));
+            c.await_answer(Answer::AwaitingExchangeUnbindOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -733,7 +733,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-          c.awaiting.push_back(Answer::AwaitingQueueDeclareOk(request_id));
+          c.await_answer(Answer::AwaitingQueueDeclareOk(request_id));
           trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -800,7 +800,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingQueueBindOk(request_id));
+            c.await_answer(Answer::AwaitingQueueBindOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -856,7 +856,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingQueuePurgeOk(request_id));
+            c.await_answer(Answer::AwaitingQueuePurgeOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -917,7 +917,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingQueueDeleteOk(request_id, queue));
+            c.await_answer(Answer::AwaitingQueueDeleteOk(request_id, queue));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -978,7 +978,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-          c.awaiting.push_back(Answer::AwaitingQueueUnbindOk(request_id));
+          c.await_answer(Answer::AwaitingQueueUnbindOk(request_id));
           trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1034,7 +1034,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
+            c.await_answer(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1110,7 +1110,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicConsumeOk(
+            c.await_answer(Answer::AwaitingBasicConsumeOk(
               request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait, subscriber
             ));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
@@ -1176,7 +1176,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicCancelOk(request_id));
+            c.await_answer(Answer::AwaitingBasicCancelOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1287,7 +1287,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         Ok(self.channels.get_mut(&_channel_id).map(|c| {
           if c.confirm {
-            c.awaiting.push_back(Answer::AwaitingPublishConfirm(0));
+            c.await_answer(Answer::AwaitingPublishConfirm(0));
             let delivery_tag = c.next_delivery_tag();
             c.unacked.insert(delivery_tag);
             delivery_tag
@@ -1350,7 +1350,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicGetOk(request_id, queue.clone()));
+            c.await_answer(Answer::AwaitingBasicGetOk(request_id, queue.clone()));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)
@@ -1512,7 +1512,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingBasicRecoverOk(request_id));
+            c.await_answer(Answer::AwaitingBasicRecoverOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         self.drop_prefetched_messages(_channel_id);
@@ -1587,7 +1587,7 @@ impl Connection {
         self.send_method_frame(_channel_id, method);
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
-            c.awaiting.push_back(Answer::AwaitingConfirmSelectOk(request_id));
+            c.await_answer(Answer::AwaitingConfirmSelectOk(request_id));
             trace!("channel {} state is now {:?}", _channel_id, c.state);
         });
         Ok(request_id)

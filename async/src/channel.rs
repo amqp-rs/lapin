@@ -2,11 +2,11 @@ pub use amq_protocol::protocol::BasicProperties;
 
 use amq_protocol::protocol::AMQPClass;
 use amq_protocol::frame::AMQPFrame;
-use crossbeam_channel::Sender;
+use crossbeam_channel::{self, Receiver, Sender};
 use log::error;
 
 use std::result;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 use crate::api::{Answer, ChannelState};
 use crate::error::{Error, ErrorKind};
@@ -15,30 +15,52 @@ use crate::queue::Queue;
 
 #[derive(Clone, Debug)]
 pub struct ChannelHandle {
-  pub id:             u16,
-      frame_sender:   Sender<AMQPFrame>,
+  pub id:              u16,
+      frame_sender:    Sender<AMQPFrame>,
+      awaiting_sender: Sender<Answer>,
+}
+
+impl ChannelHandle {
+  pub fn await_answer(&mut self, answer: Answer) {
+    // We always hold a reference to the receiver so it's safe to unwrap
+    self.awaiting_sender.send(answer).unwrap()
+  }
+
+  #[doc(hidden)]
+  pub fn send_method_frame(&mut self, method: AMQPClass) {
+    self.send_frame(AMQPFrame::Method(self.id, method));
+  }
+
+  #[doc(hidden)]
+  pub fn send_frame(&mut self, frame: AMQPFrame) {
+    // We always hold a reference to the receiver so it's safe to unwrap
+    self.frame_sender.send(frame).unwrap();
+  }
 }
 
 #[derive(Debug)]
 pub struct Channel {
-  pub id:             u16,
-  pub state:          ChannelState,
-  pub send_flow:      bool,
-  pub receive_flow:   bool,
-  pub queues:         HashMap<String, Queue>,
-  pub prefetch_size:  u32,
-  pub prefetch_count: u16,
-  pub confirm:        bool,
-  pub acked:          HashSet<u64>,
-  pub nacked:         HashSet<u64>,
-  pub unacked:        HashSet<u64>,
-  pub awaiting:       VecDeque<Answer>,
-      delivery_tag:   u64,
-      frame_sender:   Sender<AMQPFrame>,
+  pub id:              u16,
+  pub state:           ChannelState,
+  pub send_flow:       bool,
+  pub receive_flow:    bool,
+  pub queues:          HashMap<String, Queue>,
+  pub prefetch_size:   u32,
+  pub prefetch_count:  u16,
+  pub confirm:         bool,
+  pub acked:           HashSet<u64>,
+  pub nacked:          HashSet<u64>,
+  pub unacked:         HashSet<u64>,
+  pub awaiting:        Receiver<Answer>,
+      delivery_tag:    u64,
+      frame_sender:    Sender<AMQPFrame>,
+      awaiting_sender: Sender<Answer>,
 }
 
 impl Channel {
   pub fn new(channel_id: u16, frame_sender: Sender<AMQPFrame>) -> Channel {
+    let (awaiting_sender, awaiting_receiver) = crossbeam_channel::unbounded();
+
     Channel {
       id:             channel_id,
       state:          ChannelState::Initial,
@@ -51,17 +73,29 @@ impl Channel {
       acked:          HashSet::new(),
       nacked:         HashSet::new(),
       unacked:        HashSet::new(),
-      awaiting:       VecDeque::new(),
+      awaiting:       awaiting_receiver,
       delivery_tag:   1,
       frame_sender,
+      awaiting_sender,
     }
   }
 
   pub fn handle(&self) -> ChannelHandle {
     ChannelHandle {
-      id:           self.id,
-      frame_sender: self.frame_sender.clone(),
+      id:              self.id,
+      frame_sender:    self.frame_sender.clone(),
+      awaiting_sender: self.awaiting_sender.clone(),
     }
+  }
+
+  pub fn await_answer(&mut self, answer: Answer) {
+    // We always hold a reference to the receiver so it's safe to unwrap
+    self.awaiting_sender.send(answer).unwrap()
+  }
+
+  pub fn next_answer(&mut self) -> Option<Answer> {
+      // Error means no message
+    self.awaiting.try_recv().ok()
   }
 
   /// verifies if the channel's state is the one passed as argument
@@ -74,17 +108,6 @@ impl Channel {
         actual:   self.state.clone(),
       }.into())
     }
-  }
-
-  #[doc(hidden)]
-  pub fn send_method_frame(&mut self, method: AMQPClass) {
-    self.send_frame(AMQPFrame::Method(self.id, method));
-  }
-
-  #[doc(hidden)]
-  pub fn send_frame(&mut self, frame: AMQPFrame) {
-    // We always hold a reference to the receiver so it's safe to unwrap
-    self.frame_sender.send(frame).unwrap();
   }
 
   /// gets the next message corresponding to a queue, in response to a basic.get
