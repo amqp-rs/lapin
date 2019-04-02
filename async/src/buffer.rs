@@ -1,4 +1,4 @@
-use std::{cmp, io::{self, Write, Read}, iter::repeat, ptr};
+use std::{cmp, io::{self, Write, Read}, ptr};
 
 #[derive(Debug,PartialEq,Clone)]
 pub struct Buffer {
@@ -10,10 +10,8 @@ pub struct Buffer {
 
 impl Buffer {
   pub fn with_capacity(capacity: usize) -> Buffer {
-    let mut v = Vec::with_capacity(capacity);
-    v.extend(repeat(0).take(capacity));
     Buffer {
-      memory:   v,
+      memory:   vec![0; capacity],
       capacity,
       position: 0,
       end:      0
