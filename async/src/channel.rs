@@ -13,6 +13,12 @@ use crate::error::{Error, ErrorKind};
 use crate::message::BasicGetMessage;
 use crate::queue::Queue;
 
+#[derive(Clone, Debug)]
+pub struct ChannelHandle {
+  pub id:             u16,
+      frame_sender:   Sender<AMQPFrame>,
+}
+
 #[derive(Debug)]
 pub struct Channel {
   pub id:             u16,
@@ -48,6 +54,13 @@ impl Channel {
       awaiting:       VecDeque::new(),
       delivery_tag:   1,
       frame_sender,
+    }
+  }
+
+  pub fn handle(&self) -> ChannelHandle {
+    ChannelHandle {
+      id:           self.id,
+      frame_sender: self.frame_sender.clone(),
     }
   }
 
