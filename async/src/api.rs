@@ -415,7 +415,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingAccessRequestOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -484,7 +484,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingExchangeDeclareOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -543,7 +543,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingExchangeDeleteOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -606,7 +606,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingExchangeBindOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -669,7 +669,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingExchangeUnbindOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -735,7 +735,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
           c.await_answer(Answer::AwaitingQueueDeclareOk(request_id));
-          trace!("channel {} state is now {:?}", _channel_id, c.state);
+          trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -802,7 +802,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingQueueBindOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -858,7 +858,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingQueuePurgeOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -919,7 +919,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingQueueDeleteOk(request_id, queue));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -980,7 +980,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
           c.await_answer(Answer::AwaitingQueueUnbindOk(request_id));
-          trace!("channel {} state is now {:?}", _channel_id, c.state);
+          trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -1036,7 +1036,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingBasicQosOk(request_id, prefetch_size, prefetch_count, global));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -1114,7 +1114,7 @@ impl Connection {
             c.await_answer(Answer::AwaitingBasicConsumeOk(
               request_id, queue, consumer_tag, no_local, no_ack, exclusive, nowait, subscriber
             ));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -1178,7 +1178,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingBasicCancelOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -1310,20 +1310,22 @@ impl Connection {
             return Err(ErrorKind::NotConnected.into());
         }
 
-        self.channels.get_mut(&_channel_id).map(|c| {
-            for (ref queue_name, ref mut q) in &mut c.queues {
-              c.state = ChannelState::WillReceiveContent(queue_name.to_string(), Some(method.consumer_tag.to_string()));
-              q.consumers.get_mut(&method.consumer_tag).map(|cs| {
-                cs.start_new_delivery(Delivery::new(
-                  method.delivery_tag,
-                  method.exchange.to_string(),
-                  method.routing_key.to_string(),
-                  method.redelivered
-                ));
-              });
-            }
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
-        });
+        if let Some(c) = self.channels.get_mut(&_channel_id) {
+          let mut queue_name = None;
+          if let Some((ref name, ref mut consumer)) = c.queues.iter_mut().filter_map(|(name, queue)| queue.consumers.get_mut(&method.consumer_tag).map(|consumer| (name, consumer))).next() {
+            queue_name = Some(name.to_string());
+            consumer.start_new_delivery(Delivery::new(
+                method.delivery_tag,
+                method.exchange.to_string(),
+                method.routing_key.to_string(),
+                method.redelivered
+            ));
+          }
+          if let Some(queue_name) = queue_name.take() {
+            c.set_state(ChannelState::WillReceiveContent(queue_name, Some(method.consumer_tag.to_string())));
+          }
+          trace!("channel {} state is now {:?}", _channel_id, c.state());
+        }
         Ok(())
     }
 
@@ -1352,7 +1354,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingBasicGetOk(request_id, queue.clone()));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }
@@ -1514,7 +1516,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingBasicRecoverOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         self.drop_prefetched_messages(_channel_id);
         Ok(request_id)
@@ -1589,7 +1591,7 @@ impl Connection {
         let request_id = self.next_request_id();
         self.channels.get_mut(&_channel_id).map(|c| {
             c.await_answer(Answer::AwaitingConfirmSelectOk(request_id));
-            trace!("channel {} state is now {:?}", _channel_id, c.state);
+            trace!("channel {} state is now {:?}", _channel_id, c.state());
         });
         Ok(request_id)
     }

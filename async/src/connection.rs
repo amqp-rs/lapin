@@ -219,7 +219,7 @@ impl Connection {
 
   pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
     if let Some(c) = self.channels.get_mut(&channel_id) {
-      c.state = new_state;
+      c.set_state(new_state);
     }
   }
 
@@ -240,7 +240,7 @@ impl Connection {
   /// returns a Option of the state. Non in the case the channel
   /// does not exists
   pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
-    self.channels.get(&channel_id).map(|c| c.state.clone())
+    self.channels.get(&channel_id).map(|c| c.state())
   }
 
   #[doc(hidden)]
@@ -711,7 +711,7 @@ mod tests {
       );
       conn.handle_frame(deliver_frame).unwrap();
       let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state.clone())
+        .map(|channel| channel.state())
         .unwrap();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
@@ -732,7 +732,7 @@ mod tests {
       );
       conn.handle_frame(header_frame).unwrap();
       let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state.clone())
+        .map(|channel| channel.state())
         .unwrap();
       let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
@@ -741,7 +741,7 @@ mod tests {
       let body_frame = AMQPFrame::Body(channel_id, "{}".as_bytes().to_vec());
       conn.handle_frame(body_frame).unwrap();
       let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state.clone())
+        .map(|channel| channel.state())
         .unwrap();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);
@@ -787,7 +787,7 @@ mod tests {
       );
       conn.handle_frame(deliver_frame).unwrap();
       let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state.clone())
+        .map(|channel| channel.state())
         .unwrap();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
@@ -808,7 +808,7 @@ mod tests {
       );
       conn.handle_frame(header_frame).unwrap();
       let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state.clone())
+        .map(|channel| channel.state())
         .unwrap();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);

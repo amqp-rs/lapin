@@ -4,9 +4,11 @@ use amq_protocol::protocol::AMQPClass;
 use amq_protocol::frame::AMQPFrame;
 use crossbeam_channel::{self, Receiver, Sender};
 use log::error;
+use parking_lot::RwLock;
 
-use std::result;
 use std::collections::{HashMap, HashSet};
+use std::result;
+use std::sync::Arc;
 
 use crate::api::{Answer, ChannelState};
 use crate::consumer::ConsumerSubscriber;
@@ -42,7 +44,6 @@ impl ChannelHandle {
 #[derive(Debug)]
 pub struct Channel {
   pub id:              u16,
-  pub state:           ChannelState,
   pub send_flow:       bool,
   pub receive_flow:    bool,
   pub queues:          HashMap<String, Queue>,
@@ -53,6 +54,7 @@ pub struct Channel {
   pub nacked:          HashSet<u64>,
   pub unacked:         HashSet<u64>,
   pub awaiting:        Receiver<Answer>,
+      state:           Arc<RwLock<ChannelState>>,
       delivery_tag:    u64,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
@@ -64,7 +66,6 @@ impl Channel {
 
     Channel {
       id:             channel_id,
-      state:          ChannelState::Initial,
       send_flow:      true,
       receive_flow:   true,
       queues:         HashMap::new(),
@@ -75,6 +76,7 @@ impl Channel {
       nacked:         HashSet::new(),
       unacked:        HashSet::new(),
       awaiting:       awaiting_receiver,
+      state:          Arc::new(RwLock::new(ChannelState::Initial)),
       delivery_tag:   1,
       frame_sender,
       awaiting_sender,
@@ -99,14 +101,24 @@ impl Channel {
     self.awaiting.try_recv().ok()
   }
 
+  pub fn state(&self) -> ChannelState {
+    self.state.read().clone()
+  }
+
+  pub fn set_state(&mut self, state: ChannelState) {
+    let mut current_state = self.state.write();
+    *current_state = state;
+  }
+
   /// verifies if the channel's state is the one passed as argument
   pub fn check_state(&self, state: ChannelState) -> result::Result<(), Error> {
-    if self.state == state {
+    let current_state = self.state();
+    if current_state == state {
       Ok(())
     } else {
       Err(ErrorKind::InvalidState {
         expected: state,
-        actual:   self.state.clone(),
+        actual:   current_state,
       }.into())
     }
   }
@@ -120,11 +132,11 @@ impl Channel {
 
   #[doc(hidden)]
   pub fn handle_content_header_frame(&mut self, size: u64, properties: BasicProperties) {
-    if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = self.state.clone() {
+    if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = self.state() {
       if size > 0 {
-        self.state = ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize);
+        self.set_state(ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
       } else {
-        self.state = ChannelState::Connected;
+        self.set_state(ChannelState::Connected);
       }
       if let Some(ref mut q) = self.queues.get_mut(&queue_name) {
         if let Some(ref consumer_tag) = consumer_tag {
@@ -142,7 +154,7 @@ impl Channel {
         }
       }
     } else {
-      self.state = ChannelState::Error;
+      self.set_state(ChannelState::Error);
     }
   }
 
@@ -150,7 +162,7 @@ impl Channel {
   pub fn handle_body_frame(&mut self, payload: Vec<u8>) {
     let payload_size = payload.len();
 
-    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = self.state.clone() {
+    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = self.state() {
       if remaining_size >= payload_size {
         if let Some(ref mut q) = self.queues.get_mut(&queue_name) {
           if let Some(ref consumer_tag) = opt_consumer_tag {
@@ -169,21 +181,22 @@ impl Channel {
         }
 
         if remaining_size == payload_size {
-          self.state = ChannelState::Connected;
+          self.set_state(ChannelState::Connected);
         } else {
-          self.state = ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size);
+          self.set_state(ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size));
         }
       } else {
         error!("body frame too large");
-        self.state = ChannelState::Error;
+        self.set_state(ChannelState::Error);
       }
     } else {
-      self.state = ChannelState::Error;
+      self.set_state(ChannelState::Error);
     }
   }
 
   pub fn is_connected(&self) -> bool {
-    self.state != ChannelState::Initial && self.state != ChannelState::Closed && self.state != ChannelState::Error
+    let current_state = self.state.read();
+    *current_state != ChannelState::Initial && *current_state != ChannelState::Closed && *current_state != ChannelState::Error
   }
 
   pub fn next_delivery_tag(&mut self) -> u64 {
