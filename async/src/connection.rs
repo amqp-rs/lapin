@@ -119,7 +119,7 @@ pub struct Connection {
   /// We keep a copy so that it never gets shutdown and to create new channels
       frame_sender:      Sender<AMQPFrame>,
   /// next request id
-      request_index:     RequestId,
+      request_index:     Arc<Mutex<RequestId>>,
   /// list of finished requests
   /// value is true if the request returned something or false otherwise
   pub finished_reqs:     HashMap<RequestId, bool>,
@@ -152,7 +152,7 @@ impl Default for Connection {
       prefetch_count:    0,
       frame_receiver:    receiver,
       frame_sender:      sender,
-      request_index:     0,
+      request_index:     Arc::new(Mutex::new(0)),
       finished_reqs:     HashMap::new(),
       finished_get_reqs: HashMap::new(),
       generated_names:   HashMap::new(),
@@ -266,8 +266,9 @@ impl Connection {
 
   #[doc(hidden)]
   pub fn next_request_id(&mut self) -> RequestId {
-    let id = self.request_index;
-    self.request_index += 1;
+    let mut request_index = self.request_index.lock();
+    let id = *request_index;
+    *request_index += 1;
     id
   }
 
