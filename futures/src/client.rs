@@ -73,7 +73,7 @@ impl FromStr for ConnectionOptions {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uri = AMQPUri::from_str(s).map_err(|e| ErrorKind::InvalidUri(e))?;
+        let uri = AMQPUri::from_str(s).map_err(ErrorKind::InvalidUri)?;
         Ok(ConnectionOptions::from_uri(uri, ConnectionProperties::default()))
     }
 }
@@ -149,7 +149,7 @@ pub struct HeartbeatHandle(oneshot::Sender<()>);
 impl HeartbeatHandle {
     /// Signals the heartbeat task to stop sending packets to the broker.
     pub fn stop(self) {
-        if let Err(_) = self.0.send(()) {
+        if self.0.send(()).is_err() {
             warn!("Couldn't send stop signal to heartbeat: already gone");
         }
     }

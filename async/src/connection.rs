@@ -134,15 +134,14 @@ pub struct Connection {
       priority_frames:   VecDeque<AMQPFrame>,
 }
 
-impl Connection {
-  /// creates a `Connection` object in initial state
-  pub fn new() -> Connection {
+impl Default for Connection {
+  fn default() -> Self {
     let (sender, receiver) = crossbeam_channel::unbounded();
     let mut h = HashMap::new();
     // The global channel
     h.insert(0, Channel::new(0, sender.clone()));
 
-    Connection {
+    Self {
       state:             ConnectionState::Initial,
       channels:          h,
       configuration:     Configuration::default(),
@@ -160,6 +159,13 @@ impl Connection {
       credentials:       None,
       priority_frames:   VecDeque::new(),
     }
+  }
+}
+
+impl Connection {
+  /// creates a `Connection` object in initial state
+  pub fn new() -> Self {
+    Default::default()
   }
 
   pub fn set_credentials(&mut self, username: &str, password: &str) {
@@ -277,7 +283,7 @@ impl Connection {
   ///
   /// this method can only be called once per request id, as it will be
   /// removed from the list afterwards
-  pub fn is_finished(&mut self, id: RequestId) -> Option<bool> {
+  pub fn has_finished(&mut self, id: RequestId) -> Option<bool> {
     self.finished_reqs.remove(&id)
   }
 
@@ -414,6 +420,7 @@ impl Connection {
   }
 
   #[doc(hidden)]
+  #[clippy::cyclomatic_complexity = "40"]
   pub fn handle_global_method(&mut self, c: AMQPClass) {
     match self.state.clone() {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
@@ -458,7 +465,7 @@ impl Connection {
 
               options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
 
-              let saved_creds = self.credentials.take().unwrap_or(Credentials::default());
+              let saved_creds = self.credentials.take().unwrap_or_default();
 
               let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
                   connection::StartOk {
@@ -486,20 +493,16 @@ impl Connection {
               debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
-              if self.configuration.heartbeat == 0 {
-                // If we disable the heartbeat but the server don't, follow him and enable it too
-                self.configuration.heartbeat = t.heartbeat;
-              } else if t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat {
-                // If both us and the server want heartbeat enabled, pick the lowest value.
+              // If we disable the heartbeat (0) but the server don't, follow him and enable it too
+              // If both us and the server want heartbeat enabled, pick the lowest value.
+              if self.configuration.heartbeat == 0 || t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat {
                 self.configuration.heartbeat = t.heartbeat;
               }
 
               if t.channel_max != 0 {
-                if self.configuration.channel_max == 0 {
-                  // 0 means we want to take the server's value
-                  self.configuration.channel_max = t.channel_max;
-                } else if t.channel_max < self.configuration.channel_max {
-                  // If both us and the server specified a channel_max, pick the lowest value.
+                // 0 means we want to take the server's value
+                // If both us and the server specified a channel_max, pick the lowest value.
+                if self.configuration.channel_max == 0 || t.channel_max < self.configuration.channel_max {
                   self.configuration.channel_max = t.channel_max;
                 }
               }
@@ -508,11 +511,9 @@ impl Connection {
               }
 
               if t.frame_max != 0 {
-                if self.configuration.frame_max == 0 {
-                  // 0 means we want to take the server's value
-                  self.configuration.frame_max = t.frame_max;
-                } else if t.frame_max < self.configuration.frame_max {
-                  // If both us and the server specified a frame_max, pick the lowest value.
+                // 0 means we want to take the server's value
+                // If both us and the server specified a frame_max, pick the lowest value.
+                if self.configuration.frame_max == 0 || t.frame_max < self.configuration.frame_max {
                   self.configuration.frame_max = t.frame_max;
                 }
               }
@@ -613,10 +614,10 @@ impl Connection {
   /// to the network.
   pub fn send_content_frames(&mut self, channel_id: u16, class_id: u16, slice: &[u8], properties: BasicProperties) {
     let header = AMQPContentHeader {
-      class_id:       class_id,
-      weight:         0,
-      body_size:      slice.len() as u64,
-      properties:     properties,
+      class_id,
+      weight:    0,
+      body_size: slice.len() as u64,
+      properties,
     };
     self.send_frame(AMQPFrame::Header(channel_id, class_id, Box::new(header)));
 

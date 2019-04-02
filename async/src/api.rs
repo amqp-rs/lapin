@@ -66,6 +66,7 @@ macro_rules! try_unacked (
   });
 );
 
+#[allow(clippy::all)]
 impl Connection {
     pub fn receive_method(&mut self, channel_id: u16, method: AMQPClass) -> Result<(), Error> {
         match method {

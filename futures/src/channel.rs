@@ -699,7 +699,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     fn run_on_lock_transport_basic_finished(conn: &mut Connection, request_id: RequestId) -> Poll<Option<RequestId>, Error> {
-        match conn.is_finished(request_id) {
+        match conn.has_finished(request_id) {
             Some(answer) if answer => Ok(Async::Ready(Some(request_id))),
             _                      => {
                 task::current().notify();

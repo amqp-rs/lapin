@@ -142,7 +142,7 @@ impl<T> AMQPTransport<T>
         };
         let t = AMQPTransport {
           upstream:  codec.framed(stream),
-          conn:      conn,
+          conn,
           heartbeat: Some(AMQPFrame::Heartbeat(0)),
         };
 

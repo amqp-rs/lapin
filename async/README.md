@@ -70,7 +70,7 @@ fn main() {
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   thread::sleep(time::Duration::from_millis(100));
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  assert!(conn.is_finished(request_id).unwrap_or(false));
+  assert!(conn.has_finished(request_id).unwrap_or(false));
 
   /* Publish "Hellow world!" to the "hello" queue */
   conn.basic_publish(channel_id, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
@@ -85,7 +85,7 @@ fn main() {
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   thread::sleep(time::Duration::from_millis(100));
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  assert!(conn.is_finished(request_id).unwrap_or(false));
+  assert!(conn.has_finished(request_id).unwrap_or(false));
 }
 
 #[derive(Debug)]

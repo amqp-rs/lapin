@@ -79,7 +79,7 @@ impl Connection {
     let (sz, _) = self.serialize(send_buffer.space())?;
     send_buffer.fill(sz);
 
-    writer.write(&mut send_buffer.data()).map(|sz| {
+    writer.write(&send_buffer.data()).map(|sz| {
       trace!("wrote {} bytes", sz);
       send_buffer.consume(sz);
       (sz, self.state.clone())

@@ -9,6 +9,7 @@ use std::result;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::{Answer, ChannelState};
+use crate::consumer::ConsumerSubscriber;
 use crate::error::{Error, ErrorKind};
 use crate::message::BasicGetMessage;
 use crate::queue::Queue;
