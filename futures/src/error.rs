@@ -23,6 +23,7 @@ pub struct Error {
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Debug, Fail)]
+#[allow(clippy::large_enum_variant)]
 pub enum ErrorKind {
     #[fail(display = "The maximum number of channels for this connection has been reached")]
     ChannelLimitReached,
