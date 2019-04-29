@@ -1,3 +1,17 @@
+### 0.19.0 (???)
+
+#### Bug Fixes
+
+* Better consumers handling
+* Misc code cleanup and modernization
+
+#### Breaking changes
+
+* Method options are now generated, which hardcoded fields from AMQP omitted, and shared between async and futures
+* **async**
+  * Methods are now on a new `ChannelHandle` which is now returned instead of `channel_id` by `create_channel`
+  * Methods are now generated from protocol specifications
+
 ### 0.18.0 (2019-03-03)
 
 #### Bug Fixes
