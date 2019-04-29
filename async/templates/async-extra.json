@@ -1,0 +1,82 @@
+{
+  "connection": {
+    "metadata": {
+      "skip": true
+    }
+  },
+  "channel": {
+    "open": {
+      "metadata": {
+        "channel_init": true
+      }
+    }
+  },
+  "queue": {
+    "delete": {
+      "metadata": {
+        "state": ["queue"]
+      }
+    }
+  },
+  "basic": {
+    "qos": {
+      "metadata": {
+        "state": ["prefetch_count", "global"]
+      }
+    },
+    "consume": {
+      "metadata": {
+        "extra_args": [
+          {
+            "name": "subscriber",
+            "type": "Box<dyn ConsumerSubscriber>"
+          }
+        ],
+        "state": ["queue", "consumer_tag", "no_local", "no_ack", "exclusive", "nowait", "subscriber"]
+      }
+    },
+    "publish": {
+      "metadata": {
+        "extra_args": [
+          {
+            "name": "payload",
+            "type": "Vec<u8>"
+          },
+          {
+            "name": "properties",
+            "type": "BasicProperties"
+          }
+        ],
+        "end_hook": {
+          "params": ["60", "payload", "properties"]
+        }
+      }
+    },
+    "get": {
+      "metadata": {
+        "state": ["queue"]
+      }
+    },
+    "ack": {
+      "metadata": {
+        "end_hook": {
+          "params": ["multiple", "delivery_tag"]
+        }
+      }
+    },
+    "recover-async": {
+      "metadata": {
+        "end_hook": {
+          "params": []
+        }
+      }
+    },
+    "nack": {
+      "metadata": {
+        "end_hook": {
+          "params": ["multiple", "delivery_tag"]
+        }
+      }
+    }
+  }
+}

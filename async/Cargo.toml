@@ -10,14 +10,17 @@ documentation = "https://docs.rs/lapin-async"
 keywords = ["amqp", "rabbitmq", "mio"]
 categories = ["database"]
 license = "MIT"
+build = "build.rs"
+
+[build-dependencies]
+amq-protocol = {path="../../amq-protocol/protocol"}
+serde_json = "^1.0"
 
 [dependencies]
-amq-protocol = "^1.4.0"
-cookie-factory = "^0.2.4"
+amq-protocol = {path="../../amq-protocol/protocol"}
 crossbeam-channel = "^0.3"
 failure = "^0.1"
 log = "^0.4"
-nom = "^4.2"
 parking_lot = '^0.7'
 
 [dev-dependencies]

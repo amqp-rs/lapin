@@ -28,7 +28,7 @@ fn main() {
       tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
       client
     }).and_then(|client| {
-      let publisher = client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|pub_channel| {
+      let publisher = client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|mut pub_channel| {
         let id = pub_channel.id();
         info!("created publisher channel with id: {}", id);
 
@@ -50,11 +50,11 @@ fn main() {
 
       tokio::spawn(publisher.map_err(|_| ()));
 
-      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|sub_channel| {
+      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|mut sub_channel| {
         let id = sub_channel.id();
         info!("created subscriber channel with id: {}", id);
 
-        let ch = sub_channel.clone();
+        let mut ch = sub_channel.clone();
 
         sub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
           info!("subscriber channel {} declared queue {}", id, "hello");

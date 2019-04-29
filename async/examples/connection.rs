@@ -2,6 +2,7 @@ use env_logger;
 use lapin_async as lapin;
 use crate::lapin::buffer::Buffer;
 use crate::lapin::channel::BasicProperties;
+use crate::lapin::channel::options::*;
 use crate::lapin::connection::*;
 use crate::lapin::consumer::ConsumerSubscriber;
 use crate::lapin::message::Delivery;
@@ -49,52 +50,51 @@ fn main() {
 
       //now connected
 
-      let frame_max = conn.configuration.frame_max;
+      let frame_max = conn.configuration().frame_max;
       if frame_max > capacity {
         send_buffer.grow(frame_max as usize);
         receive_buffer.grow(frame_max as usize);
       }
 
-      let channel_a: u16 = conn.create_channel().unwrap().id;
-      let channel_b: u16 = conn.create_channel().unwrap().id;
+      let mut channel_a = conn.create_channel().unwrap();
+      let mut channel_b = conn.create_channel().unwrap();
       //send channel
-      conn.channel_open(channel_a, "".to_string()).expect("channel_open");
+      channel_a.channel_open("").expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //receive channel
-      conn.channel_open(channel_b, "".to_string()).expect("channel_open");
+      channel_b.channel_open("").expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //create the hello queue
-      conn.queue_declare(channel_a, 0, "hello".to_string(), false, false, false, false, false, FieldTable::new()).expect("queue_declare");
+      channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      conn.confirm_select(channel_a, false).expect("confirm_select");
+      channel_a.confirm_select(ConfirmSelectOptions::default()).expect("confirm_select");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      conn.queue_declare(channel_b, 0, "hello".to_string(), false, false, false, false, false, FieldTable::new()).expect("queue_declare");
+      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       info!("will consume");
-      conn.basic_consume(channel_b, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::new(), Box::new(Subscriber)).expect("basic_consume");
+      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::new(), Box::new(Subscriber)).expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       info!("will publish");
-      conn.basic_publish(channel_a, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
       let payload = b"Hello world!";
-      conn.send_content_frames(channel_a, 60, payload, BasicProperties::default());
+      channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

@@ -1,18 +1,15 @@
-use amq_protocol::frame::{AMQPFrame, gen_frame, parse_frame};
+use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
 use lapin_async::connection::*;
 
 use bytes::{BufMut, BytesMut};
-use cookie_factory::GenError;
 use failure::Fail;
 use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream, Future, future};
 use log::{error, trace};
-use nom::Offset;
 use std::{cmp, io};
 use std::iter::repeat;
 use tokio_codec::{Decoder, Encoder, Framed};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::channel::BasicProperties;
 use crate::client::ConnectionOptions;
 use crate::error::{Error, ErrorKind};
 
@@ -138,7 +135,7 @@ impl<T> AMQPTransport<T>
       .map_err(|e| ErrorKind::ConnectionFailed(e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
-          frame_max: conn.configuration.frame_max,
+          frame_max: conn.configuration().frame_max,
         };
         let t = AMQPTransport {
           upstream:  codec.framed(stream),
@@ -160,16 +157,6 @@ impl<T> AMQPTransport<T>
   /// call either `poll` or `poll_send`.
   pub fn send_frame(&mut self, frame: AMQPFrame) {
     self.conn.send_frame(frame);
-  }
-
-  /// Send content frames to the broker.
-  ///
-  /// # Notes
-  ///
-  /// This function only appends the frames to a queue, to actually send the frames you have to
-  /// call either `poll` or `poll_send`.
-  pub fn send_content_frames(&mut self, channel_id: u16, payload: &[u8], properties: BasicProperties) {
-    self.conn.send_content_frames(channel_id, 60, payload, properties);
   }
 
   /// Preemptively send an heartbeat frame
@@ -312,6 +299,7 @@ mod tests {
   use env_logger;
 
   use super::*;
+  use crate::channel::BasicProperties;
 
   #[test]
   fn encode_multiple_frames() {

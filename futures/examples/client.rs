@@ -27,7 +27,7 @@ fn main() {
     }).and_then(|(client, heartbeat)| {
       tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
 
-      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
+      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|mut channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
@@ -58,15 +58,15 @@ fn main() {
         })
       }).and_then(move |_| {
         client.create_channel()
-      }).and_then(|channel| {
+      }).and_then(|mut channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
-        let c = channel.clone();
+        let mut c = channel.clone();
         channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
           info!("channel {} declared queue {:?}", id, queue);
 
-          let ch = channel.clone();
+          let mut ch = channel.clone();
           channel.basic_get("hello", BasicGetOptions::default()).and_then(move |message| {
             info!("got message: {:?}", message);
             info!("decoded message: {:?}", std::str::from_utf8(&message.delivery.data).unwrap());

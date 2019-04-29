@@ -1,9 +1,9 @@
-pub use amq_protocol::protocol::BasicProperties;
+pub use amq_protocol::protocol::{self, BasicProperties};
 
 use amq_protocol::protocol::AMQPClass;
-use amq_protocol::frame::AMQPFrame;
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use crossbeam_channel::{self, Receiver, Sender};
-use log::error;
+use log::{error, trace};
 use parking_lot::{Mutex, RwLock};
 
 use std::collections::{HashMap, HashSet};
@@ -11,26 +11,40 @@ use std::result;
 use std::sync::Arc;
 
 use crate::api::{Answer, ChannelState};
-use crate::consumer::ConsumerSubscriber;
+use crate::connection::Configuration;
+use crate::consumer::{Consumer, ConsumerSubscriber};
 use crate::error::{Error, ErrorKind};
-use crate::message::BasicGetMessage;
+use crate::message::{BasicGetMessage, Delivery};
 use crate::queue::Queue;
+use crate::types::*;
 
+pub type DeliveryTag = u64;
 pub type RequestId = u64;
 
 #[derive(Clone, Debug)]
 pub struct ChannelHandle {
   pub id:              u16,
+      configuration:   Arc<RwLock<Configuration>>,
+      confirm:         Arc<RwLock<bool>>,
       state:           Arc<RwLock<ChannelState>>,
       request_index:   Arc<Mutex<RequestId>>,
+      delivery_tag:    Arc<Mutex<DeliveryTag>>,
+      unacked:         Arc<Mutex<HashSet<DeliveryTag>>>,
+      queues:          Arc<Mutex<HashMap<String, Queue>>>,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
 }
 
 impl ChannelHandle {
   pub fn await_answer(&mut self, answer: Answer) {
+    trace!("channel {} state is now waiting for {:?}", self.id, answer);
     // We always hold a reference to the receiver so it's safe to unwrap
     self.awaiting_sender.send(answer).unwrap()
+  }
+
+  pub fn await_ack(&mut self, delivery_tag: DeliveryTag) {
+    let mut unacked = self.unacked.lock();
+    unacked.insert(delivery_tag);
   }
 
   #[doc(hidden)]
@@ -42,6 +56,11 @@ impl ChannelHandle {
   pub fn send_frame(&mut self, frame: AMQPFrame) {
     // We always hold a reference to the receiver so it's safe to unwrap
     self.frame_sender.send(frame).unwrap();
+  }
+
+  pub fn is_initializing(&self) -> bool {
+    let current_state = self.state.read();
+    *current_state == ChannelState::Initial
   }
 
   pub fn is_connected(&self) -> bool {
@@ -59,6 +78,83 @@ impl ChannelHandle {
     }
     id
   }
+
+  #[doc(hidden)]
+  pub fn next_delivery_tag(&mut self) -> u64 {
+    let mut delivery_tag = self.delivery_tag.lock();
+    let tag = *delivery_tag;;
+    *delivery_tag += 1;
+    if *delivery_tag == 0 {
+      *delivery_tag += 1;
+    }
+    tag
+  }
+
+  pub fn confirm(&self) -> bool {
+    let confirm = self.confirm.read();
+    *confirm
+  }
+
+  fn on_basic_publish(&mut self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) {
+    if self.confirm() {
+      self.await_answer(Answer::AwaitingPublishConfirm(0));
+      let delivery_tag = self.next_delivery_tag();
+      self.await_ack(delivery_tag);
+    }
+    self.send_content_frames(class_id, payload.as_slice(), properties)
+  }
+
+  fn on_basic_recover_async(&mut self) {
+    self.drop_prefetched_messages();
+  }
+
+  fn on_basic_ack(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
+    if multiple && delivery_tag == 0 {
+      self.drop_prefetched_messages();
+    }
+  }
+
+  fn on_basic_nack(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
+    if multiple && delivery_tag == 0 {
+      self.drop_prefetched_messages();
+    }
+  }
+
+  pub fn drop_prefetched_messages(&mut self) {
+    let mut queues = self.queues.lock();
+    for queue in queues.values_mut() {
+      queue.drop_prefetched_messages();
+    }
+  }
+
+  pub fn get_queue_stats(&self, queue: &str) -> (u32, u32) {
+    let queues = self.queues.lock();
+    if let Some(queue) = queues.get(queue) {
+      (queue.consumer_count, queue.message_count)
+    } else {
+      (0, 0)
+    }
+  }
+
+  fn send_content_frames(&mut self, class_id: u16, slice: &[u8], properties: BasicProperties) {
+    let header = AMQPContentHeader {
+      class_id,
+      weight:    0,
+      body_size: slice.len() as u64,
+      properties,
+    };
+    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)));
+
+    let frame_max = {
+      let configuration = self.configuration.read();
+      configuration.frame_max
+    };
+
+    //a content body frame 8 bytes of overhead
+    for chunk in slice.chunks(frame_max as usize - 8) {
+      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)));
+    }
+  }
 }
 
 #[derive(Debug)]
@@ -66,41 +162,41 @@ pub struct Channel {
   pub id:              u16,
   pub send_flow:       bool,
   pub receive_flow:    bool,
-  pub queues:          HashMap<String, Queue>,
-  pub prefetch_size:   u32,
   pub prefetch_count:  u16,
-  pub confirm:         bool,
-  pub acked:           HashSet<u64>,
-  pub nacked:          HashSet<u64>,
-  pub unacked:         HashSet<u64>,
+  pub acked:           HashSet<DeliveryTag>,
+  pub nacked:          HashSet<DeliveryTag>,
   pub awaiting:        Receiver<Answer>,
+      configuration:   Arc<RwLock<Configuration>>,
+      confirm:         Arc<RwLock<bool>>,
       state:           Arc<RwLock<ChannelState>>,
       request_index:   Arc<Mutex<RequestId>>,
-      delivery_tag:    u64,
+      delivery_tag:    Arc<Mutex<DeliveryTag>>,
+      unacked:         Arc<Mutex<HashSet<DeliveryTag>>>,
+      queues:          Arc<Mutex<HashMap<String, Queue>>>,
       frame_sender:    Sender<AMQPFrame>,
       awaiting_sender: Sender<Answer>,
 }
 
 impl Channel {
-  pub fn new(channel_id: u16, frame_sender: Sender<AMQPFrame>, request_index: Arc<Mutex<RequestId>>) -> Channel {
+  pub fn new(channel_id: u16, configuration: Arc<RwLock<Configuration>>, frame_sender: Sender<AMQPFrame>, request_index: Arc<Mutex<RequestId>>) -> Channel {
     let (awaiting_sender, awaiting_receiver) = crossbeam_channel::unbounded();
 
     Channel {
       id:             channel_id,
+      configuration,
       send_flow:      true,
       receive_flow:   true,
-      queues:         HashMap::new(),
-      prefetch_size:  0,
       prefetch_count: 0,
-      confirm:        false,
       acked:          HashSet::new(),
       nacked:         HashSet::new(),
-      unacked:        HashSet::new(),
       awaiting:       awaiting_receiver,
+      confirm:        Arc::new(RwLock::new(false)),
       state:          Arc::new(RwLock::new(ChannelState::Initial)),
       request_index,
-      delivery_tag:   1,
+      delivery_tag:   Arc::new(Mutex::new(1)),
+      queues:         Arc::new(Mutex::new(HashMap::new())),
       frame_sender,
+      unacked:        Arc::new(Mutex::new(HashSet::new())),
       awaiting_sender,
     }
   }
@@ -108,8 +204,13 @@ impl Channel {
   pub fn handle(&self) -> ChannelHandle {
     ChannelHandle {
       id:              self.id,
+      configuration:   self.configuration.clone(),
+      confirm:         self.confirm.clone(),
       state:           self.state.clone(),
       request_index:   self.request_index.clone(),
+      delivery_tag:    self.delivery_tag.clone(),
+      unacked:         self.unacked.clone(),
+      queues:          self.queues.clone(),
       frame_sender:    self.frame_sender.clone(),
       awaiting_sender: self.awaiting_sender.clone(),
     }
@@ -121,8 +222,28 @@ impl Channel {
   }
 
   pub fn next_answer(&mut self) -> Option<Answer> {
-      // Error means no message
+    // Error means no message
     self.awaiting.try_recv().ok()
+  }
+
+  pub fn drain_all_unacked(&mut self) -> HashSet<DeliveryTag> {
+    let mut unacked = self.unacked.lock();
+    unacked.drain().collect()
+  }
+
+  pub fn all_unacked_before(&mut self, delivery_tag: DeliveryTag) -> HashSet<DeliveryTag> {
+    let unacked = self.unacked.lock();
+    unacked.iter().filter(|tag| *tag <= &delivery_tag).cloned().collect()
+  }
+
+  pub fn confirm(&self) -> bool {
+    let confirm = self.confirm.read();
+    *confirm
+  }
+
+  pub fn set_confirm(&mut self) {
+    let mut confirm = self.confirm.write();
+    *confirm = true;
   }
 
   pub fn state(&self) -> ChannelState {
@@ -151,7 +272,8 @@ impl Channel {
   ///
   /// If there is no message, the method will return None
   pub fn next_basic_get_message(&mut self, queue_name: &str) -> Option<BasicGetMessage> {
-      self.queues.get_mut(queue_name).and_then(|queue| queue.next_basic_get_message())
+    let mut queues = self.queues.lock();
+    queues.get_mut(queue_name).and_then(|queue| queue.next_basic_get_message())
   }
 
   #[doc(hidden)]
@@ -162,7 +284,8 @@ impl Channel {
       } else {
         self.set_state(ChannelState::Connected);
       }
-      if let Some(ref mut q) = self.queues.get_mut(&queue_name) {
+      let mut queues = self.queues.lock();
+      if let Some(ref mut q) = queues.get_mut(&queue_name) {
         if let Some(ref consumer_tag) = consumer_tag {
           if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
             cs.set_delivery_properties(properties);
@@ -188,18 +311,21 @@ impl Channel {
 
     if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = self.state() {
       if remaining_size >= payload_size {
-        if let Some(ref mut q) = self.queues.get_mut(&queue_name) {
-          if let Some(ref consumer_tag) = opt_consumer_tag {
-            if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
-              cs.receive_delivery_content(payload);
-              if remaining_size == payload_size {
-                cs.new_delivery_complete();
+        {
+          let mut queues = self.queues.lock();
+          if let Some(ref mut q) = queues.get_mut(&queue_name) {
+            if let Some(ref consumer_tag) = opt_consumer_tag {
+              if let Some(ref mut cs) = q.consumers.get_mut(consumer_tag) {
+                cs.receive_delivery_content(payload);
+                if remaining_size == payload_size {
+                  cs.new_delivery_complete();
+                }
               }
-            }
-          } else {
-            q.receive_delivery_content(payload);
-            if remaining_size == payload_size {
-              q.new_delivery_complete();
+            } else {
+              q.receive_delivery_content(payload);
+              if remaining_size == payload_size {
+                q.new_delivery_complete();
+              }
             }
           }
         }
@@ -224,10 +350,11 @@ impl Channel {
   }
 
   pub fn next_delivery_tag(&mut self) -> u64 {
-    let tag = self.delivery_tag;
-    self.delivery_tag += 1;
-    if self.delivery_tag == 0 {
-      self.delivery_tag = 1;
+    let mut delivery_tag = self.delivery_tag.lock();
+    let tag = *delivery_tag;;
+    *delivery_tag += 1;
+    if *delivery_tag == 0 {
+      *delivery_tag += 1;
     }
     tag
   }
@@ -245,9 +372,60 @@ impl Channel {
   }
 
   fn drop_unacked(&mut self, delivery_tag: u64) -> Result<(), Error> {
-    if !self.unacked.remove(&delivery_tag) {
+    let mut unacked = self.unacked.lock();
+    if !unacked.remove(&delivery_tag) {
       return Err(ErrorKind::PreconditionFailed.into());
     }
     Ok(())
   }
+
+  pub fn register_queue(&mut self, queue: Queue) {
+    let mut queues = self.queues.lock();
+    queues.insert(queue.name.clone(), queue);
+  }
+
+  pub fn deregister_queue(&mut self, queue: &str) {
+    let mut queues = self.queues.lock();
+    queues.remove(queue);
+  }
+
+  pub fn register_consumer(&mut self, queue: &str, consumer_tag: &str, consumer: Consumer) {
+    let mut queues = self.queues.lock();
+    queues.get_mut(queue).map(|q| {
+      q.consumers.insert(consumer_tag.to_string(), consumer)
+    });
+  }
+
+  pub fn deregister_consumer(&mut self, consumer_tag: &str) {
+    let mut queues = self.queues.lock();
+    for queue in queues.values_mut() {
+      queue.consumers.remove(consumer_tag).map(|mut consumer| consumer.cancel());
+    }
+  }
+
+  pub fn start_consumer_delivery(&mut self, consumer_tag: &str, message: Delivery) {
+    let mut queue_name = None;
+    {
+      let mut queues = self.queues.lock();
+      for queue in queues.values_mut() {
+        if let Some(consumer) = queue.consumers.get_mut(consumer_tag) {
+          consumer.start_new_delivery(message);
+          queue_name = Some(queue.name.clone());
+          break;
+        }
+      }
+    }
+    if let Some(queue_name) = queue_name.take() {
+      self.set_state(ChannelState::WillReceiveContent(queue_name, Some(consumer_tag.to_string())));
+    }
+  }
+
+  pub fn start_basic_get_delivery(&mut self, queue: &str, message: BasicGetMessage) {
+    let mut queues = self.queues.lock();
+    if let Some(q) = queues.get_mut(queue) {
+      q.start_new_delivery(message);
+    }
+  }
 }
+
+include!(concat!(env!("OUT_DIR"), "/channel.rs"));

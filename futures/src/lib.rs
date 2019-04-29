@@ -46,7 +46,7 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
-//!     }).and_then(|channel| {
+//!     }).and_then(|mut channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
@@ -99,11 +99,11 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
-//!     }).and_then(|channel| {
+//!     }).and_then(|mut channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
-//!       let ch = channel.clone();
+//!       let mut ch = channel.clone();
 //!       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
