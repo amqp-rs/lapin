@@ -95,7 +95,7 @@ impl ChannelHandle {
     *confirm
   }
 
-  fn on_basic_publish(&mut self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) {
+  fn on_basic_publish_sent(&mut self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) {
     if self.confirm() {
       self.await_answer(Answer::AwaitingPublishConfirm(0));
       let delivery_tag = self.next_delivery_tag();
@@ -104,17 +104,17 @@ impl ChannelHandle {
     self.send_content_frames(class_id, payload.as_slice(), properties)
   }
 
-  fn on_basic_recover_async(&mut self) {
+  fn on_basic_recover_async_sent(&mut self) {
     self.drop_prefetched_messages();
   }
 
-  fn on_basic_ack(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
+  fn on_basic_ack_sent(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
     if multiple && delivery_tag == 0 {
       self.drop_prefetched_messages();
     }
   }
 
-  fn on_basic_nack(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
+  fn on_basic_nack_sent(&mut self, multiple: bool, delivery_tag: DeliveryTag) {
     if multiple && delivery_tag == 0 {
       self.drop_prefetched_messages();
     }

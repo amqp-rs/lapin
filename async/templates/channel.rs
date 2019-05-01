@@ -60,7 +60,7 @@ impl ChannelHandle {
     self.send_method_frame(method);
 
     {{#if method.metadata.end_hook ~}}
-    self.on_{{snake class.name false}}_{{snake method.name false}}({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+    self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     {{/if ~}}
 
     Ok({{#unless method.synchronous ~}}None{{else}}
