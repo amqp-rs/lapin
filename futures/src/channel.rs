@@ -6,7 +6,7 @@ use lapin_async;
 use lapin_async::api::{ChannelState, RequestId};
 use lapin_async::channel::ChannelHandle;
 use lapin_async::connection::Connection;
-use log::{info, trace};
+use log::{debug, trace};
 use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -200,7 +200,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     } else if c.nacked.remove(&delivery_tag) {
                         Some(Ok(Async::Ready(None)))
                     } else {
-                        info!("message with tag {} still in unacked", delivery_tag);
+                        debug!("message with tag {} still in unacked", delivery_tag);
                         task::current().notify();
                         Some(Ok(Async::NotReady))
                     }
