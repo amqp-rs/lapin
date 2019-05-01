@@ -128,14 +128,14 @@ impl<T> AMQPTransport<T>
     let mut conn = Connection::new();
     conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
-    conn.set_frame_max(options.frame_max);
-    conn.set_heartbeat(options.heartbeat);
+    conn.configuration.set_frame_max(options.frame_max);
+    conn.configuration.set_heartbeat(options.heartbeat);
 
     future::result(conn.connect(options.properties))
       .map_err(|e| ErrorKind::ConnectionFailed(e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
-          frame_max: conn.configuration().frame_max,
+          frame_max: conn.configuration.frame_max(),
         };
         let t = AMQPTransport {
           upstream:  codec.framed(stream),
@@ -147,16 +147,6 @@ impl<T> AMQPTransport<T>
           transport: Some(t),
         }
     })
-  }
-
-  /// Send a frame to the broker.
-  ///
-  /// # Notes
-  ///
-  /// This function only appends the frame to a queue, to actually send the frame you have to
-  /// call either `poll` or `poll_send`.
-  pub fn send_frame(&mut self, frame: AMQPFrame) {
-    self.conn.send_frame(frame);
   }
 
   /// Preemptively send an heartbeat frame

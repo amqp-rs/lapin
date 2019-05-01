@@ -8,10 +8,15 @@ use crate::message::BasicGetMessage;
 pub struct Queue {
   pub name:                String,
   pub consumers:           HashMap<String, Consumer>,
-  pub message_count:       u32,
-  pub consumer_count:      u32,
+  pub stats:               QueueStats,
       get_message:         Option<BasicGetMessage>,
       current_get_message: Option<BasicGetMessage>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct QueueStats {
+  pub message_count:  u32,
+  pub consumer_count: u32,
 }
 
 impl Queue {
@@ -19,8 +24,7 @@ impl Queue {
     Queue {
       name,
       consumers:           HashMap::new(),
-      message_count,
-      consumer_count,
+      stats:               QueueStats { message_count, consumer_count },
       get_message:         None,
       current_get_message: None,
     }
@@ -32,7 +36,7 @@ impl Queue {
 
   pub fn drop_prefetched_messages(&mut self) {
     self.next_basic_get_message();
-    for consumer in self.consumers.values_mut() {
+    for consumer in self.consumers.values() {
       consumer.drop_prefetched_messages();
     }
   }

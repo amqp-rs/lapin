@@ -49,17 +49,17 @@ impl Consumer {
     }
   }
 
-  pub fn drop_prefetched_messages(&mut self) {
+  pub fn drop_prefetched_messages(&self) {
     self.subscriber.drop_prefetched_messages();
   }
 
-  pub fn cancel(&mut self) {
+  pub fn cancel(&self) {
     self.subscriber.cancel();
   }
 }
 
 pub trait ConsumerSubscriber: Debug+Send+Sync {
-  fn new_delivery(&mut self, delivery: Delivery);
-  fn drop_prefetched_messages(&mut self);
-  fn cancel(&mut self);
+  fn new_delivery(&self, delivery: Delivery);
+  fn drop_prefetched_messages(&self);
+  fn cancel(&self);
 }

@@ -25,8 +25,6 @@ pub struct Error {
 #[derive(Debug, Fail)]
 #[allow(clippy::large_enum_variant)]
 pub enum ErrorKind {
-    #[fail(display = "The maximum number of channels for this connection has been reached")]
-    ChannelLimitReached,
     #[fail(display = "Failed to open channel")]
     ChannelOpenFailed,
     #[fail(display = "Couldn't decode incoming frame: {}", _0)]

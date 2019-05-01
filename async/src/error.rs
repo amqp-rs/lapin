@@ -3,8 +3,6 @@ use failure::{Backtrace, Context, Fail};
 
 use std::fmt;
 
-use crate::api::ChannelState;
-
 /// The type of error that can be returned in this crate.
 ///
 /// Instead of implementing the `Error` trait provided by the standard library,
@@ -27,18 +25,18 @@ pub enum ErrorKind {
   SendBufferTooSmall,
   #[fail(display = "input buffer is too small")]
   ReceiveBufferTooSmall,
-  #[fail(display = "invalid channel state, expected {:?}, got {:?}", expected, actual)]
-  InvalidState { expected: ChannelState, actual: ChannelState },
   #[fail(display = "invalid protocol method: {:?}", _0)]
   InvalidMethod(AMQPClass),
   #[fail(display = "invalid channel: {}", _0)]
   InvalidChannel(u16),
   #[fail(display = "not connected")]
   NotConnected,
-  #[fail(display = "unexpected answer")]
-  UnexpectedAnswer,
+  #[fail(display = "unexpected reply")]
+  UnexpectedReply,
   #[fail(display = "precondition failed")]
   PreconditionFailed,
+  #[fail(display = "The maximum number of channels for this connection has been reached")]
+  ChannelLimitReached,
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants

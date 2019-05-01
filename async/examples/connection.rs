@@ -15,11 +15,11 @@ use std::{net::TcpStream, thread, time};
 struct Subscriber;
 
 impl ConsumerSubscriber for Subscriber {
-    fn new_delivery(&mut self, delivery: Delivery) {
+    fn new_delivery(&self, delivery: Delivery) {
       info!("received message: {:?}", delivery);
     }
-    fn drop_prefetched_messages(&mut self) {}
-    fn cancel(&mut self) {}
+    fn drop_prefetched_messages(&self) {}
+    fn cancel(&self) {}
 }
 
 fn main() {
@@ -36,7 +36,7 @@ fn main() {
       let mut receive_buffer = Buffer::with_capacity(capacity as usize);
 
       let mut conn: Connection = Connection::new();
-      conn.set_frame_max(capacity);
+      conn.configuration.set_frame_max(capacity);
       assert_eq!(conn.connect(ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(ConnectionProperties::default())));
       loop {
         match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
@@ -50,22 +50,22 @@ fn main() {
 
       //now connected
 
-      let frame_max = conn.configuration().frame_max;
+      let frame_max = conn.configuration.frame_max();
       if frame_max > capacity {
         send_buffer.grow(frame_max as usize);
         receive_buffer.grow(frame_max as usize);
       }
 
-      let mut channel_a = conn.create_channel().unwrap();
-      let mut channel_b = conn.create_channel().unwrap();
+      let channel_a = conn.channels.create().unwrap();
+      let channel_b = conn.channels.create().unwrap();
       //send channel
-      channel_a.channel_open("").expect("channel_open");
+      channel_a.channel_open().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //receive channel
-      channel_b.channel_open("").expect("channel_open");
+      channel_b.channel_open().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

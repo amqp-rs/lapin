@@ -12,12 +12,12 @@ categories = ["database"]
 license = "MIT"
 
 [dependencies]
-amq-protocol = "=2.0.0-beta1"
+amq-protocol = "=2.0.0-beta2"
 bytes = "^0.4"
 failure = "^0.1"
 futures = "^0.1"
 log = "^0.4"
-parking_lot = "^0.7"
+parking_lot = "^0.8"
 tokio-codec = "^0.1"
 tokio-io = "^0.1"
 tokio-sync = "^0.1"

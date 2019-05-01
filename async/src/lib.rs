@@ -16,12 +16,12 @@
 //! ```rust,no_run
 //! use env_logger;
 //! use lapin_async as lapin;
-//! use crate::lapin::api::ChannelState;
 //! use crate::lapin::buffer::Buffer;
 //! use crate::lapin::connection::*;
 //! use crate::lapin::consumer::ConsumerSubscriber;
 //! use crate::lapin::channel::BasicProperties;
 //! use crate::lapin::channel::options::*;
+//! use crate::lapin::channel_status::ChannelState;
 //! use crate::lapin::message::Delivery;
 //! use crate::lapin::types::FieldTable;
 //!
@@ -39,7 +39,7 @@
 //!   let mut send_buffer    = Buffer::with_capacity(capacity as usize);
 //!   let mut receive_buffer = Buffer::with_capacity(capacity as usize);
 //!   let mut conn: Connection = Connection::new();
-//!   conn.set_frame_max(capacity);
+//!   conn.configuration.set_frame_max(capacity);
 //!
 //!   /* Connect tp RabbitMQ server */
 //!   assert_eq!(conn.connect(ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(ConnectionProperties::default())));
@@ -54,26 +54,26 @@
 //!   println!("CONNECTED");
 //!
 //!   /* Adapt our buffer after negocation with the server */
-//!   let frame_max = conn.configuration().frame_max;
+//!   let frame_max = conn.configuration.frame_max();
 //!   if frame_max > capacity {
 //!     send_buffer.grow(frame_max as usize);
 //!     receive_buffer.grow(frame_max as usize);
 //!   }
 //!
 //!   /* Create and open a channel */
-//!   let mut channel = conn.create_channel().unwrap();
-//!   channel.channel_open("").expect("channel_open");
+//!   let channel = conn.channels.create().unwrap();
+//!   channel.channel_open().expect("channel_open");
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-//!   assert!(conn.check_state(channel.id, ChannelState::Connected).map_err(|e| println!("{:?}", e)).is_ok());
+//!   assert!(channel.status.state() == ChannelState::Connected);
 //!
 //!   /* Declaire the "hellp" queue */
 //!   let request_id = channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).unwrap();
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-//!   assert!(conn.has_finished(request_id.unwrap()).unwrap_or(false));
+//!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
 //!
 //!   /* Publish "Hellow world!" to the "hello" queue */
 //!   let payload = b"Hello world!";
@@ -87,29 +87,37 @@
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-//!   assert!(conn.has_finished(request_id.unwrap()).unwrap_or(false));
+//!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
 //! }
 //!
 //! #[derive(Debug)]
 //! struct Subscriber;
 //!
 //! impl ConsumerSubscriber for Subscriber {
-//!   fn new_delivery(&mut self, _delivery: Delivery) {
+//!   fn new_delivery(&self, _delivery: Delivery) {
 //!     // handle message
 //!   }
-//!   fn drop_prefetched_messages(&mut self) {}
-//!   fn cancel(&mut self) {}
+//!   fn drop_prefetched_messages(&self) {}
+//!   fn cancel(&self) {}
 //! }
 //! ```
 
-pub mod api;
+pub mod acknowledgement;
 pub mod buffer;
 pub mod channel;
+pub mod channel_status;
+pub mod channels;
 pub mod connection;
+pub mod configuration;
 pub mod consumer;
 pub mod error;
+pub mod generated_names;
+pub mod id_sequence;
 pub mod io;
 pub mod message;
 pub mod queue;
+pub mod queues;
+pub mod replies;
+pub mod requests;
 pub mod types;
 pub mod uri;

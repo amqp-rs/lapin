@@ -3,17 +3,14 @@ use amq_protocol::protocol::{AMQPClass, connection};
 use amq_protocol::sasl;
 use crossbeam_channel::{self, Sender, Receiver};
 use log::{debug, error, trace, warn};
-use parking_lot::{Mutex, RwLock};
 
 use std::{fmt, result, str};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Result};
-use std::sync::Arc;
 
-use crate::api::{Answer, ChannelState, RequestId};
-use crate::channel::{Channel, ChannelHandle, BasicProperties};
+use crate::channels::Channels;
+use crate::configuration::Configuration;
 use crate::error;
-use crate::message::BasicGetMessage;
 use crate::types::{AMQPValue, FieldTable};
 
 #[derive(Clone,Debug,PartialEq)]
@@ -79,13 +76,6 @@ impl Default for ConnectionProperties {
   }
 }
 
-#[derive(Clone,Debug,Default,PartialEq)]
-pub struct Configuration {
-  pub channel_max: u16,
-  pub frame_max:   u32,
-  pub heartbeat:   u16,
-}
-
 #[derive(Clone,Debug,PartialEq)]
 pub struct Credentials {
   username: String,
@@ -105,55 +95,32 @@ impl Default for Credentials {
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub state:             ConnectionState,
-  pub channels:          HashMap<u16, Channel>,
-      configuration:     Arc<RwLock<Configuration>>,
+  pub channels:          Channels,
+  pub configuration:     Configuration,
   pub vhost:             String,
-      channel_index:     u16,
-      channel_id_lock:   Arc<Mutex<()>>,
-  pub prefetch_count:    u16,
   /// list of message to send
       frame_receiver:    Receiver<AMQPFrame>,
   /// We keep a copy so that it never gets shutdown and to create new channels
       frame_sender:      Sender<AMQPFrame>,
-  /// next request id
-      request_index:     Arc<Mutex<RequestId>>,
-  /// list of finished requests
-  /// value is true if the request returned something or false otherwise
-  pub finished_reqs:     HashMap<RequestId, bool>,
-  /// list of finished basic get requests
-  /// value is true if the request returned something or false otherwise
-  pub finished_get_reqs: HashMap<RequestId, bool>,
-  /// list of generated names (e.g. when supplying empty string for consumer tag or queue name)
-  pub generated_names:   HashMap<RequestId, String>,
   /// credentials are stored in an option to remove them from memory once they are used
       credentials:       Option<Credentials>,
   /// Failed frames we need to try and send back + heartbeats
+      // FIXME! rework this?
       priority_frames:   VecDeque<AMQPFrame>,
 }
 
 impl Default for Connection {
   fn default() -> Self {
     let (sender, receiver) = crossbeam_channel::unbounded();
-    let request_index = Arc::new(Mutex::new(1));
-    let configuration = Arc::new(RwLock::new(Configuration::default()));
-    let mut h = HashMap::new();
-    // The global channel
-    h.insert(0, Channel::new(0, configuration.clone(), sender.clone(), request_index.clone()));
+    let configuration = Configuration::default();
 
     Self {
       state:             ConnectionState::Initial,
-      channels:          h,
+      channels:          Channels::new(configuration.clone(), sender.clone()),
       configuration,
       vhost:             "/".to_string(),
-      channel_index:     0,
-      channel_id_lock:   Arc::new(Mutex::new(())),
-      prefetch_count:    0,
       frame_receiver:    receiver,
       frame_sender:      sender,
-      request_index,
-      finished_reqs:     HashMap::new(),
-      finished_get_reqs: HashMap::new(),
-      generated_names:   HashMap::new(),
       credentials:       None,
       priority_frames:   VecDeque::new(),
     }
@@ -177,141 +144,6 @@ impl Connection {
     self.vhost = vhost.to_string();
   }
 
-  pub fn set_heartbeat(&mut self, heartbeat: u16) {
-    let mut configuration = self.configuration.write();
-    configuration.heartbeat = heartbeat;
-  }
-
-  pub fn set_channel_max(&mut self, channel_max: u16) {
-    let mut configuration = self.configuration.write();
-    configuration.channel_max = channel_max;
-  }
-
-  pub fn set_frame_max(&mut self, frame_max: u32) {
-    let mut configuration = self.configuration.write();
-    configuration.frame_max = frame_max;
-  }
-
-  /// creates a `Channel` object in initial state
-  ///
-  /// returns a `u16` channel id
-  ///
-  /// The channel will not be usable until `channel_open`
-  /// is called with the channel id
-  pub fn create_channel(&mut self) -> Option<ChannelHandle> {
-    let _lock  = self.channel_id_lock.lock();
-    let channel_max = {
-      let configuration = self.configuration.read();
-      configuration.channel_max
-    };
-    let offset = if self.channel_index == channel_max {
-      // skip 0 and go straight to 1
-      1
-    } else {
-      self.channel_index + 1
-    };
-
-    let id = (offset..channel_max).chain(1..offset).find(|id| {
-      self.channels.get(&id).map(|channel| !channel.is_connected()).unwrap_or(true)
-    })?;
-
-    let c = Channel::new(id, self.configuration.clone(), self.frame_sender.clone(), self.request_index.clone());
-    let h = c.handle();
-    self.channel_index = id;
-    self.channels.insert(id, c);
-    Some(h)
-  }
-
-  pub fn set_channel_state(&mut self, channel_id: u16, new_state: ChannelState) {
-    if let Some(c) = self.channels.get_mut(&channel_id) {
-      c.set_state(new_state);
-    }
-  }
-
-  /// verifies if the channel's state is the one passed as argument
-  ///
-  /// returns a Option of the result. None in the case the channel
-  /// does not exists
-  pub fn check_state(&self, channel_id: u16, state: ChannelState) -> result::Result<(), error::Error> {
-    if let Some(c) = self.channels.get(&channel_id) {
-      c.check_state(state)
-    } else {
-      Err(error::ErrorKind::InvalidChannel(channel_id).into())
-    }
-  }
-
-  /// returns the channel's state
-  ///
-  /// returns a Option of the state. Non in the case the channel
-  /// does not exists
-  pub fn get_state(&self, channel_id: u16) -> Option<ChannelState> {
-    self.channels.get(&channel_id).map(|c| c.state())
-  }
-
-  #[doc(hidden)]
-  pub fn push_back_answer(&mut self, channel_id: u16, answer: Answer) {
-    if let Some(c) = self.channels.get_mut(&channel_id) {
-      c.await_answer(answer);
-    }
-  }
-
-  #[doc(hidden)]
-  pub fn get_next_answer(&mut self, channel_id: u16) -> Option<Answer> {
-    self.channels.get_mut(&channel_id).and_then(|c| c.next_answer())
-  }
-
-  /// verifies if the channel is connecyed
-  pub fn is_connected(&self, channel_id: u16) -> bool {
-    if let Some(c) = self.channels.get(&channel_id) {
-      c.is_connected()
-    } else {
-      false
-    }
-  }
-
-  #[doc(hidden)]
-  pub fn next_request_id(&mut self) -> RequestId {
-    let mut request_index = self.request_index.lock();
-    let id = *request_index;
-    *request_index += 1;
-    if *request_index == 0 {
-      *request_index += 1;
-    }
-    id
-  }
-
-  /// Get the name generated by the server for a given `RequestId`
-  ///
-  /// this method can only be called once per request id, as it will be
-  /// removed from the list afterwards
-  pub fn get_generated_name(&mut self, id: RequestId) -> Option<String> {
-    self.generated_names.remove(&id)
-  }
-
-  /// verifies if the request identified with the `RequestId` is finished
-  ///
-  /// this method can only be called once per request id, as it will be
-  /// removed from the list afterwards
-  pub fn has_finished(&mut self, id: RequestId) -> Option<bool> {
-    self.finished_reqs.remove(&id)
-  }
-
-  /// verifies if the get request identified with the `RequestId` is finished
-  ///
-  /// this method can only be called once per request id, as it will be
-  /// removed from the list afterwards
-  pub fn finished_get_result(&mut self, id: RequestId) -> Option<bool> {
-    self.finished_get_reqs.remove(&id)
-  }
-
-  /// gets the next message corresponding to a channel and queue, in response to a basic.get
-  ///
-  /// if the channel id and queue have no link, the method
-  /// will return None. If there is no message, the method will return None
-  pub fn next_basic_get_message(&mut self, channel_id: u16, queue_name: &str) -> Option<BasicGetMessage> {
-    self.channels.get_mut(&channel_id).and_then(|channel| channel.next_basic_get_message(queue_name))
-  }
-
   /// starts the process of connecting to the server
   ///
   /// this will set up the state machine and generates the required messages.
@@ -324,7 +156,7 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
-    self.send_frame(AMQPFrame::ProtocolHeader);
+    self.channels.send_frame(0, AMQPFrame::ProtocolHeader).expect("channel 0");
     self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(options));
     Ok(self.state.clone())
   }
@@ -412,17 +244,17 @@ impl Connection {
         if channel_id == 0 {
           self.handle_global_method(method);
         } else {
-          self.receive_method(channel_id, method)?;
+          self.channels.receive_method(channel_id, method)?;
         }
       },
       AMQPFrame::Heartbeat(_) => {
         debug!("received heartbeat from server");
       },
       AMQPFrame::Header(channel_id, _, header) => {
-        self.handle_content_header_frame(channel_id, header.body_size, header.properties);
+        self.channels.handle_content_header_frame(channel_id, header.body_size, header.properties)?;
       },
       AMQPFrame::Body(channel_id, payload) => {
-        self.handle_body_frame(channel_id, payload);
+        self.channels.handle_body_frame(channel_id, payload)?;
       }
     };
     Ok(())
@@ -486,7 +318,7 @@ impl Connection {
               ));
 
               debug!("client sending Connection::StartOk: {:?}", start_ok);
-              self.send_method_frame(0, start_ok);
+              self.channels.send_method_frame(0, start_ok).expect("channel 0");
               self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
@@ -502,61 +334,51 @@ impl Connection {
               debug!("Server sent Connection::Tune: {:?}", t);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
 
-              let tune_ok = {
-                let mut configuration = self.configuration.write();
+              // If we disable the heartbeat (0) but the server don't, follow him and enable it too
+              // If both us and the server want heartbeat enabled, pick the lowest value.
+              if self.configuration.heartbeat() == 0 || t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat() {
+                self.configuration.set_heartbeat(t.heartbeat);
+              }
 
-                // If we disable the heartbeat (0) but the server don't, follow him and enable it too
-                // If both us and the server want heartbeat enabled, pick the lowest value.
-                if configuration.heartbeat == 0 || t.heartbeat != 0 && t.heartbeat < configuration.heartbeat {
-                  configuration.heartbeat = t.heartbeat;
+              if t.channel_max != 0 {
+                // 0 means we want to take the server's value
+                // If both us and the server specified a channel_max, pick the lowest value.
+                if self.configuration.channel_max() == 0 || t.channel_max < self.configuration.channel_max() {
+                  self.configuration.set_channel_max(t.channel_max);
                 }
+              }
+              if self.configuration.channel_max() == 0 {
+                self.configuration.set_channel_max(u16::max_value());
+              }
 
-                if t.channel_max != 0 {
-                  // 0 means we want to take the server's value
-                  // If both us and the server specified a channel_max, pick the lowest value.
-                  if configuration.channel_max == 0 || t.channel_max < configuration.channel_max {
-                    configuration.channel_max = t.channel_max;
-                  }
+              if t.frame_max != 0 {
+                // 0 means we want to take the server's value
+                // If both us and the server specified a frame_max, pick the lowest value.
+                if self.configuration.frame_max() == 0 || t.frame_max < self.configuration.frame_max() {
+                  self.configuration.set_frame_max(t.frame_max);
                 }
-                if configuration.channel_max == 0 {
-                  configuration.channel_max = u16::max_value();
-                }
+              }
+              if self.configuration.frame_max() == 0 {
+                self.configuration.set_frame_max(u32::max_value());
+              }
 
-                if t.frame_max != 0 {
-                  // 0 means we want to take the server's value
-                  // If both us and the server specified a frame_max, pick the lowest value.
-                  if configuration.frame_max == 0 || t.frame_max < configuration.frame_max {
-                    configuration.frame_max = t.frame_max;
-                  }
-                }
-                if configuration.frame_max == 0 {
-                  configuration.frame_max = u32::max_value();
-                }
-
-                AMQPClass::Connection(connection::AMQPMethod::TuneOk(
-                    connection::TuneOk {
-                      channel_max : configuration.channel_max,
-                      frame_max   : configuration.frame_max,
-                      heartbeat   : configuration.heartbeat,
-                    }
-                ))
-              };
-
-              debug!("client sending Connection::TuneOk: {:?}", tune_ok);
-
-              self.send_method_frame(0, tune_ok);
-              self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
-
-              let open = AMQPClass::Connection(connection::AMQPMethod::Open(
-                  connection::Open {
-                    virtual_host: self.vhost.clone(),
-                    capabilities: "".to_string(), // legacy, not used
-                    insist:       false,
+              let tune_ok = AMQPClass::Connection(connection::AMQPMethod::TuneOk(
+                  connection::TuneOk {
+                    channel_max: self.configuration.channel_max(),
+                    frame_max:   self.configuration.frame_max(),
+                    heartbeat:   self.configuration.heartbeat(),
                   }
               ));
 
+              debug!("client sending Connection::TuneOk: {:?}", tune_ok);
+
+              self.channels.send_method_frame(0, tune_ok).expect("channel 0");
+              self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
+
+              let open = AMQPClass::Connection(connection::AMQPMethod::Open(connection::Open { virtual_host: self.vhost.clone() }));
+
               debug!("client sending Connection::Open: {:?}", open);
-              self.send_method_frame(0,open);
+              self.channels.send_method_frame(0, open).expect("channel 0");
               self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
@@ -608,31 +430,6 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn handle_content_header_frame(&mut self, channel_id: u16, size: u64, properties: BasicProperties) {
-    if let Some(channel) = self.channels.get_mut(&channel_id) {
-      channel.handle_content_header_frame(size, properties);
-    }
-  }
-
-  #[doc(hidden)]
-  pub fn handle_body_frame(&mut self, channel_id: u16, payload: Vec<u8>) {
-    if let Some(channel) = self.channels.get_mut(&channel_id) {
-      channel.handle_body_frame(payload);
-    }
-  }
-
-  #[doc(hidden)]
-  pub fn send_method_frame(&mut self, channel: u16, method: AMQPClass) {
-    self.send_frame(AMQPFrame::Method(channel, method));
-  }
-
-  #[doc(hidden)]
-  pub fn send_frame(&mut self, frame: AMQPFrame) {
-    // We always hold a reference to the receiver so it's safe to unwrap
-    self.frame_sender.send(frame).unwrap();
-  }
-
-  #[doc(hidden)]
   pub fn send_preemptive_frame(&mut self, frame: AMQPFrame) {
     self.priority_frames.push_front(frame);
   }
@@ -646,11 +443,6 @@ impl Connection {
   pub fn has_pending_frames(&self) -> bool {
     !self.priority_frames.is_empty() || !self.frame_receiver.is_empty()
   }
-
-  pub fn configuration(&self) -> Configuration {
-    let configuration = self.configuration.read();
-    configuration.clone()
-  }
 }
 
 #[cfg(test)]
@@ -658,6 +450,8 @@ mod tests {
   use env_logger;
 
   use super::*;
+  use crate::channel::BasicProperties;
+  use crate::channel_status::ChannelState;
   use crate::consumer::ConsumerSubscriber;
   use crate::message::Delivery;
   use amq_protocol::protocol::basic;
@@ -667,9 +461,9 @@ mod tests {
   struct DummySubscriber;
 
   impl ConsumerSubscriber for DummySubscriber {
-    fn new_delivery(&mut self, _delivery: Delivery) {}
-    fn drop_prefetched_messages(&mut self) {}
-    fn cancel(&mut self) {}
+    fn new_delivery(&self, _delivery: Delivery) {}
+    fn drop_prefetched_messages(&self) {}
+    fn cancel(&self) {}
   }
 
   #[test]
@@ -682,21 +476,21 @@ mod tests {
     // Bootstrap connection state to a consuming state
     let mut conn = Connection::new();
     conn.state = ConnectionState::Connected;
-    conn.set_channel_max(2047);
-    let channel_id = conn.create_channel().unwrap().id;
-    conn.set_channel_state(channel_id, ChannelState::Connected);
+    conn.configuration.set_channel_max(2047);
+    let channel = conn.channels.create().unwrap();
+    channel.status.set_state(ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
     let consumer_tag = "consumer-tag".to_string();
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
-    conn.channels.get_mut(&channel_id).map(|c| {
-      c.register_queue(queue);
+    conn.channels.get(channel.id()).map(|c| {
+      c.queues.register(queue);
     });
     // Now test the state machine behaviour
     {
       let deliver_frame = AMQPFrame::Method(
-        channel_id,
+        channel.id(),
         AMQPClass::Basic(
           basic::AMQPMethod::Deliver(
             basic::Deliver {
@@ -710,9 +504,7 @@ mod tests {
         )
       );
       conn.handle_frame(deliver_frame).unwrap();
-      let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state())
-        .unwrap();
+      let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
         Some(consumer_tag.clone())
@@ -721,7 +513,7 @@ mod tests {
     }
     {
       let header_frame = AMQPFrame::Header(
-        channel_id,
+        channel.id(),
         60,
         Box::new(AMQPContentHeader {
           class_id: 60,
@@ -731,18 +523,14 @@ mod tests {
         })
       );
       conn.handle_frame(header_frame).unwrap();
-      let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state())
-        .unwrap();
+      let channel_state = channel.status.state();
       let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
     }
     {
-      let body_frame = AMQPFrame::Body(channel_id, "{}".as_bytes().to_vec());
+      let body_frame = AMQPFrame::Body(channel.id(), "{}".as_bytes().to_vec());
       conn.handle_frame(body_frame).unwrap();
-      let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state())
-        .unwrap();
+      let channel_state = channel.status.state();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);
     }
@@ -758,21 +546,21 @@ mod tests {
     // Bootstrap connection state to a consuming state
     let mut conn = Connection::new();
     conn.state = ConnectionState::Connected;
-    conn.set_channel_max(2047);
-    let channel_id = conn.create_channel().unwrap().id;
-    conn.set_channel_state(channel_id, ChannelState::Connected);
+    conn.configuration.set_channel_max(2047);
+    let channel = conn.channels.create().unwrap();
+    channel.status.set_state(ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
     let consumer_tag = "consumer-tag".to_string();
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
-    conn.channels.get_mut(&channel_id).map(|c| {
-      c.register_queue(queue);
+    conn.channels.get(channel.id()).map(|c| {
+      c.queues.register(queue);
     });
     // Now test the state machine behaviour
     {
       let deliver_frame = AMQPFrame::Method(
-        channel_id,
+        channel.id(),
         AMQPClass::Basic(
           basic::AMQPMethod::Deliver(
             basic::Deliver {
@@ -786,9 +574,7 @@ mod tests {
         )
       );
       conn.handle_frame(deliver_frame).unwrap();
-      let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state())
-        .unwrap();
+      let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
         Some(consumer_tag.clone())
@@ -797,7 +583,7 @@ mod tests {
     }
     {
       let header_frame = AMQPFrame::Header(
-        channel_id,
+        channel.id(),
         60,
         Box::new(AMQPContentHeader {
           class_id: 60,
@@ -807,9 +593,7 @@ mod tests {
         })
       );
       conn.handle_frame(header_frame).unwrap();
-      let channel_state = conn.channels.get_mut(&channel_id)
-        .map(|channel| channel.state())
-        .unwrap();
+      let channel_state = channel.status.state();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);
     }

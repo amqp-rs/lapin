@@ -9,21 +9,58 @@
       "metadata": {
         "channel_init": true
       }
+    },
+    "open-ok": {
+      "metadata": {
+        "channel_init": true
+      }
+    },
+    "close": {
+      "metadata": {
+        "can_be_received": true
+      }
+    },
+    "close-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": []
+        }
+      }
+    },
+    "flow": {
+      "metadata": {
+        "can_be_received": true
+      }
+    }
+  },
+  "confirm": {
+    "select-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": []
+        }
+      }
     }
   },
   "queue": {
     "delete": {
       "metadata": {
-        "state": ["queue"]
+        "state": [
+          {
+            "name": "queue",
+            "type": "String",
+            "use_str_ref": true
+          }
+        ]
+      }
+    },
+    "declare-ok": {
+      "metadata": {
+        "uses_request_id": true
       }
     }
   },
   "basic": {
-    "qos": {
-      "metadata": {
-        "state": ["prefetch_count", "global"]
-      }
-    },
     "consume": {
       "metadata": {
         "extra_args": [
@@ -32,7 +69,48 @@
             "type": "Box<dyn ConsumerSubscriber>"
           }
         ],
-        "state": ["queue", "consumer_tag", "no_local", "no_ack", "exclusive", "nowait", "subscriber"]
+        "state": [
+          {
+            "name": "queue",
+            "type": "String",
+            "use_str_ref": true
+          },
+          {
+            "name": "no_local",
+            "type": "bool"
+          },
+          {
+            "name": "no_ack",
+            "type": "bool"
+          },
+          {
+            "name": "exclusive",
+            "type": "bool"
+          },
+          {
+            "name": "nowait",
+            "type": "bool"
+          },
+          {
+            "name": "subscriber",
+            "type": "Box<dyn ConsumerSubscriber>"
+          }
+        ]
+      }
+    },
+    "consume-ok": {
+      "metadata": {
+        "uses_request_id": true
+      }
+    },
+    "deliver": {
+      "metadata": {
+        "can_be_received": true
+      }
+    },
+    "cancel": {
+      "metadata": {
+        "can_be_received": true
       }
     },
     "publish": {
@@ -49,16 +127,32 @@
         ],
         "end_hook": {
           "params": ["60", "payload", "properties"]
+        },
+        "reply": {
+          "name": "PublishConfirm",
+          "no_state": true
         }
       }
     },
     "get": {
       "metadata": {
-        "state": ["queue"]
+        "state": [
+          {
+            "name": "queue",
+            "type": "String",
+            "use_str_ref": true
+          }
+        ]
+      }
+    },
+    "get-empty": {
+      "metadata": {
+        "can_be_received": true
       }
     },
     "ack": {
       "metadata": {
+        "can_be_received": true,
         "end_hook": {
           "params": ["multiple", "delivery_tag"]
         }
@@ -71,8 +165,16 @@
         }
       }
     },
+    "recover-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": []
+        }
+      }
+    },
     "nack": {
       "metadata": {
+        "can_be_received": true,
         "end_hook": {
           "params": ["multiple", "delivery_tag"]
         }

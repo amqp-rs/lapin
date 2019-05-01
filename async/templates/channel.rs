@@ -20,15 +20,48 @@ pub mod options {
 
 use options::*;
 
-impl ChannelHandle {
+#[derive(Debug)]
+pub enum Reply {
   {{#each protocol.classes as |class| ~}}
   {{#unless class.metadata.skip ~}}
   {{#each class.methods as |method| ~}}
-  pub fn {{snake class.name false}}_{{snake method.name false}}(&mut self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<RequestId>, Error> {
+  Awaiting{{#if method.metadata.reply.name ~}}{{method.metadata.reply.name}}{{else}}{{camel class.name}}{{camel method.name}}Ok{{/if ~}}{{#unless method.metadata.reply.no_state ~}}(RequestId{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}){{/unless ~}},
+  {{/each ~}}
+  {{/unless ~}}
+  {{/each ~}}
+}
+
+impl Channel {
+  pub(crate) fn receive_method(&self, method: AMQPClass) -> Result<(), Error> {
+    match method {
+      {{#each protocol.classes as |class| ~}}
+      {{#unless class.metadata.skip ~}}
+      {{#each class.methods as |method| ~}}
+      {{#if method.is_reply ~}}
+      AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
+      {{/if ~}}
+      // FIXME: dedupe
+      {{#if method.metadata.can_be_received ~}}
+      AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
+      {{/if ~}}
+      {{/each ~}}
+      {{/unless ~}}
+      {{/each ~}}
+      m => {
+        error!("the client should not receive this method: {:?}", m);
+        Err(ErrorKind::InvalidMethod(m).into())
+      }
+    }
+  }
+
+  {{#each protocol.classes as |class| ~}}
+  {{#unless class.metadata.skip ~}}
+  {{#each class.methods as |method| ~}}
+  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<RequestId>, Error> {
     {{#if method.metadata.channel_init ~}}
-    if !self.is_initializing() {
+    if !self.status.is_initializing() {
     {{else}}
-    if !self.is_connected() {
+    if !self.status.is_connected() {
     {{/if ~}}
       return Err(ErrorKind::NotConnected.into());
     }
@@ -67,16 +100,52 @@ impl ChannelHandle {
       {{#if (method_has_flag method "nowait") ~}}
       if nowait {
         None
-      } else
-      {{/if ~}}
-      {
-        let request_id = self.next_request_id();
-        self.await_answer(Answer::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state}}{{#if (use_str_ref (argument_type method state)) ~}}.to_string(){{/if ~}}{{/each ~}}));
+      } else {{/if ~}}{
+        let request_id = self.request_id.next();
+        self.replies.register_pending(self.id, Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}}));
         Some(request_id)
       }
     {{/unless ~}})
   }
 
+  {{#if method.is_reply ~}}
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if method.arguments ~}}method{{else}}_{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
+    {{#if method.metadata.channel_init ~}}
+    if !self.status.is_initializing() {
+    {{else}}
+    if !self.status.is_connected() {
+    {{/if ~}}
+      return Err(ErrorKind::NotConnected.into());
+    }
+
+    match self.replies.next() {
+      Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+        self.requests.finish(request_id, true);
+        {{#if method.arguments ~}}
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.uses_request_id ~}}, request_id{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
+        {{else}}
+        {{#if method.metadata.received_hook ~}}
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})
+        {{else}}
+        Ok(())
+        {{/if ~}}
+        {{/if ~}}
+      },
+      _ => {
+        self.set_error()?;
+        Err(ErrorKind::UnexpectedReply.into())
+      },
+    }
+  }
+  {{/if ~}}
+  {{#if method.metadata.can_be_received ~}}
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
+    if !self.status.is_connected() {
+      return Err(ErrorKind::NotConnected.into());
+    }
+    self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
+  }
+  {{/if ~}}
   {{/each ~}}
   {{/unless ~}}
   {{/each ~}}

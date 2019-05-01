@@ -17,7 +17,7 @@ pub struct ConsumerSub {
 }
 
 impl ConsumerSubscriber for ConsumerSub {
-  fn new_delivery(&mut self, delivery: Delivery) {
+  fn new_delivery(&self, delivery: Delivery) {
     trace!("new_delivery;");
     let mut inner = self.inner.lock();
     inner.deliveries.push_back(delivery);
@@ -25,12 +25,12 @@ impl ConsumerSubscriber for ConsumerSub {
       task.notify();
     }
   }
-  fn drop_prefetched_messages(&mut self) {
+  fn drop_prefetched_messages(&self) {
     trace!("drop_prefetched_messages;");
     let mut inner = self.inner.lock();
     inner.deliveries.clear();
   }
-  fn cancel(&mut self) {
+  fn cancel(&self) {
     trace!("cancel;");
     let mut inner = self.inner.lock();
     inner.deliveries.clear();

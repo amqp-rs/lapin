@@ -35,7 +35,7 @@ fn main() {
                     channel.clone().queue_declare("topic_queue", QueueDeclareOptions::default(), FieldTable::new()).map(move |_| channel)
                 }).and_then(|channel| {
                     channel.clone().queue_bind("topic_queue", "hello_topic", "*.foo.*", QueueBindOptions::default(), FieldTable::new()).map(move |_| channel)
-                }).and_then(|mut channel| {
+                }).and_then(|channel| {
                     channel.basic_publish("hello_topic", "hello.fooo.bar", b"hello".to_vec(), BasicPublishOptions::default(), BasicProperties::default()).map(|confirmation| {
                         println!("got confirmation of publication: {:?}", confirmation);
                     })

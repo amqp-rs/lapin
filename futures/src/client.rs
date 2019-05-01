@@ -21,6 +21,7 @@ pub use lapin_async::connection::{ConnectionSASLMechanism, ConnectionProperties}
 //#[derive(Clone)]
 pub struct Client<T> {
     transport:         Arc<Mutex<AMQPTransport<T>>>,
+    channels:          lapin_async::channels::Channels,
     pub configuration: ConnectionConfiguration,
 }
 
@@ -29,6 +30,7 @@ impl<T> Clone for Client<T>
   fn clone(&self) -> Client<T> {
     Client {
       transport:     self.transport.clone(),
+      channels:      self.channels.clone(),
       configuration: self.configuration.clone(),
     }
   }
@@ -78,7 +80,7 @@ impl FromStr for ConnectionOptions {
     }
 }
 
-pub type ConnectionConfiguration = lapin_async::connection::Configuration;
+pub type ConnectionConfiguration = lapin_async::configuration::Configuration;
 
 fn heartbeat_pulse<T: AsyncRead+AsyncWrite+Send+'static>(transport: Arc<Mutex<AMQPTransport<T>>>, heartbeat: u16, rx: oneshot::Receiver<()>) -> impl Future<Item = (), Error = Error> + Send + 'static {
     let interval  = if heartbeat == 0 {
@@ -169,18 +171,19 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      let configuration = transport.conn.configuration();
+      let configuration = transport.conn.configuration.clone();
+      let channels = transport.conn.channels.clone();
       let transport = Arc::new(Mutex::new(transport));
       // The configured value is the timeout, not the interval.
       // rabbitmq-server uses half that time as the periodicity for the heartbeat.
       // Let's do the same.
-      let heartbeat_interval =  configuration.heartbeat / 2;
+      let heartbeat_interval =  configuration.heartbeat() / 2;
       let heartbeat = make_heartbeat(|rx| {
-        debug!("heartbeat; timeout={}; interval={}", configuration.heartbeat, heartbeat_interval);
+        debug!("heartbeat; timeout={}; interval={}", configuration.heartbeat(), heartbeat_interval);
 
         heartbeat_pulse(transport.clone(), heartbeat_interval, rx)
       });
-      let client = Client { configuration, transport };
+      let client = Client { configuration, channels, transport };
       Ok((client, heartbeat))
     })
   }
@@ -189,16 +192,13 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
   pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = Error> + Send + 'static {
-    Channel::create(self.transport.clone())
+    Channel::create(self.channels.create(), self.transport.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds
   /// the channel will support RabbitMQ's confirm extension
   pub fn create_confirm_channel(&self, options: ConfirmSelectOptions) -> impl Future<Item = Channel<T>, Error = Error> + Send + 'static {
-    //FIXME: maybe the confirm channel should be a separate type
-    //especially, if we implement transactions, the methods should be available on the original channel
-    //but not on the confirm channel. And the basic publish method should have different results
-    self.create_channel().and_then(move |mut channel| {
+    self.create_channel().and_then(move |channel| {
       let ch = channel.clone();
 
       channel.confirm_select(options).map(|_| ch)
