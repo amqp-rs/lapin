@@ -1,16 +1,28 @@
 use env_logger;
 use lapin_async as lapin;
 
-use std::{net::TcpStream, thread, time};
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::{
+  net::TcpStream,
+  sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+  },
+  thread,
+  time,
+};
 
-use crate::lapin::buffer::Buffer;
-use crate::lapin::channel::BasicProperties;
-use crate::lapin::channel::options::*;
-use crate::lapin::connection::*;
-use crate::lapin::consumer::ConsumerSubscriber;
-use crate::lapin::message::Delivery;
-use crate::lapin::types::*;
+use crate::lapin::{
+  buffer::Buffer,
+  channel::BasicProperties,
+  channel::options::*,
+  connection::Connection,
+  connection_properties::ConnectionProperties,
+  connection_status::{ConnectionState, ConnectingState},
+  consumer::ConsumerSubscriber,
+  credentials::Credentials,
+  message::Delivery,
+  types::FieldTable,
+};
 
 #[derive(Debug)]
 struct Subscriber {

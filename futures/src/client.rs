@@ -15,7 +15,7 @@ use crate::channel::{Channel, ConfirmSelectOptions};
 use crate::error::{Error, ErrorKind};
 use crate::transport::*;
 
-pub use lapin_async::connection::{ConnectionSASLMechanism, ConnectionProperties};
+pub use lapin_async::connection_properties::{ConnectionSASLMechanism, ConnectionProperties};
 
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]

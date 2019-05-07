@@ -2,8 +2,11 @@ use log::{error, trace};
 
 use std::io::{Error, ErrorKind, Read, Result, Write};
 
-use crate::buffer::Buffer;
-use crate::connection::{Connection, ConnectionState};
+use crate::{
+  buffer::Buffer,
+  connection::Connection,
+  connection_status::ConnectionState,
+};
 
 impl Connection {
   /// helper function to handle reading and writing repeatedly from the network until there's no more state to update
@@ -17,7 +20,7 @@ impl Connection {
       let continue_parsing = self.can_parse(receive_buffer);
 
       if !continue_writing && !continue_reading && !continue_parsing {
-        return Ok(self.state.clone());
+        return Ok(self.status.state());
       }
 
       if continue_writing {
@@ -28,7 +31,7 @@ impl Connection {
             },
             k => {
               error!("error writing: {:?}", k);
-              self.state = ConnectionState::Error;
+              self.status.set_error();
               return Err(e);
             }
           }
@@ -43,7 +46,7 @@ impl Connection {
             },
             k => {
               error!("error reading: {:?}", k);
-              self.state = ConnectionState::Error;
+              self.status.set_error();
               return Err(e);
             }
           }
@@ -82,21 +85,22 @@ impl Connection {
     writer.write(&send_buffer.data()).map(|sz| {
       trace!("wrote {} bytes", sz);
       send_buffer.consume(sz);
-      (sz, self.state.clone())
+      (sz, self.status.state())
     })
   }
 
   /// read data from the network into the receive buffer
   fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
-    if self.state == ConnectionState::Initial || self.state == ConnectionState::Error {
-      self.state = ConnectionState::Error;
-      return Err(Error::new(ErrorKind::Other, "invalid state"));
+    let state = self.status.state();
+    if state == ConnectionState::Initial || state == ConnectionState::Error {
+      self.status.set_error();
+      return Err(Error::new(ErrorKind::Other, format!("invalid state {:?}", state)));
     }
 
     reader.read(&mut receive_buffer.space()).map(|sz| {
       trace!("read {} bytes", sz);
       receive_buffer.fill(sz);
-      (sz, self.state.clone())
+      (sz, state)
     })
   }
 }

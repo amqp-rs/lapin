@@ -1,5 +1,9 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
-use lapin_async::connection::*;
+use lapin_async::{
+  connection::Connection,
+  connection_status::ConnectionState,
+  credentials::Credentials,
+};
 
 use bytes::{BufMut, BytesMut};
 use failure::Fail;
@@ -10,8 +14,10 @@ use std::iter::repeat;
 use tokio_codec::{Decoder, Encoder, Framed};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::client::ConnectionOptions;
-use crate::error::{Error, ErrorKind};
+use crate::{
+  client::ConnectionOptions,
+  error::{Error, ErrorKind},
+};
 
 #[derive(Fail, Debug)]
 pub enum CodecError {
@@ -126,7 +132,7 @@ impl<T> AMQPTransport<T>
   /// returns a future of a `AMQPTransport` that is connected
   pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = Error> + Send + 'static {
     let mut conn = Connection::new();
-    conn.set_vhost(&options.vhost);
+    conn.status.set_vhost(&options.vhost);
     conn.configuration.set_frame_max(options.frame_max);
     conn.configuration.set_heartbeat(options.heartbeat);
 
@@ -273,8 +279,9 @@ impl<T> Future for AMQPTransportConnector<T>
 
     transport.poll()?;
 
-    trace!("connector poll; state=ConnectionState::{:?}", transport.conn.state);
-    if transport.conn.state == ConnectionState::Connected {
+    let state = transport.conn.status.state();
+    trace!("connector poll; state=ConnectionState::{:?}", state);
+    if state == ConnectionState::Connected {
       return Ok(Async::Ready(transport))
     }
 

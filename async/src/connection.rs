@@ -1,106 +1,28 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
-use amq_protocol::sasl;
 use crossbeam_channel::{self, Sender, Receiver};
 use log::{debug, error, trace, warn};
 
-use std::{fmt, result, str};
+use std::result;
 use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Result};
 
-use crate::channels::Channels;
-use crate::configuration::Configuration;
-use crate::error;
-use crate::types::{AMQPValue, FieldTable};
-
-#[derive(Clone,Debug,PartialEq)]
-pub enum ConnectionState {
-  Initial,
-  Connecting(ConnectingState),
-  Connected,
-  Closing(ClosingState),
-  Closed,
-  Error,
-}
-
-#[derive(Clone,Debug,PartialEq)]
-pub enum ConnectingState {
-  Initial,
-  SentProtocolHeader(Credentials, ConnectionProperties),
-  ReceivedStart,
-  SentStartOk,
-  ReceivedTune,
-  SentTuneOk,
-  SentOpen,
-  ReceivedSecure,
-  SentSecure,
-  ReceivedSecondSecure,
-  Error,
-}
-
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum ClosingState {
-  Initial,
-  SentClose,
-  ReceivedClose,
-  SentCloseOk,
-  ReceivedCloseOk,
-  Error,
-}
-
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum ConnectionSASLMechanism {
-  PLAIN,
-}
-
-impl fmt::Display for ConnectionSASLMechanism {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
-pub struct ConnectionProperties {
-  pub mechanism:         ConnectionSASLMechanism,
-  pub locale:            String,
-  pub client_properties: FieldTable,
-}
-
-impl Default for ConnectionProperties {
-  fn default() -> Self {
-    Self {
-      mechanism:         ConnectionSASLMechanism::PLAIN,
-      locale:            "en_US".to_string(),
-      client_properties: FieldTable::new(),
-    }
-  }
-}
-
-#[derive(Clone,Debug,PartialEq)]
-pub struct Credentials {
-  username: String,
-  password: String,
-}
-
-impl Credentials {
-  pub fn new(username: String, password: String) -> Self {
-    Self { username, password }
-  }
-}
-
-impl Default for Credentials {
-  fn default() -> Self {
-    Self::new("guest".to_string(), "guest".to_string())
-  }
-}
+use crate::{
+  channels::Channels,
+  configuration::Configuration,
+  connection_properties::ConnectionProperties,
+  connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
+  credentials::Credentials,
+  error,
+  types::{AMQPValue, FieldTable},
+};
 
 #[derive(Debug)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
-  pub state:             ConnectionState,
+  pub status:            ConnectionStatus,
   pub channels:          Channels,
   pub configuration:     Configuration,
-  pub vhost:             String,
   /// list of message to send
       frame_receiver:    Receiver<AMQPFrame>,
   /// We keep a copy so that it never gets shutdown and to create new channels
@@ -116,10 +38,9 @@ impl Default for Connection {
     let configuration = Configuration::default();
 
     Self {
-      state:             ConnectionState::Initial,
+      status:            ConnectionStatus::default(),
       channels:          Channels::new(configuration.clone(), sender.clone()),
       configuration,
-      vhost:             "/".to_string(),
       frame_receiver:    receiver,
       frame_sender:      sender,
       priority_frames:   VecDeque::new(),
@@ -133,10 +54,6 @@ impl Connection {
     Default::default()
   }
 
-  pub fn set_vhost(&mut self, vhost: &str) {
-    self.vhost = vhost.to_string();
-  }
-
   /// starts the process of connecting to the server
   ///
   /// this will set up the state machine and generates the required messages.
@@ -144,14 +61,15 @@ impl Connection {
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
   pub fn connect(&mut self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState> {
-    if self.state != ConnectionState::Initial {
-      self.state = ConnectionState::Error;
-      return Err(Error::new(ErrorKind::Other, "invalid state"))
+    let state = self.status.state();
+    if state != ConnectionState::Initial {
+      self.status.set_error();
+      return Err(Error::new(ErrorKind::Other, format!("invalid state: {:?}", state)));
     }
 
     self.channels.send_frame(0, AMQPFrame::ProtocolHeader).expect("channel 0");
-    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(credentials, options));
-    Ok(self.state.clone())
+    self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
+    Ok(self.status.state())
   }
 
   /// next message to send to the network
@@ -174,11 +92,11 @@ impl Connection {
       trace!("will write to buffer: {:?}", next_msg);
       match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
         Ok(sz) => {
-          Ok((sz, self.state.clone()))
+          Ok((sz, self.status.state()))
         },
         Err(e) => {
           error!("error generating frame: {:?}", e);
-          self.state = ConnectionState::Error;
+          self.status.set_error();
           match e {
             GenError::BufferTooSmall(_) => {
               // Requeue msg
@@ -208,17 +126,17 @@ impl Connection {
         let consumed = data.offset(i);
 
         if let Err(e) = self.handle_frame(f) {
-          self.state = ConnectionState::Error;
+          self.status.set_error();
           Err(Error::new(ErrorKind::Other, format!("failed to handle frame: {:?}", e)))
         } else {
-          Ok((consumed, self.state.clone()))
+          Ok((consumed, self.status.state()))
         }
       },
       Err(e) => {
         if e.is_incomplete() {
-          Ok((0,self.state.clone()))
+          Ok((0,self.status.state()))
         } else {
-          self.state = ConnectionState::Error;
+          self.status.set_error();
           Err(Error::new(ErrorKind::Other, format!("parse error: {:?}", e)))
         }
       }
@@ -231,7 +149,7 @@ impl Connection {
     match f {
       AMQPFrame::ProtocolHeader => {
         error!("error: the client should not receive a protocol header");
-        self.state = ConnectionState::Error;
+        self.status.set_error();
       },
       AMQPFrame::Method(channel_id, method) => {
         if channel_id == 0 {
@@ -256,21 +174,22 @@ impl Connection {
   #[doc(hidden)]
   #[clippy::cyclomatic_complexity = "40"]
   pub fn handle_global_method(&mut self, c: AMQPClass) {
-    match self.state.clone() {
+    let state = self.status.state();
+    match state {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
-        error!("Received method in global channel and we're {:?}: {:?}", self.state, c);
-        self.state = ConnectionState::Error;
+        error!("Received method in global channel and we're {:?}: {:?}", state, c);
+        self.status.set_error();
       },
       ConnectionState::Connecting(connecting_state) => {
         match connecting_state {
           ConnectingState::Initial => {
             error!("Received method in global channel and we're Conntecting/Initial: {:?}", c);
-            self.state = ConnectionState::Error
+            self.status.set_error()
           },
           ConnectingState::SentProtocolHeader(credentials, mut options) => {
             if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
               trace!("Server sent Connection::Start: {:?}", s);
-              self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
+              self.status.set_connecting_state(ConnectingState::ReceivedStart);
 
               let mechanism = options.mechanism.to_string();
               let locale    = options.locale.clone();
@@ -304,26 +223,26 @@ impl Connection {
                     client_properties: options.client_properties,
                     mechanism,
                     locale,
-                    response: sasl::plain_auth_string(&credentials.username, &credentials.password),
+                    response:          credentials.sasl_plain_auth_string()
                   }
               ));
 
               debug!("client sending Connection::StartOk: {:?}", start_ok);
               self.channels.send_method_frame(0, start_ok).expect("channel 0");
-              self.state = ConnectionState::Connecting(ConnectingState::SentStartOk);
+              self.status.set_connecting_state(ConnectingState::SentStartOk);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
-              self.state = ConnectionState::Error;
+              self.status.set_error();
             }
           },
           ConnectingState::ReceivedStart => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error()
           },
           ConnectingState::SentStartOk => {
             if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
               debug!("Server sent Connection::Tune: {:?}", t);
-              self.state = ConnectionState::Connecting(ConnectingState::ReceivedTune);
+              self.status.set_connecting_state(ConnectingState::ReceivedTune);
 
               // If we disable the heartbeat (0) but the server don't, follow him and enable it too
               // If both us and the server want heartbeat enabled, pick the lowest value.
@@ -364,50 +283,50 @@ impl Connection {
               debug!("client sending Connection::TuneOk: {:?}", tune_ok);
 
               self.channels.send_method_frame(0, tune_ok).expect("channel 0");
-              self.state = ConnectionState::Connecting(ConnectingState::SentTuneOk);
+              self.status.set_connecting_state(ConnectingState::SentTuneOk);
 
-              let open = AMQPClass::Connection(connection::AMQPMethod::Open(connection::Open { virtual_host: self.vhost.clone() }));
+              let open = AMQPClass::Connection(connection::AMQPMethod::Open(connection::Open { virtual_host: self.status.vhost() }));
 
               debug!("client sending Connection::Open: {:?}", open);
               self.channels.send_method_frame(0, open).expect("channel 0");
-              self.state = ConnectionState::Connecting(ConnectingState::SentOpen);
+              self.status.set_connecting_state(ConnectingState::SentOpen);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
-              self.state = ConnectionState::Error;
+              self.status.set_error();
             }
           },
           ConnectingState::ReceivedTune => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error()
           },
           ConnectingState::SentTuneOk => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error()
           },
           ConnectingState::SentOpen => {
-            trace!("state {:?}\treceived\t{:?}", self.state, c);
+            trace!("state {:?}\treceived\t{:?}", self.status.state(), c);
             if let AMQPClass::Connection(connection::AMQPMethod::OpenOk(o)) = c {
               debug!("Server sent Connection::OpenOk: {:?}, client now connected", o);
-              self.state = ConnectionState::Connected;
+              self.status.set_state(ConnectionState::Connected);
             } else {
               trace!("waiting for class Connection method Start, got {:?}", c);
-              self.state = ConnectionState::Error;
+              self.status.set_error();
             }
           },
           ConnectingState::ReceivedSecure => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error;
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error();
           },
           ConnectingState::SentSecure => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error;
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error();
           },
           ConnectingState::ReceivedSecondSecure => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
-            self.state = ConnectionState::Error;
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
+            self.status.set_error();
           },
           ConnectingState::Error => {
-            error!("state {:?}\treceived\t{:?}", self.state, c);
+            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
           },
         }
       },
@@ -466,7 +385,7 @@ mod tests {
 
     // Bootstrap connection state to a consuming state
     let mut conn = Connection::new();
-    conn.state = ConnectionState::Connected;
+    conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.channels.create().unwrap();
     channel.status.set_state(ChannelState::Connected);
@@ -536,7 +455,7 @@ mod tests {
 
     // Bootstrap connection state to a consuming state
     let mut conn = Connection::new();
-    conn.state = ConnectionState::Connected;
+    conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.channels.create().unwrap();
     channel.status.set_state(ChannelState::Connected);

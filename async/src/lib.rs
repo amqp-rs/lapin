@@ -16,16 +16,26 @@
 //! ```rust,no_run
 //! use env_logger;
 //! use lapin_async as lapin;
-//! use crate::lapin::buffer::Buffer;
-//! use crate::lapin::connection::*;
-//! use crate::lapin::consumer::ConsumerSubscriber;
-//! use crate::lapin::channel::BasicProperties;
-//! use crate::lapin::channel::options::*;
-//! use crate::lapin::channel_status::ChannelState;
-//! use crate::lapin::message::Delivery;
-//! use crate::lapin::types::FieldTable;
 //!
-//! use std::{net::TcpStream, thread, time};
+//! use std::{
+//!   net::TcpStream,
+//!   thread,
+//!   time,
+//! };
+//!
+//! use crate::lapin::{
+//!   buffer::Buffer,
+//!   channel::BasicProperties,
+//!   channel_status::ChannelState,
+//!   channel::options::*,
+//!   connection::Connection,
+//!   connection_properties::ConnectionProperties,
+//!   connection_status::{ConnectionState, ConnectingState},
+//!   consumer::ConsumerSubscriber,
+//!   credentials::Credentials,
+//!   message::Delivery,
+//!   types::FieldTable,
+//! };
 //!
 //! fn main() {
 //!   env_logger::init();
@@ -108,8 +118,11 @@ pub mod channel;
 pub mod channel_status;
 pub mod channels;
 pub mod connection;
+pub mod connection_properties;
+pub mod connection_status;
 pub mod configuration;
 pub mod consumer;
+pub mod credentials;
 pub mod error;
 pub mod generated_names;
 pub mod id_sequence;
