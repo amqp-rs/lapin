@@ -4,7 +4,6 @@ use crossbeam_channel::{self, Sender, Receiver};
 use log::{debug, error, trace, warn};
 
 use std::result;
-use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Result};
 
 use crate::{
@@ -14,6 +13,7 @@ use crate::{
   connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
   credentials::Credentials,
   error,
+  priority_frames::PriorityFrames,
   types::{AMQPValue, FieldTable},
 };
 
@@ -28,8 +28,7 @@ pub struct Connection {
   /// We keep a copy so that it never gets shutdown and to create new channels
       frame_sender:      Sender<AMQPFrame>,
   /// Failed frames we need to try and send back + heartbeats
-      // FIXME! rework this?
-      priority_frames:   VecDeque<AMQPFrame>,
+      priority_frames:   PriorityFrames,
 }
 
 impl Default for Connection {
@@ -43,7 +42,7 @@ impl Default for Connection {
       configuration,
       frame_receiver:    receiver,
       frame_sender:      sender,
-      priority_frames:   VecDeque::new(),
+      priority_frames:   PriorityFrames::default(),
     }
   }
 }
@@ -76,7 +75,7 @@ impl Connection {
   ///
   /// returns None if there's no message to send
   pub fn next_frame(&mut self) -> Option<AMQPFrame> {
-    self.priority_frames.pop_front().or_else(|| {
+    self.priority_frames.pop().or_else(|| {
       // Error means no message
       self.frame_receiver.try_recv().ok()
     })

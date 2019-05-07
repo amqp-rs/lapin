@@ -128,6 +128,7 @@ pub mod generated_names;
 pub mod id_sequence;
 pub mod io;
 pub mod message;
+pub mod priority_frames;
 pub mod queue;
 pub mod queues;
 pub mod replies;
