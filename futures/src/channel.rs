@@ -326,6 +326,24 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         self.run_on_locked_transport("channel_flow_ok", "Could not ack update to channel flow", request_id).map(|_| ())
     }
 
+    pub fn tx_select(&self) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.tx_select();
+
+        self.run_on_locked_transport("tx_select", "Could not start transaction", request_id).map(|_| ())
+    }
+
+    pub fn tx_commit(&self) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.tx_commit();
+
+        self.run_on_locked_transport("tx_commit", "Could not commit transaction", request_id).map(|_| ())
+    }
+
+    pub fn tx_rollback(&self) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.tx_rollback();
+
+        self.run_on_locked_transport("tx_rollback", "Could not rollback transaction", request_id).map(|_| ())
+    }
+
     fn run_on_locked_transport_full<Finished>(&self, method: &str, error_msg: &str, request_id: RequestResult, finished: Finished) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static
         where Finished: 'static + Send + Fn(&mut InnerChannel, RequestId) -> Poll<Option<RequestId>, Error> {
         trace!("run on locked transport; method={:?}", method);
