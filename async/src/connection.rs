@@ -17,7 +17,7 @@ use crate::{
   types::{AMQPValue, FieldTable},
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
   pub status:            ConnectionStatus,
