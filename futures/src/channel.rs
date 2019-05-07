@@ -223,6 +223,24 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         })
     }
 
+    pub fn basic_cancel(&self, consumer_tag: &str, options: BasicCancelOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.basic_cancel(consumer_tag, options);
+
+        self.run_on_locked_transport("basic_cancel", "Could not cancel consumer", request_id).map(|_| ())
+    }
+
+    pub fn basic_recover(&self, options: BasicRecoverOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.basic_recover(options);
+
+        self.run_on_locked_transport("basic_recover", "Could not recover", request_id).map(|_| ())
+    }
+
+    pub fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> impl Future<Item = (), Error = Error> + Send + 'static {
+        let request_id = self.inner.basic_recover_async(options);
+
+        self.run_on_locked_transport("basic_recover_async", "Could not recover", request_id).map(|_| ())
+    }
+
     /// acks a message
     pub fn basic_ack(&self, delivery_tag: u64, multiple: bool) -> impl Future<Item = (), Error = Error> + Send + 'static {
         let request_id = self.inner.basic_ack(delivery_tag, BasicAckOptions { multiple });
