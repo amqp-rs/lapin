@@ -26,7 +26,7 @@ pub enum ConnectionState {
 #[derive(Clone,Debug,PartialEq)]
 pub enum ConnectingState {
   Initial,
-  SentProtocolHeader(ConnectionProperties),
+  SentProtocolHeader(Credentials, ConnectionProperties),
   ReceivedStart,
   SentStartOk,
   ReceivedTune,
@@ -82,12 +82,15 @@ pub struct Credentials {
   password: String,
 }
 
+impl Credentials {
+  pub fn new(username: String, password: String) -> Self {
+    Self { username, password }
+  }
+}
+
 impl Default for Credentials {
-  fn default() -> Credentials {
-    Credentials {
-      username: "guest".to_string(),
-      password: "guest".to_string(),
-    }
+  fn default() -> Self {
+    Self::new("guest".to_string(), "guest".to_string())
   }
 }
 
@@ -102,8 +105,6 @@ pub struct Connection {
       frame_receiver:    Receiver<AMQPFrame>,
   /// We keep a copy so that it never gets shutdown and to create new channels
       frame_sender:      Sender<AMQPFrame>,
-  /// credentials are stored in an option to remove them from memory once they are used
-      credentials:       Option<Credentials>,
   /// Failed frames we need to try and send back + heartbeats
       // FIXME! rework this?
       priority_frames:   VecDeque<AMQPFrame>,
@@ -121,7 +122,6 @@ impl Default for Connection {
       vhost:             "/".to_string(),
       frame_receiver:    receiver,
       frame_sender:      sender,
-      credentials:       None,
       priority_frames:   VecDeque::new(),
     }
   }
@@ -131,13 +131,6 @@ impl Connection {
   /// creates a `Connection` object in initial state
   pub fn new() -> Self {
     Default::default()
-  }
-
-  pub fn set_credentials(&mut self, username: &str, password: &str) {
-    self.credentials = Some(Credentials {
-      username: username.to_string(),
-      password: password.to_string(),
-    });
   }
 
   pub fn set_vhost(&mut self, vhost: &str) {
@@ -150,14 +143,14 @@ impl Connection {
   /// The messages will not be sent until calls to `serialize`
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
-  pub fn connect(&mut self, options: ConnectionProperties) -> Result<ConnectionState> {
+  pub fn connect(&mut self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState> {
     if self.state != ConnectionState::Initial {
       self.state = ConnectionState::Error;
       return Err(Error::new(ErrorKind::Other, "invalid state"))
     }
 
     self.channels.send_frame(0, AMQPFrame::ProtocolHeader).expect("channel 0");
-    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(options));
+    self.state = ConnectionState::Connecting(ConnectingState::SentProtocolHeader(credentials, options));
     Ok(self.state.clone())
   }
 
@@ -274,7 +267,7 @@ impl Connection {
             error!("Received method in global channel and we're Conntecting/Initial: {:?}", c);
             self.state = ConnectionState::Error
           },
-          ConnectingState::SentProtocolHeader(mut options) => {
+          ConnectingState::SentProtocolHeader(credentials, mut options) => {
             if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
               trace!("Server sent Connection::Start: {:?}", s);
               self.state = ConnectionState::Connecting(ConnectingState::ReceivedStart);
@@ -306,14 +299,12 @@ impl Connection {
 
               options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
 
-              let saved_creds = self.credentials.take().unwrap_or_default();
-
               let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
                   connection::StartOk {
                     client_properties: options.client_properties,
                     mechanism,
                     locale,
-                    response: sasl::plain_auth_string(&saved_creds.username, &saved_creds.password),
+                    response: sasl::plain_auth_string(&credentials.username, &credentials.password),
                   }
               ));
 

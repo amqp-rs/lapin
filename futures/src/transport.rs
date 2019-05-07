@@ -126,12 +126,11 @@ impl<T> AMQPTransport<T>
   /// returns a future of a `AMQPTransport` that is connected
   pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = Error> + Send + 'static {
     let mut conn = Connection::new();
-    conn.set_credentials(&options.username, &options.password);
     conn.set_vhost(&options.vhost);
     conn.configuration.set_frame_max(options.frame_max);
     conn.configuration.set_heartbeat(options.heartbeat);
 
-    future::result(conn.connect(options.properties))
+    future::result(conn.connect(Credentials::new(options.username, options.password), options.properties))
       .map_err(|e| ErrorKind::ConnectionFailed(e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
