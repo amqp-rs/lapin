@@ -1,6 +1,6 @@
 use amq_protocol::uri::AMQPUri;
 use futures::{future, Future, Poll, Stream};
-use lapin_async;
+use lapin_async::{self, connection::Connection};
 use log::{debug, error, warn};
 use parking_lot::Mutex;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -20,18 +20,16 @@ pub use lapin_async::connection_properties::{ConnectionSASLMechanism, Connection
 /// the Client structures connects to a server and creates channels
 //#[derive(Clone)]
 pub struct Client<T> {
-    transport:         Arc<Mutex<AMQPTransport<T>>>,
-    channels:          lapin_async::channels::Channels,
-    pub configuration: ConnectionConfiguration,
+    transport: Arc<Mutex<AMQPTransport<T>>>,
+    conn:      Connection,
 }
 
 impl<T> Clone for Client<T>
     where T: Send {
   fn clone(&self) -> Client<T> {
     Client {
-      transport:     self.transport.clone(),
-      channels:      self.channels.clone(),
-      configuration: self.configuration.clone(),
+      transport: self.transport.clone(),
+      conn:      self.conn.clone(),
     }
   }
 }
@@ -171,8 +169,8 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   {
     AMQPTransport::connect(stream, options).and_then(|transport| {
       debug!("got client service");
-      let configuration = transport.conn.configuration.clone();
-      let channels = transport.conn.channels.clone();
+      let conn = transport.get_connection();
+      let configuration = conn.configuration.clone();
       let transport = Arc::new(Mutex::new(transport));
       // The configured value is the timeout, not the interval.
       // rabbitmq-server uses half that time as the periodicity for the heartbeat.
@@ -183,7 +181,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
 
         heartbeat_pulse(transport.clone(), heartbeat_interval, rx)
       });
-      let client = Client { configuration, channels, transport };
+      let client = Client { conn, transport };
       Ok((client, heartbeat))
     })
   }
@@ -192,7 +190,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Client<T> {
   ///
   /// returns a future that resolves to a `Channel` once the method succeeds
   pub fn create_channel(&self) -> impl Future<Item = Channel<T>, Error = Error> + Send + 'static {
-    Channel::create(self.channels.create(), self.transport.clone())
+    Channel::create(self.transport.clone(), self.conn.clone())
   }
 
   /// returns a future that resolves to a `Channel` once the method succeeds

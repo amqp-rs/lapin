@@ -118,7 +118,7 @@ impl Encoder for AMQPCodec {
 /// Wrappers over a `Framed` stream using `AMQPCodec` and lapin-async's `Connection`
 pub struct AMQPTransport<T> {
   upstream:  Framed<T,AMQPCodec>,
-  pub conn:  Connection,
+  conn:      Connection,
   heartbeat: Option<AMQPFrame>,
 }
 
@@ -152,6 +152,10 @@ impl<T> AMQPTransport<T>
           transport: Some(t),
         }
     })
+  }
+
+  pub fn get_connection(&self) -> Connection {
+    self.conn.clone()
   }
 
   /// Preemptively send an heartbeat frame

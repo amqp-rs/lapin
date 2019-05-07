@@ -5,6 +5,7 @@ use futures::{Async, Future, future, Poll, Stream, task};
 use lapin_async;
 use lapin_async::channel::Channel as InnerChannel;
 use lapin_async::channel_status::ChannelState;
+use lapin_async::connection::Connection;
 use lapin_async::queue::QueueStats;
 use lapin_async::requests::RequestId;
 use log::{debug, trace};
@@ -17,7 +18,7 @@ use crate::consumer::Consumer;
 use crate::error::{Error, ErrorKind};
 use crate::message::BasicGetMessage;
 use crate::queue::Queue;
-use crate::transport::*;
+use crate::transport::AMQPTransport;
 use crate::types::*;
 
 pub type RequestResult = Result<Option<RequestId>, lapin_async::error::Error>;
@@ -26,6 +27,7 @@ pub type RequestResult = Result<Option<RequestId>, lapin_async::error::Error>;
 //#[derive(Clone)]
 pub struct Channel<T> {
   pub transport: Arc<Mutex<AMQPTransport<T>>>,
+      conn:      Connection,
       inner:     InnerChannel,
 }
 
@@ -34,6 +36,7 @@ where T: Send {
   fn clone(&self) -> Channel<T> {
     Channel {
       transport: self.transport.clone(),
+      conn:      self.conn.clone(),
       inner:     self.inner.clone(),
     }
   }
@@ -41,8 +44,8 @@ where T: Send {
 
 impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
-    pub fn create(inner: Result<InnerChannel, lapin_async::error::Error>, transport: Arc<Mutex<AMQPTransport<T>>>) -> impl Future<Item = Self, Error = Error> + Send + 'static {
-        future::result(inner.map(|inner| Channel { transport, inner }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".to_string(), err).into())).and_then(|channel| {
+    pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>, conn: Connection) -> impl Future<Item = Self, Error = Error> + Send + 'static {
+        future::result(conn.channels.create().map(|inner| Channel { transport, inner, conn }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".to_string(), err).into())).and_then(|channel| {
             let request_id = channel.inner.channel_open();
             let inner = channel.inner.clone();
             channel.run_on_locked_transport("create", "Could not create channel", request_id).and_then(move |_| {
