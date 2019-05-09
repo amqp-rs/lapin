@@ -391,7 +391,7 @@ mod tests {
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
     let consumer_tag = "consumer-tag".to_string();
-    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
+    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
       c.queues.register(queue);
@@ -461,7 +461,7 @@ mod tests {
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
     let consumer_tag = "consumer-tag".to_string();
-    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, false, Box::new(DummySubscriber));
+    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
       c.queues.register(queue);

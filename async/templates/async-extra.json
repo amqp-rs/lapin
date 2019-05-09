@@ -43,6 +43,14 @@
     }
   },
   "queue": {
+    "declare": {
+      "metadata": {
+        "nowait_hook": {
+          "fields": ["queue: queue.to_string()"],
+          "extra_args": ["0"]
+        }
+      }
+    },
     "delete": {
       "metadata": {
         "state": [
@@ -51,7 +59,8 @@
             "type": "String",
             "use_str_ref": true
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "declare-ok": {
@@ -88,14 +97,14 @@
             "type": "bool"
           },
           {
-            "name": "nowait",
-            "type": "bool"
-          },
-          {
             "name": "subscriber",
             "type": "Box<dyn ConsumerSubscriber>"
           }
-        ]
+        ],
+        "nowait_hook": {
+          "fields": ["consumer_tag: consumer_tag.to_string()"],
+          "extra_args": ["0"]
+        }
       }
     },
     "consume-ok": {
@@ -110,7 +119,10 @@
     },
     "cancel": {
       "metadata": {
-        "can_be_received": true
+        "can_be_received": true,
+        "nowait_hook": {
+          "fields": ["consumer_tag: consumer_tag.to_string()"]
+        }
       }
     },
     "publish": {

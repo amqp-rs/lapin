@@ -9,19 +9,17 @@ pub struct Consumer {
   no_local:        bool,
   no_ack:          bool,
   exclusive:       bool,
-  nowait:          bool,
   subscriber:      Box<dyn ConsumerSubscriber>,
   current_message: Option<Delivery>,
 }
 
 impl Consumer {
-  pub fn new(tag: String, no_local: bool, no_ack: bool, exclusive: bool, nowait: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Consumer {
+  pub fn new(tag: String, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Consumer {
     Consumer {
       tag,
       no_local,
       no_ack,
       exclusive,
-      nowait,
       subscriber,
       current_message: None,
     }

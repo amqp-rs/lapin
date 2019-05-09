@@ -212,7 +212,9 @@ impl Channel {
   }
 
   fn on_queue_declare_ok_received(&self, method: protocol::queue::DeclareOk, request_id: RequestId) -> Result<(), Error> {
-    self.generated_names.register(request_id, method.queue.clone());
+    if request_id != 0 {
+      self.generated_names.register(request_id, method.queue.clone());
+    }
     self.queues.register(Queue::new(method.queue, method.message_count, method.consumer_count));
     Ok(())
   }
@@ -237,9 +239,11 @@ impl Channel {
   }
 
   #[allow(clippy::too_many_arguments)]
-  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, request_id: RequestId, queue: String, no_local: bool, no_ack: bool, exclusive: bool, nowait: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
-    self.generated_names.register(request_id, method.consumer_tag.clone());
-    self.queues.register_consumer(&queue, method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, nowait, subscriber));
+  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, request_id: RequestId, queue: String, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
+    if request_id != 0 {
+      self.generated_names.register(request_id, method.consumer_tag.clone());
+    }
+    self.queues.register_consumer(&queue, method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, subscriber));
     Ok(())
   }
 

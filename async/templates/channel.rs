@@ -100,6 +100,10 @@ impl Channel {
       {{#if method.synchronous ~}}
       {{#if (method_has_flag method "nowait") ~}}
       if nowait {
+        {{#if method.metadata.nowait_hook ~}}
+        #[allow(clippy::needless_update)]
+        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}})?;
+        {{/if ~}}
         None
       } else {{/if ~}}{
         let request_id = self.request_id.next();
