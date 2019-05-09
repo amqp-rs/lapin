@@ -175,9 +175,10 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// publishes a message on a queue
     ///
     /// the future's result is:
-    /// - `Some(request_id)` if we're on a confirm channel and the message was ack'd
-    /// - `None` if we're not on a confirm channel or the message was nack'd
-    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static {
+    /// - `Some(true)` if we're on a confirm channel and the message was ack'd
+    /// - `Some(false)` if we're on a confirm channel and the message was nack'd
+    /// - `None` if we're not on a confirm channel
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<bool>, Error = Error> + Send + 'static {
       let delivery_tag = self.inner.basic_publish(exchange, routing_key, options, payload, properties);
       let transport = self.transport.clone();
       let mut inner = self.inner.clone();
@@ -194,9 +195,9 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             Self::wait_for_ack(&mut inner, &mut transport, delivery_tag, move |channel, delivery_tag| {
               if channel.status.confirm() {
                 if channel.acknowledgements.is_acked(delivery_tag) {
-                  Ok(Async::Ready(Some(delivery_tag)))
+                  Ok(Async::Ready(Some(true)))
                 } else if channel.acknowledgements.is_nacked(delivery_tag) {
-                  Ok(Async::Ready(None))
+                  Ok(Async::Ready(Some(false)))
                 } else {
                   debug!("message with tag {} still in unacked", delivery_tag);
                   task::current().notify();
@@ -438,8 +439,8 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     }
 
     /// internal method to wait until a request succeeds
-    pub fn wait_for_ack<Finished>(channel: &mut InnerChannel, tr: &mut AMQPTransport<T>, delivery_tag: DeliveryTag, finished: Finished) -> Poll<Option<DeliveryTag>, Error>
-      where Finished: 'static + Send + Fn(&mut InnerChannel, DeliveryTag) -> Poll<Option<DeliveryTag>, Error> {
+    pub fn wait_for_ack<Finished>(channel: &mut InnerChannel, tr: &mut AMQPTransport<T>, delivery_tag: DeliveryTag, finished: Finished) -> Poll<Option<bool>, Error>
+      where Finished: 'static + Send + Fn(&mut InnerChannel, DeliveryTag) -> Poll<Option<bool>, Error> {
         trace!("wait for aack; delivery_tag={:?}", delivery_tag);
         tr.poll()?;
         trace!("wait for ack; transport poll; delivery_tag={:?} status=NotReady", delivery_tag);
