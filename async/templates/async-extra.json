@@ -1,7 +1,54 @@
 {
   "connection": {
-    "metadata": {
-      "skip": true
+    "start": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "start-ok": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "tune": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "tune-ok": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "open": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "open-ok": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "close": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "close-ok": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "secure": {
+      "metadata": {
+        "skip": true
+      }
+    },
+    "secure-ok": {
+      "metadata": {
+        "skip": true
+      }
     }
   },
   "channel": {

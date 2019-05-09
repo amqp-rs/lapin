@@ -35,8 +35,8 @@ impl Channel {
   pub(crate) fn receive_method(&self, method: AMQPClass) -> Result<(), Error> {
     match method {
       {{#each protocol.classes as |class| ~}}
-      {{#unless class.metadata.skip ~}}
       {{#each class.methods as |method| ~}}
+      {{#unless method.metadata.skip ~}}
       {{#if method.is_reply ~}}
       AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
       {{/if ~}}
@@ -44,8 +44,8 @@ impl Channel {
       {{#if method.metadata.can_be_received ~}}
       AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
       {{/if ~}}
-      {{/each ~}}
       {{/unless ~}}
+      {{/each ~}}
       {{/each ~}}
       m => {
         error!("the client should not receive this method: {:?}", m);
@@ -55,8 +55,8 @@ impl Channel {
   }
 
   {{#each protocol.classes as |class| ~}}
-  {{#unless class.metadata.skip ~}}
   {{#each class.methods as |method| ~}}
+  {{#unless method.metadata.skip ~}}
   pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
@@ -84,7 +84,9 @@ impl Channel {
       {{/unless ~}}
       {{else}}
       {{#each_flag argument as |flag| ~}}
+      {{#unless flag.force_default ~}}
       {{snake flag.name}},
+      {{/unless ~}}
       {{/each_flag ~}}
       {{/if ~}}
       {{/each_argument ~}}
@@ -158,7 +160,7 @@ impl Channel {
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }
   {{/if ~}}
-  {{/each ~}}
   {{/unless ~}}
+  {{/each ~}}
   {{/each ~}}
 }
