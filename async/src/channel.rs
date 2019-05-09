@@ -293,6 +293,11 @@ impl Channel {
     Ok(())
   }
 
+  fn on_basic_return_received(&self, _method: protocol::basic::Return) -> Result<(), Error> {
+    // FIXME: do something
+    Ok(())
+  }
+
   fn on_basic_recover_ok_received(&self) -> Result<(), Error> {
     self.queues.drop_prefetched_messages();
     Ok(())
