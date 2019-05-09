@@ -131,7 +131,7 @@ impl<T> AMQPTransport<T>
   ///
   /// returns a future of a `AMQPTransport` that is connected
   pub fn connect(stream: T, options: ConnectionOptions) -> impl Future<Item = AMQPTransport<T>, Error = Error> + Send + 'static {
-    let mut conn = Connection::new();
+    let conn = Connection::new();
     conn.status.set_vhost(&options.vhost);
     conn.configuration.set_frame_max(options.frame_max);
     conn.configuration.set_heartbeat(options.heartbeat);

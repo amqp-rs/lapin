@@ -63,7 +63,7 @@ impl Connection {
   /// The messages will not be sent until calls to `serialize`
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
-  pub fn connect(&mut self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState> {
+  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState> {
     let state = self.status.state();
     if state != ConnectionState::Initial {
       self.status.set_error();
@@ -82,7 +82,7 @@ impl Connection {
   /// next message to send to the network
   ///
   /// returns None if there's no message to send
-  pub fn next_frame(&mut self) -> Option<AMQPFrame> {
+  pub fn next_frame(&self) -> Option<AMQPFrame> {
     self.priority_frames.pop().or_else(|| {
       self.frames.pop()
     })
@@ -93,7 +93,7 @@ impl Connection {
   /// returns how many bytes were written and the current state.
   /// this method can be called repeatedly until the buffer is full or
   /// there are no more frames to send
-  pub fn serialize(&mut self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
+  pub fn serialize(&self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
     if let Some(next_msg) = self.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
       match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
@@ -126,7 +126,7 @@ impl Connection {
   ///
   /// This method will update the state machine according to the ReceivedStart
   /// frame with `handle_frame`
-  pub fn parse(&mut self, data: &[u8]) -> Result<(usize,ConnectionState)> {
+  pub fn parse(&self, data: &[u8]) -> Result<(usize,ConnectionState)> {
     match parse_frame(data) {
       Ok((i, f)) => {
         let consumed = data.offset(i);
@@ -150,7 +150,7 @@ impl Connection {
   }
 
   /// updates the current state with a new received frame
-  pub fn handle_frame(&mut self, f: AMQPFrame) -> result::Result<(), error::Error> {
+  pub fn handle_frame(&self, f: AMQPFrame) -> result::Result<(), error::Error> {
     trace!("will handle frame: {:?}", f);
     match f {
       AMQPFrame::ProtocolHeader => {
@@ -179,7 +179,7 @@ impl Connection {
 
   #[doc(hidden)]
   #[clippy::cyclomatic_complexity = "40"]
-  pub fn handle_global_method(&mut self, c: AMQPClass) {
+  pub fn handle_global_method(&self, c: AMQPClass) {
     let state = self.status.state();
     match state {
       ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
@@ -346,12 +346,12 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn send_preemptive_frame(&mut self, frame: AMQPFrame) {
+  pub fn send_preemptive_frame(&self, frame: AMQPFrame) {
     self.priority_frames.push_front(frame);
   }
 
   #[doc(hidden)]
-  pub fn requeue_frame(&mut self, frame: AMQPFrame) {
+  pub fn requeue_frame(&self, frame: AMQPFrame) {
     self.priority_frames.push_back(frame);
   }
 
@@ -390,7 +390,7 @@ mod tests {
     use crate::queue::Queue;
 
     // Bootstrap connection state to a consuming state
-    let mut conn = Connection::new();
+    let conn = Connection::new();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();
@@ -460,7 +460,7 @@ mod tests {
     use crate::queue::Queue;
 
     // Bootstrap connection state to a consuming state
-    let mut conn = Connection::new();
+    let conn = Connection::new();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();
