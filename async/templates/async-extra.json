@@ -2,32 +2,22 @@
   "connection": {
     "start": {
       "metadata": {
-        "skip": true
+        "can_be_received": true
       }
     },
     "start-ok": {
       "metadata": {
-        "skip": true
+        "end_hook": true
       }
     },
     "tune": {
       "metadata": {
-        "skip": true
-      }
-    },
-    "tune-ok": {
-      "metadata": {
-        "skip": true
+        "can_be_received": true
       }
     },
     "open": {
       "metadata": {
-        "skip": true
-      }
-    },
-    "open-ok": {
-      "metadata": {
-        "skip": true
+        "end_hook": true
       }
     },
     "close": {
@@ -64,14 +54,13 @@
     },
     "close": {
       "metadata": {
-        "can_be_received": true
+        "can_be_received": true,
+        "end_hook": true
       }
     },
     "close-ok": {
       "metadata": {
-        "received_hook": {
-          "params": []
-        }
+        "received_hook": true
       }
     },
     "flow": {
@@ -90,9 +79,7 @@
     },
     "select-ok": {
       "metadata": {
-        "received_hook": {
-          "params": []
-        }
+        "received_hook": true
       }
     }
   },
@@ -223,16 +210,12 @@
     },
     "recover-async": {
       "metadata": {
-        "end_hook": {
-          "params": []
-        }
+        "end_hook": true
       }
     },
     "recover-ok": {
       "metadata": {
-        "received_hook": {
-          "params": []
-        }
+        "received_hook": true
       }
     },
     "return": {

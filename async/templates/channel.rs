@@ -70,7 +70,7 @@ impl Channel {
     {{#unless argument_is_value ~}}
     let {{camel class.name}}{{camel method.name}}Options {
       {{#each_flag argument as |flag| ~}}
-      {{snake flag.name}},
+      {{snake flag.name}}{{#if flag.force_default ~}}: _{{/if ~}},
       {{/each_flag ~}}
     } = options;
     {{/unless ~}}

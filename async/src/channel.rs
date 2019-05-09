@@ -4,12 +4,13 @@ use amq_protocol::{
   protocol::{AMQPClass, AMQPError, AMQPSoftError},
   frame::{AMQPContentHeader, AMQPFrame},
 };
-use log::{error, info};
+use log::{debug, error, info, trace};
 
 use crate::{
   acknowledgement::{Acknowledgements, DeliveryTag},
   channel_status::{ChannelStatus, ChannelState},
   connection::Connection,
+  connection_status::{ConnectionState, ConnectingState},
   consumer::{Consumer, ConsumerSubscriber},
   error::{Error, ErrorKind},
   generated_names::GeneratedNames,
@@ -134,6 +135,18 @@ impl Channel {
     Err(error)
   }
 
+  fn on_connection_start_ok_sent(&self) {
+    self.connection.status.set_connecting_state(ConnectingState::SentStartOk);
+  }
+
+  fn on_connection_open_sent(&self) {
+    self.connection.status.set_connecting_state(ConnectingState::SentOpen);
+  }
+
+  fn on_channel_close_sent(&self) {
+    self.status.set_state(ChannelState::Closing);
+  }
+
   fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Option<DeliveryTag> {
     let delivery_tag = if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
@@ -161,6 +174,101 @@ impl Channel {
     if multiple && delivery_tag == 0 {
       self.queues.drop_prefetched_messages();
     }
+  }
+
+  fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
+    // If we disable the heartbeat (0) but the server don't, follow him and enable it too
+    // If both us and the server want heartbeat enabled, pick the lowest value.
+    if self.connection.configuration.heartbeat() == 0 || heartbeat != 0 && heartbeat < self.connection.configuration.heartbeat() {
+      self.connection.configuration.set_heartbeat(heartbeat);
+    }
+
+    if channel_max != 0 {
+      // 0 means we want to take the server's value
+      // If both us and the server specified a channel_max, pick the lowest value.
+      if self.connection.configuration.channel_max() == 0 || channel_max < self.connection.configuration.channel_max() {
+        self.connection.configuration.set_channel_max(channel_max);
+      }
+    }
+    if self.connection.configuration.channel_max() == 0 {
+      self.connection.configuration.set_channel_max(u16::max_value());
+    }
+
+    if frame_max != 0 {
+      // 0 means we want to take the server's value
+      // If both us and the server specified a frame_max, pick the lowest value.
+      if self.connection.configuration.frame_max() == 0 || frame_max < self.connection.configuration.frame_max() {
+        self.connection.configuration.set_frame_max(frame_max);
+      }
+    }
+    if self.connection.configuration.frame_max() == 0 {
+      self.connection.configuration.set_frame_max(u32::max_value());
+    }
+  }
+
+  fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<(), Error> {
+    trace!("Server sent connection::Start: {:?}", method);
+    let state = self.connection.status.state();
+    if let ConnectionState::Connecting(ConnectingState::SentProtocolHeader(credentials, mut options)) = state {
+      let mechanism = options.mechanism.to_string();
+      let locale    = options.locale.clone();
+
+      if !method.mechanisms.split_whitespace().any(|m| m == mechanism) {
+        error!("unsupported mechanism: {}", mechanism);
+      }
+      if !method.locales.split_whitespace().any(|l| l == locale) {
+        error!("unsupported locale: {}", mechanism);
+      }
+
+      if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {
+        options.client_properties.insert("product".to_string(), AMQPValue::LongString(env!("CARGO_PKG_NAME").to_string()));
+        options.client_properties.insert("version".to_string(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").to_string()));
+      }
+
+      options.client_properties.insert("platform".to_string(), AMQPValue::LongString("rust".to_string()));
+
+      let mut capabilities = FieldTable::new();
+      capabilities.insert("publisher_confirms".to_string(), AMQPValue::Boolean(true));
+      capabilities.insert("exchange_exchange_bindings".to_string(), AMQPValue::Boolean(true));
+      capabilities.insert("basic.nack".to_string(), AMQPValue::Boolean(true));
+      capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(true));
+      capabilities.insert("connection.blocked".to_string(), AMQPValue::Boolean(true));
+      capabilities.insert("authentication_failure_close".to_string(), AMQPValue::Boolean(true));
+
+      options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
+
+      self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_plain_auth_string(), &locale)?;
+      Ok(())
+    } else {
+      error!("Invalid state: {:?}", state);
+      self.connection.status.set_error();
+      Err(ErrorKind::InvalidConnectionState(state).into())
+    }
+  }
+
+  fn on_connection_start_ok_received(&self, _method: protocol::connection::StartOk) -> Result<(), Error> {
+    // FIXME: error
+    Ok(())
+  }
+
+  fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<(), Error> {
+    debug!("Server sent Connection::Tune: {:?}", method);
+
+    self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
+
+    self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat())?;
+    self.connection_open(&self.connection.status.vhost(), ConnectionOpenOptions::default())?;
+    Ok(())
+  }
+
+  fn on_connection_tune_ok_received(&self, _method: protocol::connection::TuneOk) -> Result<(), Error> {
+    // FIXME: error
+    Ok(())
+  }
+
+  fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<(), Error> {
+    self.connection.status.set_state(ConnectionState::Connected);
+    Ok(())
   }
 
   fn on_channel_open_ok_received(&self, _method: protocol::channel::OpenOk) -> Result<(), Error> {

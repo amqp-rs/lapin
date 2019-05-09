@@ -9,6 +9,7 @@ use std::{
 
 use crate::{
   channel::{BasicProperties, Channel},
+  channel_status::ChannelState,
   connection::Connection,
   error::{Error, ErrorKind},
   id_sequence::IdSequence,
@@ -25,7 +26,7 @@ impl Channels {
   }
 
   pub(crate) fn create_zero(&self, connection: Connection) -> () {
-    self.inner.lock().create_channel(0, connection);
+    self.inner.lock().create_channel(0, connection).status.set_state(ChannelState::Connected);
   }
 
   pub fn get(&self, id: u16) -> Option<Channel> {
@@ -43,15 +44,6 @@ impl Channels {
   pub fn receive_method(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
     if let Some(channel) = self.get(id) {
       channel.receive_method(method)
-    } else {
-      Err(ErrorKind::InvalidChannel(id).into())
-    }
-  }
-
-  pub fn send_method_frame(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
-    if let Some(channel) = self.get(id) {
-      channel.send_method_frame(method);
-      Ok(())
     } else {
       Err(ErrorKind::InvalidChannel(id).into())
     }

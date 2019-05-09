@@ -1,6 +1,5 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
-use amq_protocol::protocol::{AMQPClass, connection};
-use log::{debug, error, trace, warn};
+use log::{debug, error, trace};
 
 use std::result;
 use std::io::{Error, ErrorKind, Result};
@@ -14,7 +13,6 @@ use crate::{
   credentials::Credentials,
   error,
   frames::Frames,
-  types::{AMQPValue, FieldTable},
 };
 
 #[derive(Clone, Debug)]
@@ -158,11 +156,7 @@ impl Connection {
         self.status.set_error();
       },
       AMQPFrame::Method(channel_id, method) => {
-        if channel_id == 0 {
-          self.handle_global_method(method);
-        } else {
-          self.channels.receive_method(channel_id, method)?;
-        }
+        self.channels.receive_method(channel_id, method)?;
       },
       AMQPFrame::Heartbeat(_) => {
         debug!("received heartbeat from server");
@@ -175,174 +169,6 @@ impl Connection {
       }
     };
     Ok(())
-  }
-
-  #[doc(hidden)]
-  #[clippy::cyclomatic_complexity = "40"]
-  pub fn handle_global_method(&self, c: AMQPClass) {
-    let state = self.status.state();
-    match state {
-      ConnectionState::Initial | ConnectionState::Closed | ConnectionState::Error => {
-        error!("Received method in global channel and we're {:?}: {:?}", state, c);
-        self.status.set_error();
-      },
-      ConnectionState::Connecting(connecting_state) => {
-        match connecting_state {
-          ConnectingState::Initial => {
-            error!("Received method in global channel and we're Conntecting/Initial: {:?}", c);
-            self.status.set_error()
-          },
-          ConnectingState::SentProtocolHeader(credentials, mut options) => {
-            if let AMQPClass::Connection(connection::AMQPMethod::Start(s)) = c {
-              trace!("Server sent Connection::Start: {:?}", s);
-              self.status.set_connecting_state(ConnectingState::ReceivedStart);
-
-              let mechanism = options.mechanism.to_string();
-              let locale    = options.locale.clone();
-
-              if !s.mechanisms.split_whitespace().any(|m| m == mechanism) {
-                error!("unsupported mechanism: {}", mechanism);
-              }
-              if !s.locales.split_whitespace().any(|l| l == locale) {
-                error!("unsupported locale: {}", mechanism);
-              }
-
-              if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {
-                options.client_properties.insert("product".to_string(), AMQPValue::LongString(env!("CARGO_PKG_NAME").to_string()));
-                options.client_properties.insert("version".to_string(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").to_string()));
-              }
-
-              options.client_properties.insert("platform".to_string(), AMQPValue::LongString("rust".to_string()));
-
-              let mut capabilities = FieldTable::new();
-              capabilities.insert("publisher_confirms".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("exchange_exchange_bindings".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("basic.nack".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("connection.blocked".to_string(), AMQPValue::Boolean(true));
-              capabilities.insert("authentication_failure_close".to_string(), AMQPValue::Boolean(true));
-
-              options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
-
-              let start_ok = AMQPClass::Connection(connection::AMQPMethod::StartOk(
-                  connection::StartOk {
-                    client_properties: options.client_properties,
-                    mechanism,
-                    locale,
-                    response:          credentials.sasl_plain_auth_string()
-                  }
-              ));
-
-              debug!("client sending Connection::StartOk: {:?}", start_ok);
-              self.channels.send_method_frame(0, start_ok).expect("channel 0");
-              self.status.set_connecting_state(ConnectingState::SentStartOk);
-            } else {
-              trace!("waiting for class Connection method Start, got {:?}", c);
-              self.status.set_error();
-            }
-          },
-          ConnectingState::ReceivedStart => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error()
-          },
-          ConnectingState::SentStartOk => {
-            if let AMQPClass::Connection(connection::AMQPMethod::Tune(t)) = c {
-              debug!("Server sent Connection::Tune: {:?}", t);
-              self.status.set_connecting_state(ConnectingState::ReceivedTune);
-
-              // If we disable the heartbeat (0) but the server don't, follow him and enable it too
-              // If both us and the server want heartbeat enabled, pick the lowest value.
-              if self.configuration.heartbeat() == 0 || t.heartbeat != 0 && t.heartbeat < self.configuration.heartbeat() {
-                self.configuration.set_heartbeat(t.heartbeat);
-              }
-
-              if t.channel_max != 0 {
-                // 0 means we want to take the server's value
-                // If both us and the server specified a channel_max, pick the lowest value.
-                if self.configuration.channel_max() == 0 || t.channel_max < self.configuration.channel_max() {
-                  self.configuration.set_channel_max(t.channel_max);
-                }
-              }
-              if self.configuration.channel_max() == 0 {
-                self.configuration.set_channel_max(u16::max_value());
-              }
-
-              if t.frame_max != 0 {
-                // 0 means we want to take the server's value
-                // If both us and the server specified a frame_max, pick the lowest value.
-                if self.configuration.frame_max() == 0 || t.frame_max < self.configuration.frame_max() {
-                  self.configuration.set_frame_max(t.frame_max);
-                }
-              }
-              if self.configuration.frame_max() == 0 {
-                self.configuration.set_frame_max(u32::max_value());
-              }
-
-              let tune_ok = AMQPClass::Connection(connection::AMQPMethod::TuneOk(
-                  connection::TuneOk {
-                    channel_max: self.configuration.channel_max(),
-                    frame_max:   self.configuration.frame_max(),
-                    heartbeat:   self.configuration.heartbeat(),
-                  }
-              ));
-
-              debug!("client sending Connection::TuneOk: {:?}", tune_ok);
-
-              self.channels.send_method_frame(0, tune_ok).expect("channel 0");
-              self.status.set_connecting_state(ConnectingState::SentTuneOk);
-
-              let open = AMQPClass::Connection(connection::AMQPMethod::Open(connection::Open { virtual_host: self.status.vhost() }));
-
-              debug!("client sending Connection::Open: {:?}", open);
-              self.channels.send_method_frame(0, open).expect("channel 0");
-              self.status.set_connecting_state(ConnectingState::SentOpen);
-            } else {
-              trace!("waiting for class Connection method Start, got {:?}", c);
-              self.status.set_error();
-            }
-          },
-          ConnectingState::ReceivedTune => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error()
-          },
-          ConnectingState::SentTuneOk => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error()
-          },
-          ConnectingState::SentOpen => {
-            trace!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            if let AMQPClass::Connection(connection::AMQPMethod::OpenOk(o)) = c {
-              debug!("Server sent Connection::OpenOk: {:?}, client now connected", o);
-              self.status.set_state(ConnectionState::Connected);
-            } else {
-              trace!("waiting for class Connection method Start, got {:?}", c);
-              self.status.set_error();
-            }
-          },
-          ConnectingState::ReceivedSecure => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error();
-          },
-          ConnectingState::SentSecure => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error();
-          },
-          ConnectingState::ReceivedSecondSecure => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-            self.status.set_error();
-          },
-          ConnectingState::Error => {
-            error!("state {:?}\treceived\t{:?}", self.status.state(), c);
-          },
-        }
-      },
-      ConnectionState::Connected => {
-        warn!("Ignoring method from global channel as we are connected {:?}", c);
-      },
-      ConnectionState::Closing(_) => {
-        warn!("Ignoring method from global channel as we are closing: {:?}", c);
-      },
-    };
   }
 
   #[doc(hidden)]
@@ -370,7 +196,7 @@ mod tests {
   use crate::channel_status::ChannelState;
   use crate::consumer::ConsumerSubscriber;
   use crate::message::Delivery;
-  use amq_protocol::protocol::basic;
+  use amq_protocol::protocol::{basic, AMQPClass};
   use amq_protocol::frame::AMQPContentHeader;
 
   #[derive(Clone,Debug,PartialEq)]

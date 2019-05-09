@@ -13,7 +13,7 @@ impl ChannelStatus {
   }
 
   pub fn is_connected(&self) -> bool {
-    !&[ChannelState::Initial, ChannelState::Closed, ChannelState::Error].contains(&self.inner.read().state)
+    !&[ChannelState::Initial, ChannelState::Closing, ChannelState::Closed, ChannelState::Error].contains(&self.inner.read().state)
   }
 
   pub fn confirm(&self) -> bool {
@@ -41,6 +41,7 @@ impl ChannelStatus {
 pub enum ChannelState {
     Initial,
     Connected,
+    Closing,
     Closed,
     Error,
     SendingContent(usize),

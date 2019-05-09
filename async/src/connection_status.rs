@@ -43,7 +43,7 @@ pub enum ConnectionState {
   Initial,
   Connecting(ConnectingState),
   Connected,
-  Closing(ClosingState),
+  Closing,
   Closed,
   Error,
 }
@@ -52,25 +52,8 @@ pub enum ConnectionState {
 pub enum ConnectingState {
   Initial,
   SentProtocolHeader(Credentials, ConnectionProperties),
-  ReceivedStart,
   SentStartOk,
-  ReceivedTune,
-  SentTuneOk,
   SentOpen,
-  ReceivedSecure,
-  SentSecure,
-  ReceivedSecondSecure,
-  Error,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ClosingState {
-  Initial,
-  SentClose,
-  ReceivedClose,
-  SentCloseOk,
-  ReceivedCloseOk,
-  Error,
 }
 
 impl Default for ConnectionState {

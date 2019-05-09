@@ -3,6 +3,8 @@ use failure::{Backtrace, Context, Fail};
 
 use std::fmt;
 
+use crate::connection_status::ConnectionState;
+
 /// The type of error that can be returned in this crate.
 ///
 /// Instead of implementing the `Error` trait provided by the standard library,
@@ -37,6 +39,8 @@ pub enum ErrorKind {
   PreconditionFailed,
   #[fail(display = "The maximum number of channels for this connection has been reached")]
   ChannelLimitReached,
+  #[fail(display = "invalid connection state: {:?}", _0)]
+  InvalidConnectionState(ConnectionState),
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants
