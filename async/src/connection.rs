@@ -1,6 +1,5 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
 use amq_protocol::protocol::{AMQPClass, connection};
-use crossbeam_channel::{self, Sender, Receiver};
 use log::{debug, error, trace, warn};
 
 use std::result;
@@ -14,37 +13,33 @@ use crate::{
   connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
   credentials::Credentials,
   error,
-  priority_frames::PriorityFrames,
+  frames::Frames,
   types::{AMQPValue, FieldTable},
 };
 
 #[derive(Clone, Debug)]
 pub struct Connection {
   /// current state of the connection. In normal use it should always be ConnectionState::Connected
-  pub status:            ConnectionStatus,
-  pub channels:          Channels,
-  pub configuration:     Configuration,
-  /// list of message to send
-      frame_receiver:    Receiver<AMQPFrame>,
-  /// We keep a copy so that it never gets shutdown and to create new channels
-  pub frame_sender:      Sender<AMQPFrame>,
-  /// Failed frames we need to try and send back + heartbeats
-      priority_frames:   PriorityFrames,
+  pub status:          ConnectionStatus,
+  pub channels:        Channels,
+  pub configuration:   Configuration,
+  // Failed frames we need to try and send back + heartbeats
+      priority_frames: Frames,
+  // list of message to send
+      frames:          Frames,
 }
 
 impl Default for Connection {
   fn default() -> Self {
-    let (sender, receiver) = crossbeam_channel::unbounded();
     let configuration = Configuration::default();
     let channels = Channels::default();
 
     let connection = Self {
-      status:            ConnectionStatus::default(),
+      status:          ConnectionStatus::default(),
       channels,
       configuration,
-      frame_receiver:    receiver,
-      frame_sender:      sender,
-      priority_frames:   PriorityFrames::default(),
+      priority_frames: Frames::default(),
+      frames:          Frames::default(),
     };
 
     connection.channels.create_zero(connection.clone());
@@ -75,9 +70,13 @@ impl Connection {
       return Err(Error::new(ErrorKind::Other, format!("invalid state: {:?}", state)));
     }
 
-    self.channels.send_frame(0, AMQPFrame::ProtocolHeader).expect("channel 0");
+    self.send_frame(AMQPFrame::ProtocolHeader);
     self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
     Ok(self.status.state())
+  }
+
+  pub fn send_frame(&self, frame: AMQPFrame) {
+    self.frames.push_back(frame);
   }
 
   /// next message to send to the network
@@ -85,8 +84,7 @@ impl Connection {
   /// returns None if there's no message to send
   pub fn next_frame(&mut self) -> Option<AMQPFrame> {
     self.priority_frames.pop().or_else(|| {
-      // Error means no message
-      self.frame_receiver.try_recv().ok()
+      self.frames.pop()
     })
   }
 
@@ -359,7 +357,7 @@ impl Connection {
 
   #[doc(hidden)]
   pub fn has_pending_frames(&self) -> bool {
-    !self.priority_frames.is_empty() || !self.frame_receiver.is_empty()
+    !self.priority_frames.is_empty() || !self.frames.is_empty()
   }
 }
 

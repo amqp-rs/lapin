@@ -73,8 +73,7 @@ impl Channel {
 
   #[doc(hidden)]
   pub fn send_frame(&self, frame: AMQPFrame) {
-    // We always hold a reference to the receiver so it's safe to unwrap
-    self.connection.frame_sender.send(frame).unwrap();
+    self.connection.send_frame(frame);
   }
 
   fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) {

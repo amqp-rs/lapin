@@ -1,7 +1,4 @@
-use amq_protocol::{
-  frame::AMQPFrame,
-  protocol::AMQPClass,
-};
+use amq_protocol::protocol::AMQPClass;
 use log::debug;
 use parking_lot::Mutex;
 
@@ -46,15 +43,6 @@ impl Channels {
   pub fn receive_method(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
     if let Some(channel) = self.get(id) {
       channel.receive_method(method)
-    } else {
-      Err(ErrorKind::InvalidChannel(id).into())
-    }
-  }
-
-  pub fn send_frame(&self, id: u16, frame: AMQPFrame) -> Result<(), Error> {
-    if let Some(channel) = self.get(id) {
-      channel.send_frame(frame);
-      Ok(())
     } else {
       Err(ErrorKind::InvalidChannel(id).into())
     }

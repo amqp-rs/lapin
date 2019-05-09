@@ -7,11 +7,11 @@ use std::{
 };
 
 #[derive(Clone, Debug, Default)]
-pub struct PriorityFrames {
+pub struct Frames {
   frames: Arc<Mutex<VecDeque<AMQPFrame>>>,
 }
 
-impl PriorityFrames {
+impl Frames {
   pub fn push_front(&self, frame: AMQPFrame) {
     self.frames.lock().push_front(frame)
   }
