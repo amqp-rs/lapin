@@ -102,7 +102,7 @@ impl Channel {
       if nowait {
         {{#if method.metadata.nowait_hook ~}}
         #[allow(clippy::needless_update)]
-        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}})?;
+        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received({{#unless method.metadata.nowait_hook.no_args ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}}{{/unless ~}})?;
         {{/if ~}}
         None
       } else {{/if ~}}{

@@ -34,6 +34,13 @@
     }
   },
   "confirm": {
+    "select": {
+      "metadata": {
+        "nowait_hook": {
+          "no_args": true
+        }
+      }
+    },
     "select-ok": {
       "metadata": {
         "received_hook": {
