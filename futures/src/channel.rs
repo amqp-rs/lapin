@@ -46,7 +46,7 @@ where T: Send {
 impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>, conn: Connection) -> impl Future<Item = Self, Error = Error> + Send + 'static {
-        future::result(conn.channels.create().map(|inner| Channel { transport, inner, conn }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".to_string(), err).into())).and_then(|channel| {
+        future::result(conn.create_channel().map(|inner| Channel { transport, inner, conn }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".to_string(), err).into())).and_then(|channel| {
             let request_id = channel.inner.channel_open();
             let inner = channel.inner.clone();
             channel.run_on_locked_transport("create", "Could not create channel", request_id).and_then(move |_| {

@@ -2,7 +2,7 @@ use amq_protocol::{
   frame::AMQPFrame,
   protocol::AMQPClass,
 };
-use crossbeam_channel::Sender;
+use log::debug;
 use parking_lot::Mutex;
 
 use std::{
@@ -12,27 +12,23 @@ use std::{
 
 use crate::{
   channel::{BasicProperties, Channel},
-  configuration::Configuration,
+  connection::Connection,
   error::{Error, ErrorKind},
   id_sequence::IdSequence,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Channels {
   inner:         Arc<Mutex<Inner>>,
 }
 
 impl Channels {
-  pub fn new(configuration: Configuration, frame_sender: Sender<AMQPFrame>) -> Self {
-    let channels = Self {
-      inner: Arc::new(Mutex::new(Inner::new(configuration, frame_sender))),
-    };
-    channels.inner.lock().create_channel(0, channels.clone());
-    channels
+  pub fn create(&self, connection: Connection) -> Result<Channel, Error> {
+    self.inner.lock().create(connection)
   }
 
-  pub fn create(&self) -> Result<Channel, Error> {
-    self.inner.lock().create(self.clone())
+  pub(crate) fn create_zero(&self, connection: Connection) -> () {
+    self.inner.lock().create_channel(0, connection);
   }
 
   pub fn get(&self, id: u16) -> Option<Channel> {
@@ -92,30 +88,30 @@ impl Channels {
 
 #[derive(Debug)]
 struct Inner {
-  channels:      HashMap<u16, Channel>,
-  channel_id:    IdSequence<u16>,
-  configuration: Configuration,
-  frame_sender:  Sender<AMQPFrame>,
+  channels:   HashMap<u16, Channel>,
+  channel_id: IdSequence<u16>,
+}
+
+impl Default for Inner {
+  fn default() -> Self {
+    Self {
+      channels:   HashMap::default(),
+      channel_id: IdSequence::new(false),
+    }
+  }
 }
 
 impl Inner {
-  fn new(configuration: Configuration, frame_sender: Sender<AMQPFrame>) -> Self {
-    Self {
-      channels:   Default::default(),
-      channel_id: IdSequence::new(false),
-      configuration,
-      frame_sender,
-    }
-  }
-
-  fn create_channel(&mut self, id: u16, channels: Channels) -> Channel {
-    let channel = Channel::new(id, self.configuration.clone(), self.frame_sender.clone(), channels);
+  fn create_channel(&mut self, id: u16, connection: Connection) -> Channel {
+    debug!("create channel with id {}", id);
+    let channel = Channel::new(id, connection);
     self.channels.insert(id, channel.clone());
     channel
   }
 
-  fn create(&mut self, channels: Channels) -> Result<Channel, Error> {
-    let channel_max = self.configuration.channel_max();
+  fn create(&mut self, connection: Connection) -> Result<Channel, Error> {
+    debug!("create channel");
+    let channel_max = connection.configuration.channel_max();
     let first_id = self.channel_id.next_with_max(channel_max);
     let mut looped = false;
     let mut id = first_id;
@@ -124,7 +120,7 @@ impl Inner {
         looped = true;
       }
       if !self.channels.contains_key(&id) {
-        return Ok(self.create_channel(id, channels))
+        return Ok(self.create_channel(id, connection))
       }
       id = self.channel_id.next_with_max(channel_max);
     }

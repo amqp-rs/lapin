@@ -71,7 +71,7 @@
 //!   }
 //!
 //!   /* Create and open a channel */
-//!   let channel = conn.channels.create().unwrap();
+//!   let channel = conn.create_channel().unwrap();
 //!   channel.channel_open().expect("channel_open");
 //!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));

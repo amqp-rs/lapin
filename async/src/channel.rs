@@ -4,14 +4,12 @@ use amq_protocol::{
   protocol::{AMQPClass, AMQPError, AMQPSoftError},
   frame::{AMQPContentHeader, AMQPFrame},
 };
-use crossbeam_channel::Sender;
 use log::{error, info};
 
 use crate::{
   acknowledgement::{Acknowledgements, DeliveryTag},
   channel_status::{ChannelStatus, ChannelState},
-  channels::Channels,
-  configuration::Configuration,
+  connection::Connection,
   consumer::{Consumer, ConsumerSubscriber},
   error::{Error, ErrorKind},
   generated_names::GeneratedNames,
@@ -27,45 +25,41 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Channel {
       id:               u16,
+      connection:       Connection,
   pub status:           ChannelStatus,
   pub acknowledgements: Acknowledgements,
-      configuration:    Configuration,
   pub replies:          Replies,
       delivery_tag:     IdSequence<DeliveryTag>,
       request_id:       IdSequence<RequestId>,
-      frame_sender:     Sender<AMQPFrame>,
   pub requests:         Requests,
   pub queues:           Queues,
   pub generated_names:  GeneratedNames,
-      channels:         Channels,
 }
 
 impl Channel {
-  pub fn new(channel_id: u16, configuration: Configuration, frame_sender: Sender<AMQPFrame>, channels: Channels) -> Channel {
+  pub fn new(channel_id: u16, connection: Connection) -> Channel {
     Channel {
       id:               channel_id,
+      connection,
       status:           ChannelStatus::default(),
       acknowledgements: Acknowledgements::default(),
-      configuration,
       replies:          Replies::default(),
       delivery_tag:     IdSequence::new(false),
       request_id:       IdSequence::new(false),
-      frame_sender,
       requests:         Requests::default(),
       queues:           Queues::default(),
       generated_names:  GeneratedNames::default(),
-      channels,
     }
   }
 
   pub fn set_error(&self) -> Result<(), Error> {
     self.status.set_state(ChannelState::Error);
-    self.channels.remove(self.id)
+    self.connection.channels.remove(self.id)
   }
 
   pub fn set_closed(&self) -> Result<(), Error> {
     self.status.set_state(ChannelState::Closed);
-    self.channels.remove(self.id)
+    self.connection.channels.remove(self.id)
   }
 
   pub fn id(&self) -> u16 {
@@ -80,7 +74,7 @@ impl Channel {
   #[doc(hidden)]
   pub fn send_frame(&self, frame: AMQPFrame) {
     // We always hold a reference to the receiver so it's safe to unwrap
-    self.frame_sender.send(frame).unwrap();
+    self.connection.frame_sender.send(frame).unwrap();
   }
 
   fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) {
@@ -92,7 +86,7 @@ impl Channel {
     };
     self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)));
 
-    let frame_max = self.configuration.frame_max();
+    let frame_max = self.connection.configuration.frame_max();
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
       self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)));

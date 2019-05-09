@@ -7,6 +7,7 @@ use std::result;
 use std::io::{Error, ErrorKind, Result};
 
 use crate::{
+  channel::Channel,
   channels::Channels,
   configuration::Configuration,
   connection_properties::ConnectionProperties,
@@ -26,7 +27,7 @@ pub struct Connection {
   /// list of message to send
       frame_receiver:    Receiver<AMQPFrame>,
   /// We keep a copy so that it never gets shutdown and to create new channels
-      frame_sender:      Sender<AMQPFrame>,
+  pub frame_sender:      Sender<AMQPFrame>,
   /// Failed frames we need to try and send back + heartbeats
       priority_frames:   PriorityFrames,
 }
@@ -35,15 +36,19 @@ impl Default for Connection {
   fn default() -> Self {
     let (sender, receiver) = crossbeam_channel::unbounded();
     let configuration = Configuration::default();
+    let channels = Channels::default();
 
-    Self {
+    let connection = Self {
       status:            ConnectionStatus::default(),
-      channels:          Channels::new(configuration.clone(), sender.clone()),
+      channels,
       configuration,
       frame_receiver:    receiver,
       frame_sender:      sender,
       priority_frames:   PriorityFrames::default(),
-    }
+    };
+
+    connection.channels.create_zero(connection.clone());
+    connection
   }
 }
 
@@ -51,6 +56,10 @@ impl Connection {
   /// creates a `Connection` object in initial state
   pub fn new() -> Self {
     Default::default()
+  }
+
+  pub fn create_channel(&self) -> result::Result<Channel, error::Error> {
+    self.channels.create(self.clone())
   }
 
   /// starts the process of connecting to the server
@@ -386,7 +395,7 @@ mod tests {
     let mut conn = Connection::new();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
-    let channel = conn.channels.create().unwrap();
+    let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
@@ -456,7 +465,7 @@ mod tests {
     let mut conn = Connection::new();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
-    let channel = conn.channels.create().unwrap();
+    let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = "consumed".to_string();
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
