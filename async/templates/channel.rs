@@ -57,7 +57,7 @@ impl Channel {
   {{#each protocol.classes as |class| ~}}
   {{#unless class.metadata.skip ~}}
   {{#each class.methods as |method| ~}}
-  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<RequestId>, Error> {
+  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -93,10 +93,11 @@ impl Channel {
     self.send_method_frame(method);
 
     {{#if method.metadata.end_hook ~}}
-    self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+    {{#if method.metadata.end_hook.return_type ~}}let end_hook_ret = {{/if ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     {{/if ~}}
 
-    Ok({{#unless method.synchronous ~}}None{{else}}
+    Ok(
+      {{#if method.synchronous ~}}
       {{#if (method_has_flag method "nowait") ~}}
       if nowait {
         None
@@ -105,7 +106,14 @@ impl Channel {
         self.replies.register_pending(self.id, Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}}));
         Some(request_id)
       }
-    {{/unless ~}})
+      {{else}}
+      {{#if method.metadata.end_hook.return_type ~}}
+      end_hook_ret
+      {{else}}
+      None
+      {{/if}}
+      {{/if ~}}
+    )
   }
 
   {{#if method.is_reply ~}}

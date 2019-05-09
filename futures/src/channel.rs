@@ -6,6 +6,7 @@ use lapin_async;
 use lapin_async::channel::Channel as InnerChannel;
 use lapin_async::channel_status::ChannelState;
 use lapin_async::connection::Connection;
+use lapin_async::acknowledgement::DeliveryTag;
 use lapin_async::queue::QueueStats;
 use lapin_async::requests::RequestId;
 use log::{debug, trace};
@@ -177,23 +178,39 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// - `Some(request_id)` if we're on a confirm channel and the message was ack'd
     /// - `None` if we're not on a confirm channel or the message was nack'd
     pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<RequestId>, Error = Error> + Send + 'static {
-        let request_id = self.inner.basic_publish(exchange, routing_key, options, payload, properties);
+      let delivery_tag = self.inner.basic_publish(exchange, routing_key, options, payload, properties);
+      let transport = self.transport.clone();
+      let mut inner = self.inner.clone();
 
-        self.run_on_locked_transport_full("basic_publish", "Could not publish", request_id, move |channel, delivery_tag| {
-          if channel.status.confirm() {
-            if channel.acknowledgements.is_acked(delivery_tag) {
-              Ok(Async::Ready(Some(delivery_tag)))
-            } else if channel.acknowledgements.is_nacked(delivery_tag) {
-              Ok(Async::Ready(None))
-            } else {
-              debug!("message with tag {} still in unacked", delivery_tag);
-              task::current().notify();
-              Ok(Async::NotReady)
-            }
+      future::result(delivery_tag.map_err(|e| ErrorKind::ProtocolError("Could not publish".to_string(), e).into())).and_then(move |delivery_tag| {
+        if delivery_tag.is_some() {
+          trace!("{} returning closure", "basic_publish");
+        }
+
+        future::poll_fn(move || {
+          let mut transport = transport.lock();
+
+          if let Some(delivery_tag) = delivery_tag {
+            Self::wait_for_ack(&mut inner, &mut transport, delivery_tag, move |channel, delivery_tag| {
+              if channel.status.confirm() {
+                if channel.acknowledgements.is_acked(delivery_tag) {
+                  Ok(Async::Ready(Some(delivery_tag)))
+                } else if channel.acknowledgements.is_nacked(delivery_tag) {
+                  Ok(Async::Ready(None))
+                } else {
+                  debug!("message with tag {} still in unacked", delivery_tag);
+                  task::current().notify();
+                  Ok(Async::NotReady)
+                }
+              } else {
+                Ok(Async::Ready(None))
+              }
+            })
           } else {
-            Ok(Async::Ready(None))
+            transport.poll().map(|r| r.map(|_| None))
           }
         })
+      })
     }
 
     /// creates a consumer stream
@@ -418,5 +435,20 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             trace!("wait for answer; request_id={:?} status=NotReady", request_id);
             task::current().notify();
             Ok(Async::NotReady)
+    }
+
+    /// internal method to wait until a request succeeds
+    pub fn wait_for_ack<Finished>(channel: &mut InnerChannel, tr: &mut AMQPTransport<T>, delivery_tag: DeliveryTag, finished: Finished) -> Poll<Option<DeliveryTag>, Error>
+      where Finished: 'static + Send + Fn(&mut InnerChannel, DeliveryTag) -> Poll<Option<DeliveryTag>, Error> {
+        trace!("wait for aack; delivery_tag={:?}", delivery_tag);
+        tr.poll()?;
+        trace!("wait for ack; transport poll; delivery_tag={:?} status=NotReady", delivery_tag);
+        if let Async::Ready(t) = finished(channel, delivery_tag)? {
+          trace!("wait for ack; delivery_tag={:?} status=Ready result={:?}", delivery_tag, t);
+          return Ok(Async::Ready(t));
+        }
+        trace!("wait for ack; delivery_tag={:?} status=NotReady", delivery_tag);
+        task::current().notify();
+        Ok(Async::NotReady)
     }
 }

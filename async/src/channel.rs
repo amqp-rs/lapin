@@ -141,12 +141,17 @@ impl Channel {
     Err(error)
   }
 
-  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) {
-    if self.status.confirm() {
+  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Option<DeliveryTag> {
+    let delivery_tag = if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
       self.acknowledgements.register_pending(delivery_tag);
-    }
-    self.send_content_frames(class_id, payload.as_slice(), properties)
+      Some(delivery_tag)
+    } else {
+      None
+    };
+
+    self.send_content_frames(class_id, payload.as_slice(), properties);
+    delivery_tag
   }
 
   fn on_basic_recover_async_sent(&self) {

@@ -126,7 +126,8 @@
           }
         ],
         "end_hook": {
-          "params": ["60", "payload", "properties"]
+          "params": ["60", "payload", "properties"],
+          "return_type": "DeliveryTag"
         }
       }
     },
