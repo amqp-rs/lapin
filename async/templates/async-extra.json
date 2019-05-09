@@ -127,10 +127,6 @@
         ],
         "end_hook": {
           "params": ["60", "payload", "properties"]
-        },
-        "reply": {
-          "name": "PublishConfirm",
-          "no_state": true
         }
       }
     },

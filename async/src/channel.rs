@@ -143,7 +143,6 @@ impl Channel {
 
   fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) {
     if self.status.confirm() {
-      self.replies.register_pending(self.id, Reply::AwaitingPublishConfirm);
       let delivery_tag = self.delivery_tag.next();
       self.acknowledgements.register_pending(delivery_tag);
     }
@@ -260,49 +259,33 @@ impl Channel {
   }
 
   fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<(), Error> {
-    match self.replies.next() {
-      Some(Reply::AwaitingPublishConfirm) => {
-        if self.status.confirm() {
-          if method.multiple {
-            if method.delivery_tag > 0 {
-              self.acknowledgements.ack_all_before(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
-            } else {
-              self.acknowledgements.ack_all_pending();
-            }
-          } else {
-            self.acknowledgements.ack(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
-          }
+    if self.status.confirm() {
+      if method.multiple {
+        if method.delivery_tag > 0 {
+          self.acknowledgements.ack_all_before(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
+        } else {
+          self.acknowledgements.ack_all_pending();
         }
-        Ok(())
-      },
-      _ => {
-        self.set_error()?;
-        Err(ErrorKind::UnexpectedReply.into())
+      } else {
+        self.acknowledgements.ack(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
       }
     }
+    Ok(())
   }
 
   fn on_basic_nack_received(&self, method: protocol::basic::Nack) -> Result<(), Error> {
-    match self.replies.next() {
-      Some(Reply::AwaitingPublishConfirm) => {
-        if self.status.confirm() {
-          if method.multiple {
-            if method.delivery_tag > 0 {
-              self.acknowledgements.nack_all_before(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
-            } else {
-              self.acknowledgements.nack_all_pending();
-            }
-          } else {
-            self.acknowledgements.nack(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
-          }
+    if self.status.confirm() {
+      if method.multiple {
+        if method.delivery_tag > 0 {
+          self.acknowledgements.nack_all_before(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
+        } else {
+          self.acknowledgements.nack_all_pending();
         }
-        Ok(())
-      },
-      _ => {
-        self.set_error()?;
-        Err(ErrorKind::UnexpectedReply.into())
+      } else {
+        self.acknowledgements.nack(method.delivery_tag).or_else(|err| self.acknowledgement_error(err, method.get_amqp_class_id(), method.get_amqp_method_id()))?;
       }
     }
+    Ok(())
   }
 
   fn on_basic_recover_ok_received(&self) -> Result<(), Error> {

@@ -23,11 +23,11 @@ use options::*;
 #[derive(Debug)]
 pub enum Reply {
   {{#each protocol.classes as |class| ~}}
-  {{#unless class.metadata.skip ~}}
   {{#each class.methods as |method| ~}}
-  Awaiting{{#if method.metadata.reply.name ~}}{{method.metadata.reply.name}}{{else}}{{camel class.name}}{{camel method.name}}Ok{{/if ~}}{{#unless method.metadata.reply.no_state ~}}(RequestId{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}){{/unless ~}},
+  {{#if method.synchronous ~}}
+  Awaiting{{camel class.name}}{{camel method.name}}Ok(RequestId{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
+  {{/if ~}}
   {{/each ~}}
-  {{/unless ~}}
   {{/each ~}}
 }
 
