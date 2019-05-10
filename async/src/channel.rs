@@ -16,41 +16,44 @@ use crate::{
   error::{Error, ErrorKind},
   generated_names::GeneratedNames,
   id_sequence::IdSequence,
-  message::{BasicGetMessage, Delivery},
+  message::{BasicGetMessage, BasicReturnMessage, Delivery},
   queue::Queue,
   queues::Queues,
   replies::Replies,
   requests::{Requests, RequestId},
+  returned_messages::ReturnedMessages,
   types::*,
 };
 
 #[derive(Clone, Debug)]
 pub struct Channel {
-      id:               u16,
-      connection:       Connection,
-  pub status:           ChannelStatus,
-  pub acknowledgements: Acknowledgements,
-  pub replies:          Replies,
-      delivery_tag:     IdSequence<DeliveryTag>,
-      request_id:       IdSequence<RequestId>,
-  pub requests:         Requests,
-  pub queues:           Queues,
-  pub generated_names:  GeneratedNames,
+      id:                u16,
+      connection:        Connection,
+  pub status:            ChannelStatus,
+  pub acknowledgements:  Acknowledgements,
+  pub replies:           Replies,
+      delivery_tag:      IdSequence<DeliveryTag>,
+      request_id:        IdSequence<RequestId>,
+  pub requests:          Requests,
+  pub queues:            Queues,
+  pub generated_names:   GeneratedNames,
+      returned_messages: ReturnedMessages,
 }
 
 impl Channel {
   pub fn new(channel_id: u16, connection: Connection) -> Channel {
     Channel {
-      id:               channel_id,
+      id:                channel_id,
       connection,
-      status:           ChannelStatus::default(),
-      acknowledgements: Acknowledgements::default(),
-      replies:          Replies::default(),
-      delivery_tag:     IdSequence::new(false),
-      request_id:       IdSequence::new(false),
-      requests:         Requests::default(),
-      queues:           Queues::default(),
-      generated_names:  GeneratedNames::default(),
+      status:            ChannelStatus::default(),
+      acknowledgements:  Acknowledgements::default(),
+      replies:           Replies::default(),
+      delivery_tag:      IdSequence::new(false),
+      request_id:        IdSequence::new(false),
+      requests:          Requests::default(),
+      queues:            Queues::default(),
+      generated_names:   GeneratedNames::default(),
+      returned_messages: ReturnedMessages::default(),
     }
   }
 
@@ -106,7 +109,14 @@ impl Channel {
       } else {
         self.status.set_state(ChannelState::Connected);
       }
-      self.queues.handle_content_header_frame(&queue_name, request_id_or_consumer_tag, size, properties);
+      if let Some(queue_name) = queue_name {
+        self.queues.handle_content_header_frame(&queue_name, request_id_or_consumer_tag, size, properties);
+      } else {
+        self.returned_messages.set_delivery_properties(properties);
+        if size == 0 {
+          self.returned_messages.new_delivery_complete();
+        }
+      }
       Ok(())
     } else {
       self.set_error()
@@ -119,7 +129,14 @@ impl Channel {
 
     if let ChannelState::ReceivingContent(queue_name, request_id_or_consumer_tag, remaining_size) = self.status.state() {
       if remaining_size >= payload_size {
-        self.queues.handle_body_frame(&queue_name, request_id_or_consumer_tag.clone(), remaining_size, payload_size, payload);
+        if let Some(queue_name) = queue_name.as_ref() {
+          self.queues.handle_body_frame(queue_name, request_id_or_consumer_tag.clone(), remaining_size, payload_size, payload);
+        } else {
+          self.returned_messages.receive_delivery_content(payload);
+          if remaining_size == payload_size {
+            self.returned_messages.new_delivery_complete();
+          }
+        }
         if remaining_size == payload_size {
           self.status.set_state(ChannelState::Connected);
         } else {
@@ -360,7 +377,7 @@ impl Channel {
 
   fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, request_id: RequestId, queue: String) -> Result<(), Error> {
     self.queues.start_basic_get_delivery(&queue, BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count));
-    self.status.set_state(ChannelState::WillReceiveContent(queue, Either::Left(request_id)));
+    self.status.set_state(ChannelState::WillReceiveContent(Some(queue), Either::Left(request_id)));
     Ok(())
   }
 
@@ -388,7 +405,7 @@ impl Channel {
 
   fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<(), Error> {
     if let Some(queue_name) = self.queues.start_consumer_delivery(&method.consumer_tag, Delivery::new(method.delivery_tag, method.exchange.to_string(), method.routing_key.to_string(), method.redelivered)) {
-      self.status.set_state(ChannelState::WillReceiveContent(queue_name, Either::Right(method.consumer_tag)));
+      self.status.set_state(ChannelState::WillReceiveContent(Some(queue_name), Either::Right(method.consumer_tag)));
     }
     Ok(())
   }
@@ -436,9 +453,9 @@ impl Channel {
     Ok(())
   }
 
-  fn on_basic_return_received(&self, _method: protocol::basic::Return) -> Result<(), Error> {
-    // FIXME: do something
-    // FIXME: read body
+  fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<(), Error> {
+    self.returned_messages.start_new_delivery(BasicReturnMessage::new(method.exchange, method.routing_key, method.reply_code, method.reply_text));
+    self.status.set_state(ChannelState::WillReceiveContent(None, Either::Left(0)));
     Ok(())
   }
 

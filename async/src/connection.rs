@@ -256,7 +256,7 @@ mod tests {
       conn.handle_frame(deliver_frame).unwrap();
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
-        queue_name.clone(),
+        Some(queue_name.clone()),
         Either::Right(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);
@@ -274,7 +274,7 @@ mod tests {
       );
       conn.handle_frame(header_frame).unwrap();
       let channel_state = channel.status.state();
-      let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Either::Right(consumer_tag.clone()), 2);
+      let expected_state = ChannelState::ReceivingContent(Some(queue_name.clone()), Either::Right(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
     }
     {
@@ -326,7 +326,7 @@ mod tests {
       conn.handle_frame(deliver_frame).unwrap();
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
-        queue_name.clone(),
+        Some(queue_name.clone()),
         Either::Right(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);

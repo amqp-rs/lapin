@@ -48,8 +48,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(String, Either<RequestId, String>),
-    ReceivingContent(String, Either<RequestId, String>, usize),
+    WillReceiveContent(Option<String>, Either<RequestId, String>),
+    ReceivingContent(Option<String>, Either<RequestId, String>, usize),
 }
 
 impl Default for ChannelState {

@@ -133,5 +133,6 @@ pub mod queue;
 pub mod queues;
 pub mod replies;
 pub mod requests;
+pub mod returned_messages;
 pub mod types;
 pub mod uri;
