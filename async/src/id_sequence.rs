@@ -5,42 +5,67 @@ use std::{
   sync::Arc,
 };
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct IdSequence<T> {
-  allow_zero: bool,
-  zero:       T,
-  one:        T,
-  id:         Arc<Mutex<T>>,
+  inner: Arc<Mutex<Inner<T>>>,
 }
 
-// FIXME: use Step trait once stable (https://github.com/rust-lang/rust/issues/42168)
 impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
   pub fn new(allow_zero: bool) -> Self {
     Self {
-      allow_zero,
-      zero: 0.into(),
-      one: 1.into(),
-      id: Default::default(),
+      inner: Arc::new(Mutex::new(Inner::new(allow_zero)))
     }
   }
 
   pub fn next(&self) -> T {
-    let mut id = self.id.lock();
-    if !self.allow_zero && *id == self.zero {
-      *id += self.one;
-    }
-    let next_id = *id;
-    *id += self.one;
-    next_id
+    self.inner.lock().next()
   }
 
-  pub fn next_with_max(&self, max: T) -> T {
-    let id = self.next();
-    if id < max {
+  pub fn set_max(&self, max: T) {
+    self.inner.lock().max = Some(max);
+  }
+}
+
+#[derive(Debug)]
+pub struct Inner<T> {
+  allow_zero: bool,
+  zero:       T,
+  one:        T,
+  max:        Option<T>,
+  id:         T,
+}
+
+impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> Inner<T> {
+  fn new(allow_zero: bool) -> Self {
+    Self {
+      allow_zero,
+      zero: 0.into(),
+      one:  1.into(),
+      max:  None,
+      id:   T::default(),
+    }
+  }
+
+  // FIXME: use Step trait once stable (https://github.com/rust-lang/rust/issues/42168)
+  fn next(&mut self) -> T {
+    if !self.allow_zero && self.id == self.zero {
+      self.id += self.one;
+    }
+    if self.check_max() {
+      let id = self.id;
+      self.id += self.one;
       id
     } else {
-      *self.id.lock() = self.zero;
+      self.id = self.zero;
       self.next()
+    }
+  }
+
+  fn check_max(&self) -> bool {
+    if let Some(max) = self.max {
+      self.id < max
+    } else {
+      true
     }
   }
 }

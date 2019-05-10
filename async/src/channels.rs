@@ -111,8 +111,8 @@ impl Inner {
 
   fn create(&mut self, connection: Connection) -> Result<Channel, Error> {
     debug!("create channel");
-    let channel_max = connection.configuration.channel_max();
-    let first_id = self.channel_id.next_with_max(channel_max);
+    self.channel_id.set_max(connection.configuration.channel_max());
+    let first_id = self.channel_id.next();
     let mut looped = false;
     let mut id = first_id;
     while !looped || id < first_id {
@@ -122,7 +122,7 @@ impl Inner {
       if !self.channels.contains_key(&id) {
         return Ok(self.create_channel(id, connection))
       }
-      id = self.channel_id.next_with_max(channel_max);
+      id = self.channel_id.next();
     }
     Err(ErrorKind::ChannelLimitReached.into())
   }
