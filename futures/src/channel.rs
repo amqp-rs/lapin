@@ -181,7 +181,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> impl Future<Item = Option<bool>, Error = Error> + Send + 'static {
       let delivery_tag = self.inner.basic_publish(exchange, routing_key, options, payload, properties);
       let transport = self.transport.clone();
-      let mut inner = self.inner.clone();
+      let inner = self.inner.clone();
 
       future::result(delivery_tag.map_err(|e| ErrorKind::ProtocolError("Could not publish".to_string(), e).into())).and_then(move |delivery_tag| {
         if delivery_tag.is_some() {
@@ -192,21 +192,22 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
           let mut transport = transport.lock();
 
           if let Some(delivery_tag) = delivery_tag {
-            Self::wait_for_ack(&mut inner, &mut transport, delivery_tag, move |channel, delivery_tag| {
-              if channel.status.confirm() {
-                if channel.acknowledgements.is_acked(delivery_tag) {
-                  Ok(Async::Ready(Some(true)))
-                } else if channel.acknowledgements.is_nacked(delivery_tag) {
-                  Ok(Async::Ready(Some(false)))
-                } else {
-                  debug!("message with tag {} still in unacked", delivery_tag);
-                  task::current().notify();
-                  Ok(Async::NotReady)
-                }
+            trace!("wait for aack; delivery_tag={:?}", delivery_tag);
+            transport.poll()?;
+            trace!("wait for ack; transport poll; delivery_tag={:?} status=NotReady", delivery_tag);
+            if inner.status.confirm() {
+              if inner.acknowledgements.is_acked(delivery_tag) {
+                Ok(Async::Ready(Some(true)))
+              } else if inner.acknowledgements.is_nacked(delivery_tag) {
+                Ok(Async::Ready(Some(false)))
               } else {
-                Ok(Async::Ready(None))
+                debug!("message with tag {} still in unacked", delivery_tag);
+                task::current().notify();
+                Ok(Async::NotReady)
               }
-            })
+            } else {
+              Ok(Async::Ready(None))
+            }
           } else {
             transport.poll().map(|r| r.map(|_| None))
           }
@@ -435,20 +436,5 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
             trace!("wait for answer; request_id={:?} status=NotReady", request_id);
             task::current().notify();
             Ok(Async::NotReady)
-    }
-
-    /// internal method to wait until a request succeeds
-    pub fn wait_for_ack<Finished>(channel: &mut InnerChannel, tr: &mut AMQPTransport<T>, delivery_tag: DeliveryTag, finished: Finished) -> Poll<Option<bool>, Error>
-      where Finished: 'static + Send + Fn(&mut InnerChannel, DeliveryTag) -> Poll<Option<bool>, Error> {
-        trace!("wait for aack; delivery_tag={:?}", delivery_tag);
-        tr.poll()?;
-        trace!("wait for ack; transport poll; delivery_tag={:?} status=NotReady", delivery_tag);
-        if let Async::Ready(t) = finished(channel, delivery_tag)? {
-          trace!("wait for ack; delivery_tag={:?} status=Ready result={:?}", delivery_tag, t);
-          return Ok(Async::Ready(t));
-        }
-        trace!("wait for ack; delivery_tag={:?} status=NotReady", delivery_tag);
-        task::current().notify();
-        Ok(Async::NotReady)
     }
 }
