@@ -18,9 +18,7 @@ pub struct Connection {
   pub status:          ConnectionStatus,
   pub channels:        Channels,
   pub configuration:   Configuration,
-  // Failed frames we need to try and send back + heartbeats
-      priority_frames: Frames,
-  // list of message to send
+  // list of frames to send
       frames:          Frames,
 }
 
@@ -33,7 +31,6 @@ impl Default for Connection {
       status:          ConnectionStatus::default(),
       channels,
       configuration,
-      priority_frames: Frames::default(),
       frames:          Frames::default(),
     };
 
@@ -71,16 +68,14 @@ impl Connection {
   }
 
   pub fn send_frame(&self, frame: AMQPFrame) {
-    self.frames.push_back(frame);
+    self.frames.push(frame);
   }
 
   /// next message to send to the network
   ///
   /// returns None if there's no message to send
   pub fn next_frame(&self) -> Option<AMQPFrame> {
-    self.priority_frames.pop().or_else(|| {
-      self.frames.pop()
-    })
+    self.frames.pop()
   }
 
   /// writes the next message to a mutable byte slice
@@ -170,17 +165,17 @@ impl Connection {
 
   #[doc(hidden)]
   pub fn send_preemptive_frame(&self, frame: AMQPFrame) {
-    self.priority_frames.push_front(frame);
+    self.frames.push_preemptive(frame);
   }
 
   #[doc(hidden)]
   pub fn requeue_frame(&self, frame: AMQPFrame) {
-    self.priority_frames.push_back(frame);
+    self.frames.retry(frame);
   }
 
   #[doc(hidden)]
   pub fn has_pending_frames(&self) -> bool {
-    !self.priority_frames.is_empty() || !self.frames.is_empty()
+    !self.frames.is_empty()
   }
 
   pub fn set_closing(&self) {
