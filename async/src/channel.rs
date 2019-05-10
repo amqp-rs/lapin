@@ -281,7 +281,7 @@ impl Channel {
     self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
 
     self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat())?;
-    self.connection_open(&self.connection.status.vhost(), ConnectionOpenOptions::default())?;
+    self.connection_open(&self.connection.status.vhost())?;
     Ok(())
   }
 

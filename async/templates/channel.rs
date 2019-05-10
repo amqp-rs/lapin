@@ -3,17 +3,21 @@ pub mod options {
 
   {{#each protocol.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
+  {{#unless method.ignore_args ~}}
   {{#each_argument method.arguments as |argument| ~}}
   {{#unless argument_is_value ~}}
+  {{#unless argument.ignore_flags ~}}
   #[derive(Clone, Debug, Default, PartialEq)]
   pub struct {{camel class.name}}{{camel method.name}}Options {
-    {{#each_flag argument as |flag| ~}}
+    {{#each argument.flags as |flag| ~}}
     pub {{snake flag.name}}: Boolean,
-    {{/each_flag ~}}
+    {{/each ~}}
   }
 
   {{/unless ~}}
+  {{/unless ~}}
   {{/each_argument ~}}
+  {{/unless ~}}
   {{/each ~}}
   {{/each ~}}
 }
@@ -57,7 +61,7 @@ impl Channel {
   {{#each protocol.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
-  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}, options: {{camel class.name}}{{camel method.name}}Options{{/if ~}}{{/each_argument ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
+  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -66,15 +70,19 @@ impl Channel {
       return Err(ErrorKind::NotConnected.into());
     }
 
+    {{#unless method.ignore_args ~}}
     {{#each_argument method.arguments as |argument| ~}}
     {{#unless argument_is_value ~}}
+    {{#unless argument.ignore_flags ~}}
     let {{camel class.name}}{{camel method.name}}Options {
-      {{#each_flag argument as |flag| ~}}
+      {{#each argument.flags as |flag| ~}}
       {{snake flag.name}}{{#if flag.force_default ~}}: _{{/if ~}},
-      {{/each_flag ~}}
+      {{/each ~}}
     } = options;
     {{/unless ~}}
+    {{/unless ~}}
     {{/each_argument ~}}
+    {{/unless ~}}
 
     let method = AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}} (protocol::{{snake class.name}}::{{camel method.name}} {
       {{#each_argument method.arguments as |argument| ~}}
@@ -83,11 +91,13 @@ impl Channel {
       {{snake argument.name}}: {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}.to_string(){{/if ~}},
       {{/unless ~}}
       {{else}}
-      {{#each_flag argument as |flag| ~}}
+      {{#unless argument.ignore_flags ~}}
+      {{#each argument.flags as |flag| ~}}
       {{#unless flag.force_default ~}}
       {{snake flag.name}},
       {{/unless ~}}
-      {{/each_flag ~}}
+      {{/each ~}}
+      {{/unless ~}}
       {{/if ~}}
       {{/each_argument ~}}
     }));

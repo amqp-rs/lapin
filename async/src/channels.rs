@@ -17,7 +17,7 @@ use crate::{
 
 #[derive(Clone, Debug, Default)]
 pub struct Channels {
-  inner:         Arc<Mutex<Inner>>,
+  inner: Arc<Mutex<Inner>>,
 }
 
 impl Channels {
@@ -25,7 +25,7 @@ impl Channels {
     self.inner.lock().create(connection)
   }
 
-  pub(crate) fn create_zero(&self, connection: Connection) -> () {
+  pub(crate) fn create_zero(&self, connection: Connection) {
     self.inner.lock().create_channel(0, connection).status.set_state(ChannelState::Connected);
   }
 
