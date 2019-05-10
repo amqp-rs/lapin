@@ -143,6 +143,10 @@ impl Channel {
     self.connection.status.set_connecting_state(ConnectingState::SentOpen);
   }
 
+  fn on_connection_close_sent(&self) {
+    self.connection.status.set_state(ConnectionState::Closing);
+  }
+
   fn on_channel_close_sent(&self) {
     self.status.set_state(ChannelState::Closing);
   }
@@ -269,6 +273,20 @@ impl Channel {
   fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<(), Error> {
     self.connection.status.set_state(ConnectionState::Connected);
     Ok(())
+  }
+
+  fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<(), Error> {
+    if let Some(error) = AMQPError::from_id(method.reply_code) {
+      error!("Connection closed on channel {} by {}:{} => {:?} => {}", self.id, method.class_id, method.method_id, error, method.reply_text);
+    } else {
+      info!("Connection closed on channel {}: {:?}", self.id, method);
+    }
+    self.connection_close_ok()?;
+    self.connection.set_closed()
+  }
+
+  fn on_connection_close_ok_received(&self) -> Result<(), Error> {
+    self.connection.set_closed()
   }
 
   fn on_channel_open_ok_received(&self, _method: protocol::channel::OpenOk) -> Result<(), Error> {

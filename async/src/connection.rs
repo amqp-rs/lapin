@@ -185,6 +185,11 @@ impl Connection {
   pub fn has_pending_frames(&self) -> bool {
     !self.priority_frames.is_empty() || !self.frames.is_empty()
   }
+
+  pub fn set_closed(&self) -> result::Result<(), error::Error> {
+    self.status.set_state(ConnectionState::Closed);
+    Ok(())
+  }
 }
 
 #[cfg(test)]

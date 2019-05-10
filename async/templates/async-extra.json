@@ -22,12 +22,13 @@
     },
     "close": {
       "metadata": {
-        "skip": true
+        "can_be_received": true,
+        "end_hook": true
       }
     },
     "close-ok": {
       "metadata": {
-        "skip": true
+        "received_hook": true
       }
     },
     "secure": {
