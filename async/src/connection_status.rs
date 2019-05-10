@@ -32,6 +32,18 @@ impl ConnectionStatus {
   pub fn vhost(&self) -> String {
     self.inner.read().vhost.clone()
   }
+
+  pub fn block(&self) {
+    self.inner.write().blocked = true;
+  }
+
+  pub fn unblock(&self) {
+    self.inner.write().blocked = true;
+  }
+
+  pub fn blocked(&self) -> bool {
+    self.inner.read().blocked
+  }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,15 +72,17 @@ impl Default for ConnectionState {
 
 #[derive(Debug)]
 struct Inner {
-  state: ConnectionState,
-  vhost: String,
+  state:   ConnectionState,
+  vhost:   String,
+  blocked: bool,
 }
 
 impl Default for Inner {
   fn default() -> Self {
     Self {
-      state: ConnectionState::default(),
-      vhost: "/".to_string(),
+      state:   ConnectionState::default(),
+      vhost:   "/".to_string(),
+      blocked: false,
     }
   }
 }

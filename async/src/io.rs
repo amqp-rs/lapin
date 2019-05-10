@@ -16,7 +16,7 @@ impl Connection {
     let mut read_would_block  = false;
 
     loop {
-      let continue_writing = !write_would_block && self.can_write(send_buffer);
+      let continue_writing = !write_would_block && self.can_write(send_buffer) && !self.status.blocked();
       let continue_reading = !read_would_block && self.can_read(receive_buffer);
       let continue_parsing = self.can_parse(receive_buffer);
 

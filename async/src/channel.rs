@@ -296,12 +296,12 @@ impl Channel {
   }
 
   fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
-    // FIXME: implement
+    self.connection.status.block();
     Ok(())
   }
 
   fn on_connection_unblocked_received(&self, _method: protocol::connection::Unblocked) -> Result<(), Error> {
-    // FIXME: implement
+    self.connection.status.unblock();
     Ok(())
   }
 
