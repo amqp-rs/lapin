@@ -2,7 +2,7 @@ use failure::{Backtrace, Context, Fail};
 use lapin_async;
 use tokio_timer;
 
-use std::{fmt, io};
+use std::fmt;
 
 use crate::transport::CodecError;
 
@@ -31,8 +31,6 @@ pub enum ErrorKind {
     Decode(CodecError),
     #[fail(display = "The connection was closed by the remote peer")]
     ConnectionClosed,
-    #[fail(display = "Failed to connect: {}", _0)]
-    ConnectionFailed(#[fail(cause)] io::Error),
     #[fail(display = "Basic get returned empty")]
     EmptyBasicGet,
     #[fail(display = "Couldn't encode outcoming frame: {}", _0)]

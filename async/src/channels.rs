@@ -64,6 +64,26 @@ impl Channels {
       Err(ErrorKind::InvalidChannel(id).into())
     }
   }
+
+  pub fn set_closing(&self) {
+    for channel in self.inner.lock().channels.values() {
+      channel.set_closing();
+    }
+  }
+
+  pub fn set_closed(&self) -> Result<(), Error> {
+    for channel in self.inner.lock().channels.values() {
+      channel.set_closed()?;
+    }
+    Ok(())
+  }
+
+  pub fn set_error(&self) -> Result<(), Error> {
+    for channel in self.inner.lock().channels.values() {
+      channel.set_error()?;
+    }
+    Ok(())
+  }
 }
 
 #[derive(Debug)]

@@ -137,7 +137,7 @@ impl<T> AMQPTransport<T>
     conn.configuration.set_heartbeat(options.heartbeat);
 
     future::result(conn.connect(Credentials::new(options.username, options.password), options.properties))
-      .map_err(|e| ErrorKind::ConnectionFailed(e).into())
+      .map_err(|e| ErrorKind::ProtocolError("connection failed".to_string(), e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
           frame_max: conn.configuration.frame_max(),

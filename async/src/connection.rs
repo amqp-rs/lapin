@@ -1,9 +1,6 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
 use log::{debug, error, trace};
 
-use std::result;
-use std::io::{Error, ErrorKind, Result};
-
 use crate::{
   channel::Channel,
   channels::Channels,
@@ -11,7 +8,7 @@ use crate::{
   connection_properties::ConnectionProperties,
   connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
   credentials::Credentials,
-  error,
+  error::{Error, ErrorKind},
   frames::Frames,
 };
 
@@ -51,7 +48,7 @@ impl Connection {
     Default::default()
   }
 
-  pub fn create_channel(&self) -> result::Result<Channel, error::Error> {
+  pub fn create_channel(&self) -> Result<Channel, Error> {
     self.channels.create(self.clone())
   }
 
@@ -61,16 +58,16 @@ impl Connection {
   /// The messages will not be sent until calls to `serialize`
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
-  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState> {
+  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState, Error> {
     let state = self.status.state();
-    if state != ConnectionState::Initial {
-      self.status.set_error();
-      return Err(Error::new(ErrorKind::Other, format!("invalid state: {:?}", state)));
+    if state == ConnectionState::Initial {
+      self.send_frame(AMQPFrame::ProtocolHeader);
+      self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
+      Ok(self.status.state())
+    } else {
+      self.set_error()?;
+      Err(ErrorKind::InvalidConnectionState(state).into())
     }
-
-    self.send_frame(AMQPFrame::ProtocolHeader);
-    self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
-    Ok(self.status.state())
   }
 
   pub fn send_frame(&self, frame: AMQPFrame) {
@@ -91,7 +88,7 @@ impl Connection {
   /// returns how many bytes were written and the current state.
   /// this method can be called repeatedly until the buffer is full or
   /// there are no more frames to send
-  pub fn serialize(&self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState)> {
+  pub fn serialize(&self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState), Error> {
     if let Some(next_msg) = self.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
       match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
@@ -100,21 +97,21 @@ impl Connection {
         },
         Err(e) => {
           error!("error generating frame: {:?}", e);
-          self.status.set_error();
+          self.set_error()?;
           match e {
             GenError::BufferTooSmall(_) => {
               // Requeue msg
               self.requeue_frame(next_msg);
-              Err(Error::new(ErrorKind::InvalidData, "send buffer too small"))
+              Err(ErrorKind::SendBufferTooSmall.into())
             },
             GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
-              Err(Error::new(ErrorKind::InvalidData, "could not generate"))
+              Err(ErrorKind::SerialisationError(e).into())
             }
           }
         }
       }
     } else {
-      Err(Error::new(ErrorKind::WouldBlock, "no new message"))
+      Err(ErrorKind::NoNewMessage.into())
     }
   }
 
@@ -124,14 +121,14 @@ impl Connection {
   ///
   /// This method will update the state machine according to the ReceivedStart
   /// frame with `handle_frame`
-  pub fn parse(&self, data: &[u8]) -> Result<(usize,ConnectionState)> {
+  pub fn parse(&self, data: &[u8]) -> Result<(usize,ConnectionState), Error> {
     match parse_frame(data) {
       Ok((i, f)) => {
         let consumed = data.offset(i);
 
         if let Err(e) = self.handle_frame(f) {
-          self.status.set_error();
-          Err(Error::new(ErrorKind::Other, format!("failed to handle frame: {:?}", e)))
+          self.set_error()?;
+          Err(e)
         } else {
           Ok((consumed, self.status.state()))
         }
@@ -140,20 +137,20 @@ impl Connection {
         if e.is_incomplete() {
           Ok((0,self.status.state()))
         } else {
-          self.status.set_error();
-          Err(Error::new(ErrorKind::Other, format!("parse error: {:?}", e)))
+          self.set_error()?;
+          Err(ErrorKind::ParsingError(format!("{:?}", e)).into())
         }
       }
     }
   }
 
   /// updates the current state with a new received frame
-  pub fn handle_frame(&self, f: AMQPFrame) -> result::Result<(), error::Error> {
+  pub fn handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
     trace!("will handle frame: {:?}", f);
     match f {
       AMQPFrame::ProtocolHeader => {
         error!("error: the client should not receive a protocol header");
-        self.status.set_error();
+        self.set_error()?;
       },
       AMQPFrame::Method(channel_id, method) => {
         self.channels.receive_method(channel_id, method)?;
@@ -186,9 +183,19 @@ impl Connection {
     !self.priority_frames.is_empty() || !self.frames.is_empty()
   }
 
-  pub fn set_closed(&self) -> result::Result<(), error::Error> {
+  pub fn set_closing(&self) {
+    self.status.set_state(ConnectionState::Closing);
+    self.channels.set_closing();
+  }
+
+  pub fn set_closed(&self) -> Result<(), Error> {
     self.status.set_state(ConnectionState::Closed);
-    Ok(())
+    self.channels.set_closed()
+  }
+
+  pub fn set_error(&self) -> Result<(), Error> {
+    self.status.set_state(ConnectionState::Error);
+    self.channels.set_error()
   }
 }
 

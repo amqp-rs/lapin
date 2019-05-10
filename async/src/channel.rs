@@ -53,13 +53,17 @@ impl Channel {
     }
   }
 
-  pub fn set_error(&self) -> Result<(), Error> {
-    self.status.set_state(ChannelState::Error);
-    self.connection.channels.remove(self.id)
+  pub fn set_closing(&self) {
+    self.status.set_state(ChannelState::Closing);
   }
 
   pub fn set_closed(&self) -> Result<(), Error> {
     self.status.set_state(ChannelState::Closed);
+    self.connection.channels.remove(self.id)
+  }
+
+  pub fn set_error(&self) -> Result<(), Error> {
+    self.status.set_state(ChannelState::Error);
     self.connection.channels.remove(self.id)
   }
 
@@ -135,23 +139,35 @@ impl Channel {
     Err(error)
   }
 
-  fn on_connection_start_ok_sent(&self) {
+  fn on_connection_start_ok_sent(&self) -> Result<(), Error> {
     self.connection.status.set_connecting_state(ConnectingState::SentStartOk);
+    Ok(())
   }
 
-  fn on_connection_open_sent(&self) {
+  fn on_connection_open_sent(&self) -> Result<(), Error> {
     self.connection.status.set_connecting_state(ConnectingState::SentOpen);
+    Ok(())
   }
 
-  fn on_connection_close_sent(&self) {
-    self.connection.status.set_state(ConnectionState::Closing);
+  fn on_connection_close_sent(&self) -> Result<(), Error> {
+    self.connection.set_closing();
+    Ok(())
   }
 
-  fn on_channel_close_sent(&self) {
-    self.status.set_state(ChannelState::Closing);
+  fn on_connection_close_ok_sent(&self) -> Result<(), Error> {
+    self.connection.set_closed()
   }
 
-  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Option<DeliveryTag> {
+  fn on_channel_close_sent(&self) -> Result<(), Error> {
+    self.set_closing();
+    Ok(())
+  }
+
+  fn on_channel_close_ok_sent(&self) -> Result<(), Error> {
+    self.set_closed()
+  }
+
+  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<Option<DeliveryTag>, Error> {
     let delivery_tag = if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
       self.acknowledgements.register_pending(delivery_tag);
@@ -161,23 +177,26 @@ impl Channel {
     };
 
     self.send_content_frames(class_id, payload.as_slice(), properties);
-    delivery_tag
+    Ok(delivery_tag)
   }
 
-  fn on_basic_recover_async_sent(&self) {
+  fn on_basic_recover_async_sent(&self) -> Result<(), Error> {
     self.queues.drop_prefetched_messages();
+    Ok(())
   }
 
-  fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
+  fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
     if multiple && delivery_tag == 0 {
       self.queues.drop_prefetched_messages();
     }
+    Ok(())
   }
 
-  fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
+  fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
     if multiple && delivery_tag == 0 {
       self.queues.drop_prefetched_messages();
     }
+    Ok(())
   }
 
   fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
@@ -245,7 +264,7 @@ impl Channel {
       Ok(())
     } else {
       error!("Invalid state: {:?}", state);
-      self.connection.status.set_error();
+      self.connection.set_error()?;
       Err(ErrorKind::InvalidConnectionState(state).into())
     }
   }
@@ -282,7 +301,7 @@ impl Channel {
       info!("Connection closed on channel {}: {:?}", self.id, method);
     }
     self.connection_close_ok()?;
-    self.connection.set_closed()
+    Ok(())
   }
 
   fn on_connection_close_ok_received(&self) -> Result<(), Error> {
@@ -312,7 +331,7 @@ impl Channel {
       info!("Channel {} closed: {:?}", self.id, method);
     }
     self.channel_close_ok()?;
-    self.set_closed()
+    Ok(())
   }
 
   fn on_channel_close_ok_received(&self) -> Result<(), Error> {

@@ -21,10 +21,6 @@ impl ConnectionStatus {
     self.inner.write().state = state
   }
 
-  pub fn set_error(&self) {
-    self.set_state(ConnectionState::Error);
-  }
-
   pub fn set_connecting_state(&self, state: ConnectingState) {
     self.set_state(ConnectionState::Connecting(state))
   }

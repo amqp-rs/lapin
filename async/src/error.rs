@@ -1,7 +1,10 @@
-use amq_protocol::protocol::AMQPClass;
+use amq_protocol::{
+  frame::GenError,
+  protocol::AMQPClass,
+};
 use failure::{Backtrace, Context, Fail};
 
-use std::fmt;
+use std::{fmt, io};
 
 use crate::connection_status::ConnectionState;
 
@@ -21,7 +24,7 @@ pub struct Error {
 ///
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, Fail)]
 pub enum ErrorKind {
   #[fail(display = "output buffer is too small")]
   SendBufferTooSmall,
@@ -41,6 +44,14 @@ pub enum ErrorKind {
   ChannelLimitReached,
   #[fail(display = "invalid connection state: {:?}", _0)]
   InvalidConnectionState(ConnectionState),
+  #[fail(display = "Failed to parse: {}", _0)]
+  ParsingError(String),
+  #[fail(display = "Failed to serialise: {:?}", _0)]
+  SerialisationError(/* FIXME: #[fail(cause)]*/ GenError),
+  #[fail(display = "no new message")]
+  NoNewMessage,
+  #[fail(display = "IO error: {:?}", _0)]
+  IOError(#[fail(cause)] io::Error),
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants

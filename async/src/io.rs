@@ -1,16 +1,17 @@
 use log::{error, trace};
 
-use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::io::{self, Read, Write};
 
 use crate::{
   buffer::Buffer,
   connection::Connection,
   connection_status::ConnectionState,
+  error::{Error, ErrorKind},
 };
 
 impl Connection {
   /// helper function to handle reading and writing repeatedly from the network until there's no more state to update
-  pub fn run<T: Read + Write>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState> {
+  pub fn run<T: Read + Write>(&mut self, stream: &mut T, send_buffer: &mut Buffer, receive_buffer: &mut Buffer) -> Result<ConnectionState, Error> {
     let mut write_would_block = false;
     let mut read_would_block  = false;
 
@@ -26,12 +27,10 @@ impl Connection {
       if continue_writing {
         if let Err(e) = self.write_to_stream(stream, send_buffer) {
           match e.kind() {
-            ErrorKind::WouldBlock => {
-              write_would_block = true;
-            },
+            ErrorKind::IOError(ie) if ie.kind() == io::ErrorKind::WouldBlock => write_would_block = true,
             k => {
               error!("error writing: {:?}", k);
-              self.status.set_error();
+              self.set_error()?;
               return Err(e);
             }
           }
@@ -41,12 +40,11 @@ impl Connection {
       if continue_reading {
         if let Err(e) = self.read_from_stream(stream, receive_buffer) {
           match e.kind() {
-            ErrorKind::WouldBlock => {
-              read_would_block = true;
-            },
+            ErrorKind::NoNewMessage => read_would_block = true,
+            ErrorKind::IOError(ie) if ie.kind() == io::ErrorKind::WouldBlock => read_would_block = true,
             k => {
               error!("error reading: {:?}", k);
-              self.status.set_error();
+              self.set_error()?;
               return Err(e);
             }
           }
@@ -78,7 +76,7 @@ impl Connection {
   }
 
   /// serializes frames to the send buffer then to the writer (if possible)
-  fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState), Error> {
     let (sz, _) = self.serialize(send_buffer.space())?;
     send_buffer.fill(sz);
 
@@ -86,21 +84,21 @@ impl Connection {
       trace!("wrote {} bytes", sz);
       send_buffer.consume(sz);
       (sz, self.status.state())
-    })
+    }).map_err(|e| ErrorKind::IOError(e).into())
   }
 
   /// read data from the network into the receive buffer
-  fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState)> {
+  fn read_from_stream(&mut self, reader: &mut dyn Read, receive_buffer: &mut Buffer) -> Result<(usize, ConnectionState), Error> {
     let state = self.status.state();
-    if state == ConnectionState::Initial || state == ConnectionState::Error {
-      self.status.set_error();
-      return Err(Error::new(ErrorKind::Other, format!("invalid state {:?}", state)));
+    if state == ConnectionState::Initial || state == ConnectionState::Closed || state == ConnectionState::Error {
+      self.set_error()?;
+      Err(ErrorKind::InvalidConnectionState(state).into())
+    } else {
+      reader.read(&mut receive_buffer.space()).map(|sz| {
+        trace!("read {} bytes", sz);
+        receive_buffer.fill(sz);
+        (sz, state)
+      }).map_err(|e| ErrorKind::IOError(e).into())
     }
-
-    reader.read(&mut receive_buffer.space()).map(|sz| {
-      trace!("read {} bytes", sz);
-      receive_buffer.fill(sz);
-      (sz, state)
-    })
   }
 }

@@ -28,7 +28,8 @@
     },
     "close-ok": {
       "metadata": {
-        "received_hook": true
+        "received_hook": true,
+        "end_hook": true
       }
     },
     "secure": {
@@ -61,7 +62,8 @@
     },
     "close-ok": {
       "metadata": {
-        "received_hook": true
+        "received_hook": true,
+        "end_hook": true
       }
     },
     "flow": {
