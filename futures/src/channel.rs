@@ -6,7 +6,6 @@ use lapin_async;
 use lapin_async::channel::Channel as InnerChannel;
 use lapin_async::channel_status::ChannelState;
 use lapin_async::connection::Connection;
-use lapin_async::acknowledgement::DeliveryTag;
 use lapin_async::queue::QueueStats;
 use lapin_async::requests::RequestId;
 use log::{debug, trace};
