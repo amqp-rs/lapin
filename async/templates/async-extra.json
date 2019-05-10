@@ -1,18 +1,8 @@
 {
   "connection": {
-    "start": {
-      "metadata": {
-        "can_be_received": true
-      }
-    },
     "start-ok": {
       "metadata": {
         "end_hook": true
-      }
-    },
-    "tune": {
-      "metadata": {
-        "can_be_received": true
       }
     },
     "open": {
@@ -22,7 +12,6 @@
     },
     "close": {
       "metadata": {
-        "can_be_received": true,
         "end_hook": true
       }
     },
@@ -56,7 +45,6 @@
     },
     "close": {
       "metadata": {
-        "can_be_received": true,
         "end_hook": true
       }
     },
@@ -64,11 +52,6 @@
       "metadata": {
         "received_hook": true,
         "end_hook": true
-      }
-    },
-    "flow": {
-      "metadata": {
-        "can_be_received": true
       }
     }
   },
@@ -156,14 +139,8 @@
         "uses_request_id": true
       }
     },
-    "deliver": {
-      "metadata": {
-        "can_be_received": true
-      }
-    },
     "cancel": {
       "metadata": {
-        "can_be_received": true,
         "nowait_hook": {
           "fields": ["consumer_tag: consumer_tag.to_string()"]
         }
@@ -203,14 +180,8 @@
         "uses_request_id": true
       }
     },
-    "get-empty": {
-      "metadata": {
-        "can_be_received": true
-      }
-    },
     "ack": {
       "metadata": {
-        "can_be_received": true,
         "end_hook": {
           "params": ["multiple", "delivery_tag"]
         }
@@ -226,14 +197,8 @@
         "received_hook": true
       }
     },
-    "return": {
-      "metadata": {
-        "can_be_received": true
-      }
-    },
     "nack": {
       "metadata": {
-        "can_be_received": true,
         "end_hook": {
           "params": ["multiple", "delivery_tag"]
         }

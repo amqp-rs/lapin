@@ -270,11 +270,6 @@ impl Channel {
     }
   }
 
-  fn on_connection_start_ok_received(&self, _method: protocol::connection::StartOk) -> Result<(), Error> {
-    // FIXME: error
-    Ok(())
-  }
-
   fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<(), Error> {
     debug!("Server sent Connection::Tune: {:?}", method);
 
@@ -282,11 +277,6 @@ impl Channel {
 
     self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat())?;
     self.connection_open(&self.connection.status.vhost())?;
-    Ok(())
-  }
-
-  fn on_connection_tune_ok_received(&self, _method: protocol::connection::TuneOk) -> Result<(), Error> {
-    // FIXME: error
     Ok(())
   }
 
@@ -302,6 +292,16 @@ impl Channel {
       info!("Connection closed on channel {}: {:?}", self.id, method);
     }
     self.connection_close_ok()?;
+    Ok(())
+  }
+
+  fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
+    // FIXME: implement
+    Ok(())
+  }
+
+  fn on_connection_unblocked_received(&self, _method: protocol::connection::Unblocked) -> Result<(), Error> {
+    // FIXME: implement
     Ok(())
   }
 
@@ -438,6 +438,7 @@ impl Channel {
 
   fn on_basic_return_received(&self, _method: protocol::basic::Return) -> Result<(), Error> {
     // FIXME: do something
+    // FIXME: read body
     Ok(())
   }
 

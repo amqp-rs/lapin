@@ -28,8 +28,10 @@ use options::*;
 pub enum Reply {
   {{#each protocol.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
+  {{#if method.c2s ~}}
   {{#if method.synchronous ~}}
   Awaiting{{camel class.name}}{{camel method.name}}Ok(RequestId{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
+  {{/if ~}}
   {{/if ~}}
   {{/each ~}}
   {{/each ~}}
@@ -41,11 +43,7 @@ impl Channel {
       {{#each protocol.classes as |class| ~}}
       {{#each class.methods as |method| ~}}
       {{#unless method.metadata.skip ~}}
-      {{#if method.is_reply ~}}
-      AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
-      {{/if ~}}
-      // FIXME: dedupe
-      {{#if method.metadata.can_be_received ~}}
+      {{#if method.s2c ~}}
       AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}}(m)) => self.receive_{{snake class.name false}}_{{snake method.name false}}(m),
       {{/if ~}}
       {{/unless ~}}
@@ -61,6 +59,7 @@ impl Channel {
   {{#each protocol.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
+  {{#if method.c2s ~}}
   pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
@@ -131,7 +130,9 @@ impl Channel {
       {{/if ~}}
     )
   }
+  {{/if ~}}
 
+  {{#if method.s2c ~}}
   {{#if method.is_reply ~}}
   fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if method.arguments ~}}method{{else}}_{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
     {{#if method.metadata.channel_init ~}}
@@ -161,14 +162,14 @@ impl Channel {
       },
     }
   }
-  {{/if ~}}
-  {{#if method.metadata.can_be_received ~}}
+  {{else}}
   fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
     if !self.status.is_connected() {
       return Err(ErrorKind::NotConnected.into());
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }
+  {{/if ~}}
   {{/if ~}}
   {{/unless ~}}
   {{/each ~}}
