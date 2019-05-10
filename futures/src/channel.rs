@@ -288,14 +288,6 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         let _queue = queue.to_string();
         let receive_transport = self.transport.clone();
         let inner = self.inner.clone();
-        let receive_future = future::poll_fn(move || {
-            let mut transport = receive_transport.lock();
-            transport.poll()?;
-            if let Some(message) = inner.queues.next_basic_get_message(&_queue) {
-                return Ok(Async::Ready(message));
-            }
-            Ok(Async::NotReady)
-        });
         let request_id = self.inner.basic_get(queue, options);
 
         self.run_on_locked_transport_full("basic_get", "Could not get message", request_id, |channel, request_id| {
@@ -310,7 +302,14 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
                     Ok(Async::NotReady)
                 }
             }
-        }).and_then(|_| receive_future)
+        }).and_then(|request_id| future::poll_fn(move || {
+              let mut transport = receive_transport.lock();
+              transport.poll()?;
+              if let Some(message) = inner.queues.get_basic_get_message(&_queue, request_id.expect("request id")) {
+                  return Ok(Async::Ready(message));
+              }
+              Ok(Async::NotReady)
+        }))
     }
 
     /// Purge a queue.

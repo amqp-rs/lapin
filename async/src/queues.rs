@@ -1,3 +1,4 @@
+use either::Either;
 use parking_lot::Mutex;
 
 use std::{
@@ -10,6 +11,7 @@ use crate::{
   consumer::Consumer,
   queue::{Queue, QueueStats},
   message::{BasicGetMessage, Delivery},
+  requests::RequestId,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -50,8 +52,8 @@ impl Queues {
     self.queues.lock().get(queue).map(|queue| queue.stats.clone()).unwrap_or_default()
   }
 
-  pub fn next_basic_get_message(&self, queue: &str) -> Option<BasicGetMessage> {
-    self.queues.lock().get_mut(queue).and_then(Queue::next_basic_get_message)
+  pub fn get_basic_get_message(&self, queue: &str, request_id: RequestId) -> Option<BasicGetMessage> {
+    self.queues.lock().get_mut(queue).and_then(|queue| queue.get_basic_get_message(request_id))
   }
 
   pub fn start_consumer_delivery(&self, consumer_tag: &str, message: Delivery) -> Option<String> {
@@ -70,38 +72,44 @@ impl Queues {
     }
   }
 
-  pub fn handle_content_header_frame(&self, queue: &str, consumer_tag: Option<String>, size: u64, properties: BasicProperties) {
+  pub fn handle_content_header_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, String>, size: u64, properties: BasicProperties) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
-      if let Some(consumer_tag) = consumer_tag {
-        if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
-          consumer.set_delivery_properties(properties);
-          if size == 0 {
-            consumer.new_delivery_complete();
+      match request_id_or_consumer_tag {
+        Either::Right(consumer_tag) => {
+          if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
+            consumer.set_delivery_properties(properties);
+            if size == 0 {
+              consumer.new_delivery_complete();
+            }
           }
-        }
-      } else {
-        queue.set_delivery_properties(properties);
-        if size == 0 {
-          queue.new_delivery_complete();
-        }
+        },
+        Either::Left(request_id) => {
+          queue.set_delivery_properties(properties);
+          if size == 0 {
+            queue.new_delivery_complete(request_id);
+          }
+        },
       }
     }
   }
 
-  pub fn handle_body_frame(&self, queue: &str, consumer_tag: Option<String>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
+  pub fn handle_body_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, String>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
-      if let Some(consumer_tag) = consumer_tag {
-        if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
-          consumer.receive_delivery_content(payload);
-          if remaining_size == payload_size {
-            consumer.new_delivery_complete();
+      match request_id_or_consumer_tag {
+        Either::Right(consumer_tag) => {
+          if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
+            consumer.receive_delivery_content(payload);
+            if remaining_size == payload_size {
+              consumer.new_delivery_complete();
+            }
           }
-        }
-      } else {
-        queue.receive_delivery_content(payload);
-        if remaining_size == payload_size {
-          queue.new_delivery_complete();
-        }
+        },
+        Either::Left(request_id) => {
+          queue.receive_delivery_content(payload);
+          if remaining_size == payload_size {
+            queue.new_delivery_complete(request_id);
+          }
+        },
       }
     }
   }

@@ -1,15 +1,18 @@
 use std::collections::HashMap;
 
-use crate::channel::BasicProperties;
-use crate::consumer::Consumer;
-use crate::message::BasicGetMessage;
+use crate::{
+  channel::BasicProperties,
+  consumer::Consumer,
+  message::BasicGetMessage,
+  requests::RequestId,
+};
 
 #[derive(Debug)]
 pub struct Queue {
   pub name:                String,
   pub consumers:           HashMap<String, Consumer>,
   pub stats:               QueueStats,
-      get_message:         Option<BasicGetMessage>,
+      get_messages:        HashMap<RequestId, BasicGetMessage>,
       current_get_message: Option<BasicGetMessage>,
 }
 
@@ -25,17 +28,17 @@ impl Queue {
       name,
       consumers:           HashMap::new(),
       stats:               QueueStats { message_count, consumer_count },
-      get_message:         None,
+      get_messages:        HashMap::new(),
       current_get_message: None,
     }
   }
 
-  pub fn next_basic_get_message(&mut self) -> Option<BasicGetMessage> {
-    self.get_message.take()
+  pub fn get_basic_get_message(&mut self, request_id: RequestId) -> Option<BasicGetMessage> {
+    self.get_messages.remove(&request_id)
   }
 
   pub fn drop_prefetched_messages(&mut self) {
-    self.next_basic_get_message();
+    self.get_messages.clear();
     for consumer in self.consumers.values() {
       consumer.drop_prefetched_messages();
     }
@@ -57,7 +60,9 @@ impl Queue {
     }
   }
 
-  pub fn new_delivery_complete(&mut self) {
-    self.get_message = self.current_get_message.take();
+  pub fn new_delivery_complete(&mut self, request_id: RequestId) {
+    if let Some(message) = self.current_get_message.take() {
+      self.get_messages.insert(request_id, message);
+    }
   }
 }

@@ -198,6 +198,11 @@
         ]
       }
     },
+    "get-ok": {
+      "metadata": {
+        "uses_request_id": true
+      }
+    },
     "get-empty": {
       "metadata": {
         "can_be_received": true

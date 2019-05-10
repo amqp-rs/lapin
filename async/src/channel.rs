@@ -4,6 +4,7 @@ use amq_protocol::{
   protocol::{AMQPClass, AMQPError, AMQPSoftError},
   frame::{AMQPContentHeader, AMQPFrame},
 };
+use either::Either;
 use log::{debug, error, info, trace};
 
 use crate::{
@@ -99,13 +100,13 @@ impl Channel {
 
   #[doc(hidden)]
   pub fn handle_content_header_frame(&self, size: u64, properties: BasicProperties) -> Result<(), Error> {
-    if let ChannelState::WillReceiveContent(queue_name, consumer_tag) = self.status.state() {
+    if let ChannelState::WillReceiveContent(queue_name, request_id_or_consumer_tag) = self.status.state() {
       if size > 0 {
-        self.status.set_state(ChannelState::ReceivingContent(queue_name.clone(), consumer_tag.clone(), size as usize));
+        self.status.set_state(ChannelState::ReceivingContent(queue_name.clone(), request_id_or_consumer_tag.clone(), size as usize));
       } else {
         self.status.set_state(ChannelState::Connected);
       }
-      self.queues.handle_content_header_frame(&queue_name, consumer_tag, size, properties);
+      self.queues.handle_content_header_frame(&queue_name, request_id_or_consumer_tag, size, properties);
       Ok(())
     } else {
       self.set_error()
@@ -116,13 +117,13 @@ impl Channel {
   pub fn handle_body_frame(&self, payload: Vec<u8>) -> Result<(), Error> {
     let payload_size = payload.len();
 
-    if let ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size) = self.status.state() {
+    if let ChannelState::ReceivingContent(queue_name, request_id_or_consumer_tag, remaining_size) = self.status.state() {
       if remaining_size >= payload_size {
-        self.queues.handle_body_frame(&queue_name, opt_consumer_tag.clone(), remaining_size, payload_size, payload);
+        self.queues.handle_body_frame(&queue_name, request_id_or_consumer_tag.clone(), remaining_size, payload_size, payload);
         if remaining_size == payload_size {
           self.status.set_state(ChannelState::Connected);
         } else {
-          self.status.set_state(ChannelState::ReceivingContent(queue_name, opt_consumer_tag, remaining_size - payload_size));
+          self.status.set_state(ChannelState::ReceivingContent(queue_name, request_id_or_consumer_tag, remaining_size - payload_size));
         }
         Ok(())
       } else {
@@ -357,9 +358,9 @@ impl Channel {
     Ok(())
   }
 
-  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, queue: String) -> Result<(), Error> {
+  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, request_id: RequestId, queue: String) -> Result<(), Error> {
     self.queues.start_basic_get_delivery(&queue, BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count));
-    self.status.set_state(ChannelState::WillReceiveContent(queue, None));
+    self.status.set_state(ChannelState::WillReceiveContent(queue, Either::Left(request_id)));
     Ok(())
   }
 
@@ -387,7 +388,7 @@ impl Channel {
 
   fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<(), Error> {
     if let Some(queue_name) = self.queues.start_consumer_delivery(&method.consumer_tag, Delivery::new(method.delivery_tag, method.exchange.to_string(), method.routing_key.to_string(), method.redelivered)) {
-      self.status.set_state(ChannelState::WillReceiveContent(queue_name, Some(method.consumer_tag)));
+      self.status.set_state(ChannelState::WillReceiveContent(queue_name, Either::Right(method.consumer_tag)));
     }
     Ok(())
   }

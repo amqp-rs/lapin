@@ -18,6 +18,7 @@ serde_json = "^1.0"
 
 [dependencies]
 amq-protocol = "=2.0.0-beta4"
+either = "^1.0"
 failure = "^0.1"
 log = "^0.4"
 parking_lot = '^0.8'

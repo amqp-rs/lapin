@@ -205,6 +205,7 @@ mod tests {
   use crate::message::Delivery;
   use amq_protocol::protocol::{basic, AMQPClass};
   use amq_protocol::frame::AMQPContentHeader;
+  use either::Either;
 
   #[derive(Clone,Debug,PartialEq)]
   struct DummySubscriber;
@@ -256,7 +257,7 @@ mod tests {
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
-        Some(consumer_tag.clone())
+        Either::Right(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);
     }
@@ -273,7 +274,7 @@ mod tests {
       );
       conn.handle_frame(header_frame).unwrap();
       let channel_state = channel.status.state();
-      let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Some(consumer_tag.clone()), 2);
+      let expected_state = ChannelState::ReceivingContent(queue_name.clone(), Either::Right(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
     }
     {
@@ -326,7 +327,7 @@ mod tests {
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         queue_name.clone(),
-        Some(consumer_tag.clone())
+        Either::Right(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);
     }
