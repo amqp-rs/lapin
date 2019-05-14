@@ -1,3 +1,4 @@
+use amq_protocol::frame::{GenError, Offset, gen_frame, parse_frame};
 use log::{error, trace};
 
 use std::io::{self, Read, Write};
@@ -101,4 +102,66 @@ impl Connection {
       }).map_err(|e| ErrorKind::IOError(e).into())
     }
   }
+
+  /// writes the next message to a mutable byte slice
+  ///
+  /// returns how many bytes were written and the current state.
+  /// this method can be called repeatedly until the buffer is full or
+  /// there are no more frames to send
+  fn serialize(&self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState), Error> {
+    if let Some(next_msg) = self.next_frame() {
+      trace!("will write to buffer: {:?}", next_msg);
+      match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
+        Ok(sz) => {
+          Ok((sz, self.status.state()))
+        },
+        Err(e) => {
+          error!("error generating frame: {:?}", e);
+          self.set_error()?;
+          match e {
+            GenError::BufferTooSmall(_) => {
+              // Requeue msg
+              self.requeue_frame(next_msg);
+              Err(ErrorKind::SendBufferTooSmall.into())
+            },
+            GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+              Err(ErrorKind::SerialisationError(e).into())
+            }
+          }
+        }
+      }
+    } else {
+      Err(ErrorKind::NoNewMessage.into())
+    }
+  }
+
+  /// parses a frame from a byte slice
+  ///
+  /// returns how many bytes were consumed and the current state.
+  ///
+  /// This method will update the state machine according to the ReceivedStart
+  /// frame with `handle_frame`
+  fn parse(&self, data: &[u8]) -> Result<(usize,ConnectionState), Error> {
+    match parse_frame(data) {
+      Ok((i, f)) => {
+        let consumed = data.offset(i);
+
+        if let Err(e) = self.handle_frame(f) {
+          self.set_error()?;
+          Err(e)
+        } else {
+          Ok((consumed, self.status.state()))
+        }
+      },
+      Err(e) => {
+        if e.is_incomplete() {
+          Ok((0,self.status.state()))
+        } else {
+          self.set_error()?;
+          Err(ErrorKind::ParsingError(format!("{:?}", e)).into())
+        }
+      }
+    }
+  }
+
 }
