@@ -1,12 +1,14 @@
+use crate::types::ShortString;
+
 #[derive(Debug, Clone)]
 pub struct Queue {
   consumer_count: u32,
   message_count:  u32,
-  name:           String,
+  name:           ShortString,
 }
 
 impl Queue {
-  pub fn new(name: String, consumer_count: u32, message_count: u32) -> Self {
+  pub fn new(name: ShortString, consumer_count: u32, message_count: u32) -> Self {
     Self {
       consumer_count,
       message_count,
@@ -14,7 +16,7 @@ impl Queue {
     }
   }
 
-  pub fn name(&self) -> String {
+  pub fn name(&self) -> ShortString {
     self.name.clone()
   }
 

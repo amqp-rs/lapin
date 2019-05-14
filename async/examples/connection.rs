@@ -37,7 +37,7 @@ fn main() {
 
       env_logger::init();
 
-      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string());
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into());
       let mut stream = TcpStream::connect(&addr).unwrap();
       stream.set_nonblocking(true).unwrap();
 
@@ -81,7 +81,7 @@ fn main() {
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //create the hello queue
-      channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
+      channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -91,13 +91,13 @@ fn main() {
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
+      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       info!("will consume");
-      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::new(), Box::new(Subscriber)).expect("basic_consume");
+      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       info!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

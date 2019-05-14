@@ -136,6 +136,7 @@ mod tests {
   use crate::channel_status::ChannelState;
   use crate::consumer::ConsumerSubscriber;
   use crate::message::Delivery;
+  use crate::types::ShortString;
   use amq_protocol::protocol::{basic, AMQPClass};
   use amq_protocol::frame::AMQPContentHeader;
   use either::Either;
@@ -162,9 +163,9 @@ mod tests {
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
-    let queue_name = "consumed".to_string();
+    let queue_name = ShortString::from("consumed");
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
-    let consumer_tag = "consumer-tag".to_string();
+    let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
@@ -180,7 +181,7 @@ mod tests {
               consumer_tag: consumer_tag.clone(),
               delivery_tag: 1,
               redelivered: false,
-              exchange: "".to_string(),
+              exchange: "".into(),
               routing_key: queue_name.clone(),
             }
           )
@@ -232,9 +233,9 @@ mod tests {
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
-    let queue_name = "consumed".to_string();
+    let queue_name = ShortString::from("consumed");
     let mut queue = Queue::new(queue_name.clone(), 0, 0);
-    let consumer_tag = "consumer-tag".to_string();
+    let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
@@ -250,7 +251,7 @@ mod tests {
               consumer_tag: consumer_tag.clone(),
               delivery_tag: 1,
               redelivered: false,
-              exchange: "".to_string(),
+              exchange: "".into(),
               routing_key: queue_name.clone(),
             }
           )

@@ -30,7 +30,7 @@ impl Default for ConnectionProperties {
   fn default() -> Self {
     Self {
       mechanism:         ConnectionSASLMechanism::default(),
-      locale:            "en_US".to_string(),
+      locale:            "en_US".into(),
       client_properties: FieldTable::default(),
     }
   }

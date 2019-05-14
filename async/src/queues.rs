@@ -12,11 +12,12 @@ use crate::{
   queue::{Queue, QueueStats},
   message::{BasicGetMessage, Delivery},
   requests::RequestId,
+  types::ShortString,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct Queues {
-  queues: Arc<Mutex<HashMap<String, Queue>>>,
+  queues: Arc<Mutex<HashMap<ShortString, Queue>>>,
 }
 
 impl Queues {
@@ -28,7 +29,7 @@ impl Queues {
     self.queues.lock().remove(queue);
   }
 
-  pub fn register_consumer(&self, queue: &str, consumer_tag: String, consumer: Consumer) {
+  pub fn register_consumer(&self, queue: &str, consumer_tag: ShortString, consumer: Consumer) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
       queue.consumers.insert(consumer_tag, consumer);
     }
@@ -56,7 +57,7 @@ impl Queues {
     self.queues.lock().get_mut(queue).and_then(|queue| queue.get_basic_get_message(request_id))
   }
 
-  pub fn start_consumer_delivery(&self, consumer_tag: &str, message: Delivery) -> Option<String> {
+  pub fn start_consumer_delivery(&self, consumer_tag: &str, message: Delivery) -> Option<ShortString> {
     for queue in self.queues.lock().values_mut() {
       if let Some(consumer) = queue.consumers.get_mut(consumer_tag) {
         consumer.start_new_delivery(message);
@@ -72,7 +73,7 @@ impl Queues {
     }
   }
 
-  pub fn handle_content_header_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, String>, size: u64, properties: BasicProperties) {
+  pub fn handle_content_header_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, ShortString>, size: u64, properties: BasicProperties) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
       match request_id_or_consumer_tag {
         Either::Right(consumer_tag) => {
@@ -93,7 +94,7 @@ impl Queues {
     }
   }
 
-  pub fn handle_body_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, String>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
+  pub fn handle_body_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, ShortString>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
       match request_id_or_consumer_tag {
         Either::Right(consumer_tag) => {

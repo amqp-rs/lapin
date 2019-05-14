@@ -26,7 +26,7 @@ impl ConnectionStatus {
   }
 
   pub fn set_vhost(&self, vhost: &str) {
-    self.inner.write().vhost = vhost.to_string();
+    self.inner.write().vhost = vhost.into();
   }
 
   pub fn vhost(&self) -> String {
@@ -81,7 +81,7 @@ impl Default for Inner {
   fn default() -> Self {
     Self {
       state:   ConnectionState::default(),
-      vhost:   "/".to_string(),
+      vhost:   "/".into(),
       blocked: false,
     }
   }

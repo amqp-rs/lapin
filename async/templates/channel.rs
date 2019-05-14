@@ -87,7 +87,7 @@ impl Channel {
       {{#each_argument method.arguments as |argument| ~}}
       {{#if argument_is_value ~}}
       {{#unless argument.force_default ~}}
-      {{snake argument.name}}: {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}.to_string(){{/if ~}},
+      {{snake argument.name}}: {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}.into(){{/if ~}},
       {{/unless ~}}
       {{else}}
       {{#unless argument.ignore_flags ~}}
@@ -113,12 +113,12 @@ impl Channel {
       if nowait {
         {{#if method.metadata.nowait_hook ~}}
         #[allow(clippy::needless_update)]
-        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received({{#unless method.metadata.nowait_hook.no_args ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}}{{/unless ~}})?;
+        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received({{#unless method.metadata.nowait_hook.no_args ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}{{/unless ~}})?;
         {{/if ~}}
         None
       } else {{/if ~}}{
         let request_id = self.request_id.next();
-        self.replies.register_pending(self.id, Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.to_string(){{/if ~}}{{/each ~}}));
+        self.replies.register_pending(self.id, Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}));
         Some(request_id)
       }
       {{else}}

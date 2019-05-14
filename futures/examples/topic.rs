@@ -12,7 +12,7 @@ use tokio::runtime::Runtime;
 fn main() {
     env_logger::init();
 
-    let addr    = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+    let addr    = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
     let runtime = Runtime::new().unwrap();
 
     runtime.block_on_all(
@@ -30,11 +30,11 @@ fn main() {
         }).and_then(|client| {
             client.create_confirm_channel(ConfirmSelectOptions::default())
                 .and_then(|channel| {
-                    channel.clone().exchange_declare("hello_topic", "topic", ExchangeDeclareOptions::default(), FieldTable::new()).map(move |_| channel)
+                    channel.clone().exchange_declare("hello_topic", "topic", ExchangeDeclareOptions::default(), FieldTable::default()).map(move |_| channel)
                 }).and_then(|channel| {
-                    channel.clone().queue_declare("topic_queue", QueueDeclareOptions::default(), FieldTable::new()).map(move |_| channel)
+                    channel.clone().queue_declare("topic_queue", QueueDeclareOptions::default(), FieldTable::default()).map(move |_| channel)
                 }).and_then(|channel| {
-                    channel.clone().queue_bind("topic_queue", "hello_topic", "*.foo.*", QueueBindOptions::default(), FieldTable::new()).map(move |_| channel)
+                    channel.clone().queue_bind("topic_queue", "hello_topic", "*.foo.*", QueueBindOptions::default(), FieldTable::default()).map(move |_| channel)
                 }).and_then(|channel| {
                     channel.basic_publish("hello_topic", "hello.fooo.bar", b"hello".to_vec(), BasicPublishOptions::default(), BasicProperties::default()).map(|confirmation| {
                         println!("got confirmation of publication: {:?}", confirmation);

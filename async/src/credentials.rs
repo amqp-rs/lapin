@@ -18,7 +18,7 @@ impl Credentials {
 
 impl Default for Credentials {
   fn default() -> Self {
-    Self::new("guest".to_string(), "guest".to_string())
+    Self::new("guest".into(), "guest".into())
   }
 }
 

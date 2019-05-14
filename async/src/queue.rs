@@ -5,12 +5,13 @@ use crate::{
   consumer::Consumer,
   message::BasicGetMessage,
   requests::RequestId,
+  types::ShortString,
 };
 
 #[derive(Debug)]
 pub struct Queue {
-  pub name:                String,
-  pub consumers:           HashMap<String, Consumer>,
+  pub name:                ShortString,
+  pub consumers:           HashMap<ShortString, Consumer>,
   pub stats:               QueueStats,
       get_messages:        HashMap<RequestId, BasicGetMessage>,
       current_get_message: Option<BasicGetMessage>,
@@ -23,7 +24,7 @@ pub struct QueueStats {
 }
 
 impl Queue {
-  pub fn new(name: String, message_count: u32, consumer_count: u32) -> Queue {
+  pub fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Queue {
     Queue {
       name,
       consumers:           HashMap::new(),

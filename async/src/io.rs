@@ -78,7 +78,7 @@ impl Connection {
 
   /// serializes frames to the send buffer then to the writer (if possible)
   fn write_to_stream(&mut self, writer: &mut dyn Write, send_buffer: &mut Buffer) -> Result<(usize, ConnectionState), Error> {
-    let (sz, _) = self.serialize(send_buffer.space())?;
+    let sz = self.serialize(send_buffer.space())?;
     send_buffer.fill(sz);
 
     writer.write(&send_buffer.data()).map(|sz| {
@@ -108,13 +108,11 @@ impl Connection {
   /// returns how many bytes were written and the current state.
   /// this method can be called repeatedly until the buffer is full or
   /// there are no more frames to send
-  fn serialize(&self, send_buffer: &mut [u8]) -> Result<(usize, ConnectionState), Error> {
+  fn serialize(&self, send_buffer: &mut [u8]) -> Result<usize, Error> {
     if let Some(next_msg) = self.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
-      match gen_frame((send_buffer, 0), &next_msg).map(|tup| tup.1) {
-        Ok(sz) => {
-          Ok((sz, self.status.state()))
-        },
+      match gen_frame(send_buffer, &next_msg) {
+        Ok((sz, _)) => Ok(sz),
         Err(e) => {
           error!("error generating frame: {:?}", e);
           self.set_error()?;

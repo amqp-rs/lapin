@@ -59,21 +59,21 @@ fn main() {
 
   /* Create and open a channel */
   let channel_id = conn.create_channel().unwrap().id;
-  conn.channel_open(channel_id, "".to_string()).expect("channel_open");
+  conn.channel_open(channel_id, "".into()).expect("channel_open");
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   thread::sleep(time::Duration::from_millis(100));
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   assert!(conn.check_state(channel_id, ChannelState::Connected).map_err(|e| println!("{:?}", e)).is_ok());
 
   /* Declaire the "hellp" queue */
-  let request_id = conn.queue_declare(channel_id, 0, "hello".to_string(), false, false, false, false, false, FieldTable::default()).unwrap();
+  let request_id = conn.queue_declare(channel_id, 0, "hello".into(), false, false, false, false, false, FieldTable::default()).unwrap();
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   thread::sleep(time::Duration::from_millis(100));
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   assert!(conn.has_finished(request_id).unwrap_or(false));
 
   /* Publish "Hellow world!" to the "hello" queue */
-  conn.basic_publish(channel_id, 0, "".to_string(), "hello".to_string(), false, false).expect("basic_publish");
+  conn.basic_publish(channel_id, 0, "".into(), "hello".into(), false, false).expect("basic_publish");
   let payload = b"Hello world!";
   conn.send_content_frames(channel_id, 60, payload, BasicProperties::default());
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
@@ -81,7 +81,7 @@ fn main() {
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 
   /* Consumer the messages from the "hello" queue using an instance of Subscriber */
-  let request_id = conn.basic_consume(channel_id, 0, "hello".to_string(), "my_consumer".to_string(), false, true, false, false, FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
+  let request_id = conn.basic_consume(channel_id, 0, "hello".into(), "my_consumer".into(), false, true, false, false, FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
   thread::sleep(time::Duration::from_millis(100));
   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();

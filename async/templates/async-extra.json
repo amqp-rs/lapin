@@ -73,7 +73,7 @@
     "declare": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["queue: queue.to_string()"],
+          "fields": ["queue: queue.into()"],
           "extra_args": ["0"]
         }
       }
@@ -83,7 +83,7 @@
         "state": [
           {
             "name": "queue",
-            "type": "String",
+            "type": "ShortString",
             "use_str_ref": true
           }
         ],
@@ -108,7 +108,7 @@
         "state": [
           {
             "name": "queue",
-            "type": "String",
+            "type": "ShortString",
             "use_str_ref": true
           },
           {
@@ -129,7 +129,7 @@
           }
         ],
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.to_string()"],
+          "fields": ["consumer_tag: consumer_tag.into()"],
           "extra_args": ["0"]
         }
       }
@@ -142,7 +142,7 @@
     "cancel": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.to_string()"]
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
@@ -169,7 +169,7 @@
         "state": [
           {
             "name": "queue",
-            "type": "String",
+            "type": "ShortString",
             "use_str_ref": true
           }
         ]

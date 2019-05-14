@@ -22,10 +22,10 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 
     client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(move |channel| {
         info!("creating queue {}", queue);
-        channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
+        channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::default()).map(move |queue| (channel, queue))
     }).and_then(move |(channel, queue)| {
         info!("creating consumer {}", n);
-        channel.basic_consume(&queue, "", BasicConsumeOptions::default(), FieldTable::new()).map(move |stream| (channel, stream))
+        channel.basic_consume(&queue, "", BasicConsumeOptions::default(), FieldTable::default()).map(move |stream| (channel, stream))
     }).and_then(move |(channel, stream)| {
         info!("got stream for consumer {}", n);
         stream.for_each(move |message| {
@@ -38,7 +38,7 @@ fn create_consumer<T: AsyncRead + AsyncWrite + Sync + Send + 'static>(client: &C
 fn main() {
     env_logger::init();
 
-    let addr    = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+    let addr    = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
     let runtime = Runtime::new().unwrap();
     // let runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
@@ -72,7 +72,7 @@ fn main() {
 
                     info!("will publish {}", message);
 
-                    channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+                    channel.queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
                         channel.basic_publish("", &queue, message.into_bytes(), BasicPublishOptions::default(), BasicProperties::default()).map(move |confirmation| {
                             println!("got confirmation (consumer {}, message {}): {:?}", c, m, confirmation);
                         })

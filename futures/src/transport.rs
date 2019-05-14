@@ -92,11 +92,9 @@ impl Encoder for AMQPCodec {
           buf.reserve(frame_max * 2);
         }
 
-        let gen_res = gen_frame((buf, offset), &frame).map(|tup| tup.1);
-
-        match gen_res {
-          Ok(sz) => {
-            trace!("encoder; frame_size={}", sz - offset);
+        match gen_frame(&mut buf[offset..], &frame) {
+          Ok((sz, _)) => {
+            trace!("encoder; frame_size={}", sz);
             return Ok(());
           },
           Err(GenError::BufferTooSmall(sz)) => {
@@ -104,8 +102,8 @@ impl Encoder for AMQPCodec {
             // occured if there was enough space in the buffer. Thus we subtract the
             // buffer's length to know how much bytes we sould make available.
             let length = buf.len();
-            trace!("encoder; sz={} length={} extend={}", sz, length, sz - length);
-            buf.extend(repeat(0).take(sz - length));
+            trace!("encoder; offset={} sz={} length={} extend={}", offset, length+sz, length, sz);
+            buf.extend(repeat(0).take(sz));
           },
           Err(e) => {
             error!("error generating frame: {:?}", e);
@@ -138,7 +136,7 @@ impl<T> AMQPTransport<T>
     conn.configuration.set_heartbeat(options.heartbeat);
 
     future::result(conn.connect(Credentials::new(options.username, options.password), options.properties))
-      .map_err(|e| ErrorKind::ProtocolError("connection failed".to_string(), e).into())
+      .map_err(|e| ErrorKind::ProtocolError("connection failed".into(), e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
           configuration: conn.configuration.clone(),

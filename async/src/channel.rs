@@ -110,7 +110,7 @@ impl Channel {
         self.status.set_state(ChannelState::Connected);
       }
       if let Some(queue_name) = queue_name {
-        self.queues.handle_content_header_frame(&queue_name, request_id_or_consumer_tag, size, properties);
+        self.queues.handle_content_header_frame(queue_name.as_str(), request_id_or_consumer_tag, size, properties);
       } else {
         self.returned_messages.set_delivery_properties(properties);
         if size == 0 {
@@ -130,7 +130,7 @@ impl Channel {
     if let ChannelState::ReceivingContent(queue_name, request_id_or_consumer_tag, remaining_size) = self.status.state() {
       if remaining_size >= payload_size {
         if let Some(queue_name) = queue_name.as_ref() {
-          self.queues.handle_body_frame(queue_name, request_id_or_consumer_tag.clone(), remaining_size, payload_size, payload);
+          self.queues.handle_body_frame(queue_name.as_str(), request_id_or_consumer_tag.clone(), remaining_size, payload_size, payload);
         } else {
           self.returned_messages.receive_delivery_content(payload);
           if remaining_size == payload_size {
@@ -262,21 +262,21 @@ impl Channel {
       }
 
       if !options.client_properties.contains_key("product") || !options.client_properties.contains_key("version") {
-        options.client_properties.insert("product".to_string(), AMQPValue::LongString(env!("CARGO_PKG_NAME").to_string()));
-        options.client_properties.insert("version".to_string(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").to_string()));
+        options.client_properties.insert("product".into(), AMQPValue::LongString(env!("CARGO_PKG_NAME").into()));
+        options.client_properties.insert("version".into(), AMQPValue::LongString(env!("CARGO_PKG_VERSION").into()));
       }
 
-      options.client_properties.insert("platform".to_string(), AMQPValue::LongString("rust".to_string()));
+      options.client_properties.insert("platform".into(), AMQPValue::LongString("rust".into()));
 
-      let mut capabilities = FieldTable::new();
-      capabilities.insert("publisher_confirms".to_string(), AMQPValue::Boolean(true));
-      capabilities.insert("exchange_exchange_bindings".to_string(), AMQPValue::Boolean(true));
-      capabilities.insert("basic.nack".to_string(), AMQPValue::Boolean(true));
-      capabilities.insert("consumer_cancel_notify".to_string(), AMQPValue::Boolean(true));
-      capabilities.insert("connection.blocked".to_string(), AMQPValue::Boolean(true));
-      capabilities.insert("authentication_failure_close".to_string(), AMQPValue::Boolean(true));
+      let mut capabilities = FieldTable::default();
+      capabilities.insert("publisher_confirms".into(), AMQPValue::Boolean(true));
+      capabilities.insert("exchange_exchange_bindings".into(), AMQPValue::Boolean(true));
+      capabilities.insert("basic.nack".into(), AMQPValue::Boolean(true));
+      capabilities.insert("consumer_cancel_notify".into(), AMQPValue::Boolean(true));
+      capabilities.insert("connection.blocked".into(), AMQPValue::Boolean(true));
+      capabilities.insert("authentication_failure_close".into(), AMQPValue::Boolean(true));
 
-      options.client_properties.insert("capabilities".to_string(), AMQPValue::FieldTable(capabilities));
+      options.client_properties.insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
       self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_plain_auth_string(), &locale)?;
       Ok(())
@@ -356,9 +356,9 @@ impl Channel {
     self.set_closed()
   }
 
-  fn on_queue_delete_ok_received(&self, _method: protocol::queue::DeleteOk, queue: String) -> Result<(), Error> {
+  fn on_queue_delete_ok_received(&self, _method: protocol::queue::DeleteOk, queue: ShortString) -> Result<(), Error> {
     //FIXME: use messages_count
-    self.queues.deregister(&queue);
+    self.queues.deregister(queue.as_str());
     Ok(())
   }
 
@@ -375,8 +375,8 @@ impl Channel {
     Ok(())
   }
 
-  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, request_id: RequestId, queue: String) -> Result<(), Error> {
-    self.queues.start_basic_get_delivery(&queue, BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count));
+  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, request_id: RequestId, queue: ShortString) -> Result<(), Error> {
+    self.queues.start_basic_get_delivery(queue.as_str(), BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count));
     self.status.set_state(ChannelState::WillReceiveContent(Some(queue), Either::Left(request_id)));
     Ok(())
   }
@@ -395,31 +395,31 @@ impl Channel {
   }
 
   #[allow(clippy::too_many_arguments)]
-  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, request_id: RequestId, queue: String, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
+  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, request_id: RequestId, queue: ShortString, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
     if request_id != 0 {
       self.generated_names.register(request_id, method.consumer_tag.clone());
     }
-    self.queues.register_consumer(&queue, method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, subscriber));
+    self.queues.register_consumer(queue.as_str(), method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, subscriber));
     Ok(())
   }
 
   fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<(), Error> {
-    if let Some(queue_name) = self.queues.start_consumer_delivery(&method.consumer_tag, Delivery::new(method.delivery_tag, method.exchange.to_string(), method.routing_key.to_string(), method.redelivered)) {
+    if let Some(queue_name) = self.queues.start_consumer_delivery(method.consumer_tag.as_str(), Delivery::new(method.delivery_tag, method.exchange.into(), method.routing_key.into(), method.redelivered)) {
       self.status.set_state(ChannelState::WillReceiveContent(Some(queue_name), Either::Right(method.consumer_tag)));
     }
     Ok(())
   }
 
   fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<(), Error> {
-    self.queues.deregister_consumer(&method.consumer_tag);
+    self.queues.deregister_consumer(method.consumer_tag.as_str());
     if !method.nowait {
-      self.basic_cancel_ok(&method.consumer_tag)?;
+      self.basic_cancel_ok(method.consumer_tag.as_str())?;
     }
     Ok(())
   }
 
   fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<(), Error> {
-    self.queues.deregister_consumer(&method.consumer_tag);
+    self.queues.deregister_consumer(method.consumer_tag.as_str());
     Ok(())
   }
 

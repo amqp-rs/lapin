@@ -3,7 +3,10 @@ use parking_lot::RwLock;
 
 use std::sync::Arc;
 
-use crate::requests::RequestId;
+use crate::{
+  requests::RequestId,
+  types::ShortString,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct ChannelStatus {
@@ -48,8 +51,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(Option<String>, Either<RequestId, String>),
-    ReceivingContent(Option<String>, Either<RequestId, String>, usize),
+    WillReceiveContent(Option<ShortString>, Either<RequestId, ShortString>),
+    ReceivingContent(Option<ShortString>, Either<RequestId, ShortString>, usize),
 }
 
 impl Default for ChannelState {

@@ -59,9 +59,9 @@ impl ConnectionOptions {
 impl Default for ConnectionOptions {
   fn default() -> ConnectionOptions {
     ConnectionOptions {
-      username: "guest".to_string(),
-      password: "guest".to_string(),
-      vhost: "/".to_string(),
+      username: "guest".into(),
+      password: "guest".into(),
+      vhost: "/".into(),
       frame_max: 0,
       heartbeat: 0,
       properties: ConnectionProperties::default(),

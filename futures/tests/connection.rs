@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 fn connection() {
   let _ = env_logger::try_init();
 
-  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
 
   Runtime::new().unwrap().block_on_all(
     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
@@ -27,7 +27,7 @@ fn connection() {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
-        channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
           info!("channel {} declared queue {}", id, "hello");
 
           channel.queue_purge("hello", QueuePurgeOptions::default()).and_then(move |_| {
@@ -44,11 +44,11 @@ fn connection() {
         let ch2 = channel.clone();
         channel.basic_qos(16, BasicQosOptions::default()).and_then(move |_| {
           info!("channel QoS specified");
-          channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).map(move |queue| (channel, queue))
+          channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).map(move |queue| (channel, queue))
         }).and_then(move |(channel, queue)| {
           info!("channel {} declared queue {}", id, "hello");
 
-          channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::new())
+          channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default())
         }).and_then(move |stream| {
           info!("got consumer stream");
 

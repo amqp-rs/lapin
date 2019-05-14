@@ -1,11 +1,14 @@
 use std::fmt::Debug;
 
-use crate::channel::BasicProperties;
-use crate::message::Delivery;
+use crate::{
+  channel::BasicProperties,
+  message::Delivery,
+  types::ShortString,
+};
 
 #[derive(Debug)]
 pub struct Consumer {
-  tag:             String,
+  tag:             ShortString,
   no_local:        bool,
   no_ack:          bool,
   exclusive:       bool,
@@ -14,7 +17,7 @@ pub struct Consumer {
 }
 
 impl Consumer {
-  pub fn new(tag: String, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Consumer {
+  pub fn new(tag: ShortString, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Consumer {
     Consumer {
       tag,
       no_local,

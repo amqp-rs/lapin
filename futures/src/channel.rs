@@ -45,7 +45,7 @@ where T: Send {
 impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// create a channel
     pub fn create(transport: Arc<Mutex<AMQPTransport<T>>>, conn: Connection) -> impl Future<Item = Self, Error = Error> + Send + 'static {
-        future::result(conn.create_channel().map(|inner| Channel { transport, inner, conn }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".to_string(), err).into())).and_then(|channel| {
+        future::result(conn.create_channel().map(|inner| Channel { transport, inner, conn }).map_err(|err| ErrorKind::ProtocolError("Failed to create channel".into(), err).into())).and_then(|channel| {
             let request_id = channel.inner.channel_open();
             let inner = channel.inner.clone();
             channel.run_on_locked_transport("create", "Could not create channel", request_id).and_then(move |_| {
@@ -129,7 +129,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
         self.run_on_locked_transport("queue_declare", "Could not declare queue", request_id).and_then(move |request_id| {
             future::poll_fn(move || {
               if let Some(queue) = inner.generated_names.get(request_id.expect("expected request_id")) {
-                let QueueStats {consumer_count, message_count} = inner.queues.get_stats(&queue);
+                let QueueStats {consumer_count, message_count} = inner.queues.get_stats(queue.as_str());
                 return Ok(Async::Ready(Queue::new(queue, consumer_count, message_count)))
               } else {
                 task::current().notify();
@@ -182,7 +182,7 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
       let transport = self.transport.clone();
       let inner = self.inner.clone();
 
-      future::result(delivery_tag.map_err(|e| ErrorKind::ProtocolError("Could not publish".to_string(), e).into())).and_then(move |delivery_tag| {
+      future::result(delivery_tag.map_err(|e| ErrorKind::ProtocolError("Could not publish".into(), e).into())).and_then(move |delivery_tag| {
         if delivery_tag.is_some() {
           trace!("{} returning closure", "basic_publish");
         }
@@ -221,11 +221,11 @@ impl<T: AsyncRead+AsyncWrite+Send+Sync+'static> Channel<T> {
     /// `Consumer` implements `futures::Stream`, so it can be used with any of
     /// the usual combinators
     pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer<T>, Error = Error> + Send + 'static {
-        let consumer_tag = consumer_tag.to_string();
+        let consumer_tag = ShortString::from(consumer_tag);
         let queue_name = queue.name();
-        let mut consumer = Consumer::new(self.transport.clone(), self.id(), queue.name(), consumer_tag.to_owned());
+        let mut consumer = Consumer::new(self.transport.clone(), self.id(), queue.name(), consumer_tag.clone());
         let subscriber = consumer.subscriber();
-        let request_id = self.inner.basic_consume(&queue_name, &consumer_tag, options, arguments, Box::new(subscriber));
+        let request_id = self.inner.basic_consume(queue_name.as_str(), consumer_tag.as_str(), options, arguments, Box::new(subscriber));
         let inner = self.inner.clone();
 
         self.run_on_locked_transport("basic_consume", "Could not start consumer", request_id).and_then(move |request_id| {

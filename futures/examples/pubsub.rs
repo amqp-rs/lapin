@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 fn main() {
   env_logger::init();
 
-  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string()).parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
 
   Runtime::new().unwrap().block_on_all(
     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
@@ -32,7 +32,7 @@ fn main() {
         let id = pub_channel.id();
         info!("created publisher channel with id: {}", id);
 
-        pub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |_| {
+        pub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
           info!("publisher channel {} declared queue {}", id, "hello");
           futures::stream::repeat(b"hello".to_vec()).for_each(move |msg| {
             pub_channel.basic_publish(
@@ -40,7 +40,7 @@ fn main() {
               "hello",
               msg,
               BasicPublishOptions::default(),
-              BasicProperties::default().with_user_id("guest".to_string()).with_reply_to("foobar".to_string())
+              BasicProperties::default().with_user_id("guest".into()).with_reply_to("foobar".into())
             ).map(|confirmation| {
               info!("publish got confirmation: {:?}", confirmation)
             })
@@ -56,9 +56,9 @@ fn main() {
 
         let ch = sub_channel.clone();
 
-        sub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::new()).and_then(move |queue| {
+        sub_channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |queue| {
           info!("subscriber channel {} declared queue {}", id, "hello");
-          sub_channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::new())
+          sub_channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default())
         }).and_then(|stream| {
           info!("got consumer stream");
 

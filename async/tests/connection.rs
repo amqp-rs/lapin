@@ -46,7 +46,7 @@ impl ConsumerSubscriber for Subscriber {
 fn connection() {
       let _ = env_logger::try_init();
 
-      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".to_string());
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into());
       let mut stream = TcpStream::connect(&addr).unwrap();
       stream.set_nonblocking(true).unwrap();
 
@@ -90,7 +90,7 @@ fn connection() {
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
       //create the hello queue
-      channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
+      channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -101,7 +101,7 @@ fn connection() {
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
 
-      channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::new()).expect("queue_declare");
+      channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
@@ -109,7 +109,7 @@ fn connection() {
       println!("will consume");
       let hello_world = Arc::new(AtomicBool::new(false));
       let subscriber = Subscriber { hello_world: hello_world.clone(), };
-      channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::new(), Box::new(subscriber)).expect("basic_consume");
+      channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());
       thread::sleep(time::Duration::from_millis(100));
       println!("[{}] state: {:?}", line!(), conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap());

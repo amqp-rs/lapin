@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::error::Error;
 use crate::message::Delivery;
 use crate::transport::*;
+use crate::types::ShortString;
 
 #[derive(Clone,Debug)]
 pub struct ConsumerSub {
@@ -43,8 +44,8 @@ pub struct Consumer<T> {
   transport:    Arc<Mutex<AMQPTransport<T>>>,
   inner:        Arc<Mutex<ConsumerInner>>,
   channel_id:   u16,
-  queue:        String,
-  consumer_tag: String,
+  queue:        ShortString,
+  consumer_tag: ShortString,
 }
 
 #[derive(Debug)]
@@ -65,7 +66,7 @@ impl Default for ConsumerInner {
 }
 
 impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
-  pub fn new(transport: Arc<Mutex<AMQPTransport<T>>>, channel_id: u16, queue: String, consumer_tag: String) -> Consumer<T> {
+  pub fn new(transport: Arc<Mutex<AMQPTransport<T>>>, channel_id: u16, queue: ShortString, consumer_tag: ShortString) -> Consumer<T> {
     Consumer {
       transport,
       inner: Arc::new(Mutex::new(ConsumerInner::default())),
@@ -75,7 +76,7 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
     }
   }
 
-  pub fn update_consumer_tag(&mut self, consumer_tag: String) {
+  pub fn update_consumer_tag(&mut self, consumer_tag: ShortString) {
     self.consumer_tag = consumer_tag;
   }
 
