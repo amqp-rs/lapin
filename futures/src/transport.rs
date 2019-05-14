@@ -1,5 +1,6 @@
 use amq_protocol::frame::{AMQPFrame, GenError, Offset, gen_frame, parse_frame};
 use lapin_async::{
+  configuration::Configuration,
   connection::Connection,
   connection_status::ConnectionState,
   credentials::Credentials,
@@ -46,7 +47,7 @@ const POLL_RECV_LIMIT: u32 = 128;
 
 /// implements tokio-io's Decoder and Encoder
 pub struct AMQPCodec {
-    pub frame_max: u32,
+    pub configuration: Configuration,
 }
 
 impl Decoder for AMQPCodec {
@@ -80,7 +81,7 @@ impl Encoder for AMQPCodec {
     type Error = CodecError;
 
     fn encode(&mut self, frame: AMQPFrame, buf: &mut BytesMut) -> Result<(), Self::Error> {
-      let frame_max = cmp::max(self.frame_max, 8192) as usize;
+      let frame_max = cmp::max(self.configuration.frame_max(), 8192) as usize;
       trace!("encoder; frame={:?}", frame);
       let offset = buf.len();
       loop {
@@ -140,7 +141,7 @@ impl<T> AMQPTransport<T>
       .map_err(|e| ErrorKind::ProtocolError("connection failed".to_string(), e).into())
       .and_then(|_| {
         let codec = AMQPCodec {
-          frame_max: conn.configuration.frame_max(),
+          configuration: conn.configuration.clone(),
         };
         let t = AMQPTransport {
           upstream:  codec.framed(stream),
@@ -207,6 +208,9 @@ impl<T> AMQPTransport<T>
 
   /// Poll the network to send outcoming frames.
   fn poll_send(&mut self) -> Poll<(), Error> {
+    if self.conn.status.blocked() {
+      return Ok(Async::NotReady);
+    }
     while let Some(frame) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
       match self.start_send(frame)? {
@@ -305,7 +309,9 @@ mod tests {
   fn encode_multiple_frames() {
     let _ = env_logger::try_init();
 
-    let mut codec = AMQPCodec { frame_max: 8192 };
+    let configuration = Configuration::default();
+    configuration.set_frame_max(8192);
+    let mut codec = AMQPCodec { configuration };
     let mut buffer = BytesMut::with_capacity(8192);
     let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
     assert_eq!(false, r.is_err());
@@ -324,7 +330,9 @@ mod tests {
 
     let _ = env_logger::try_init();
 
-    let mut codec = AMQPCodec { frame_max: 8192 };
+    let configuration = Configuration::default();
+    configuration.set_frame_max(8192);
+    let mut codec = AMQPCodec { configuration };
     let mut buffer = BytesMut::with_capacity(8192);
     let frame = AMQPFrame::Header(0, 10, Box::new(AMQPContentHeader {
       class_id: 10,
@@ -341,8 +349,10 @@ mod tests {
   fn encode_initial_extend_buffer() {
     let _ = env_logger::try_init();
 
-    let mut codec = AMQPCodec { frame_max: 8192 };
-    let frame_max = codec.frame_max as usize;
+    let configuration = Configuration::default();
+    configuration.set_frame_max(8192);
+    let mut codec = AMQPCodec { configuration };
+    let frame_max = codec.configuration.frame_max() as usize;
     let mut buffer = BytesMut::new();
 
     let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
@@ -355,8 +365,10 @@ mod tests {
   fn encode_anticipation_extend_buffer() {
     let _ = env_logger::try_init();
 
-    let mut codec = AMQPCodec { frame_max: 8192 };
-    let frame_max = codec.frame_max as usize;
+    let configuration = Configuration::default();
+    configuration.set_frame_max(8192);
+    let mut codec = AMQPCodec { configuration };
+    let frame_max = codec.configuration.frame_max() as usize;
     let mut buffer = BytesMut::new();
 
     let r = codec.encode(AMQPFrame::Heartbeat(0), &mut buffer);
