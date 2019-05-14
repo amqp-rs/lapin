@@ -48,7 +48,7 @@
 //!   let capacity = 8192;
 //!   let mut send_buffer    = Buffer::with_capacity(capacity as usize);
 //!   let mut receive_buffer = Buffer::with_capacity(capacity as usize);
-//!   let mut conn: Connection = Connection::new();
+//!   let mut conn: Connection = Connection::default();
 //!   conn.configuration.set_frame_max(capacity);
 //!
 //!   /* Connect tp RabbitMQ server */

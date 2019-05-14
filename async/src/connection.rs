@@ -14,24 +14,19 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct Connection {
-  /// current state of the connection. In normal use it should always be ConnectionState::Connected
-  pub status:          ConnectionStatus,
-  pub channels:        Channels,
-  pub configuration:   Configuration,
-  // list of frames to send
-      frames:          Frames,
+  pub        configuration: Configuration,
+  pub        status:        ConnectionStatus,
+  pub(crate) channels:      Channels,
+             frames:        Frames,
 }
 
 impl Default for Connection {
   fn default() -> Self {
-    let configuration = Configuration::default();
-    let channels = Channels::default();
-
     let connection = Self {
-      status:          ConnectionStatus::default(),
-      channels,
-      configuration,
-      frames:          Frames::default(),
+      configuration: Configuration::default(),
+      status:        ConnectionStatus::default(),
+      channels:      Channels::default(),
+      frames:        Frames::default(),
     };
 
     connection.channels.create_zero(connection.clone());
@@ -40,11 +35,6 @@ impl Default for Connection {
 }
 
 impl Connection {
-  /// creates a `Connection` object in initial state
-  pub fn new() -> Self {
-    Default::default()
-  }
-
   pub fn create_channel(&self) -> Result<Channel, Error> {
     self.channels.create(self.clone())
   }
@@ -65,6 +55,10 @@ impl Connection {
       self.set_error()?;
       Err(ErrorKind::InvalidConnectionState(state).into())
     }
+  }
+
+  pub fn set_vhost(&self, vhost: &str) {
+    self.status.set_vhost(vhost);
   }
 
   pub fn send_frame(&self, frame: AMQPFrame) {
@@ -163,7 +157,7 @@ mod tests {
     use crate::queue::Queue;
 
     // Bootstrap connection state to a consuming state
-    let conn = Connection::new();
+    let conn = Connection::default();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();
@@ -233,7 +227,7 @@ mod tests {
     use crate::queue::Queue;
 
     // Bootstrap connection state to a consuming state
-    let conn = Connection::new();
+    let conn = Connection::default();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.create_channel().unwrap();

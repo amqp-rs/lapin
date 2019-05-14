@@ -54,7 +54,7 @@ fn connection() {
       let mut send_buffer    = Buffer::with_capacity(capacity as usize);
       let mut receive_buffer = Buffer::with_capacity(capacity as usize);
 
-      let mut conn: Connection = Connection::new();
+      let mut conn: Connection = Connection::default();
       conn.configuration.set_frame_max(capacity);
       assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
       loop {
