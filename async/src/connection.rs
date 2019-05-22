@@ -123,10 +123,9 @@ impl Connection {
     Ok(())
   }
 
-  #[doc(hidden)]
-  pub fn send_preemptive_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+  pub fn send_heartbeat(&self) -> Result<(), Error> {
     self.set_readable()?;
-    self.frames.push_preemptive(frame);
+    self.frames.push_preemptive(AMQPFrame::Heartbeat(0));
     Ok(())
   }
 

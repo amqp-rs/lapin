@@ -118,7 +118,7 @@ impl Encoder for AMQPCodec {
 pub struct AMQPTransport<T> {
   upstream:  Framed<T,AMQPCodec>,
   conn:      Connection,
-  heartbeat: Option<AMQPFrame>,
+  heartbeat: bool,
 }
 
 impl<T> AMQPTransport<T>
@@ -144,7 +144,7 @@ impl<T> AMQPTransport<T>
         let t = AMQPTransport {
           upstream:  codec.framed(stream),
           conn,
-          heartbeat: Some(AMQPFrame::Heartbeat(0)),
+          heartbeat: true,
         };
 
         AMQPTransportConnector {
@@ -159,13 +159,14 @@ impl<T> AMQPTransport<T>
 
   /// Preemptively send an heartbeat frame
   pub fn send_heartbeat(&mut self) -> Poll<(), Error> {
-    if let Some(frame) = self.heartbeat.take() {
-      self.conn.send_preemptive_frame(frame).map_err(|e| ErrorKind::ProtocolError("failed to send heartbeat".into(), e))?;
+    if self.heartbeat {
+      self.heartbeat = false;
+      self.conn.send_heartbeat().map_err(|e| ErrorKind::ProtocolError("failed to send heartbeat".into(), e))?;
     }
     self.poll_send().map(|r| r.map(|r| {
       // poll_send succeeded, reinitialize self.heartbeat so that we sned a new frame on the next
       // send_heartbeat call
-      self.heartbeat = Some(AMQPFrame::Heartbeat(0));
+      self.heartbeat = true;
       r
     }))
   }
