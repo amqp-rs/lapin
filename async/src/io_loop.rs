@@ -44,9 +44,16 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 }
 
+#[derive(PartialEq)]
+enum Status {
+  Initial,
+  Setup,
+}
+
 struct Inner<T> {
   connection:     Connection,
   socket:         T,
+  status:         Status,
   poll:           Poll,
   registration:   Registration,
   set_readiness:  SetReadiness,
@@ -74,6 +81,7 @@ impl<T: Evented + Read + Write> Inner<T> {
     let inner = Self {
       connection,
       socket,
+      status:         Status::Initial,
       poll:           Poll::new().map_err(ErrorKind::IOError)?,
       registration,
       set_readiness,
@@ -91,12 +99,15 @@ impl<T: Evented + Read + Write> Inner<T> {
     Ok(inner)
   }
 
-  fn grow_buffers(&mut self) {
-    let frame_max = self.connection.configuration.frame_max() as usize;
-    if frame_max > self.capacity {
-      self.capacity = frame_max;
-      self.receive_buffer.grow(frame_max);
-      self.send_buffer.grow(frame_max);
+  fn ensure_setup(&mut self) {
+    if self.status != Status::Setup && self.connection.status.connected() {
+      let frame_max = self.connection.configuration.frame_max() as usize;
+      if frame_max > self.capacity {
+        self.capacity = frame_max;
+        self.receive_buffer.grow(frame_max);
+        self.send_buffer.grow(frame_max);
+      }
+      self.status = Status::Setup;
     }
   }
 
@@ -147,7 +158,7 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn run(&mut self, events: &mut Events) -> Result<(), Error> {
-    self.grow_buffers();
+    self.ensure_setup();
     self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
     for event in events.iter() {
       match event.token() {

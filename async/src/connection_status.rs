@@ -44,6 +44,10 @@ impl ConnectionStatus {
   pub fn blocked(&self) -> bool {
     self.inner.read().blocked
   }
+
+  pub fn connected(&self) -> bool {
+    self.inner.read().state == ConnectionState::Connected
+  }
 }
 
 #[derive(Clone, Debug, PartialEq)]
