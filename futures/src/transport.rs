@@ -160,7 +160,7 @@ impl<T> AMQPTransport<T>
   /// Preemptively send an heartbeat frame
   pub fn send_heartbeat(&mut self) -> Poll<(), Error> {
     if let Some(frame) = self.heartbeat.take() {
-      self.conn.send_preemptive_frame(frame);
+      self.conn.send_preemptive_frame(frame).map_err(|e| ErrorKind::ProtocolError("failed to send heartbeat".into(), e))?;
     }
     self.poll_send().map(|r| r.map(|r| {
       // poll_send succeeded, reinitialize self.heartbeat so that we sned a new frame on the next
@@ -217,7 +217,7 @@ impl<T> AMQPTransport<T>
         }
         AsyncSink::NotReady(frame) => {
           trace!("transport poll_send; status=NotReady");
-          self.conn.requeue_frame(frame);
+          self.conn.requeue_frame(frame).map_err(|e| ErrorKind::ProtocolError("failed to requeue frame".into(), e))?;
           return Ok(Async::NotReady);
         }
       }

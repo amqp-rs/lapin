@@ -76,29 +76,32 @@ impl Channel {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&self, method: AMQPClass) {
-    self.send_frame(AMQPFrame::Method(self.id, method));
+  pub fn send_method_frame(&self, method: AMQPClass) -> Result<(), Error> {
+    self.send_frame(AMQPFrame::Method(self.id, method))?;
+    Ok(())
   }
 
   #[doc(hidden)]
-  pub fn send_frame(&self, frame: AMQPFrame) {
-    self.connection.send_frame(frame);
+  pub fn send_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+    self.connection.send_frame(frame)?;
+    Ok(())
   }
 
-  fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) {
+  fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) -> Result<(), Error> {
     let header = AMQPContentHeader {
       class_id,
       weight:    0,
       body_size: slice.len() as u64,
       properties,
     };
-    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)));
+    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)))?;
 
     let frame_max = self.connection.configuration.frame_max();
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
-      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)));
+      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)))?;
     }
+    Ok(())
   }
 
   #[doc(hidden)]
@@ -194,7 +197,7 @@ impl Channel {
       None
     };
 
-    self.send_content_frames(class_id, payload.as_slice(), properties);
+    self.send_content_frames(class_id, payload.as_slice(), properties)?;
     Ok(delivery_tag)
   }
 

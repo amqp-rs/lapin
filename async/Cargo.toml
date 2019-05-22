@@ -21,6 +21,7 @@ amq-protocol = "=2.0.0-rc9"
 either = "^1.0"
 failure = "^0.1"
 log = "^0.4"
+mio = "^0.6"
 parking_lot = '^0.8'
 
 [dev-dependencies]

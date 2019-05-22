@@ -1,5 +1,8 @@
 use amq_protocol::frame::AMQPFrame;
+use mio::{Evented, Poll, PollOpt, Ready, Token};
 use log::{debug, error, trace};
+
+use std::io;
 
 use crate::{
   channel::Channel,
@@ -10,6 +13,7 @@ use crate::{
   credentials::Credentials,
   error::{Error, ErrorKind},
   frames::Frames,
+  registration::Registration,
 };
 
 #[derive(Clone, Debug)]
@@ -17,6 +21,7 @@ pub struct Connection {
   pub        configuration: Configuration,
   pub        status:        ConnectionStatus,
   pub(crate) channels:      Channels,
+             registration:  Registration,
              frames:        Frames,
 }
 
@@ -26,11 +31,26 @@ impl Default for Connection {
       configuration: Configuration::default(),
       status:        ConnectionStatus::default(),
       channels:      Channels::default(),
+      registration:  Registration::default(),
       frames:        Frames::default(),
     };
 
     connection.channels.create_zero(connection.clone());
     connection
+  }
+}
+
+impl Evented for Connection {
+  fn register(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> io::Result<()> {
+    self.registration.register(poll, token, interest, opts)
+  }
+
+  fn reregister(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> io::Result<()> {
+    self.registration.reregister(poll, token, interest, opts)
+  }
+
+  fn deregister(&self, poll: &Poll) -> io::Result<()> {
+    self.registration.deregister(poll)
   }
 }
 
@@ -48,7 +68,7 @@ impl Connection {
   pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState, Error> {
     let state = self.status.state();
     if state == ConnectionState::Initial {
-      self.send_frame(AMQPFrame::ProtocolHeader);
+      self.send_frame(AMQPFrame::ProtocolHeader)?;
       self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
       Ok(self.status.state())
     } else {
@@ -61,8 +81,15 @@ impl Connection {
     self.status.set_vhost(vhost);
   }
 
-  pub fn send_frame(&self, frame: AMQPFrame) {
+  fn set_readable(&self) -> Result<(), Error> {
+    self.registration.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
+    Ok(())
+  }
+
+  pub fn send_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+    self.set_readable()?;
     self.frames.push(frame);
+    Ok(())
   }
 
   /// next message to send to the network
@@ -97,13 +124,17 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn send_preemptive_frame(&self, frame: AMQPFrame) {
+  pub fn send_preemptive_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+    self.set_readable()?;
     self.frames.push_preemptive(frame);
+    Ok(())
   }
 
   #[doc(hidden)]
-  pub fn requeue_frame(&self, frame: AMQPFrame) {
+  pub fn requeue_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+    self.set_readable()?;
     self.frames.retry(frame);
+    Ok(())
   }
 
   #[doc(hidden)]
