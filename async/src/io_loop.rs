@@ -1,12 +1,14 @@
 use amq_protocol::frame::{GenError, Offset, gen_frame, parse_frame};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
+use mio_extras::timer::{Builder as TimerBuilder, Timer};
 use parking_lot::Mutex;
 
 use std::{
   io::{self, Read, Write},
   sync::Arc,
   thread::{Builder as ThreadBuilder, JoinHandle},
+  time::Duration,
 };
 
 use crate::{
@@ -16,9 +18,10 @@ use crate::{
   error::{Error, ErrorKind},
 };
 
-const SOCKET:   Token = Token(0);
-const DATA:     Token = Token(1);
-const CONTINUE: Token = Token(2);
+const SOCKET:    Token = Token(0);
+const DATA:      Token = Token(1);
+const HEARTBEAT: Token = Token(2);
+const CONTINUE:  Token = Token(3);
 
 pub struct IoLoop<T> {
   inner: Arc<Mutex<Inner<T>>>,
@@ -58,12 +61,14 @@ struct Inner<T> {
   registration:   Registration,
   set_readiness:  SetReadiness,
   handle:         Option<JoinHandle<Result<(), Error>>>,
+  timer:          Option<Timer<()>>,
   capacity:       usize,
   receive_buffer: Buffer,
   send_buffer:    Buffer,
   can_write:      bool,
   can_read:       bool,
   has_data:       bool,
+  send_heartbeat: bool,
 }
 
 impl<T> Drop for Inner<T> {
@@ -86,12 +91,14 @@ impl<T: Evented + Read + Write> Inner<T> {
       registration,
       set_readiness,
       handle:         None,
+      timer:          None,
       capacity,
       receive_buffer: Buffer::with_capacity(capacity),
       send_buffer:    Buffer::with_capacity(capacity),
       can_write:      false,
       can_read:       false,
       has_data:       false,
+      send_heartbeat: false,
     };
     inner.poll.register(&inner.socket, SOCKET, Ready::readable() | Ready::writable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     inner.poll.register(&inner.connection, DATA, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
@@ -99,7 +106,21 @@ impl<T: Evented + Read + Write> Inner<T> {
     Ok(inner)
   }
 
-  fn ensure_setup(&mut self) {
+  fn schedule_heartbeat(&mut self) {
+    let heartbeat = self.connection.configuration.heartbeat() as u64;
+    if let Some(timer) = self.timer.as_mut() {
+      timer.set_timeout(Duration::from_secs(heartbeat / 2), ());
+    }
+  }
+
+  fn heartbeat(&mut self) -> Result<(), Error> {
+    self.connection.send_heartbeat()?;
+    self.send_heartbeat = false;
+    self.schedule_heartbeat();
+    Ok(())
+  }
+
+  fn ensure_setup(&mut self) -> Result<(), Error> {
     if self.status != Status::Setup && self.connection.status.connected() {
       let frame_max = self.connection.configuration.frame_max() as usize;
       if frame_max > self.capacity {
@@ -107,8 +128,15 @@ impl<T: Evented + Read + Write> Inner<T> {
         self.receive_buffer.grow(frame_max);
         self.send_buffer.grow(frame_max);
       }
+      if self.connection.configuration.heartbeat() != 0 {
+      let timer = TimerBuilder::default().build();
+        self.poll.register(&timer, HEARTBEAT, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
+        self.timer = Some(timer);
+        self.schedule_heartbeat();
+      }
       self.status = Status::Setup;
     }
+    Ok(())
   }
 
   fn wants_to_write(&self) -> bool {
@@ -120,6 +148,9 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn do_run(&mut self) -> Result<(), Error> {
+    if self.send_heartbeat {
+      self.heartbeat()?;
+    }
     if self.wants_to_write() && !self.connection.status.blocked() {
       if let Err(e) = self.write_to_stream() {
         match e.kind() {
@@ -158,11 +189,11 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn run(&mut self, events: &mut Events) -> Result<(), Error> {
-    self.ensure_setup();
+    self.ensure_setup()?;
     self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
     for event in events.iter() {
       match event.token() {
-        SOCKET => {
+        SOCKET    => {
           if event.readiness().is_readable() {
             self.can_read = true;
           }
@@ -170,8 +201,9 @@ impl<T: Evented + Read + Write> Inner<T> {
             self.can_write = true;
           }
         },
-        DATA   => self.has_data = true,
-        _      => {},
+        DATA      => self.has_data = true,
+        HEARTBEAT => self.send_heartbeat = true,
+        _         => {},
       }
     }
     self.do_run()
