@@ -33,6 +33,7 @@
 //!   connection_status::{ConnectionState, ConnectingState},
 //!   consumer::ConsumerSubscriber,
 //!   credentials::Credentials,
+//!   io_loop::IoLoop,
 //!   message::Delivery,
 //!   types::FieldTable,
 //! };
@@ -41,62 +42,45 @@
 //!   env_logger::init();
 //!
 //!   /* Open TCP connection */
-//!   let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
+//!   let stream = TcpStream::connect("127.0.0.1:5672").unwrap();
 //!   stream.set_nonblocking(true).unwrap();
 //!
 //!   /* Configure AMQP connection */
 //!   let capacity = 8192;
-//!   let mut send_buffer    = Buffer::with_capacity(capacity as usize);
-//!   let mut receive_buffer = Buffer::with_capacity(capacity as usize);
-//!   let mut conn: Connection = Connection::default();
+//!   let conn: Connection = Connection::default();
 //!   conn.configuration.set_frame_max(capacity);
 //!
 //!   /* Connect tp RabbitMQ server */
 //!   assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
+//!   IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
 //!   loop {
-//!     match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
-//!       Err(e) => panic!("could not connect: {:?}", e),
-//!       Ok(ConnectionState::Connected) => break,
-//!       Ok(state) => println!("now at state {:?}, continue", state),
+//!     match conn.status.state() {
+//!       ConnectionState::Connected => break,
+//!       state => println!("now at state {:?}, continue", state),
 //!     }
 //!     thread::sleep(time::Duration::from_millis(100));
 //!   }
 //!   println!("CONNECTED");
 //!
-//!   /* Adapt our buffer after negocation with the server */
-//!   let frame_max = conn.configuration.frame_max();
-//!   if frame_max > capacity {
-//!     send_buffer.grow(frame_max as usize);
-//!     receive_buffer.grow(frame_max as usize);
-//!   }
-//!
 //!   /* Create and open a channel */
 //!   let channel = conn.create_channel().unwrap();
 //!   channel.channel_open().expect("channel_open");
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   assert!(channel.status.state() == ChannelState::Connected);
 //!
 //!   /* Declaire the "hellp" queue */
 //!   let request_id = channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).unwrap();
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
 //!
 //!   /* Publish "Hellow world!" to the "hello" queue */
 //!   let payload = b"Hello world!";
 //!   channel.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!
 //!   /* Consumer the messages from the "hello" queue using an instance of Subscriber */
 //!   let request_id = channel.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   thread::sleep(time::Duration::from_millis(100));
-//!   conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
 //!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
 //! }
 //!
@@ -126,7 +110,6 @@ pub mod credentials;
 pub mod error;
 pub mod generated_names;
 pub mod id_sequence;
-pub mod io;
 pub mod io_loop;
 pub mod message;
 pub mod frames;
