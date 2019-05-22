@@ -114,6 +114,7 @@ impl<T: Evented + Read + Write> Inner<T> {
         match e.kind() {
           ErrorKind::NoNewMessage => self.has_data = false,
           ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
+          ErrorKind::SendBufferTooSmall => { /* We already shifted the buffer and we already limit the size of the frames, so retry */ },
           _ => {
             error!("error writing: {:?}", e);
             self.connection.set_error()?;
@@ -135,7 +136,6 @@ impl<T: Evented + Read + Write> Inner<T> {
       }
     }
     if self.can_parse() {
-      //FIXME: handle the Incomplete case
       if let Ok(sz) = self.parse() {
         self.receive_buffer.consume(sz);
       }
@@ -205,6 +205,7 @@ impl<T: Evented + Read + Write> Inner<T> {
             GenError::BufferTooSmall(_) => {
               // Requeue msg
               self.connection.requeue_frame(next_msg)?;
+              self.send_buffer.shift();
               Err(ErrorKind::SendBufferTooSmall.into())
             },
             GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {

@@ -62,7 +62,7 @@ impl Buffer {
     &mut self.memory[self.end..self.capacity]
   }
 
-  fn shift(&mut self) {
+  pub(crate) fn shift(&mut self) {
     let length = self.end - self.position;
     unsafe {
       ptr::copy((&self.memory[self.position..self.end]).as_ptr(), (&mut self.memory[..length]).as_mut_ptr(), length);
