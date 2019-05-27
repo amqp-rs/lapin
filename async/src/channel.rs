@@ -87,6 +87,16 @@ impl Channel {
     Ok(())
   }
 
+  pub fn wait_for_reply(&self, request_id: Option<RequestId>) -> Option<bool> {
+    request_id.map(|request_id| {
+      loop {
+        if let Some(res) = self.requests.was_successful(request_id) {
+          return res;
+        }
+      }
+    })
+  }
+
   fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) -> Result<(), Error> {
     let header = AMQPContentHeader {
       class_id,

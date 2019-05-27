@@ -69,47 +69,47 @@ fn connection() {
       let channel_a = conn.create_channel().unwrap();
       let channel_b = conn.create_channel().unwrap();
       //send channel
-      channel_a.channel_open().expect("channel_open");
+      let request_id = channel_a.channel_open().expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
       //receive channel
-      channel_b.channel_open().expect("channel_open");
+      let request_id = channel_b.channel_open().expect("channel_open");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_b.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
       //create the hello queue
-      channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      let request_id = channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
       //purge the hello queue in case it already exists with contents in it
-      channel_a.queue_purge("hello-async", QueuePurgeOptions::default()).expect("queue_purge");
+      let request_id = channel_a.queue_purge("hello-async", QueuePurgeOptions::default()).expect("queue_purge");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
-      channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      let request_id = channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_b.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
       println!("will consume");
       let hello_world = Arc::new(AtomicBool::new(false));
       let subscriber = Subscriber { hello_world: hello_world.clone(), };
-      channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).expect("basic_consume");
+      let request_id = channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_b.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
 
       println!("will publish");
       let payload = b"Hello world!";
-      channel_a.basic_publish("", "hello-async", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
+      let request_id = channel_a.basic_publish("", "hello-async", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
       println!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       println!("[{}] state: {:?}", line!(), conn.status.state());
       thread::sleep(time::Duration::from_millis(100));
       assert!(hello_world.load(Ordering::SeqCst));

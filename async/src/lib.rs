@@ -64,24 +64,22 @@
 //!
 //!   /* Create and open a channel */
 //!   let channel = conn.create_channel().unwrap();
-//!   channel.channel_open().expect("channel_open");
-//!   thread::sleep(time::Duration::from_millis(100));
+//!   let request_id = channel.channel_open().expect("channel_open");
+//!   assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 //!   assert!(channel.status.state() == ChannelState::Connected);
 //!
 //!   /* Declaire the "hellp" queue */
 //!   let request_id = channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).unwrap();
-//!   thread::sleep(time::Duration::from_millis(100));
-//!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
+//!   assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 //!
 //!   /* Publish "Hellow world!" to the "hello" queue */
 //!   let payload = b"Hello world!";
-//!   channel.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
-//!   thread::sleep(time::Duration::from_millis(100));
+//!   let request_id = channel.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
+//!   assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 //!
 //!   /* Consumer the messages from the "hello" queue using an instance of Subscriber */
 //!   let request_id = channel.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
-//!   thread::sleep(time::Duration::from_millis(100));
-//!   assert!(channel.requests.was_successful(request_id.unwrap()).unwrap_or(false));
+//!   assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 //! }
 //!
 //! #[derive(Debug)]

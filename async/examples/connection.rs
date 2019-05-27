@@ -61,44 +61,44 @@ fn main() {
       let channel_a = conn.create_channel().unwrap();
       let channel_b = conn.create_channel().unwrap();
       //send channel
-      channel_a.channel_open().expect("channel_open");
+      let request_id = channel_a.channel_open().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       //receive channel
-      channel_b.channel_open().expect("channel_open");
+      let request_id = channel_b.channel_open().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_b.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       //create the hello queue
-      channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      let request_id = channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-
-      channel_a.confirm_select(ConfirmSelectOptions::default()).expect("confirm_select");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
-      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      let request_id = channel_a.confirm_select(ConfirmSelectOptions::default()).expect("confirm_select");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
+      info!("[{}] state: {:?}", line!(), conn.status.state());
+
+      let request_id = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      info!("[{}] state: {:?}", line!(), conn.status.state());
+      channel_b.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       info!("will consume");
-      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
+      let request_id = channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_b.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       info!("will publish");
       let payload = b"Hello world!";
-      channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
+      let request_id = channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      thread::sleep(time::Duration::from_millis(100));
+      channel_a.wait_for_reply(request_id);
       info!("[{}] state: {:?}", line!(), conn.status.state());
 }
 
