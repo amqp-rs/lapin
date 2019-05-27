@@ -1,4 +1,4 @@
-use amq_protocol::codegen::{CodeGenerator, HandlebarsAMQPExtension};
+use amq_protocol_codegen::{CodeGenerator, HandlebarsAMQPExtension};
 use serde_json::{Value, from_str};
 
 use std::env;

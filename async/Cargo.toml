@@ -13,11 +13,11 @@ license = "MIT"
 build = "build.rs"
 
 [build-dependencies]
-amq-protocol = "=2.0.0-rc9"
+amq-protocol-codegen = "=2.0.0-rc11"
 serde_json = "^1.0"
 
 [dependencies]
-amq-protocol = "=2.0.0-rc9"
+amq-protocol = "=2.0.0-rc11"
 either = "^1.0"
 failure = "^0.1"
 log = "^0.4"
