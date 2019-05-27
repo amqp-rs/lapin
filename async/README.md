@@ -14,87 +14,80 @@ if it received new messages for the consumers.
 ```rust
 use env_logger;
 use lapin_async as lapin;
-use crate::lapin::api::ChannelState;
-use crate::lapin::buffer::Buffer;
-use crate::lapin::connection::*;
-use crate::lapin::consumer::ConsumerSubscriber;
-use crate::lapin::channel::BasicProperties;
-use crate::lapin::message::Delivery;
-use crate::lapin::types::FieldTable;
 
-use std::{net::TcpStream, thread, time};
+use std::{
+  net::TcpStream,
+  thread,
+  time,
+};
+
+use crate::lapin::{
+  buffer::Buffer,
+  channel::BasicProperties,
+  channel_status::ChannelState,
+  channel::options::*,
+  connection::Connection,
+  connection_properties::ConnectionProperties,
+  connection_status::{ConnectionState, ConnectingState},
+  consumer::ConsumerSubscriber,
+  credentials::Credentials,
+  io_loop::IoLoop,
+  message::Delivery,
+  types::FieldTable,
+};
 
 fn main() {
   env_logger::init();
 
   /* Open TCP connection */
-  let mut stream = TcpStream::connect("127.0.0.1:5672").unwrap();
+  let stream = TcpStream::connect("127.0.0.1:5672").unwrap();
   stream.set_nonblocking(true).unwrap();
 
   /* Configure AMQP connection */
   let capacity = 8192;
-  let mut send_buffer    = Buffer::with_capacity(capacity as usize);
-  let mut receive_buffer = Buffer::with_capacity(capacity as usize);
-  let mut conn: Connection = Connection::new();
-  conn.set_frame_max(capacity);
+  let conn: Connection = Connection::default();
+  conn.configuration.set_frame_max(capacity);
 
   /* Connect tp RabbitMQ server */
-  assert_eq!(conn.connect(ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(ConnectionProperties::default())));
+  assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
+  IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
   loop {
-    match conn.run(&mut stream, &mut send_buffer, &mut receive_buffer) {
-      Err(e) => panic!("could not connect: {:?}", e),
-      Ok(ConnectionState::Connected) => break,
-      Ok(state) => println!("now at state {:?}, continue", state),
+    match conn.status.state() {
+      ConnectionState::Connected => break,
+      state => println!("now at state {:?}, continue", state),
     }
     thread::sleep(time::Duration::from_millis(100));
   }
   println!("CONNECTED");
 
-  /* Adapt our buffer after negocation with the server */
-  let frame_max = conn.configuration.frame_max;
-  if frame_max > capacity {
-    send_buffer.grow(frame_max as usize);
-    receive_buffer.grow(frame_max as usize);
-  }
-
   /* Create and open a channel */
-  let channel_id = conn.create_channel().unwrap().id;
-  conn.channel_open(channel_id, "".into()).expect("channel_open");
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  thread::sleep(time::Duration::from_millis(100));
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  assert!(conn.check_state(channel_id, ChannelState::Connected).map_err(|e| println!("{:?}", e)).is_ok());
+  let channel = conn.create_channel().unwrap();
+  let request_id = channel.channel_open().expect("channel_open");
+  assert!(channel.wait_for_reply(request_id).unwrap_or(false));
+  assert!(channel.status.state() == ChannelState::Connected);
 
   /* Declaire the "hellp" queue */
-  let request_id = conn.queue_declare(channel_id, 0, "hello".into(), false, false, false, false, false, FieldTable::default()).unwrap();
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  thread::sleep(time::Duration::from_millis(100));
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  assert!(conn.has_finished(request_id).unwrap_or(false));
+  let request_id = channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).unwrap();
+  assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 
   /* Publish "Hellow world!" to the "hello" queue */
-  conn.basic_publish(channel_id, 0, "".into(), "hello".into(), false, false).expect("basic_publish");
   let payload = b"Hello world!";
-  conn.send_content_frames(channel_id, 60, payload, BasicProperties::default());
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  thread::sleep(time::Duration::from_millis(100));
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
+  let request_id = channel.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
+  assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 
   /* Consumer the messages from the "hello" queue using an instance of Subscriber */
-  let request_id = conn.basic_consume(channel_id, 0, "hello".into(), "my_consumer".into(), false, true, false, false, FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  thread::sleep(time::Duration::from_millis(100));
-  conn.run(&mut stream, &mut send_buffer, &mut receive_buffer).unwrap();
-  assert!(conn.has_finished(request_id).unwrap_or(false));
+  let request_id = channel.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
+  assert!(channel.wait_for_reply(request_id).unwrap_or(false));
 }
 
 #[derive(Debug)]
 struct Subscriber;
 
 impl ConsumerSubscriber for Subscriber {
-  fn new_delivery(&mut self, _delivery: Delivery) {
+  fn new_delivery(&self, _delivery: Delivery) {
     // handle message
   }
+  fn drop_prefetched_messages(&self) {}
+  fn cancel(&self) {}
 }
-
 ```
