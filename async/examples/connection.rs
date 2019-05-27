@@ -44,7 +44,8 @@ fn main() {
       let capacity = 8192;
       let conn = Connection::default();
       conn.configuration.set_frame_max(capacity);
-      assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
+      conn.connect(Credentials::default(), ConnectionProperties::default()).expect("connect");
+      assert_eq!(conn.status.state(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
       IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
       loop {
         match conn.status.state() {

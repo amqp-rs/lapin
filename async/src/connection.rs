@@ -1,4 +1,8 @@
-use amq_protocol::frame::AMQPFrame;
+use amq_protocol::{
+  frame::AMQPFrame,
+  tcp::TcpStream,
+  uri::AMQPUri,
+};
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use log::{debug, error, trace};
 
@@ -13,6 +17,7 @@ use crate::{
   credentials::Credentials,
   error::{Error, ErrorKind},
   frames::Frames,
+  io_loop::IoLoop,
   registration::Registration,
 };
 
@@ -65,15 +70,33 @@ impl Connection {
   /// The messages will not be sent until calls to `serialize`
   /// to write the messages to a buffer, or calls to `next_frame`
   /// to obtain the next message to send
-  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<ConnectionState, Error> {
+  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<(), Error> {
     let state = self.status.state();
     if state == ConnectionState::Initial {
       self.send_frame(AMQPFrame::ProtocolHeader)?;
       self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
-      Ok(self.status.state())
+      Ok(())
     } else {
       self.set_error()?;
       Err(ErrorKind::InvalidConnectionState(state).into())
+    }
+  }
+
+  pub fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Connection, IoLoop<TcpStream>), Error> + 'static {
+    move |stream, uri| {
+      let conn = Connection::default();
+      conn.connect(credentials, options)?;
+      if let Some(frame_max) = uri.query.frame_max {
+        conn.configuration.set_frame_max(frame_max);
+      }
+      if let Some(channel_max) = uri.query.channel_max {
+        conn.configuration.set_channel_max(channel_max);
+      }
+      if let Some(heartbeat) = uri.query.heartbeat {
+        conn.configuration.set_heartbeat(heartbeat);
+      }
+      let io_loop = IoLoop::new(conn.clone(), stream)?;
+      Ok((conn, io_loop))
     }
   }
 

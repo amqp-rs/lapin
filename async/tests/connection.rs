@@ -2,7 +2,6 @@ use env_logger;
 use lapin_async as lapin;
 
 use std::{
-  net::TcpStream,
   sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -19,8 +18,8 @@ use crate::lapin::{
   connection_status::{ConnectionState, ConnectingState},
   consumer::ConsumerSubscriber,
   credentials::Credentials,
-  io_loop::IoLoop,
   message::Delivery,
+  tcp::AMQPUriTcpExt,
   types::FieldTable,
 };
 
@@ -46,15 +45,11 @@ impl ConsumerSubscriber for Subscriber {
 fn connection() {
       let _ = env_logger::try_init();
 
-      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into());
-      let stream = TcpStream::connect(&addr).unwrap();
-      stream.set_nonblocking(true).unwrap();
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f?frame_max=8192".into());
+      let (conn, io_loop) = addr.connect(Connection::connector(Credentials::default(), ConnectionProperties::default())).expect("io error").expect("error");
 
-      let capacity = 8192;
-      let conn: Connection = Connection::default();
-      conn.configuration.set_frame_max(capacity);
-      assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
-      IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
+      assert_eq!(conn.status.state(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
+      io_loop.run().expect("io loop");
       loop {
         match conn.status.state() {
           ConnectionState::Connected => break,

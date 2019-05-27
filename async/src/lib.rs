@@ -51,7 +51,8 @@
 //!   conn.configuration.set_frame_max(capacity);
 //!
 //!   /* Connect tp RabbitMQ server */
-//!   assert_eq!(conn.connect(Credentials::default(), ConnectionProperties::default()).unwrap(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
+//!   conn.connect(Credentials::default(), ConnectionProperties::default()).expect("connect");
+//!   assert_eq!(conn.status.state(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
 //!   IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
 //!   loop {
 //!     match conn.status.state() {
@@ -117,5 +118,6 @@ pub mod registration;
 pub mod replies;
 pub mod requests;
 pub mod returned_messages;
+pub mod tcp;
 pub mod types;
 pub mod uri;
