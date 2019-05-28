@@ -115,7 +115,6 @@ pub mod frames;
 pub mod queue;
 pub mod queues;
 pub mod registration;
-pub mod replies;
 pub mod requests;
 pub mod returned_messages;
 pub mod tcp;

@@ -9,7 +9,7 @@ use log::{debug, error, trace};
 use std::io;
 
 use crate::{
-  channel::Channel,
+  channel::{Channel, Reply},
   channels::Channels,
   configuration::Configuration,
   connection_properties::ConnectionProperties,
@@ -73,7 +73,7 @@ impl Connection {
   pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<(), Error> {
     let state = self.status.state();
     if state == ConnectionState::Initial {
-      self.send_frame(AMQPFrame::ProtocolHeader)?;
+      self.send_frame(9, AMQPFrame::ProtocolHeader, None)?;
       self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
       Ok(())
     } else {
@@ -109,10 +109,14 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+  pub fn send_frame(&self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<(), Error> {
     self.set_readable()?;
-    self.frames.push(frame);
+    self.frames.push(channel_id, frame, expected_reply);
     Ok(())
+  }
+
+  pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
+    self.frames.next_expected_reply(channel_id)
   }
 
   /// next message to send to the network

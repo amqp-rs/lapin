@@ -19,7 +19,6 @@ use crate::{
   message::{BasicGetMessage, BasicReturnMessage, Delivery},
   queue::Queue,
   queues::Queues,
-  replies::Replies,
   requests::{Requests, RequestId},
   returned_messages::ReturnedMessages,
   types::*,
@@ -31,7 +30,6 @@ pub struct Channel {
       connection:        Connection,
   pub status:            ChannelStatus,
   pub acknowledgements:  Acknowledgements,
-  pub replies:           Replies,
       delivery_tag:      IdSequence<DeliveryTag>,
       request_id:        IdSequence<RequestId>,
   pub requests:          Requests,
@@ -47,7 +45,6 @@ impl Channel {
       connection,
       status:            ChannelStatus::default(),
       acknowledgements:  Acknowledgements::default(),
-      replies:           Replies::default(),
       delivery_tag:      IdSequence::new(false),
       request_id:        IdSequence::new(false),
       requests:          Requests::default(),
@@ -76,14 +73,14 @@ impl Channel {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&self, method: AMQPClass) -> Result<(), Error> {
-    self.send_frame(AMQPFrame::Method(self.id, method))?;
+  pub fn send_method_frame(&self, method: AMQPClass, expected_reply: Option<Reply>) -> Result<(), Error> {
+    self.send_frame(AMQPFrame::Method(self.id, method), expected_reply)?;
     Ok(())
   }
 
   #[doc(hidden)]
-  pub fn send_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
-    self.connection.send_frame(frame)?;
+  pub fn send_frame(&self, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<(), Error> {
+    self.connection.send_frame(self.id, frame, expected_reply)?;
     Ok(())
   }
 
@@ -104,12 +101,12 @@ impl Channel {
       body_size: slice.len() as u64,
       properties,
     };
-    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)))?;
+    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)), None)?;
 
     let frame_max = self.connection.configuration.frame_max();
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
-      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)))?;
+      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)), None)?;
     }
     Ok(())
   }
@@ -395,7 +392,7 @@ impl Channel {
   }
 
   fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<(), Error> {
-    match self.replies.next() {
+    match self.connection.next_expected_reply(self.id) {
       Some(Reply::AwaitingBasicGetOk(request_id, _)) => {
         self.requests.finish(request_id, false);
         Ok(())

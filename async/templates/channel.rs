@@ -101,7 +101,16 @@ impl Channel {
       {{/each_argument ~}}
     }));
 
-    self.send_method_frame(method)?;
+    let (request_id, expected_reply): (Option<RequestId>, Option<Reply>) = {
+      {{#if method.synchronous ~}}
+      let request_id = self.request_id.next();
+      (Some(request_id), Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}})))
+      {{ else }}
+      (None, None)
+      {{/if ~}}
+    };
+
+    self.send_method_frame(method, expected_reply)?;
 
     {{#if method.metadata.end_hook ~}}
     {{#if method.metadata.end_hook.return_type ~}}let end_hook_ret = {{/if ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})?;
@@ -109,24 +118,27 @@ impl Channel {
 
     Ok(
       {{#if method.synchronous ~}}
-      {{#if (method_has_flag method "nowait") ~}}
-      if nowait {
-        {{#if method.metadata.nowait_hook ~}}
-        #[allow(clippy::needless_update)]
-        self.on_{{snake class.name false}}_{{snake method.name false}}_ok_received({{#unless method.metadata.nowait_hook.no_args ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }{{#each method.metadata.nowait_hook.extra_args as |arg| ~}}, {{arg}}{{/each ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}{{/unless ~}})?;
-        {{/if ~}}
-        None
-      } else {{/if ~}}{
-        let request_id = self.request_id.next();
-        self.replies.register_pending(self.id, Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}));
-        Some(request_id)
+      {
+        {{#if (method_has_flag method "nowait") ~}}
+        if nowait {
+          {{#if method.metadata.nowait_hook ~}}
+          #[allow(clippy::needless_update)]
+          self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() })?;
+          {{/if ~}}
+          None
+        } else {{/if ~}}{
+          request_id
+        }
       }
       {{else}}
       {{#if method.metadata.end_hook.return_type ~}}
-      end_hook_ret
+      {
+        let _ = request_id;
+        end_hook_ret
+      }
       {{else}}
-      None
-      {{/if}}
+      request_id
+      {{/if ~}}
       {{/if ~}}
     )
   }
@@ -143,7 +155,7 @@ impl Channel {
       return Err(ErrorKind::NotConnected.into());
     }
 
-    match self.replies.next() {
+    match self.connection.next_expected_reply(self.id) {
       Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         self.requests.finish(request_id, true);
         {{#if method.arguments ~}}

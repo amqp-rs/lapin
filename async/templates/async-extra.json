@@ -56,13 +56,6 @@
     }
   },
   "confirm": {
-    "select": {
-      "metadata": {
-        "nowait_hook": {
-          "no_args": true
-        }
-      }
-    },
     "select-ok": {
       "metadata": {
         "received_hook": true
@@ -73,8 +66,7 @@
     "declare": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["queue: queue.into()"],
-          "extra_args": ["0"]
+          "fields": ["queue: queue.into()"]
         }
       }
     },
@@ -129,8 +121,7 @@
           }
         ],
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"],
-          "extra_args": ["0"]
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
