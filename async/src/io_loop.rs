@@ -237,10 +237,13 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn serialize(&mut self) -> Result<usize, Error> {
-    if let Some(next_msg) = self.connection.next_frame() {
+    if let Some((send_id, next_msg)) = self.connection.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
       match gen_frame(self.send_buffer.space(), &next_msg).map(|tup| tup.0) {
-        Ok(sz) => Ok(sz),
+        Ok(sz) => {
+          self.connection.mark_sent(send_id);
+          Ok(sz)
+        },
         Err(e) => {
           error!("error generating frame: {:?}", e);
           self.connection.set_error()?;

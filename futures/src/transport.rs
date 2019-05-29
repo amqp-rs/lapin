@@ -210,7 +210,7 @@ impl<T> AMQPTransport<T>
     if self.conn.status.blocked() {
       return Ok(Async::NotReady);
     }
-    while let Some(frame) = self.conn.next_frame() {
+    while let Some((send_id, frame)) = self.conn.next_frame() {
       trace!("transport poll_send; frame={:?}", frame);
       match self.start_send(frame)? {
         AsyncSink::Ready => {
@@ -218,7 +218,7 @@ impl<T> AMQPTransport<T>
         }
         AsyncSink::NotReady(frame) => {
           trace!("transport poll_send; status=NotReady");
-          self.conn.requeue_frame(frame).map_err(|e| ErrorKind::ProtocolError("failed to requeue frame".into(), e))?;
+          self.conn.requeue_frame(send_id, frame).map_err(|e| ErrorKind::ProtocolError("failed to requeue frame".into(), e))?;
           return Ok(Async::NotReady);
         }
       }

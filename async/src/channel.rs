@@ -14,6 +14,7 @@ use crate::{
   connection_status::{ConnectionState, ConnectingState},
   consumer::{Consumer, ConsumerSubscriber},
   error::{Error, ErrorKind},
+  frames::SendId,
   generated_names::GeneratedNames,
   id_sequence::IdSequence,
   message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -73,15 +74,13 @@ impl Channel {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&self, method: AMQPClass, expected_reply: Option<Reply>) -> Result<(), Error> {
-    self.send_frame(AMQPFrame::Method(self.id, method), expected_reply)?;
-    Ok(())
+  pub fn send_method_frame(&self, method: AMQPClass, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+    self.send_frame(AMQPFrame::Method(self.id, method), expected_reply)
   }
 
   #[doc(hidden)]
-  pub fn send_frame(&self, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<(), Error> {
-    self.connection.send_frame(self.id, frame, expected_reply)?;
-    Ok(())
+  pub fn send_frame(&self, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+    self.connection.send_frame(self.id, frame, expected_reply)
   }
 
   pub fn wait_for_reply(&self, request_id: Option<RequestId>) -> Option<bool> {

@@ -16,7 +16,7 @@ use crate::{
   connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
   credentials::Credentials,
   error::{Error, ErrorKind},
-  frames::Frames,
+  frames::{Frames, SendId},
   io_loop::IoLoop,
   registration::Registration,
 };
@@ -109,10 +109,9 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_frame(&self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<(), Error> {
+  pub fn send_frame(&self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
     self.set_readable()?;
-    self.frames.push(channel_id, frame, expected_reply);
-    Ok(())
+    Ok(self.frames.push(channel_id, frame, expected_reply))
   }
 
   pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
@@ -122,7 +121,7 @@ impl Connection {
   /// next message to send to the network
   ///
   /// returns None if there's no message to send
-  pub fn next_frame(&self) -> Option<AMQPFrame> {
+  pub fn next_frame(&self) -> Option<(SendId, AMQPFrame)> {
     self.frames.pop()
   }
 
@@ -157,15 +156,23 @@ impl Connection {
   }
 
   #[doc(hidden)]
-  pub fn requeue_frame(&self, frame: AMQPFrame) -> Result<(), Error> {
+  pub fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<(), Error> {
     self.set_readable()?;
-    self.frames.retry(frame);
+    self.frames.retry(send_id, frame);
     Ok(())
   }
 
   #[doc(hidden)]
   pub fn has_pending_frames(&self) -> bool {
     !self.frames.is_empty()
+  }
+
+  pub fn wait_for_sending(&self, send_id: SendId) {
+    while self.frames.is_pending(send_id) {}
+  }
+
+  pub fn mark_sent(&self, send_id: SendId) {
+    self.frames.mark_sent(send_id);
   }
 
   pub fn set_closing(&self) {
@@ -179,6 +186,7 @@ impl Connection {
   }
 
   pub fn set_error(&self) -> Result<(), Error> {
+    error!("Connection error");
     self.status.set_state(ConnectionState::Error);
     self.channels.set_error()
   }
