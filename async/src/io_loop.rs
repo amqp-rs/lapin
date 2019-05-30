@@ -123,11 +123,9 @@ impl<T: Evented + Read + Write> Inner<T> {
   fn ensure_setup(&mut self) -> Result<(), Error> {
     if self.status != Status::Setup && self.connection.status.connected() {
       let frame_max = self.connection.configuration.frame_max() as usize;
-      if frame_max > self.capacity {
-        self.capacity = frame_max;
-        self.receive_buffer.grow(frame_max);
-        self.send_buffer.grow(frame_max);
-      }
+      self.capacity = std::cmp::max(self.capacity, frame_max);
+      self.receive_buffer.grow(256 * self.capacity);
+      self.send_buffer.grow(256 * self.capacity);
       if self.connection.configuration.heartbeat() != 0 {
       let timer = TimerBuilder::default().build();
         self.poll.register(&timer, HEARTBEAT, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
@@ -164,6 +162,7 @@ impl<T: Evented + Read + Write> Inner<T> {
           }
         }
       }
+      self.send_buffer.shift_unless_available(self.capacity);
     }
     if self.wants_to_read() {
       if let Err(e) = self.read_from_stream() {
@@ -176,11 +175,10 @@ impl<T: Evented + Read + Write> Inner<T> {
           }
         }
       }
+      self.receive_buffer.shift_unless_available(self.capacity);
     }
     if self.can_parse() {
-      if let Ok(sz) = self.parse() {
-        self.receive_buffer.consume(sz);
-      }
+      self.parse()?;
     }
     if self.wants_to_read() || self.wants_to_write() || self.can_parse() {
       self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
@@ -214,8 +212,7 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn write_to_stream(&mut self) -> Result<(), Error> {
-    let sz = self.serialize()?;
-    self.send_buffer.fill(sz);
+    self.serialize()?;
 
     self.socket.write(&self.send_buffer.data()).map(|sz| {
       trace!("wrote {} bytes", sz);
@@ -236,25 +233,26 @@ impl<T: Evented + Read + Write> Inner<T> {
     }
   }
 
-  fn serialize(&mut self) -> Result<usize, Error> {
+  fn serialize(&mut self) -> Result<(), Error> {
     if let Some((send_id, next_msg)) = self.connection.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
       match gen_frame(self.send_buffer.space(), &next_msg).map(|tup| tup.0) {
         Ok(sz) => {
+          self.send_buffer.fill(sz);
           self.connection.mark_sent(send_id);
-          Ok(sz)
+          Ok(())
         },
         Err(e) => {
-          error!("error generating frame: {:?}", e);
-          self.connection.set_error()?;
           match e {
             GenError::BufferTooSmall(_) => {
               // Requeue msg
-              self.connection.requeue_frame(next_msg)?;
+              self.connection.requeue_frame(send_id, next_msg)?;
               self.send_buffer.shift();
               Err(ErrorKind::SendBufferTooSmall.into())
             },
             GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+              error!("error generating frame: {:?}", e);
+              self.connection.set_error()?;
               Err(ErrorKind::SerialisationError(e).into())
             }
           }
@@ -265,22 +263,26 @@ impl<T: Evented + Read + Write> Inner<T> {
     }
   }
 
-  fn parse(&self) -> Result<usize, Error> {
+  fn parse(&mut self) -> Result<(), Error> {
     match parse_frame(self.receive_buffer.data()) {
       Ok((i, f)) => {
+
         let consumed = self.receive_buffer.data().offset(i);
+        self.receive_buffer.consume(consumed);
 
         if let Err(e) = self.connection.handle_frame(f) {
           self.connection.set_error()?;
           Err(e)
         } else {
-          Ok(consumed)
+          Ok(())
         }
       },
       Err(e) => {
         if e.is_incomplete() {
-          Ok(0)
+          self.receive_buffer.shift();
+          Ok(())
         } else {
+          error!("parse error: {:?}", e);
           self.connection.set_error()?;
           Err(ErrorKind::ParsingError(format!("{:?}", e)).into())
         }

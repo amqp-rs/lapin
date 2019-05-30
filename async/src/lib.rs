@@ -24,7 +24,6 @@
 //! };
 //!
 //! use crate::lapin::{
-//!   buffer::Buffer,
 //!   channel::BasicProperties,
 //!   channel_status::ChannelState,
 //!   channel::options::*,

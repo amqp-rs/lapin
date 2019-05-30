@@ -39,16 +39,10 @@ impl Buffer {
   pub fn consume(&mut self, count: usize) -> usize {
     let cnt        = cmp::min(count, self.available_data());
     self.position += cnt;
-    if self.position > self.capacity / 2 {
-      self.shift();
-    }
     cnt
   }
 
   pub fn fill(&mut self, count: usize) -> usize {
-    if self.available_space() < self.position {
-      self.shift();
-    }
     let cnt   = cmp::min(count, self.available_space());
     self.end += cnt;
     cnt
@@ -70,6 +64,12 @@ impl Buffer {
     self.position = 0;
     self.end      = length;
   }
+
+  pub(crate) fn shift_unless_available(&mut self, size: usize) {
+    if self.available_space() < size {
+      self.shift();
+    }
+  }
 }
 
 impl Write for Buffer {
@@ -81,6 +81,7 @@ impl Write for Buffer {
   }
 
   fn flush(&mut self) -> io::Result<()> {
+    self.shift();
     Ok(())
   }
 }
@@ -88,7 +89,7 @@ impl Write for Buffer {
 impl Read for Buffer {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     let len = cmp::min(self.available_data(), buf.len());
-    buf.copy_from_slice(&self.memory[self.position..len]);
+    buf.copy_from_slice(&self.data()[0..len]);
     self.position += len;
     Ok(len)
   }
