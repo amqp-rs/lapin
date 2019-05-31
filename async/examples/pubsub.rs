@@ -36,7 +36,7 @@ impl ConsumerSubscriber for Subscriber {
 fn main() {
       env_logger::init();
 
-      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f?frame_max=8192".into());
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
       let (conn, io_loop) = addr.connect(Connection::connector(Credentials::default(), ConnectionProperties::default())).expect("io error").expect("error");
 
       io_loop.run().expect("io loop");
@@ -50,30 +50,27 @@ fn main() {
       }
       info!("CONNECTED");
 
-      let channel_b = conn.create_channel().unwrap();
-      thread::Builder::new().name("consumer".to_string()).spawn(move || {
-        let request_id = channel_b.channel_open().expect("channel_open");
-        channel_b.wait_for_reply(request_id);
-        let request_id = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
-        channel_b.wait_for_reply(request_id);
-
-        info!("will consume");
-        let request_id = channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber { channel: channel_b.clone() })).expect("basic_consume");
-        channel_b.wait_for_reply(request_id);
-      }).expect("consumer thread");
-
       let channel_a = conn.create_channel().unwrap();
+      let channel_b = conn.create_channel().unwrap();
 
       let request_id = channel_a.channel_open().expect("channel_open");
       channel_a.wait_for_reply(request_id);
       let request_id = channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
       channel_a.wait_for_reply(request_id);
 
+      let request_id = channel_b.channel_open().expect("channel_open");
+      channel_b.wait_for_reply(request_id);
+      let request_id = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      channel_b.wait_for_reply(request_id);
+
+      info!("will consume");
+      let request_id = channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber { channel: channel_b.clone() })).expect("basic_consume");
+      channel_b.wait_for_reply(request_id);
+
       let payload = b"Hello world!";
 
       loop {
-        let request_id = channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
-        channel_a.wait_for_reply(request_id);
+        channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
       }
 }
 
