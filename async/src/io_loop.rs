@@ -1,14 +1,16 @@
 use amq_protocol::frame::{GenError, Offset, gen_frame, parse_frame};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
-use mio_extras::timer::{Builder as TimerBuilder, Timer};
 use parking_lot::Mutex;
 
 use std::{
   io::{self, Read, Write},
-  sync::Arc,
-  thread::{Builder as ThreadBuilder, JoinHandle},
-  time::Duration,
+  sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+  },
+  thread::{self, Builder as ThreadBuilder, JoinHandle},
+  time::{Duration, Instant},
 };
 
 use crate::{
@@ -18,10 +20,9 @@ use crate::{
   error::{Error, ErrorKind},
 };
 
-const SOCKET:    Token = Token(0);
-const DATA:      Token = Token(1);
-const HEARTBEAT: Token = Token(2);
-const CONTINUE:  Token = Token(3);
+const SOCKET:   Token = Token(0);
+const DATA:     Token = Token(1);
+const CONTINUE: Token = Token(2);
 
 pub struct IoLoop<T> {
   inner: Arc<Mutex<Inner<T>>>,
@@ -29,9 +30,8 @@ pub struct IoLoop<T> {
 
 impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   pub fn new(connection: Connection, socket: T) -> Result<Self, Error> {
-    Ok(Self {
-      inner: Arc::new(Mutex::new(Inner::new(connection, socket)?))
-    })
+    let inner = Arc::new(Mutex::new(Inner::new(connection, socket)?));
+    Ok(Self { inner })
   }
 
   pub fn run(&self) -> Result<(), Error> {
@@ -61,14 +61,14 @@ struct Inner<T> {
   registration:   Registration,
   set_readiness:  SetReadiness,
   handle:         Option<JoinHandle<Result<(), Error>>>,
-  timer:          Option<Timer<()>>,
+  hb_handle:      Option<JoinHandle<()>>,
   capacity:       usize,
   receive_buffer: Buffer,
   send_buffer:    Buffer,
   can_write:      bool,
   can_read:       bool,
   has_data:       bool,
-  send_heartbeat: bool,
+  send_heartbeat: Arc<AtomicBool>,
 }
 
 impl<T> Drop for Inner<T> {
@@ -76,10 +76,13 @@ impl<T> Drop for Inner<T> {
     if let Some(handle) = self.handle.take() {
       handle.join().expect("io loop failed").expect("io loop failed");
     }
+    if let Some(hb_handle) = self.hb_handle.take() {
+      hb_handle.join().expect("heartbeat loop failed");
+    }
   }
 }
 
-impl<T: Evented + Read + Write> Inner<T> {
+impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   fn new(connection: Connection, socket: T) -> Result<Self, Error> {
     let capacity = std::cmp::max(8192, connection.configuration.frame_max() as usize);
     let (registration, set_readiness) = Registration::new2();
@@ -91,14 +94,14 @@ impl<T: Evented + Read + Write> Inner<T> {
       registration,
       set_readiness,
       handle:         None,
-      timer:          None,
+      hb_handle:      None,
       capacity,
       receive_buffer: Buffer::with_capacity(capacity),
       send_buffer:    Buffer::with_capacity(capacity),
       can_write:      false,
       can_read:       false,
       has_data:       false,
-      send_heartbeat: false,
+      send_heartbeat: Arc::new(AtomicBool::new(false)),
     };
     inner.poll.register(&inner.socket, SOCKET, Ready::readable() | Ready::writable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     inner.poll.register(&inner.connection, DATA, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
@@ -106,17 +109,32 @@ impl<T: Evented + Read + Write> Inner<T> {
     Ok(inner)
   }
 
-  fn schedule_heartbeat(&mut self) {
-    let heartbeat = self.connection.configuration.heartbeat() as u64;
-    if let Some(timer) = self.timer.as_mut() {
-      timer.set_timeout(Duration::from_secs(heartbeat / 2), ());
-    }
+  pub fn start_heartbeat(&mut self, interval: Duration) -> Result<(), Error> {
+    let send_hartbeat = self.send_heartbeat.clone();
+    let hb_handle = ThreadBuilder::new().name("heartbeat".to_owned()).spawn(move || {
+      loop {
+        let start         = Instant::now();
+        let mut remaining = interval;
+
+        loop {
+          thread::park_timeout(remaining);
+          let elapsed = start.elapsed();
+          if elapsed >= remaining {
+            break
+          }
+          remaining -= interval - elapsed;
+        }
+
+        send_hartbeat.store(true, Ordering::Relaxed);
+      }
+    }).map_err(ErrorKind::IOError)?;
+    self.hb_handle = Some(hb_handle);
+    Ok(())
   }
 
   fn heartbeat(&mut self) -> Result<(), Error> {
     self.connection.send_heartbeat()?;
-    self.send_heartbeat = false;
-    self.schedule_heartbeat();
+    self.send_heartbeat.store(false, Ordering::Relaxed);
     Ok(())
   }
 
@@ -126,11 +144,9 @@ impl<T: Evented + Read + Write> Inner<T> {
       self.capacity = std::cmp::max(self.capacity, frame_max);
       self.receive_buffer.grow(256 * self.capacity);
       self.send_buffer.grow(256 * self.capacity);
-      if self.connection.configuration.heartbeat() != 0 {
-      let timer = TimerBuilder::default().build();
-        self.poll.register(&timer, HEARTBEAT, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
-        self.timer = Some(timer);
-        self.schedule_heartbeat();
+      let heartbeat = self.connection.configuration.heartbeat();
+      if heartbeat != 0 {
+        self.start_heartbeat(Duration::from_secs(heartbeat as u64))?;
       }
       self.status = Status::Setup;
     }
@@ -146,42 +162,47 @@ impl<T: Evented + Read + Write> Inner<T> {
   }
 
   fn do_run(&mut self) -> Result<(), Error> {
-    if self.send_heartbeat {
-      self.heartbeat()?;
-    }
-    if self.wants_to_write() && !self.connection.status.blocked() {
-      if let Err(e) = self.write_to_stream() {
-        match e.kind() {
-          ErrorKind::NoNewMessage => self.has_data = false,
-          ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
-          ErrorKind::SendBufferTooSmall => { /* We already shifted the buffer and we already limit the size of the frames, so retry */ },
-          _ => {
-            error!("error writing: {:?}", e);
-            self.connection.set_error()?;
-            return Err(e);
+    loop {
+      if self.send_heartbeat.load(Ordering::Relaxed) {
+        self.heartbeat()?;
+      }
+      if self.wants_to_write() && !self.connection.status.blocked() {
+        if let Err(e) = self.write_to_stream() {
+          match e.kind() {
+            ErrorKind::NoNewMessage => self.has_data = false,
+            ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
+            ErrorKind::SendBufferTooSmall => { /* We already shifted the buffer and we already limit the size of the frames, so retry */ },
+            _ => {
+              error!("error writing: {:?}", e);
+              self.connection.set_error()?;
+              return Err(e);
+            }
           }
         }
+        self.send_buffer.shift_unless_available(self.capacity);
       }
-      self.send_buffer.shift_unless_available(self.capacity);
-    }
-    if self.wants_to_read() {
-      if let Err(e) = self.read_from_stream() {
-        match e.kind() {
-          ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_read = false,
-          _ => {
-            error!("error reading: {:?}", e);
-            self.connection.set_error()?;
-            return Err(e);
+      if self.wants_to_read() {
+        if let Err(e) = self.read_from_stream() {
+          match e.kind() {
+            ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_read = false,
+            _ => {
+              error!("error reading: {:?}", e);
+              self.connection.set_error()?;
+              return Err(e);
+            }
           }
         }
+        self.receive_buffer.shift_unless_available(self.capacity);
       }
-      self.receive_buffer.shift_unless_available(self.capacity);
-    }
-    if self.can_parse() {
-      self.parse()?;
-    }
-    if self.wants_to_read() || self.wants_to_write() || self.can_parse() {
-      self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
+      if self.can_parse() {
+        self.parse()?;
+      }
+      if !(self.can_read || !self.can_write) {
+        if self.wants_to_read() || self.wants_to_write() || self.can_parse() {
+          self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
+        }
+        break;
+      }
     }
     Ok(())
   }
@@ -200,7 +221,6 @@ impl<T: Evented + Read + Write> Inner<T> {
           }
         },
         DATA      => self.has_data = true,
-        HEARTBEAT => self.send_heartbeat = true,
         _         => {},
       }
     }
