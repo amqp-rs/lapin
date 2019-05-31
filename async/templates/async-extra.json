@@ -139,6 +139,7 @@
     },
     "publish": {
       "metadata": {
+        "priority": "LOW",
         "extra_args": [
           {
             "name": "payload",
