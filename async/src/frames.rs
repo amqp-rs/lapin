@@ -14,18 +14,28 @@ use crate::{
 
 pub type SendId = u64;
 
+#[derive(Clone, Debug)]
+pub enum Priority {
+  LOW,
+  NORMAL,
+  HIGH,
+  CRITICAL,
+}
+
+impl Default for Priority {
+  fn default() -> Self {
+    Priority::NORMAL
+  }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Frames {
   inner: Arc<Mutex<Inner>>,
 }
 
 impl Frames {
-  pub fn push(&self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
-    self.inner.lock().push(channel_id, frame, expected_reply)
-  }
-
-  pub fn push_preemptive(&self, frame: AMQPFrame) {
-    self.inner.lock().priority_frames.push_front((9, frame))
+  pub fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
+    self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
   pub fn retry(&self, send_id: SendId, frame: AMQPFrame) {
@@ -58,6 +68,7 @@ impl Frames {
 pub struct Inner {
   priority_frames:  VecDeque<(SendId, AMQPFrame)>,
   frames:           VecDeque<(SendId, AMQPFrame)>,
+  low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
   expected_replies: HashMap<u16, VecDeque<Reply>>,
   outbox:           HashSet<SendId>,
   send_id:          IdSequence<SendId>,
@@ -68,6 +79,7 @@ impl Default for Inner {
     Self {
       priority_frames:  VecDeque::default(),
       frames:           VecDeque::default(),
+      low_prio_frames:  VecDeque::default(),
       expected_replies: HashMap::default(),
       outbox:           HashSet::default(),
       send_id:          IdSequence::new(false),
@@ -76,9 +88,14 @@ impl Default for Inner {
 }
 
 impl Inner {
-  fn push(&mut self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
-    let send_id = self.send_id.next();
-    self.frames.push_back((send_id, frame));
+  fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
+    let send_id = if let Priority::CRITICAL = priority { 0 } else { self.send_id.next() };
+    match priority {
+      Priority::LOW      => self.low_prio_frames.push_back((send_id, frame)),
+      Priority::NORMAL   => self.frames.push_back((send_id, frame)),
+      Priority::HIGH     => self.priority_frames.push_back((send_id, frame)),
+      Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
+    }
     self.outbox.insert(send_id);
     if let Some(reply) = expected_reply {
       trace!("channel {} state is now waiting for {:?}", channel_id, reply);
@@ -88,10 +105,10 @@ impl Inner {
   }
 
   fn pop(&mut self) -> Option<(SendId, AMQPFrame)> {
-    self.priority_frames.pop_front().or_else(|| self.frames.pop_front())
+    self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| self.low_prio_frames.pop_front())
   }
 
   fn is_empty(&self) -> bool {
-    self.priority_frames.is_empty() && self.frames.is_empty()
+    self.priority_frames.is_empty() && self.frames.is_empty() && self.low_prio_frames.is_empty()
   }
 }

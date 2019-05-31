@@ -110,7 +110,7 @@ impl Channel {
       {{/if ~}}
     };
 
-    self.send_method_frame(method, expected_reply)?;
+    self.send_method_frame(Priority::NORMAL, method, expected_reply)?;
 
     {{#if method.metadata.end_hook ~}}
     {{#if method.metadata.end_hook.return_type ~}}let end_hook_ret = {{/if ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})?;

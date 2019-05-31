@@ -14,7 +14,7 @@ use crate::{
   connection_status::{ConnectionState, ConnectingState},
   consumer::{Consumer, ConsumerSubscriber},
   error::{Error, ErrorKind},
-  frames::SendId,
+  frames::{Priority, SendId},
   generated_names::GeneratedNames,
   id_sequence::IdSequence,
   message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -74,13 +74,13 @@ impl Channel {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&self, method: AMQPClass, expected_reply: Option<Reply>) -> Result<SendId, Error> {
-    self.send_frame(AMQPFrame::Method(self.id, method), expected_reply)
+  pub fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+    self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
   }
 
   #[doc(hidden)]
-  pub fn send_frame(&self, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
-    self.connection.send_frame(self.id, frame, expected_reply)
+  pub fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+    self.connection.send_frame(self.id, priority, frame, expected_reply)
   }
 
   pub fn wait_for_reply(&self, request_id: Option<RequestId>) -> Option<bool> {
@@ -100,12 +100,12 @@ impl Channel {
       body_size: slice.len() as u64,
       properties,
     };
-    self.send_frame(AMQPFrame::Header(self.id, class_id, Box::new(header)), None)?;
+    self.send_frame(Priority::LOW, AMQPFrame::Header(self.id, class_id, Box::new(header)), None)?;
 
     let frame_max = self.connection.configuration.frame_max();
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
-      self.send_frame(AMQPFrame::Body(self.id, Vec::from(chunk)), None)?;
+      self.send_frame(Priority::LOW, AMQPFrame::Body(self.id, Vec::from(chunk)), None)?;
     }
     Ok(())
   }

@@ -16,7 +16,7 @@ use crate::{
   connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
   credentials::Credentials,
   error::{Error, ErrorKind},
-  frames::{Frames, SendId},
+  frames::{Frames, Priority, SendId},
   io_loop::IoLoop,
   registration::Registration,
 };
@@ -73,7 +73,7 @@ impl Connection {
   pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<(), Error> {
     let state = self.status.state();
     if state == ConnectionState::Initial {
-      self.send_frame(9, AMQPFrame::ProtocolHeader, None)?;
+      self.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
       self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
       Ok(())
     } else {
@@ -109,9 +109,9 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_frame(&self, channel_id: u16, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+  pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
     self.set_readable()?;
-    Ok(self.frames.push(channel_id, frame, expected_reply))
+    Ok(self.frames.push(channel_id, priority, frame, expected_reply))
   }
 
   pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
@@ -151,7 +151,7 @@ impl Connection {
 
   pub fn send_heartbeat(&self) -> Result<(), Error> {
     self.set_readable()?;
-    self.frames.push_preemptive(AMQPFrame::Heartbeat(0));
+    self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?;
     Ok(())
   }
 
