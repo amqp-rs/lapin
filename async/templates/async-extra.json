@@ -177,9 +177,6 @@
     "publish": {
       "metadata": {
         "priority": "LOW",
-        "confirmation": {
-          "type": "Option<Boolean>"
-        },
         "extra_args": [
           {
             "name": "payload",
@@ -191,8 +188,7 @@
           }
         ],
         "end_hook": {
-          "params": ["60", "payload", "properties"],
-          "use_for_confirmation": true
+          "params": ["60", "payload", "properties"]
         }
       }
     },

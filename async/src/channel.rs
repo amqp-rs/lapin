@@ -66,6 +66,15 @@ impl Channel {
     self.id
   }
 
+  pub fn wait_for_confirms(&self) -> Vec<BasicReturnMessage> {
+    if let Some(wait) = self.acknowledgements.get_last_pending() {
+      wait.wait();
+      self.returned_messages.drain()
+    } else {
+      Vec::new()
+    }
+  }
+
   #[doc(hidden)]
   pub fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
@@ -177,14 +186,10 @@ impl Channel {
     self.set_closed()
   }
 
-  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<Wait<Option<bool>>, Error> {
+  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<(), Error> {
     let delivery_wait = if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
-      self.acknowledgements.register_pending(delivery_tag)
-    } else {
-      let (wait, wait_handle) = Wait::new();
-      wait_handle.finish(None);
-      wait
+      self.acknowledgements.register_pending(delivery_tag);
     };
 
     self.send_content_frames(class_id, payload.as_slice(), properties)?;

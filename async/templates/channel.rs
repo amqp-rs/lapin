@@ -127,11 +127,7 @@ impl Channel {
     {{/if ~}}
     Confirmation::new(wait)
     {{else}}
-    {{#if method.metadata.end_hook.use_for_confirmation ~}}
-    Confirmation::new(end_hook_res.unwrap())
-    {{else}}
     Confirmation::new(send_res.unwrap())
-    {{/if ~}}
     {{/if ~}}
   }
   {{/if ~}}

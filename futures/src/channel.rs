@@ -11,7 +11,7 @@ use log::trace;
 use crate::confirmation::ConfirmationFuture;
 use crate::consumer::Consumer;
 use crate::error::Error;
-use crate::message::BasicGetMessage;
+use crate::message::{BasicGetMessage, BasicReturnMessage};
 use crate::types::*;
 
 /// `Channel` provides methods to act on a channel, such as managing queues
@@ -109,7 +109,7 @@ impl Channel {
     /// - `Some(true)` if we're on a confirm channel and the message was ack'd
     /// - `Some(false)` if we're on a confirm channel and the message was nack'd
     /// - `None` if we're not on a confirm channel
-    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> ConfirmationFuture<Option<bool>> {
+    pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> ConfirmationFuture<()> {
       self.inner.basic_publish(exchange, routing_key, options, payload, properties).into()
     }
 
@@ -212,5 +212,10 @@ impl Channel {
 
     pub fn tx_rollback(&self) -> ConfirmationFuture<()> {
         self.inner.tx_rollback().into()
+    }
+
+    pub fn wait_for_confirms(&self) -> impl Future<Item = Vec<BasicReturnMessage>, Error = Error> {
+        // TODO: make async
+        future::ok(self.inner.wait_for_confirms())
     }
 }

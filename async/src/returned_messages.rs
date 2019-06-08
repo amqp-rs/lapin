@@ -1,10 +1,7 @@
 use log::error;
 use parking_lot::Mutex;
 
-use std::{
-  collections::VecDeque,
-  sync::Arc,
-};
+use std::sync::Arc;
 
 use crate::{
   channel::BasicProperties,
@@ -36,19 +33,23 @@ impl ReturnedMessages {
       message.delivery.data.extend(data);
     }
   }
+
+  pub fn drain(&self) -> Vec<BasicReturnMessage> {
+    self.inner.lock().messages.drain(..).collect()
+  }
 }
 
 #[derive(Debug, Default)]
 pub struct Inner {
   current_message: Option<BasicReturnMessage>,
-  messages:        VecDeque<BasicReturnMessage>,
+  messages:        Vec<BasicReturnMessage>,
 }
 
 impl Inner {
   fn new_delivery_complete(&mut self) {
     if let Some(message) = self.current_message.take() {
-      // FIXME, once there's a way to consume it: self.messages.push_back(message);
       error!("Server returned us a message: {:?}", message);
+      self.messages.push(message);
     }
   }
 }

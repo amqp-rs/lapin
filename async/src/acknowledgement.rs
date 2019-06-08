@@ -19,10 +19,12 @@ pub struct Acknowledgements {
 }
 
 impl Acknowledgements {
-  pub fn register_pending(&self, delivery_tag: DeliveryTag) -> Wait<Option<Boolean>> {
-    let (wait, wait_handle) = Wait::new();
-    self.inner.lock().pending.insert(delivery_tag, wait_handle);
-    wait
+  pub fn register_pending(&self, delivery_tag: DeliveryTag) {
+    self.inner.lock().register_pending(delivery_tag);
+  }
+
+  pub fn get_last_pending(&self) -> Option<Wait<Option<Boolean>>> {
+    self.inner.lock().last.take()
   }
 
   pub fn ack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
@@ -66,11 +68,18 @@ impl Acknowledgements {
 
 #[derive(Debug, Default)]
 struct Inner {
-  pending: HashMap<DeliveryTag, WaitHandle<Option<bool>>>,
+  last:    Option<Wait<Option<Boolean>>>,
+  pending: HashMap<DeliveryTag, WaitHandle<Option<Boolean>>>,
 }
 
 impl Inner {
-  fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<(), Error> {
+  fn register_pending(&mut self, delivery_tag: DeliveryTag) {
+    let (wait, wait_handle) = Wait::new();
+    self.pending.insert(delivery_tag, wait_handle);
+    self.last = Some(wait);
+  }
+
+  fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: Boolean) -> Result<(), Error> {
     if let Some(delivery_wait) =  self.pending.remove(&delivery_tag) {
       delivery_wait.finish(Some(success));
       Ok(())
@@ -89,7 +98,7 @@ impl Inner {
     Ok(())
   }
 
-  fn drain_pending(&mut self) -> Vec<WaitHandle<Option<bool>>> {
+  fn drain_pending(&mut self) -> Vec<WaitHandle<Option<Boolean>>> {
     self.pending.drain().map(|tup| tup.1).collect()
   }
 
