@@ -146,7 +146,9 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       self.send_buffer.grow(256 * self.capacity);
       let heartbeat = self.connection.configuration.heartbeat();
       if heartbeat != 0 {
+        trace!("io_loop: start heartbeat");
         self.start_heartbeat(Duration::from_secs(heartbeat as u64))?;
+        trace!("io_loop: heartbeat started");
       }
       self.status = Status::Setup;
     }
@@ -162,6 +164,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   }
 
   fn do_run(&mut self) -> Result<(), Error> {
+    trace!("io_loop do_run; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
     loop {
       if self.send_heartbeat.load(Ordering::Relaxed) {
         self.heartbeat()?;
@@ -199,17 +202,22 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       }
       if !self.can_read || !self.can_write {
         if self.wants_to_read() || self.can_parse() || self.has_data {
+          trace!("io_loop send continue; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
           self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
         }
         break;
       }
     }
+    trace!("io_loop do_run done; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
     Ok(())
   }
 
   fn run(&mut self, events: &mut Events) -> Result<(), Error> {
+    trace!("io_loop run");
     self.ensure_setup()?;
+    trace!("io_loop poll");
     self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
+    trace!("io_loop poll done");
     for event in events.iter() {
       match event.token() {
         SOCKET    => {

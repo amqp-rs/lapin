@@ -93,11 +93,13 @@ impl Connection {
   }
 
   fn set_readable(&self) -> Result<(), Error> {
+    trace!("connection set readable");
     self.registration.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
     Ok(())
   }
 
   pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+    trace!("connection send_frame; channel_id={}", channel_id);
     let wait = self.frames.push(channel_id, priority, frame, expected_reply);
     self.set_readable()?;
     Ok(wait)
