@@ -98,8 +98,9 @@ impl Connection {
   }
 
   pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+    let wait = self.frames.push(channel_id, priority, frame, expected_reply);
     self.set_readable()?;
-    Ok(self.frames.push(channel_id, priority, frame, expected_reply))
+    Ok(wait)
   }
 
   pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
