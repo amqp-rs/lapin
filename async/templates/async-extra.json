@@ -2,12 +2,29 @@
   "connection": {
     "start-ok": {
       "metadata": {
-        "end_hook": true
+        "extra_args": [
+          {
+            "name": "wait_handle",
+            "type": "WaitHandle<Connection>"
+          }
+        ],
+        "end_hook": {
+          "params": ["wait_handle"]
+        }
       }
     },
     "open": {
       "metadata": {
-        "end_hook": true
+        "bypass_wait_handle": true,
+        "extra_args": [
+          {
+            "name": "wait_handle",
+            "type": "WaitHandle<Connection>"
+          }
+        ],
+        "end_hook": {
+          "params": ["wait_handle"]
+        }
       }
     },
     "close": {
@@ -53,6 +70,20 @@
         "received_hook": true,
         "end_hook": true
       }
+    },
+    "flow": {
+      "metadata": {
+        "confirmation": {
+          "type": "Boolean"
+        }
+      }
+    },
+    "flow-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        }
+      }
     }
   },
   "confirm": {
@@ -65,6 +96,9 @@
   "queue": {
     "declare": {
       "metadata": {
+        "confirmation": {
+          "type": "Queue"
+        },
         "nowait_hook": {
           "fields": ["queue: queue.into()"]
         }
@@ -79,12 +113,17 @@
             "use_str_ref": true
           }
         ],
+        "confirmation": {
+          "type": "LongUInt"
+        },
         "nowait_hook": true
       }
     },
-    "declare-ok": {
+    "purge": {
       "metadata": {
-        "uses_request_id": true
+        "confirmation": {
+          "type": "LongUInt"
+        }
       }
     }
   },
@@ -120,14 +159,12 @@
             "type": "Box<dyn ConsumerSubscriber>"
           }
         ],
+        "confirmation": {
+          "type": "ShortString"
+        },
         "nowait_hook": {
           "fields": ["consumer_tag: consumer_tag.into()"]
         }
-      }
-    },
-    "consume-ok": {
-      "metadata": {
-        "uses_request_id": true
       }
     },
     "cancel": {
@@ -140,6 +177,9 @@
     "publish": {
       "metadata": {
         "priority": "LOW",
+        "confirmation": {
+          "type": "Option<Boolean>"
+        },
         "extra_args": [
           {
             "name": "payload",
@@ -152,12 +192,15 @@
         ],
         "end_hook": {
           "params": ["60", "payload", "properties"],
-          "return_type": "DeliveryTag"
+          "use_for_confirmation": true
         }
       }
     },
     "get": {
       "metadata": {
+        "confirmation": {
+          "type": "Option<BasicGetMessage>"
+        },
         "state": [
           {
             "name": "queue",
@@ -165,11 +208,6 @@
             "use_str_ref": true
           }
         ]
-      }
-    },
-    "get-ok": {
-      "metadata": {
-        "uses_request_id": true
       }
     },
     "ack": {

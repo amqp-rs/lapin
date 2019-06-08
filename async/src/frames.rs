@@ -3,13 +3,14 @@ use amq_protocol::frame::AMQPFrame;
 use parking_lot::Mutex;
 
 use std::{
-  collections::{VecDeque, HashMap, HashSet},
+  collections::{VecDeque, HashMap},
   sync::Arc,
 };
 
 use crate::{
   channel::Reply,
   id_sequence::IdSequence,
+  wait::{Wait, WaitHandle},
 };
 
 pub type SendId = u64;
@@ -34,7 +35,7 @@ pub struct Frames {
 }
 
 impl Frames {
-  pub fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
+  pub fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
     self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
@@ -51,16 +52,17 @@ impl Frames {
   }
 
   pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
-    // FIXME: pop all replies on channel close
     self.inner.lock().expected_replies.get_mut(&channel_id).and_then(|replies| replies.pop_front())
   }
 
-  pub fn is_pending(&self, send_id: SendId) -> bool {
-    self.inner.lock().outbox.contains(&send_id)
+  pub fn clear_expected_replies(&self, channel_id: u16) {
+    self.inner.lock().expected_replies.remove(&channel_id);
   }
 
   pub fn mark_sent(&self, send_id: SendId) {
-    self.inner.lock().outbox.remove(&send_id);
+    if let Some(send) = self.inner.lock().outbox.remove(&send_id) {
+      send.finish(());
+    }
   }
 }
 
@@ -70,7 +72,7 @@ pub struct Inner {
   frames:           VecDeque<(SendId, AMQPFrame)>,
   low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
   expected_replies: HashMap<u16, VecDeque<Reply>>,
-  outbox:           HashSet<SendId>,
+  outbox:           HashMap<SendId, WaitHandle<()>>,
   send_id:          IdSequence<SendId>,
 }
 
@@ -81,14 +83,14 @@ impl Default for Inner {
       frames:           VecDeque::default(),
       low_prio_frames:  VecDeque::default(),
       expected_replies: HashMap::default(),
-      outbox:           HashSet::default(),
+      outbox:           HashMap::default(),
       send_id:          IdSequence::new(false),
     }
   }
 }
 
 impl Inner {
-  fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> SendId {
+  fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
     let send_id = if let Priority::CRITICAL = priority { 0 } else { self.send_id.next() };
     match priority {
       Priority::LOW      => self.low_prio_frames.push_back((send_id, frame)),
@@ -96,12 +98,13 @@ impl Inner {
       Priority::HIGH     => self.priority_frames.push_back((send_id, frame)),
       Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
     }
-    self.outbox.insert(send_id);
+    let (wait, wait_handle) = Wait::new();
+    self.outbox.insert(send_id, wait_handle);
     if let Some(reply) = expected_reply {
       trace!("channel {} state is now waiting for {:?}", channel_id, reply);
       self.expected_replies.entry(channel_id).or_default().push_back(reply);
     }
-    send_id
+    wait
   }
 
   fn pop(&mut self) -> Option<(SendId, AMQPFrame)> {

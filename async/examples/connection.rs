@@ -2,22 +2,14 @@ use env_logger;
 use lapin_async as lapin;
 use log::info;
 
-use std::{
-  net::TcpStream,
-  thread,
-  time,
-};
-
 use crate::lapin::{
+  Connect as _,
   channel::BasicProperties,
   channel::options::*,
-  connection::Connection,
   connection_properties::ConnectionProperties,
-  connection_status::{ConnectionState, ConnectingState},
   consumer::ConsumerSubscriber,
   credentials::Credentials,
   message::Delivery,
-  io_loop::IoLoop,
   types::FieldTable,
 };
 
@@ -37,24 +29,9 @@ fn main() {
 
       env_logger::init();
 
-      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into());
-      let stream = TcpStream::connect(&addr).unwrap();
-      stream.set_nonblocking(true).unwrap();
+      let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+      let conn = addr.connect(Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
 
-      let capacity = 8192;
-      let conn = Connection::default();
-      conn.configuration.set_frame_max(capacity);
-      conn.connect(Credentials::default(), ConnectionProperties::default()).expect("connect");
-      assert_eq!(conn.status.state(), ConnectionState::Connecting(ConnectingState::SentProtocolHeader(Credentials::default(), ConnectionProperties::default())));
-      IoLoop::new(conn.clone(), mio::net::TcpStream::from_stream(stream).expect("tcp stream")).expect("io loop").run().expect("io loop");
-      loop {
-        match conn.status.state() {
-          //Err(e) => panic!("could not connect: {:?}", e),
-          ConnectionState::Connected => break,
-          state => info!("now at state {:?}, continue", state),
-        }
-        thread::sleep(time::Duration::from_millis(100));
-      }
       info!("CONNECTED");
 
       //now connected
@@ -62,44 +39,31 @@ fn main() {
       let channel_a = conn.create_channel().unwrap();
       let channel_b = conn.create_channel().unwrap();
       //send channel
-      let request_id = channel_a.channel_open().expect("channel_open");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_a.wait_for_reply(request_id);
+      channel_a.channel_open().wait().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       //receive channel
-      let request_id = channel_b.channel_open().expect("channel_open");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_b.wait_for_reply(request_id);
+      channel_b.channel_open().wait().expect("channel_open");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       //create the hello queue
-      let request_id = channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
+      let queue = channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_a.wait_for_reply(request_id);
+      info!("[{}] declared queue: {:?}", line!(), queue);
+
+      channel_a.confirm_select(ConfirmSelectOptions::default()).wait().expect("confirm_select");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
-      let request_id = channel_a.confirm_select(ConfirmSelectOptions::default()).expect("confirm_select");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_a.wait_for_reply(request_id);
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-
-      let request_id = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).expect("queue_declare");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_b.wait_for_reply(request_id);
+      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       info!("will consume");
-      let request_id = channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).expect("basic_consume");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_b.wait_for_reply(request_id);
+      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).wait().expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       info!("will publish");
       let payload = b"Hello world!";
-      let request_id = channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).expect("basic_publish");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-      channel_a.wait_for_reply(request_id);
+      channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).wait().expect("basic_publish");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 }
 

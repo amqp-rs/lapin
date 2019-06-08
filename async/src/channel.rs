@@ -4,25 +4,24 @@ use amq_protocol::{
   protocol::{AMQPClass, AMQPError, AMQPSoftError},
   frame::{AMQPContentHeader, AMQPFrame},
 };
-use either::Either;
 use log::{debug, error, info, trace};
 
 use crate::{
   acknowledgement::{Acknowledgements, DeliveryTag},
   channel_status::{ChannelStatus, ChannelState},
+  confirmation::Confirmation,
   connection::Connection,
-  connection_status::{ConnectionState, ConnectingState},
+  connection_status::ConnectionState,
   consumer::{Consumer, ConsumerSubscriber},
   error::{Error, ErrorKind},
-  frames::{Priority, SendId},
-  generated_names::GeneratedNames,
+  frames::Priority,
   id_sequence::IdSequence,
   message::{BasicGetMessage, BasicReturnMessage, Delivery},
   queue::Queue,
   queues::Queues,
-  requests::{Requests, RequestId},
   returned_messages::ReturnedMessages,
   types::*,
+  wait::{Wait, WaitHandle},
 };
 
 #[derive(Clone, Debug)]
@@ -32,10 +31,7 @@ pub struct Channel {
   pub status:            ChannelStatus,
   pub acknowledgements:  Acknowledgements,
       delivery_tag:      IdSequence<DeliveryTag>,
-      request_id:        IdSequence<RequestId>,
-  pub requests:          Requests,
   pub queues:            Queues,
-  pub generated_names:   GeneratedNames,
       returned_messages: ReturnedMessages,
 }
 
@@ -47,10 +43,7 @@ impl Channel {
       status:            ChannelStatus::default(),
       acknowledgements:  Acknowledgements::default(),
       delivery_tag:      IdSequence::new(false),
-      request_id:        IdSequence::new(false),
-      requests:          Requests::default(),
       queues:            Queues::default(),
-      generated_names:   GeneratedNames::default(),
       returned_messages: ReturnedMessages::default(),
     }
   }
@@ -61,12 +54,12 @@ impl Channel {
 
   pub fn set_closed(&self) -> Result<(), Error> {
     self.status.set_state(ChannelState::Closed);
-    self.connection.channels.remove(self.id)
+    self.connection.remove_channel(self.id)
   }
 
   pub fn set_error(&self) -> Result<(), Error> {
     self.status.set_state(ChannelState::Error);
-    self.connection.channels.remove(self.id)
+    self.connection.remove_channel(self.id)
   }
 
   pub fn id(&self) -> u16 {
@@ -74,23 +67,13 @@ impl Channel {
   }
 
   #[doc(hidden)]
-  pub fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+  pub fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
   }
 
   #[doc(hidden)]
-  pub fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+  pub fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.connection.send_frame(self.id, priority, frame, expected_reply)
-  }
-
-  pub fn wait_for_reply(&self, request_id: Option<RequestId>) -> Option<bool> {
-    request_id.map(|request_id| {
-      loop {
-        if let Some(res) = self.requests.was_successful(request_id) {
-          return res;
-        }
-      }
-    })
   }
 
   fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) -> Result<(), Error> {
@@ -162,17 +145,17 @@ impl Channel {
   }
 
   fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<(), Error> {
-    self.channel_close(AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed", class_id, method_id)?;
+    self.channel_close(AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed", class_id, method_id).as_error()?;
     Err(error)
   }
 
-  fn on_connection_start_ok_sent(&self) -> Result<(), Error> {
-    self.connection.status.set_connecting_state(ConnectingState::SentStartOk);
+  fn on_connection_start_ok_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
+    self.connection.status.set_state(ConnectionState::SentStartOk(wait_handle));
     Ok(())
   }
 
-  fn on_connection_open_sent(&self) -> Result<(), Error> {
-    self.connection.status.set_connecting_state(ConnectingState::SentOpen);
+  fn on_connection_open_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
+    self.connection.status.set_state(ConnectionState::SentOpen(wait_handle));
     Ok(())
   }
 
@@ -194,17 +177,18 @@ impl Channel {
     self.set_closed()
   }
 
-  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<Option<DeliveryTag>, Error> {
-    let delivery_tag = if self.status.confirm() {
+  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<Wait<Option<bool>>, Error> {
+    let delivery_wait = if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
-      self.acknowledgements.register_pending(delivery_tag);
-      Some(delivery_tag)
+      self.acknowledgements.register_pending(delivery_tag)
     } else {
-      None
+      let (wait, wait_handle) = Wait::new();
+      wait_handle.finish(None);
+      wait
     };
 
     self.send_content_frames(class_id, payload.as_slice(), properties)?;
-    Ok(delivery_tag)
+    Ok(delivery_wait)
   }
 
   fn on_basic_recover_async_sent(&self) -> Result<(), Error> {
@@ -259,7 +243,7 @@ impl Channel {
   fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<(), Error> {
     trace!("Server sent connection::Start: {:?}", method);
     let state = self.connection.status.state();
-    if let ConnectionState::Connecting(ConnectingState::SentProtocolHeader(credentials, mut options)) = state {
+    if let ConnectionState::SentProtocolHeader(wait_handle, credentials, mut options) = state {
       let mechanism = options.mechanism.to_string();
       let locale    = options.locale.clone();
 
@@ -287,8 +271,7 @@ impl Channel {
 
       options.client_properties.insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-      self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_plain_auth_string(), &locale)?;
-      Ok(())
+      self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_plain_auth_string(), &locale, wait_handle).as_error()
     } else {
       error!("Invalid state: {:?}", state);
       self.connection.set_error()?;
@@ -299,16 +282,30 @@ impl Channel {
   fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<(), Error> {
     debug!("Server sent Connection::Tune: {:?}", method);
 
-    self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
+    let state = self.connection.status.state();
+    if let ConnectionState::SentStartOk(wait_handle) = state {
+      self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
 
-    self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat())?;
-    self.connection_open(&self.connection.status.vhost())?;
-    Ok(())
+      self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat()).as_error()?;
+      self.connection_open(&self.connection.status.vhost(), wait_handle).as_error()
+    } else {
+      error!("Invalid state: {:?}", state);
+      self.connection.set_error()?;
+      Err(ErrorKind::InvalidConnectionState(state).into())
+    }
   }
 
   fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<(), Error> {
-    self.connection.status.set_state(ConnectionState::Connected);
-    Ok(())
+    let state = self.connection.status.state();
+    if let ConnectionState::SentOpen(wait_handle) = state {
+      self.connection.status.set_state(ConnectionState::Connected);
+      wait_handle.finish(self.connection.clone());
+      Ok(())
+    } else {
+      error!("Invalid state: {:?}", state);
+      self.connection.set_error()?;
+      Err(ErrorKind::InvalidConnectionState(state).into())
+    }
   }
 
   fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<(), Error> {
@@ -317,8 +314,7 @@ impl Channel {
     } else {
       info!("Connection closed on channel {}: {:?}", self.id, method);
     }
-    self.connection_close_ok()?;
-    Ok(())
+    self.connection_close_ok().as_error()
   }
 
   fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
@@ -342,12 +338,12 @@ impl Channel {
 
   fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<(), Error> {
     self.status.set_send_flow(method.active);
-    self.channel_flow_ok(ChannelFlowOkOptions {active: method.active}).map(|_| ())
+    self.channel_flow_ok(ChannelFlowOkOptions {active: method.active}).as_error()
   }
 
-  fn on_channel_flow_ok_received(&self, _: protocol::channel::FlowOk) -> Result<(), Error> {
+  fn on_channel_flow_ok_received(&self, method: protocol::channel::FlowOk, wait_handle: WaitHandle<Boolean>) -> Result<(), Error> {
     // Nothing to do here, the server just confirmed that we paused/resumed the receiving flow
-    // FIXME: return method.active?
+    wait_handle.finish(method.active);
     Ok(())
   }
 
@@ -357,43 +353,41 @@ impl Channel {
     } else {
       info!("Channel {} closed: {:?}", self.id, method);
     }
-    self.channel_close_ok()?;
-    Ok(())
+    self.channel_close_ok().as_error()
   }
 
   fn on_channel_close_ok_received(&self) -> Result<(), Error> {
     self.set_closed()
   }
 
-  fn on_queue_delete_ok_received(&self, _method: protocol::queue::DeleteOk, queue: ShortString) -> Result<(), Error> {
-    //FIXME: use messages_count
+  fn on_queue_delete_ok_received(&self, method: protocol::queue::DeleteOk, wait_handle: WaitHandle<LongUInt>, queue: ShortString) -> Result<(), Error> {
     self.queues.deregister(queue.as_str());
+    wait_handle.finish(method.message_count);
     Ok(())
   }
 
-  fn on_queue_purge_ok_received(&self, _method: protocol::queue::PurgeOk) -> Result<(), Error> {
-    //FIXME: use messages_count
+  fn on_queue_purge_ok_received(&self, method: protocol::queue::PurgeOk, wait_handle: WaitHandle<LongUInt>) -> Result<(), Error> {
+    wait_handle.finish(method.message_count);
     Ok(())
   }
 
-  fn on_queue_declare_ok_received(&self, method: protocol::queue::DeclareOk, request_id: RequestId) -> Result<(), Error> {
-    if request_id != 0 {
-      self.generated_names.register(request_id, method.queue.clone());
-    }
-    self.queues.register(Queue::new(method.queue, method.message_count, method.consumer_count));
+  fn on_queue_declare_ok_received(&self, method: protocol::queue::DeclareOk, wait_handle: WaitHandle<Queue>) -> Result<(), Error> {
+    let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
+    wait_handle.finish(queue.clone());
+    self.queues.register(queue.into());
     Ok(())
   }
 
-  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, request_id: RequestId, queue: ShortString) -> Result<(), Error> {
-    self.queues.start_basic_get_delivery(queue.as_str(), BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count));
-    self.status.set_state(ChannelState::WillReceiveContent(Some(queue), Either::Left(request_id)));
+  fn on_basic_get_ok_received(&self, method: protocol::basic::GetOk, wait_handle: WaitHandle<Option<BasicGetMessage>>, queue: ShortString) -> Result<(), Error> {
+    self.queues.start_basic_get_delivery(queue.as_str(), BasicGetMessage::new(method.delivery_tag, method.exchange, method.routing_key, method.redelivered, method.message_count), wait_handle);
+    self.status.set_state(ChannelState::WillReceiveContent(Some(queue), None));
     Ok(())
   }
 
   fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<(), Error> {
     match self.connection.next_expected_reply(self.id) {
-      Some(Reply::AwaitingBasicGetOk(request_id, _)) => {
-        self.requests.finish(request_id, false);
+      Some(Reply::AwaitingBasicGetOk(wait_handle, _)) => {
+        wait_handle.finish(None);
         Ok(())
       },
       _ => {
@@ -404,17 +398,15 @@ impl Channel {
   }
 
   #[allow(clippy::too_many_arguments)]
-  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, request_id: RequestId, queue: ShortString, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
-    if request_id != 0 {
-      self.generated_names.register(request_id, method.consumer_tag.clone());
-    }
+  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, wait_handle: WaitHandle<ShortString>, queue: ShortString, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
+    wait_handle.finish(method.consumer_tag.clone());
     self.queues.register_consumer(queue.as_str(), method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, subscriber));
     Ok(())
   }
 
   fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<(), Error> {
     if let Some(queue_name) = self.queues.start_consumer_delivery(method.consumer_tag.as_str(), Delivery::new(method.delivery_tag, method.exchange.into(), method.routing_key.into(), method.redelivered)) {
-      self.status.set_state(ChannelState::WillReceiveContent(Some(queue_name), Either::Right(method.consumer_tag)));
+      self.status.set_state(ChannelState::WillReceiveContent(Some(queue_name), Some(method.consumer_tag)));
     }
     Ok(())
   }
@@ -422,9 +414,10 @@ impl Channel {
   fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<(), Error> {
     self.queues.deregister_consumer(method.consumer_tag.as_str());
     if !method.nowait {
-      self.basic_cancel_ok(method.consumer_tag.as_str())?;
+      self.basic_cancel_ok(method.consumer_tag.as_str()).as_error()
+    } else {
+      Ok(())
     }
-    Ok(())
   }
 
   fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<(), Error> {
@@ -464,7 +457,7 @@ impl Channel {
 
   fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<(), Error> {
     self.returned_messages.start_new_delivery(BasicReturnMessage::new(method.exchange, method.routing_key, method.reply_code, method.reply_text));
-    self.status.set_state(ChannelState::WillReceiveContent(None, Either::Left(0)));
+    self.status.set_state(ChannelState::WillReceiveContent(None, None));
     Ok(())
   }
 

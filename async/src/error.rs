@@ -47,7 +47,7 @@ pub enum ErrorKind {
   #[fail(display = "Failed to parse: {}", _0)]
   ParsingError(String),
   #[fail(display = "Failed to serialise: {:?}", _0)]
-  SerialisationError(/* FIXME: #[fail(cause)]*/ GenError),
+  SerialisationError(#[fail(cause)] GenError),
   #[fail(display = "no new message")]
   NoNewMessage,
   #[fail(display = "IO error: {:?}", _0)]

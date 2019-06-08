@@ -2,17 +2,19 @@ use futures::{Async, Poll, Stream, task};
 use lapin_async::consumer::ConsumerSubscriber;
 use log::trace;
 use parking_lot::Mutex;
-use tokio_io::{AsyncRead, AsyncWrite};
 
-use std::collections::VecDeque;
-use std::sync::Arc;
+use std::{
+  collections::VecDeque,
+  sync::Arc,
+};
 
-use crate::error::Error;
-use crate::message::Delivery;
-use crate::transport::*;
-use crate::types::ShortString;
+use crate::{
+  error::Error,
+  message::Delivery,
+  types::ShortString,
+};
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct ConsumerSub {
   inner: Arc<Mutex<ConsumerInner>>,
 }
@@ -36,12 +38,12 @@ impl ConsumerSubscriber for ConsumerSub {
     let mut inner = self.inner.lock();
     inner.deliveries.clear();
     inner.canceled = true;
+    inner.task.take();
   }
 }
 
 #[derive(Clone)]
-pub struct Consumer<T> {
-  transport:    Arc<Mutex<AMQPTransport<T>>>,
+pub struct Consumer {
   inner:        Arc<Mutex<ConsumerInner>>,
   channel_id:   u16,
   queue:        ShortString,
@@ -65,10 +67,9 @@ impl Default for ConsumerInner {
   }
 }
 
-impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
-  pub fn new(transport: Arc<Mutex<AMQPTransport<T>>>, channel_id: u16, queue: ShortString, consumer_tag: ShortString) -> Consumer<T> {
+impl Consumer {
+  pub fn new(channel_id: u16, queue: ShortString, consumer_tag: ShortString) -> Consumer {
     Consumer {
-      transport,
       inner: Arc::new(Mutex::new(ConsumerInner::default())),
       channel_id,
       queue,
@@ -81,26 +82,20 @@ impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Consumer<T> {
   }
 
   pub fn subscriber(&self) -> ConsumerSub {
-    ConsumerSub {
-      inner: self.inner.clone(),
-    }
+    ConsumerSub { inner: self.inner.clone() }
   }
 }
 
-impl<T: AsyncRead+AsyncWrite+Sync+Send+'static> Stream for Consumer<T> {
+impl Stream for Consumer {
   type Item = Delivery;
   type Error = Error;
 
   fn poll(&mut self) -> Poll<Option<Delivery>, Error> {
     trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
-    let mut transport = self.transport.lock();
-    transport.poll()?;
     let mut inner = self.inner.lock();
     trace!("consumer poll; consumer_tag={:?} acquired inner lock", self.consumer_tag);
     if inner.task.is_none() {
-      let task = task::current();
-      task.notify();
-      inner.task = Some(task);
+      inner.task = Some(task::current());
     }
     if let Some(delivery) = inner.deliveries.pop_front() {
       trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, delivery.delivery_tag);

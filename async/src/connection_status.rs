@@ -3,8 +3,10 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 use crate::{
+  connection::Connection,
   connection_properties::ConnectionProperties,
   credentials::Credentials,
+  wait::WaitHandle,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -19,10 +21,6 @@ impl ConnectionStatus {
 
   pub fn set_state(&self, state: ConnectionState) {
     self.inner.write().state = state
-  }
-
-  pub fn set_connecting_state(&self, state: ConnectingState) {
-    self.set_state(ConnectionState::Connecting(state))
   }
 
   pub fn set_vhost(&self, vhost: &str) {
@@ -50,27 +48,37 @@ impl ConnectionStatus {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ConnectionState {
   Initial,
-  Connecting(ConnectingState),
+  SentProtocolHeader(WaitHandle<Connection>, Credentials, ConnectionProperties),
+  SentStartOk(WaitHandle<Connection>),
+  SentOpen(WaitHandle<Connection>),
   Connected,
   Closing,
   Closed,
   Error,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum ConnectingState {
-  Initial,
-  SentProtocolHeader(Credentials, ConnectionProperties),
-  SentStartOk,
-  SentOpen,
-}
-
 impl Default for ConnectionState {
   fn default() -> Self {
     ConnectionState::Initial
+  }
+}
+
+impl PartialEq for ConnectionState {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (ConnectionState::Initial,                ConnectionState::Initial)                => true,
+      (ConnectionState::SentProtocolHeader(..), ConnectionState::SentProtocolHeader(..)) => true,
+      (ConnectionState::SentStartOk(_),         ConnectionState::SentStartOk(_))         => true,
+      (ConnectionState::SentOpen(_),            ConnectionState::SentOpen(_))            => true,
+      (ConnectionState::Connected,              ConnectionState::Connected)              => true,
+      (ConnectionState::Closing,                ConnectionState::Closing)                => true,
+      (ConnectionState::Closed,                 ConnectionState::Closed)                 => true,
+      (ConnectionState::Error,                  ConnectionState::Error)                  => true,
+      _                                                                                  => false,
+    }
   }
 }
 

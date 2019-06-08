@@ -1,4 +1,3 @@
-use either::Either;
 use parking_lot::Mutex;
 
 use std::{
@@ -9,19 +8,19 @@ use std::{
 use crate::{
   channel::BasicProperties,
   consumer::Consumer,
-  queue::{Queue, QueueStats},
+  queue::QueueState,
   message::{BasicGetMessage, Delivery},
-  requests::RequestId,
   types::ShortString,
+  wait::WaitHandle,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct Queues {
-  queues: Arc<Mutex<HashMap<ShortString, Queue>>>,
+  queues: Arc<Mutex<HashMap<ShortString, QueueState>>>,
 }
 
 impl Queues {
-  pub fn register(&self, queue: Queue) {
+  pub fn register(&self, queue: QueueState) {
     self.queues.lock().insert(queue.name.clone(), queue);
   }
 
@@ -49,14 +48,6 @@ impl Queues {
     }
   }
 
-  pub fn get_stats(&self, queue: &str) -> QueueStats {
-    self.queues.lock().get(queue).map(|queue| queue.stats.clone()).unwrap_or_default()
-  }
-
-  pub fn get_basic_get_message(&self, queue: &str, request_id: RequestId) -> Option<BasicGetMessage> {
-    self.queues.lock().get_mut(queue).and_then(|queue| queue.get_basic_get_message(request_id))
-  }
-
   pub fn start_consumer_delivery(&self, consumer_tag: &str, message: Delivery) -> Option<ShortString> {
     for queue in self.queues.lock().values_mut() {
       if let Some(consumer) = queue.consumers.get_mut(consumer_tag) {
@@ -67,16 +58,16 @@ impl Queues {
     None
   }
 
-  pub fn start_basic_get_delivery(&self, queue: &str, message: BasicGetMessage) {
+  pub fn start_basic_get_delivery(&self, queue: &str, message: BasicGetMessage, wait_handle: WaitHandle<Option<BasicGetMessage>>) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
-      queue.start_new_delivery(message);
+      queue.start_new_delivery(message, wait_handle);
     }
   }
 
-  pub fn handle_content_header_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, ShortString>, size: u64, properties: BasicProperties) {
+  pub fn handle_content_header_frame(&self, queue: &str, consumer_tag: Option<ShortString>, size: u64, properties: BasicProperties) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
-      match request_id_or_consumer_tag {
-        Either::Right(consumer_tag) => {
+      match consumer_tag {
+        Some(consumer_tag) => {
           if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
             consumer.set_delivery_properties(properties);
             if size == 0 {
@@ -84,20 +75,20 @@ impl Queues {
             }
           }
         },
-        Either::Left(request_id) => {
+        None               => {
           queue.set_delivery_properties(properties);
           if size == 0 {
-            queue.new_delivery_complete(request_id);
+            queue.new_delivery_complete();
           }
         },
       }
     }
   }
 
-  pub fn handle_body_frame(&self, queue: &str, request_id_or_consumer_tag: Either<RequestId, ShortString>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
+  pub fn handle_body_frame(&self, queue: &str, consumer_tag: Option<ShortString>, remaining_size: usize, payload_size: usize, payload: Vec<u8>) {
     if let Some(queue) = self.queues.lock().get_mut(queue) {
-      match request_id_or_consumer_tag {
-        Either::Right(consumer_tag) => {
+      match consumer_tag {
+        Some(consumer_tag) => {
           if let Some(consumer) = queue.consumers.get_mut(&consumer_tag) {
             consumer.receive_delivery_content(payload);
             if remaining_size == payload_size {
@@ -105,10 +96,10 @@ impl Queues {
             }
           }
         },
-        Either::Left(request_id) => {
+        None               => {
           queue.receive_delivery_content(payload);
           if remaining_size == payload_size {
-            queue.new_delivery_complete(request_id);
+            queue.new_delivery_complete();
           }
         },
       }

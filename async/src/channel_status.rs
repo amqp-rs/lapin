@@ -1,12 +1,8 @@
-use either::Either;
 use parking_lot::RwLock;
 
 use std::sync::Arc;
 
-use crate::{
-  requests::RequestId,
-  types::ShortString,
-};
+use crate::types::ShortString;
 
 #[derive(Clone, Debug, Default)]
 pub struct ChannelStatus {
@@ -51,8 +47,8 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(Option<ShortString>, Either<RequestId, ShortString>),
-    ReceivingContent(Option<ShortString>, Either<RequestId, ShortString>, usize),
+    WillReceiveContent(Option<ShortString>, Option<ShortString>),
+    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
 }
 
 impl Default for ChannelState {

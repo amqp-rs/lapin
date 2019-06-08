@@ -11,14 +11,17 @@ use std::io;
 use crate::{
   channel::{Channel, Reply},
   channels::Channels,
+  confirmation::Confirmation,
   configuration::Configuration,
   connection_properties::ConnectionProperties,
-  connection_status::{ConnectionStatus, ConnectionState, ConnectingState},
+  connection_status::{ConnectionStatus, ConnectionState},
   credentials::Credentials,
   error::{Error, ErrorKind},
   frames::{Frames, Priority, SendId},
   io_loop::IoLoop,
   registration::Registration,
+  tcp::AMQPUriTcpExt,
+  wait::Wait,
 };
 
 #[derive(Clone, Debug)]
@@ -64,28 +67,9 @@ impl Connection {
     self.channels.create(self.clone())
   }
 
-  /// starts the process of connecting to the server
-  ///
-  /// this will set up the state machine and generates the required messages.
-  /// The messages will not be sent until calls to `serialize`
-  /// to write the messages to a buffer, or calls to `next_frame`
-  /// to obtain the next message to send
-  pub fn connect(&self, credentials: Credentials, options: ConnectionProperties) -> Result<(), Error> {
-    let state = self.status.state();
-    if state == ConnectionState::Initial {
-      self.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
-      self.status.set_connecting_state(ConnectingState::SentProtocolHeader(credentials, options));
-      Ok(())
-    } else {
-      self.set_error()?;
-      Err(ErrorKind::InvalidConnectionState(state).into())
-    }
-  }
-
-  pub fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Connection, IoLoop<TcpStream>), Error> + 'static {
+  fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
     move |stream, uri| {
       let conn = Connection::default();
-      conn.connect(credentials, options)?;
       if let Some(frame_max) = uri.query.frame_max {
         conn.configuration.set_frame_max(frame_max);
       }
@@ -95,8 +79,12 @@ impl Connection {
       if let Some(heartbeat) = uri.query.heartbeat {
         conn.configuration.set_heartbeat(heartbeat);
       }
+      conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
+      let (wait, wait_handle) = Wait::new();
+      conn.status.set_state(ConnectionState::SentProtocolHeader(wait_handle, credentials, options));
       let io_loop = IoLoop::new(conn.clone(), stream)?;
-      Ok((conn, io_loop))
+      // FIXME: how do we bubble errors up during connection?
+      Ok((wait, io_loop))
     }
   }
 
@@ -109,7 +97,7 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<SendId, Error> {
+  pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.set_readable()?;
     Ok(self.frames.push(channel_id, priority, frame, expected_reply))
   }
@@ -167,12 +155,13 @@ impl Connection {
     !self.frames.is_empty()
   }
 
-  pub fn wait_for_sending(&self, send_id: SendId) {
-    while self.frames.is_pending(send_id) {}
-  }
-
   pub fn mark_sent(&self, send_id: SendId) {
     self.frames.mark_sent(send_id);
+  }
+
+  pub fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
+    self.frames.clear_expected_replies(channel_id);
+    self.channels.remove(channel_id)
   }
 
   pub fn set_closing(&self) {
@@ -192,6 +181,33 @@ impl Connection {
   }
 }
 
+/// Trait providing a method to connect to an AMQP server
+pub trait Connect {
+  /// connect to an AMQP server
+  fn connect(self, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> where Self: Sized {
+    self.connect_raw(credentials, options).into()
+  }
+
+  /// connect to an AMQP server, for internal use
+  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error>;
+}
+
+impl Connect for AMQPUri {
+  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
+    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(credentials, options)).map_err(ErrorKind::IOError)??;
+    io_loop.run()?;
+    Ok(conn)
+  }
+}
+
+impl Connect for &str {
+  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
+    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(credentials, options)).map_err(ErrorKind::IOError)??;
+    io_loop.run()?;
+    Ok(conn)
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use env_logger;
@@ -204,7 +220,6 @@ mod tests {
   use crate::types::ShortString;
   use amq_protocol::protocol::{basic, AMQPClass};
   use amq_protocol::frame::AMQPContentHeader;
-  use either::Either;
 
   #[derive(Clone,Debug,PartialEq)]
   struct DummySubscriber;
@@ -220,7 +235,7 @@ mod tests {
     let _ = env_logger::try_init();
 
     use crate::consumer::Consumer;
-    use crate::queue::Queue;
+    use crate::queue::{Queue, QueueState};
 
     // Bootstrap connection state to a consuming state
     let conn = Connection::default();
@@ -229,7 +244,7 @@ mod tests {
     let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
-    let mut queue = Queue::new(queue_name.clone(), 0, 0);
+    let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
@@ -256,7 +271,7 @@ mod tests {
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         Some(queue_name.clone()),
-        Either::Right(consumer_tag.clone())
+        Some(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);
     }
@@ -273,7 +288,7 @@ mod tests {
       );
       conn.handle_frame(header_frame).unwrap();
       let channel_state = channel.status.state();
-      let expected_state = ChannelState::ReceivingContent(Some(queue_name.clone()), Either::Right(consumer_tag.clone()), 2);
+      let expected_state = ChannelState::ReceivingContent(Some(queue_name.clone()), Some(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
     }
     {
@@ -290,7 +305,7 @@ mod tests {
     let _ = env_logger::try_init();
 
     use crate::consumer::Consumer;
-    use crate::queue::Queue;
+    use crate::queue::{Queue, QueueState};
 
     // Bootstrap connection state to a consuming state
     let conn = Connection::default();
@@ -299,7 +314,7 @@ mod tests {
     let channel = conn.create_channel().unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
-    let mut queue = Queue::new(queue_name.clone(), 0, 0);
+    let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
     queue.consumers.insert(consumer_tag.clone(), consumer);
@@ -326,7 +341,7 @@ mod tests {
       let channel_state = channel.status.state();
       let expected_state = ChannelState::WillReceiveContent(
         Some(queue_name.clone()),
-        Either::Right(consumer_tag.clone())
+        Some(consumer_tag.clone())
       );
       assert_eq!(channel_state, expected_state);
     }

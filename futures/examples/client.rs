@@ -3,31 +3,25 @@
 
 use env_logger;
 use failure::Error;
-use futures::{future::Future, Stream};
+use futures::{Future, Stream};
 use lapin_futures as lapin;
-use crate::lapin::channel::{BasicConsumeOptions, BasicGetOptions, BasicPublishOptions, BasicProperties, ConfirmSelectOptions, ExchangeBindOptions, ExchangeUnbindOptions, ExchangeDeclareOptions, ExchangeDeleteOptions, QueueBindOptions, QueueDeclareOptions};
-use crate::lapin::client::ConnectionOptions;
+use crate::lapin::client::Client;
+use lapin_async::credentials::Credentials;
+use lapin_async::connection_properties::ConnectionProperties;
+use crate::lapin::channel::{BasicConsumeOptions, BasicGetOptions, BasicPublishOptions, BasicProperties, ExchangeBindOptions, ExchangeUnbindOptions, ExchangeDeclareOptions, ExchangeDeleteOptions, QueueBindOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::{debug, info};
 use tokio;
-use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 
 fn main() {
   env_logger::init();
 
-  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
   Runtime::new().unwrap().block_on_all(
-    TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
-      lapin::client::Client::connect(stream, ConnectionOptions {
-        frame_max: 65535,
-        ..Default::default()
-      }).map_err(Error::from)
-    }).and_then(|(client, heartbeat)| {
-      tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
-
-      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|channel| {
+    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+      client.create_channel().and_then(|channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
 
@@ -42,9 +36,7 @@ fn main() {
                 b"hello from tokio".to_vec(),
                 BasicPublishOptions::default(),
                 BasicProperties::default().with_user_id("guest".into()).with_reply_to("foobar".into())
-              ).map(|confirmation| {
-                info!("publish got confirmation: {:?}", confirmation)
-              }).and_then(move |_| {
+              ).and_then(move |_| {
                 channel.exchange_bind("hello_exchange", "amq.direct", "test_bind", ExchangeBindOptions::default(), FieldTable::default()).and_then(move |_| {
                     channel.exchange_unbind("hello_exchange", "amq.direct", "test_bind", ExchangeUnbindOptions::default(), FieldTable::default()).and_then(move |_| {
                         channel.exchange_delete("hello_exchange", ExchangeDeleteOptions::default()).and_then(move |_| {
@@ -69,6 +61,7 @@ fn main() {
           let ch = channel.clone();
           channel.basic_get("hello", BasicGetOptions::default()).and_then(move |message| {
             info!("got message: {:?}", message);
+            let message = message.unwrap();
             info!("decoded message: {:?}", std::str::from_utf8(&message.delivery.data).unwrap());
             channel.basic_ack(message.delivery.delivery_tag, false)
           }).and_then(move |_| {

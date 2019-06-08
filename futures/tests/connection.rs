@@ -3,26 +3,24 @@
 
 use env_logger;
 use failure::Error;
-use futures::{future::Future, Stream};
+use futures::{Future, Stream};
 use lapin_futures as lapin;
+use crate::lapin::client::Client;
 use crate::lapin::channel::{BasicConsumeOptions,BasicPublishOptions,BasicQosOptions,BasicProperties,QueueDeclareOptions,QueueDeleteOptions,QueuePurgeOptions};
-use crate::lapin::client::ConnectionOptions;
+use lapin_async::credentials::Credentials;
+use lapin_async::connection_properties::ConnectionProperties;
 use crate::lapin::types::FieldTable;
 use log::info;
-use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 
 #[test]
 fn connection() {
   let _ = env_logger::try_init();
 
-  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
   Runtime::new().unwrap().block_on_all(
-    TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
-      lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
-    }).and_then(|(client, _)| {
-
+    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
       client.create_channel().and_then(|channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);

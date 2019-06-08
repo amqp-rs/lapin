@@ -30,7 +30,7 @@ pub enum Reply {
   {{#each class.methods as |method| ~}}
   {{#if method.c2s ~}}
   {{#if method.synchronous ~}}
-  Awaiting{{camel class.name}}{{camel method.name}}Ok(RequestId{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
+  Awaiting{{camel class.name}}{{camel method.name}}Ok(WaitHandle<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
   {{/if ~}}
   {{/if ~}}
   {{/each ~}}
@@ -60,13 +60,13 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Result<Option<{{#if method.metadata.end_hook.return_type ~}}{{method.metadata.end_hook.return_type}}{{else}}RequestId{{/if ~}}>, Error> {
+  pub fn {{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Confirmation<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
     if !self.status.is_connected() {
     {{/if ~}}
-      return Err(ErrorKind::NotConnected.into());
+      return Confirmation::new_error(ErrorKind::NotConnected.into());
     }
 
     {{#unless method.ignore_args ~}}
@@ -101,46 +101,38 @@ impl Channel {
       {{/each_argument ~}}
     }));
 
-    let (request_id, expected_reply): (Option<RequestId>, Option<Reply>) = {
-      {{#if method.synchronous ~}}
-      let request_id = self.request_id.next();
-      (Some(request_id), Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}})))
-      {{ else }}
-      (None, None)
-      {{/if ~}}
-    };
-
-    self.send_method_frame(Priority::{{#if method.metadata.priority ~}}{{method.metadata.priority}}{{else}}NORMAL{{/if ~}}, method, expected_reply)?;
-
+    {{#if method.synchronous ~}}
+    let (wait, {{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle) = Wait::new();
+    {{/if ~}}
+    let send_res = self.send_method_frame(Priority::{{#if method.metadata.priority ~}}{{method.metadata.priority}}{{else}}NORMAL{{/if ~}}, method, {{#if method.synchronous ~}}Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle{{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}})){{else}}None{{/if ~}});
+    if let Err(err) = send_res {
+      return Confirmation::new_error(err);
+    }
     {{#if method.metadata.end_hook ~}}
-    {{#if method.metadata.end_hook.return_type ~}}let end_hook_ret = {{/if ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})?;
+    let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+    if let Err(err) = end_hook_res {
+      return Confirmation::new_error(err);
+    }
     {{/if ~}}
 
-    Ok(
-      {{#if method.synchronous ~}}
-      {
-        {{#if (method_has_flag method "nowait") ~}}
-        if nowait {
-          {{#if method.metadata.nowait_hook ~}}
-          #[allow(clippy::needless_update)]
-          self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() })?;
-          {{/if ~}}
-          None
-        } else {{/if ~}}{
-          request_id
-        }
+    {{#if method.synchronous ~}}
+    {{#if (method_has_flag method "nowait") ~}}
+    if nowait {
+      {{#if method.metadata.nowait_hook ~}}
+      if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }) {
+        return Confirmation::new_error(err);
       }
-      {{else}}
-      {{#if method.metadata.end_hook.return_type ~}}
-      {
-        let _ = request_id;
-        end_hook_ret
-      }
-      {{else}}
-      request_id
       {{/if ~}}
-      {{/if ~}}
-    )
+    }
+    {{/if ~}}
+    Confirmation::new(wait)
+    {{else}}
+    {{#if method.metadata.end_hook.use_for_confirmation ~}}
+    Confirmation::new(end_hook_res.unwrap())
+    {{else}}
+    Confirmation::new(send_res.unwrap())
+    {{/if ~}}
+    {{/if ~}}
   }
   {{/if ~}}
 
@@ -156,10 +148,12 @@ impl Channel {
     }
 
     match self.connection.next_expected_reply(self.id) {
-      Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}(request_id{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
-        self.requests.finish(request_id, true);
+      Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}(wait_handle{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+        {{#unless method.metadata.confirmation.type ~}}
+        wait_handle.finish(Default::default());
+        {{/unless ~}}
         {{#if method.arguments ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.uses_request_id ~}}, request_id{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, wait_handle{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
         {{else}}
         {{#if method.metadata.received_hook ~}}
         self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})

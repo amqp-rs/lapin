@@ -20,29 +20,25 @@
 //! ```rust,no_run
 //! use env_logger;
 //! use failure::Error;
+//! use futures::future;
 //! use futures::future::Future;
+//! use lapin_async::credentials::Credentials;
+//! use lapin_async::connection_properties::ConnectionProperties;
 //! use lapin_futures as lapin;
 //! use crate::lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
-//! use crate::lapin::client::ConnectionOptions;
+//! use crate::lapin::client::Client;
 //! use crate::lapin::types::FieldTable;
 //! use log::info;
 //! use tokio;
-//! use tokio::net::TcpStream;
 //! use tokio::runtime::Runtime;
 //!
 //! fn main() {
 //!   env_logger::init();
 //!
-//!   let addr = "127.0.0.1:5672".parse().unwrap();
+//!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
-//!
-//!       // connect() returns a future of an AMQP Client
-//!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
-//!    }).and_then(|(client, _ /* heartbeat */)| {
-//!
+//!    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
@@ -68,34 +64,24 @@
 //! ```rust,no_run
 //! use env_logger;
 //! use failure::Error;
-//! use futures::{future::Future, Stream};
+//! use futures::{future, Future, Stream};
+//! use lapin_async::credentials::Credentials;
+//! use lapin_async::connection_properties::ConnectionProperties;
 //! use lapin_futures as lapin;
-//! use crate::lapin::client::ConnectionOptions;
+//! use crate::lapin::client::Client;
 //! use crate::lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
 //! use tokio;
-//! use tokio::net::TcpStream;
 //! use tokio::runtime::Runtime;
 //!
 //! fn main() {
 //!   env_logger::init();
 //!
-//!   let addr = "127.0.0.1:5672".parse().unwrap();
+//!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!     TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
-//!
-//!       // connect() returns a future of an AMQP Client
-//!       // that resolves once the handshake is done
-//!       lapin::client::Client::connect(stream, ConnectionOptions::default()).map_err(Error::from)
-//!    }).and_then(|(client, heartbeat)| {
-//!      // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
-//!      // dispatching events on time.
-//!      // If we ran it as part of the "main" chain of futures, we might end up not sending
-//!      // some heartbeats if we don't poll often enough (because of some blocking task or such).
-//!      tokio::spawn(heartbeat.map_err(|_| ()));
-//!
+//!    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
@@ -127,10 +113,11 @@
 
 pub mod channel;
 pub mod client;
+pub mod confirmation;
 pub mod consumer;
 pub mod error;
 pub mod message;
-pub mod queue;
-pub mod transport;
 pub mod types;
 pub mod uri;
+
+pub use client::Connect;

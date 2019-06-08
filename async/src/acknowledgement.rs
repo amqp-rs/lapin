@@ -1,11 +1,15 @@
 use parking_lot::Mutex;
 
 use std::{
-  collections::HashSet,
+  collections::{HashMap, HashSet},
   sync::Arc,
 };
 
-use crate::error::{Error, ErrorKind};
+use crate::{
+  error::{Error, ErrorKind},
+  types::Boolean,
+  wait::{Wait, WaitHandle},
+};
 
 pub type DeliveryTag = u64;
 
@@ -15,8 +19,10 @@ pub struct Acknowledgements {
 }
 
 impl Acknowledgements {
-  pub fn register_pending(&self, delivery_tag: DeliveryTag) {
-    self.inner.lock().pending.insert(delivery_tag);
+  pub fn register_pending(&self, delivery_tag: DeliveryTag) -> Wait<Option<Boolean>> {
+    let (wait, wait_handle) = Wait::new();
+    self.inner.lock().pending.insert(delivery_tag, wait_handle);
+    wait
   }
 
   pub fn ack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
@@ -29,15 +35,15 @@ impl Acknowledgements {
 
   pub fn ack_all_pending(&self) {
     let mut inner = self.inner.lock();
-    for tag in inner.drain_pending() {
-      inner.acked.insert(tag);
+    for wait in inner.drain_pending() {
+      wait.finish(Some(true));
     }
   }
 
   pub fn nack_all_pending(&self) {
     let mut inner = self.inner.lock();
-    for tag in inner.drain_pending() {
-      inner.nacked.insert(tag);
+    for wait in inner.drain_pending() {
+      wait.finish(Some(false));
     }
   }
 
@@ -56,26 +62,17 @@ impl Acknowledgements {
     }
     Ok(())
   }
-
-  pub fn is_acked(&self, delivery_tag: DeliveryTag) -> bool {
-    self.inner.lock().acked.remove(&delivery_tag)
-  }
-
-  pub fn is_nacked(&self, delivery_tag: DeliveryTag) -> bool {
-    self.inner.lock().nacked.remove(&delivery_tag)
-  }
 }
 
 #[derive(Debug, Default)]
 struct Inner {
-  pending: HashSet<DeliveryTag>,
-  acked:   HashSet<DeliveryTag>,
-  nacked:  HashSet<DeliveryTag>,
+  pending: HashMap<DeliveryTag, WaitHandle<Option<bool>>>,
 }
 
 impl Inner {
-  fn drop_pending(&mut self, delivery_tag: DeliveryTag) -> Result<(), Error> {
-    if self.pending.remove(&delivery_tag) {
+  fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<(), Error> {
+    if let Some(delivery_wait) =  self.pending.remove(&delivery_tag) {
+      delivery_wait.finish(Some(success));
       Ok(())
     } else {
       Err(ErrorKind::PreconditionFailed.into())
@@ -83,22 +80,20 @@ impl Inner {
   }
 
   fn ack(&mut self, delivery_tag: DeliveryTag) -> Result<(), Error> {
-    self.drop_pending(delivery_tag)?;
-    self.acked.insert(delivery_tag);
+    self.drop_pending(delivery_tag, true)?;
     Ok(())
   }
 
   fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<(), Error> {
-    self.drop_pending(delivery_tag)?;
-    self.nacked.insert(delivery_tag);
+    self.drop_pending(delivery_tag, false)?;
     Ok(())
   }
 
-  fn drain_pending(&mut self) -> HashSet<DeliveryTag> {
-    self.pending.drain().collect()
+  fn drain_pending(&mut self) -> Vec<WaitHandle<Option<bool>>> {
+    self.pending.drain().map(|tup| tup.1).collect()
   }
 
   fn list_pending_before(&mut self, delivery_tag: DeliveryTag) -> HashSet<DeliveryTag> {
-    self.pending.iter().filter(|tag| **tag <= delivery_tag).cloned().collect()
+    self.pending.iter().map(|tup| tup.0).filter(|tag| **tag <= delivery_tag).cloned().collect()
   }
 }

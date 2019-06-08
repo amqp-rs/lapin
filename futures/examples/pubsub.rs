@@ -3,32 +3,25 @@
 
 use env_logger;
 use failure::Error;
-use futures::{future::Future, Stream};
+use futures::{Future, Stream};
+use lapin_async::connection_properties::ConnectionProperties;
+use lapin_async::credentials::Credentials;
 use lapin_futures as lapin;
-use crate::lapin::channel::{BasicConsumeOptions, BasicPublishOptions, BasicProperties, ConfirmSelectOptions, QueueDeclareOptions};
-use crate::lapin::client::ConnectionOptions;
+use crate::lapin::client::Client;
+use crate::lapin::channel::{BasicConsumeOptions, BasicPublishOptions, BasicProperties, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::{debug, info};
 use tokio;
-use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 
 fn main() {
   env_logger::init();
 
-  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "127.0.0.1:5672".into()).parse().unwrap();
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
   Runtime::new().unwrap().block_on_all(
-    TcpStream::connect(&addr).map_err(Error::from).and_then(|stream| {
-      lapin::client::Client::connect(stream, ConnectionOptions {
-        frame_max: 65535,
-        ..Default::default()
-      }).map_err(Error::from)
-    }).map(|(client, heartbeat)| {
-      tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {}", e)));
-      client
-    }).and_then(|client| {
-      let publisher = client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|pub_channel| {
+    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+      let publisher = client.create_channel().and_then(|pub_channel| {
         let id = pub_channel.id();
         info!("created publisher channel with id: {}", id);
 
@@ -41,16 +34,14 @@ fn main() {
               msg,
               BasicPublishOptions::default(),
               BasicProperties::default().with_user_id("guest".into()).with_reply_to("foobar".into())
-            ).map(|confirmation| {
-              info!("publish got confirmation: {:?}", confirmation)
-            })
+            ).map(|_| ())
           })
         })
       });
 
       tokio::spawn(publisher.map_err(|_| ()));
 
-      client.create_confirm_channel(ConfirmSelectOptions::default()).and_then(|sub_channel| {
+      client.create_channel().and_then(|sub_channel| {
         let id = sub_channel.id();
         info!("created subscriber channel with id: {}", id);
 

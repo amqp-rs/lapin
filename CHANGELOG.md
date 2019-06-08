@@ -118,7 +118,7 @@
 
 * Fix bad expectation for empty payloads
 * Fix heartbeat when configured value is 0
-* Fix channel overflox when `channel_max` is low
+* Fix channel overflow when `channel_max` is low
 * **futures:**
   * Ensure tasks aren't dropped when we hit `Async::NotReady` but queued for re-poll instead
   * Correctly handle mutex poisoning
