@@ -24,6 +24,8 @@ const SOCKET:   Token = Token(0);
 const DATA:     Token = Token(1);
 const CONTINUE: Token = Token(2);
 
+const FRAMES_STORAGE: usize = 32;
+
 pub struct IoLoop<T> {
   inner: Arc<Mutex<Inner<T>>>,
 }
@@ -62,7 +64,7 @@ struct Inner<T> {
   set_readiness:  SetReadiness,
   handle:         Option<JoinHandle<Result<(), Error>>>,
   hb_handle:      Option<JoinHandle<()>>,
-  capacity:       usize,
+  frame_size:     usize,
   receive_buffer: Buffer,
   send_buffer:    Buffer,
   can_write:      bool,
@@ -84,7 +86,7 @@ impl<T> Drop for Inner<T> {
 
 impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   fn new(connection: Connection, socket: T) -> Result<Self, Error> {
-    let capacity = std::cmp::max(8192, connection.configuration.frame_max() as usize);
+    let frame_size = std::cmp::max(8192, connection.configuration.frame_max() as usize);
     let (registration, set_readiness) = Registration::new2();
     let inner = Self {
       connection,
@@ -95,9 +97,9 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       set_readiness,
       handle:         None,
       hb_handle:      None,
-      capacity,
-      receive_buffer: Buffer::with_capacity(capacity),
-      send_buffer:    Buffer::with_capacity(capacity),
+      frame_size,
+      receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
+      send_buffer:    Buffer::with_capacity(FRAMES_STORAGE * frame_size),
       can_write:      false,
       can_read:       false,
       has_data:       false,
@@ -141,9 +143,9 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   fn ensure_setup(&mut self) -> Result<(), Error> {
     if self.status != Status::Setup && self.connection.status.connected() {
       let frame_max = self.connection.configuration.frame_max() as usize;
-      self.capacity = std::cmp::max(self.capacity, frame_max);
-      self.receive_buffer.grow(256 * self.capacity);
-      self.send_buffer.grow(256 * self.capacity);
+      self.frame_size = std::cmp::max(self.frame_size, frame_max);
+      self.receive_buffer.grow(FRAMES_STORAGE * self.frame_size);
+      self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
       let heartbeat = self.connection.configuration.heartbeat();
       if heartbeat != 0 {
         trace!("io_loop: start heartbeat");
@@ -182,7 +184,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
             }
           }
         }
-        self.send_buffer.shift_unless_available(self.capacity);
+        self.send_buffer.shift_unless_available(self.frame_size);
       }
       if self.wants_to_read() {
         if let Err(e) = self.read_from_stream() {
@@ -195,7 +197,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
             }
           }
         }
-        self.receive_buffer.shift_unless_available(self.capacity);
+        self.receive_buffer.shift_unless_available(self.frame_size);
       }
       if self.can_parse() {
         self.parse()?;
