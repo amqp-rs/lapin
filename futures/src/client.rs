@@ -34,7 +34,7 @@ impl Client {
 
   /// Return a future that resolves to a `Channel` once the method succeeds
   pub fn create_channel(&self) -> impl Future<Item = Channel, Error = Error> + Send + 'static {
-    Channel::create(self.conn.clone())
+    Channel::create(&self.conn)
   }
 }
 

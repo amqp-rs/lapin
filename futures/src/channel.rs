@@ -17,15 +17,14 @@ use crate::types::*;
 /// `Channel` provides methods to act on a channel, such as managing queues
 #[derive(Clone)]
 pub struct Channel {
-  conn:  Connection,
   inner: InnerChannel,
 }
 
 impl Channel {
   /// create a channel
-  pub fn create(conn: Connection) -> impl Future<Item = Self, Error = Error> {
+  pub fn create(conn: &Connection) -> impl Future<Item = Self, Error = Error> {
     let confirmation: ConfirmationFuture<InnerChannel> = conn.create_channel().into();
-    confirmation.map(|inner| Channel { inner, conn })
+    confirmation.map(|inner| Channel { inner })
   }
 
   pub fn id(&self) -> u16 {
