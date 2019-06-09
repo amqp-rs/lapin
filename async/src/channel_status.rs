@@ -14,6 +14,10 @@ impl ChannelStatus {
     self.inner.read().state == ChannelState::Initial
   }
 
+  pub fn is_closing(&self) -> bool {
+    self.inner.read().state == ChannelState::Closing
+  }
+
   pub fn is_connected(&self) -> bool {
     !&[ChannelState::Initial, ChannelState::Closing, ChannelState::Closed, ChannelState::Error].contains(&self.inner.read().state)
   }
