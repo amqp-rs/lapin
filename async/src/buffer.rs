@@ -1,7 +1,7 @@
-use std::{cmp, io::{self, Write, Read}, ptr};
+use std::{cmp, ptr};
 
 #[derive(Debug,PartialEq,Clone)]
-pub struct Buffer {
+pub(crate) struct Buffer {
   memory:   Vec<u8>,
   capacity: usize,
   position: usize,
@@ -9,7 +9,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-  pub fn with_capacity(capacity: usize) -> Buffer {
+  pub(crate) fn with_capacity(capacity: usize) -> Buffer {
     Buffer {
       memory:   vec![0; capacity],
       capacity,
@@ -18,7 +18,7 @@ impl Buffer {
     }
   }
 
-  pub fn grow(&mut self, new_size: usize) -> bool {
+  pub(crate) fn grow(&mut self, new_size: usize) -> bool {
     if self.capacity >= new_size {
       return false;
     }
@@ -28,31 +28,31 @@ impl Buffer {
     true
   }
 
-  pub fn available_data(&self) -> usize {
+  pub(crate) fn available_data(&self) -> usize {
     self.end - self.position
   }
 
-  pub fn available_space(&self) -> usize {
+  pub(crate) fn available_space(&self) -> usize {
     self.capacity - self.end
   }
 
-  pub fn consume(&mut self, count: usize) -> usize {
+  pub(crate) fn consume(&mut self, count: usize) -> usize {
     let cnt        = cmp::min(count, self.available_data());
     self.position += cnt;
     cnt
   }
 
-  pub fn fill(&mut self, count: usize) -> usize {
+  pub(crate) fn fill(&mut self, count: usize) -> usize {
     let cnt   = cmp::min(count, self.available_space());
     self.end += cnt;
     cnt
   }
 
-  pub fn data(&self) -> &[u8] {
+  pub(crate) fn data(&self) -> &[u8] {
     &self.memory[self.position..self.end]
   }
 
-  pub fn space(&mut self) -> &mut [u8] {
+  pub(crate) fn space(&mut self) -> &mut [u8] {
     &mut self.memory[self.end..self.capacity]
   }
 
@@ -72,29 +72,6 @@ impl Buffer {
   }
 }
 
-impl Write for Buffer {
-  fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.space().write(buf).map(|size| {
-      self.fill(size);
-      size
-    })
-  }
-
-  fn flush(&mut self) -> io::Result<()> {
-    self.shift();
-    Ok(())
-  }
-}
-
-impl Read for Buffer {
-  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    let len = cmp::min(self.available_data(), buf.len());
-    buf.copy_from_slice(&self.data()[0..len]);
-    self.position += len;
-    Ok(len)
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -105,7 +82,7 @@ mod tests {
     let mut b = Buffer::with_capacity(10);
     assert_eq!(b.available_data(), 0);
     assert_eq!(b.available_space(), 10);
-    let res = b.write(&b"abcd"[..]);
+    let res = b.space().write(&b"abcd"[..]).map(|size| { b.fill(size); size });
     assert_eq!(res.ok(), Some(4));
     assert_eq!(b.available_data(), 4);
     assert_eq!(b.available_space(), 6);
@@ -122,7 +99,7 @@ mod tests {
     assert_eq!(b.available_space(), 8);
     assert_eq!(b.data(), &b"cd"[..]);
 
-    assert_eq!(b.write(&b"efghijklmnop"[..]).ok(), Some(8));
+    assert_eq!(b.space().write(&b"efghijklmnop"[..]).map(|size| { b.fill(size); size }).ok(), Some(8));
     assert_eq!(b.available_data(), 10);
     assert_eq!(b.available_space(), 0);
     assert_eq!(b.data(), &b"cdefghijkl"[..]);

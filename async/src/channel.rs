@@ -1,12 +1,8 @@
-pub use amq_protocol::protocol::{self, BasicProperties};
-
-use amq_protocol::{
-  protocol::{AMQPClass, AMQPError, AMQPSoftError},
-  frame::{AMQPContentHeader, AMQPFrame},
-};
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
 
 use crate::{
+  BasicProperties,
   acknowledgement::{Acknowledgements, DeliveryTag},
   channel_status::{ChannelStatus, ChannelState},
   confirmation::Confirmation,
@@ -17,6 +13,7 @@ use crate::{
   frames::Priority,
   id_sequence::IdSequence,
   message::{BasicGetMessage, BasicReturnMessage, Delivery},
+  protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
   queue::Queue,
   queues::Queues,
   returned_messages::ReturnedMessages,
@@ -24,19 +21,22 @@ use crate::{
   wait::{Wait, WaitHandle},
 };
 
+#[cfg(test)]
+use crate::queue::QueueState;
+
 #[derive(Clone, Debug)]
 pub struct Channel {
-      id:                u16,
-      connection:        Connection,
-  pub status:            ChannelStatus,
-  pub acknowledgements:  Acknowledgements,
-      delivery_tag:      IdSequence<DeliveryTag>,
-  pub queues:            Queues,
-      returned_messages: ReturnedMessages,
+  id:                u16,
+  connection:        Connection,
+  status:            ChannelStatus,
+  acknowledgements:  Acknowledgements,
+  delivery_tag:      IdSequence<DeliveryTag>,
+  queues:            Queues,
+  returned_messages: ReturnedMessages,
 }
 
 impl Channel {
-  pub fn new(channel_id: u16, connection: Connection) -> Channel {
+  pub(crate) fn new(channel_id: u16, connection: Connection) -> Channel {
     Channel {
       id:                channel_id,
       connection,
@@ -48,18 +48,26 @@ impl Channel {
     }
   }
 
-  pub fn set_closing(&self) {
-    self.status.set_state(ChannelState::Closing);
+  pub fn status(&self) -> &ChannelStatus {
+    &self.status
   }
 
-  pub fn set_closed(&self) -> Result<(), Error> {
-    self.status.set_state(ChannelState::Closed);
+  pub(crate) fn set_closing(&self) {
+    self.set_state(ChannelState::Closing);
+  }
+
+  pub(crate) fn set_closed(&self) -> Result<(), Error> {
+    self.set_state(ChannelState::Closed);
     self.connection.remove_channel(self.id)
   }
 
-  pub fn set_error(&self) -> Result<(), Error> {
-    self.status.set_state(ChannelState::Error);
+  pub(crate) fn set_error(&self) -> Result<(), Error> {
+    self.set_state(ChannelState::Error);
     self.connection.remove_channel(self.id)
+  }
+
+  pub(crate) fn set_state(&self, state: ChannelState) {
+    self.status.set_state(state);
   }
 
   pub fn id(&self) -> u16 {
@@ -75,13 +83,16 @@ impl Channel {
     }
   }
 
-  #[doc(hidden)]
-  pub fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  #[cfg(test)]
+  pub(crate) fn register_queue(&self, queue: QueueState) {
+    self.queues.register(queue);
+  }
+
+  pub(crate) fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
   }
 
-  #[doc(hidden)]
-  pub fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  pub(crate) fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     self.connection.send_frame(self.id, priority, frame, expected_reply)
   }
 
@@ -94,7 +105,7 @@ impl Channel {
     };
     self.send_frame(Priority::LOW, AMQPFrame::Header(self.id, class_id, Box::new(header)), None)?;
 
-    let frame_max = self.connection.configuration.frame_max();
+    let frame_max = self.connection.configuration().frame_max();
     //a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
       self.send_frame(Priority::LOW, AMQPFrame::Body(self.id, Vec::from(chunk)), None)?;
@@ -102,8 +113,7 @@ impl Channel {
     Ok(())
   }
 
-  #[doc(hidden)]
-  pub fn handle_content_header_frame(&self, size: u64, properties: BasicProperties) -> Result<(), Error> {
+  pub(crate) fn handle_content_header_frame(&self, size: u64, properties: BasicProperties) -> Result<(), Error> {
     if let ChannelState::WillReceiveContent(queue_name, request_id_or_consumer_tag) = self.status.state() {
       if size > 0 {
         self.status.set_state(ChannelState::ReceivingContent(queue_name.clone(), request_id_or_consumer_tag.clone(), size as usize));
@@ -124,8 +134,7 @@ impl Channel {
     }
   }
 
-  #[doc(hidden)]
-  pub fn handle_body_frame(&self, payload: Vec<u8>) -> Result<(), Error> {
+  pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<(), Error> {
     let payload_size = payload.len();
 
     if let ChannelState::ReceivingContent(queue_name, request_id_or_consumer_tag, remaining_size) = self.status.state() {
@@ -159,12 +168,12 @@ impl Channel {
   }
 
   fn on_connection_start_ok_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
-    self.connection.status.set_state(ConnectionState::SentStartOk(wait_handle));
+    self.connection.set_state(ConnectionState::SentStartOk(wait_handle));
     Ok(())
   }
 
   fn on_connection_open_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
-    self.connection.status.set_state(ConnectionState::SentOpen(wait_handle));
+    self.connection.set_state(ConnectionState::SentOpen(wait_handle));
     Ok(())
   }
 
@@ -218,36 +227,36 @@ impl Channel {
   fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
     // If we disable the heartbeat (0) but the server don't, follow him and enable it too
     // If both us and the server want heartbeat enabled, pick the lowest value.
-    if self.connection.configuration.heartbeat() == 0 || heartbeat != 0 && heartbeat < self.connection.configuration.heartbeat() {
-      self.connection.configuration.set_heartbeat(heartbeat);
+    if self.connection.configuration().heartbeat() == 0 || heartbeat != 0 && heartbeat < self.connection.configuration().heartbeat() {
+      self.connection.configuration().set_heartbeat(heartbeat);
     }
 
     if channel_max != 0 {
       // 0 means we want to take the server's value
       // If both us and the server specified a channel_max, pick the lowest value.
-      if self.connection.configuration.channel_max() == 0 || channel_max < self.connection.configuration.channel_max() {
-        self.connection.configuration.set_channel_max(channel_max);
+      if self.connection.configuration().channel_max() == 0 || channel_max < self.connection.configuration().channel_max() {
+        self.connection.configuration().set_channel_max(channel_max);
       }
     }
-    if self.connection.configuration.channel_max() == 0 {
-      self.connection.configuration.set_channel_max(u16::max_value());
+    if self.connection.configuration().channel_max() == 0 {
+      self.connection.configuration().set_channel_max(u16::max_value());
     }
 
     if frame_max != 0 {
       // 0 means we want to take the server's value
       // If both us and the server specified a frame_max, pick the lowest value.
-      if self.connection.configuration.frame_max() == 0 || frame_max < self.connection.configuration.frame_max() {
-        self.connection.configuration.set_frame_max(frame_max);
+      if self.connection.configuration().frame_max() == 0 || frame_max < self.connection.configuration().frame_max() {
+        self.connection.configuration().set_frame_max(frame_max);
       }
     }
-    if self.connection.configuration.frame_max() == 0 {
-      self.connection.configuration.set_frame_max(u32::max_value());
+    if self.connection.configuration().frame_max() == 0 {
+      self.connection.configuration().set_frame_max(u32::max_value());
     }
   }
 
   fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<(), Error> {
     trace!("Server sent connection::Start: {:?}", method);
-    let state = self.connection.status.state();
+    let state = self.connection.status().state();
     if let ConnectionState::SentProtocolHeader(wait_handle, credentials, mut options) = state {
       let mechanism = options.mechanism.to_string();
       let locale    = options.locale.clone();
@@ -287,12 +296,12 @@ impl Channel {
   fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<(), Error> {
     debug!("Server sent Connection::Tune: {:?}", method);
 
-    let state = self.connection.status.state();
+    let state = self.connection.status().state();
     if let ConnectionState::SentStartOk(wait_handle) = state {
       self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
 
-      self.connection_tune_ok(self.connection.configuration.channel_max(), self.connection.configuration.frame_max(), self.connection.configuration.heartbeat()).as_error()?;
-      self.connection_open(&self.connection.status.vhost(), wait_handle).as_error()
+      self.connection_tune_ok(self.connection.configuration().channel_max(), self.connection.configuration().frame_max(), self.connection.configuration().heartbeat()).as_error()?;
+      self.connection_open(&self.connection.status().vhost(), wait_handle).as_error()
     } else {
       error!("Invalid state: {:?}", state);
       self.connection.set_error()?;
@@ -301,9 +310,9 @@ impl Channel {
   }
 
   fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<(), Error> {
-    let state = self.connection.status.state();
+    let state = self.connection.status().state();
     if let ConnectionState::SentOpen(wait_handle) = state {
-      self.connection.status.set_state(ConnectionState::Connected);
+      self.connection.set_state(ConnectionState::Connected);
       wait_handle.finish(self.connection.clone());
       Ok(())
     } else {
@@ -323,12 +332,12 @@ impl Channel {
   }
 
   fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
-    self.connection.status.block();
+    self.connection.block();
     Ok(())
   }
 
   fn on_connection_unblocked_received(&self, _method: protocol::connection::Unblocked) -> Result<(), Error> {
-    self.connection.status.unblock();
+    self.connection.unblock();
     Ok(())
   }
 

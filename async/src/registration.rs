@@ -7,13 +7,13 @@ use std::{
 };
 
 #[derive(Clone)]
-pub struct Registration {
+pub(crate) struct Registration {
   registration:  Arc<Mutex<mio::Registration>>,
   set_readiness: SetReadiness,
 }
 
 impl Registration {
-  pub fn set_readiness(&self, ready: Ready) -> io::Result<()> {
+  pub(crate) fn set_readiness(&self, ready: Ready) -> io::Result<()> {
     self.set_readiness.set_readiness(ready)
   }
 }

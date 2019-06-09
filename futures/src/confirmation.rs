@@ -1,10 +1,7 @@
 use futures::{Async, Future, Poll, task};
-use lapin_async::{
-  confirmation::Confirmation,
-  wait::NotifyReady,
-};
+use lapin_async::confirmation::{Confirmation, NotifyReady};
 
-use crate::error::Error;
+use crate::Error;
 
 pub struct ConfirmationFuture<T> {
   inner:     Result<Confirmation<T>, Option<Error>>,

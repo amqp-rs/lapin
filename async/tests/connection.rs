@@ -11,13 +11,9 @@ use std::{
 };
 
 use crate::lapin::{
-  channel::BasicProperties,
-  channel::options::*,
-  connection::Connection,
-  connection_properties::ConnectionProperties,
-  consumer::ConsumerSubscriber,
-  credentials::Credentials,
+  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
   message::Delivery,
+  options::*,
   types::FieldTable,
 };
 
@@ -46,7 +42,7 @@ fn connection() {
       let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
       let conn = Connection::connect(&addr, Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
 
-      println!("CONNECTED with configuration: {:?}", conn.configuration);
+      println!("CONNECTED with configuration: {:?}", conn.configuration());
 
       //now connected
 
@@ -57,26 +53,26 @@ fn connection() {
 
       //create the hello queue
       let queue = channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      println!("[{}] state: {:?}", line!(), conn.status().state());
       println!("[{}] declared queue: {:?}", line!(), queue);
 
       //purge the hello queue in case it already exists with contents in it
       channel_a.queue_purge("hello-async", QueuePurgeOptions::default()).wait().expect("queue_purge");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      println!("[{}] state: {:?}", line!(), conn.status().state());
 
       channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      println!("[{}] state: {:?}", line!(), conn.status().state());
 
       println!("will consume");
       let hello_world = Arc::new(AtomicBool::new(false));
       let subscriber = Subscriber { hello_world: hello_world.clone(), };
       channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).wait().expect("basic_consume");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      println!("[{}] state: {:?}", line!(), conn.status().state());
 
       println!("will publish");
       let payload = b"Hello world!";
       channel_a.basic_publish("", "hello-async", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).wait().expect("basic_publish");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      println!("[{}] state: {:?}", line!(), conn.status().state());
 
       thread::sleep(time::Duration::from_millis(100));
       assert!(hello_world.load(Ordering::SeqCst));

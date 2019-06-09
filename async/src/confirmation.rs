@@ -1,6 +1,8 @@
+pub use crate::wait::NotifyReady;
+
 use crate:: {
   error::Error,
-  wait::{NotifyReady, Wait},
+  wait::Wait,
 };
 
 #[derive(Debug)]

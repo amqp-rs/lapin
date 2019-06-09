@@ -19,23 +19,19 @@ impl ConnectionStatus {
     self.inner.read().state.clone()
   }
 
-  pub fn set_state(&self, state: ConnectionState) {
+  pub(crate) fn set_state(&self, state: ConnectionState) {
     self.inner.write().state = state
-  }
-
-  pub fn set_vhost(&self, vhost: &str) {
-    self.inner.write().vhost = vhost.into();
   }
 
   pub fn vhost(&self) -> String {
     self.inner.read().vhost.clone()
   }
 
-  pub fn block(&self) {
+  pub(crate) fn block(&self) {
     self.inner.write().blocked = true;
   }
 
-  pub fn unblock(&self) {
+  pub(crate) fn unblock(&self) {
     self.inner.write().blocked = true;
   }
 

@@ -26,7 +26,7 @@ impl ChannelStatus {
     self.inner.read().confirm
   }
 
-  pub fn set_confirm(&self) {
+  pub(crate) fn set_confirm(&self) {
     self.inner.write().confirm = true
   }
 
@@ -34,11 +34,11 @@ impl ChannelStatus {
     self.inner.read().state.clone()
   }
 
-  pub fn set_state(&self, state: ChannelState) {
+  pub(crate) fn set_state(&self, state: ChannelState) {
     self.inner.write().state = state
   }
 
-  pub fn set_send_flow(&self, flow: bool) {
+  pub(crate) fn set_send_flow(&self, flow: bool) {
     self.inner.write().send_flow = flow;
   }
 }

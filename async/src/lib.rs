@@ -19,13 +19,9 @@
 //! use log::info;
 //!
 //! use crate::lapin::{
-//!   channel::{BasicProperties, Channel},
-//!   channel::options::*,
-//!   connection::Connection,
-//!   connection_properties::ConnectionProperties,
-//!   consumer::ConsumerSubscriber,
-//!   credentials::Credentials,
+//!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
 //!   message::Delivery,
+//!   options::*,
 //!   types::FieldTable,
 //! };
 //!
@@ -67,30 +63,42 @@
 //! }
 //! ```
 
-pub mod acknowledgement;
-pub mod buffer;
-pub mod channel;
-pub mod channel_status;
-pub mod channels;
-pub mod confirmation;
-pub mod connection;
-pub mod connection_properties;
-pub mod connection_status;
-pub mod configuration;
-pub mod consumer;
-pub mod credentials;
-pub mod error;
-pub mod frames;
-pub mod id_sequence;
-pub mod io_loop;
-pub mod message;
-pub mod queue;
-pub mod queues;
-pub mod registration;
-pub mod returned_messages;
-pub mod tcp;
-pub mod types;
-pub mod uri;
-pub mod wait;
+pub use amq_protocol::{
+  protocol::{self, BasicProperties},
+  tcp, types, uri,
+};
 
-pub use connection::Connect;
+pub use channel::{Channel, options};
+pub use channel_status::{ChannelState, ChannelStatus};
+pub use configuration::Configuration;
+pub use connection::{Connect, Connection};
+pub use connection_properties::{ConnectionProperties, ConnectionSASLMechanism};
+pub use connection_status::{ConnectionState, ConnectionStatus};
+pub use consumer::ConsumerSubscriber;
+pub use credentials::Credentials;
+pub use error::{Error, ErrorKind};
+pub use queue::Queue;
+
+pub mod confirmation;
+pub mod message;
+
+mod acknowledgement;
+mod buffer;
+mod channel;
+mod channel_status;
+mod channels;
+mod configuration;
+mod connection;
+mod connection_properties;
+mod connection_status;
+mod consumer;
+mod credentials;
+mod error;
+mod frames;
+mod id_sequence;
+mod io_loop;
+mod queue;
+mod queues;
+mod registration;
+mod returned_messages;
+mod wait;

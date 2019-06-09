@@ -26,17 +26,17 @@ const CONTINUE: Token = Token(2);
 
 const FRAMES_STORAGE: usize = 32;
 
-pub struct IoLoop<T> {
+pub(crate) struct IoLoop<T> {
   inner: Arc<Mutex<Inner<T>>>,
 }
 
 impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
-  pub fn new(connection: Connection, socket: T) -> Result<Self, Error> {
+  pub(crate) fn new(connection: Connection, socket: T) -> Result<Self, Error> {
     let inner = Arc::new(Mutex::new(Inner::new(connection, socket)?));
     Ok(Self { inner })
   }
 
-  pub fn run(&self) -> Result<(), Error> {
+  pub(crate) fn run(&self) -> Result<(), Error> {
     let inner  = self.inner.clone();
     let handle = ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
       let mut events = Events::with_capacity(1024);
@@ -86,7 +86,7 @@ impl<T> Drop for Inner<T> {
 
 impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   fn new(connection: Connection, socket: T) -> Result<Self, Error> {
-    let frame_size = std::cmp::max(8192, connection.configuration.frame_max() as usize);
+    let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
     let (registration, set_readiness) = Registration::new2();
     let inner = Self {
       connection,
@@ -111,7 +111,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
     Ok(inner)
   }
 
-  pub fn start_heartbeat(&mut self, interval: Duration) -> Result<(), Error> {
+  fn start_heartbeat(&mut self, interval: Duration) -> Result<(), Error> {
     let send_hartbeat = self.send_heartbeat.clone();
     let hb_handle = ThreadBuilder::new().name("heartbeat".to_owned()).spawn(move || {
       loop {
@@ -141,12 +141,12 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   }
 
   fn ensure_setup(&mut self) -> Result<(), Error> {
-    if self.status != Status::Setup && self.connection.status.connected() {
-      let frame_max = self.connection.configuration.frame_max() as usize;
+    if self.status != Status::Setup && self.connection.status().connected() {
+      let frame_max = self.connection.configuration().frame_max() as usize;
       self.frame_size = std::cmp::max(self.frame_size, frame_max);
       self.receive_buffer.grow(FRAMES_STORAGE * self.frame_size);
       self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
-      let heartbeat = self.connection.configuration.heartbeat();
+      let heartbeat = self.connection.configuration().heartbeat();
       if heartbeat != 0 {
         trace!("io_loop: start heartbeat");
         self.start_heartbeat(Duration::from_secs(heartbeat as u64))?;
@@ -171,7 +171,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       if self.send_heartbeat.load(Ordering::Relaxed) {
         self.heartbeat()?;
       }
-      if self.wants_to_write() && !self.connection.status.blocked() {
+      if self.wants_to_write() && !self.connection.status().blocked() {
         if let Err(e) = self.write_to_stream() {
           match e.kind() {
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
@@ -249,7 +249,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
   }
 
   fn read_from_stream(&mut self) -> Result<(), Error> {
-    let state = self.connection.status.state();
+    let state = self.connection.status().state();
     if state == ConnectionState::Initial || state == ConnectionState::Closed || state == ConnectionState::Error {
       self.connection.set_error()?;
       Err(ErrorKind::InvalidConnectionState(state).into())

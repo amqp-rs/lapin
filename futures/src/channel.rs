@@ -1,16 +1,15 @@
-pub use lapin_async::channel::BasicProperties;
-pub use lapin_async::channel::options::*;
+pub use lapin_async::BasicProperties;
+pub use lapin_async::options::*;
 
 use futures::{Future, future};
 use lapin_async;
-use lapin_async::channel::Channel as InnerChannel;
-use lapin_async::connection::Connection;
-use lapin_async::queue::Queue;
+use lapin_async::Channel as InnerChannel;
+use lapin_async::Connection;
 use log::trace;
 
+use crate::{Error, Queue};
 use crate::confirmation::ConfirmationFuture;
 use crate::consumer::Consumer;
-use crate::error::Error;
 use crate::message::{BasicGetMessage, BasicReturnMessage};
 use crate::types::*;
 
@@ -118,7 +117,7 @@ impl Channel {
   /// the usual combinators
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer, Error = Error> {
     let consumer = Consumer::default();
-    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue.name.as_str(), consumer_tag, options, arguments, Box::new(consumer.clone())).into();
+    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue.name().as_str(), consumer_tag, options, arguments, Box::new(consumer.clone())).into();
     confirmation.map(|consumer_tag| {
       trace!("basic_consume received response, returning consumer");
       consumer.set_consumer_tag(consumer_tag);
@@ -183,19 +182,9 @@ impl Channel {
     self.inner.channel_close(code, message, 0, 0).into()
   }
 
-  /// ack a channel close
-  pub fn close_ok(&self) -> ConfirmationFuture<()> {
-    self.inner.channel_close_ok().into()
-  }
-
   /// update a channel flow
   pub fn channel_flow(&self, options: ChannelFlowOptions) -> ConfirmationFuture<Boolean> {
     self.inner.channel_flow(options).into()
-  }
-
-  /// ack an update to a channel flow
-  pub fn channel_flow_ok(&self, options: ChannelFlowOkOptions) -> ConfirmationFuture<()> {
-    self.inner.channel_flow_ok(options).into()
   }
 
   pub fn tx_select(&self) -> ConfirmationFuture<()> {

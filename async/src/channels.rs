@@ -8,32 +8,30 @@ use std::{
 };
 
 use crate::{
-  channel::{BasicProperties, Channel},
-  channel_status::ChannelState,
+  BasicProperties, Channel, ChannelState, Error, ErrorKind,
   connection::Connection,
-  error::{Error, ErrorKind},
   id_sequence::IdSequence,
 };
 
 #[derive(Clone, Debug, Default)]
-pub struct Channels {
+pub(crate) struct Channels {
   inner: Arc<Mutex<Inner>>,
 }
 
 impl Channels {
-  pub fn create(&self, connection: Connection) -> Result<Channel, Error> {
+  pub(crate) fn create(&self, connection: Connection) -> Result<Channel, Error> {
     self.inner.lock().create(connection)
   }
 
   pub(crate) fn create_zero(&self, connection: Connection) {
-    self.inner.lock().create_channel(0, connection).status.set_state(ChannelState::Connected);
+    self.inner.lock().create_channel(0, connection).set_state(ChannelState::Connected);
   }
 
-  pub fn get(&self, id: u16) -> Option<Channel> {
+  pub(crate) fn get(&self, id: u16) -> Option<Channel> {
     self.inner.lock().channels.get(&id).cloned()
   }
 
-  pub fn remove(&self, id: u16) -> Result<(), Error> {
+  pub(crate) fn remove(&self, id: u16) -> Result<(), Error> {
     if self.inner.lock().channels.remove(&id).is_some() {
       Ok(())
     } else {
@@ -41,7 +39,7 @@ impl Channels {
     }
   }
 
-  pub fn receive_method(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
+  pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
     if let Some(channel) = self.get(id) {
       channel.receive_method(method)
     } else {
@@ -49,7 +47,7 @@ impl Channels {
     }
   }
 
-  pub fn handle_content_header_frame(&self, id: u16, size: u64, properties: BasicProperties) -> Result<(), Error> {
+  pub(crate) fn handle_content_header_frame(&self, id: u16, size: u64, properties: BasicProperties) -> Result<(), Error> {
     if let Some(channel) = self.get(id) {
       channel.handle_content_header_frame(size, properties)
     } else {
@@ -57,7 +55,7 @@ impl Channels {
     }
   }
 
-  pub fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<(), Error> {
+  pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<(), Error> {
     if let Some(channel) = self.get(id) {
       channel.handle_body_frame(payload)
     } else {
@@ -65,20 +63,20 @@ impl Channels {
     }
   }
 
-  pub fn set_closing(&self) {
+  pub(crate) fn set_closing(&self) {
     for channel in self.inner.lock().channels.values() {
       channel.set_closing();
     }
   }
 
-  pub fn set_closed(&self) -> Result<(), Error> {
+  pub(crate) fn set_closed(&self) -> Result<(), Error> {
     for channel in self.inner.lock().channels.values() {
       channel.set_closed()?;
     }
     Ok(())
   }
 
-  pub fn set_error(&self) -> Result<(), Error> {
+  pub(crate) fn set_error(&self) -> Result<(), Error> {
     for channel in self.inner.lock().channels.values() {
       channel.set_error()?;
     }
@@ -111,7 +109,7 @@ impl Inner {
 
   fn create(&mut self, connection: Connection) -> Result<Channel, Error> {
     debug!("create channel");
-    self.channel_id.set_max(connection.configuration.channel_max());
+    self.channel_id.set_max(connection.configuration().channel_max());
     let first_id = self.channel_id.next();
     let mut looped = false;
     let mut id = first_id;

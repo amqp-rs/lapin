@@ -1,19 +1,17 @@
 use futures::{Future, Poll};
 use lapin_async::{
-  Connect as LapinAsyncConnect,
+  Connect as LapinAsyncConnect, Connection,
   confirmation::Confirmation,
-  connection::Connection,
-  credentials::Credentials,
   uri::AMQPUri,
 };
 
 use crate::{
+  Credentials, Error,
   channel::Channel,
   confirmation::ConfirmationFuture,
-  error::Error,
 };
 
-pub use lapin_async::connection_properties::{ConnectionSASLMechanism, ConnectionProperties};
+pub use lapin_async::{ConnectionSASLMechanism, ConnectionProperties};
 
 /// Connect to a server and create channels
 #[derive(Clone)]

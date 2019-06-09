@@ -22,9 +22,9 @@
 //! use failure::Error;
 //! use futures::future;
 //! use futures::future::Future;
-//! use lapin_async::credentials::Credentials;
-//! use lapin_async::connection_properties::ConnectionProperties;
+//! use lapin_async::ConnectionProperties;
 //! use lapin_futures as lapin;
+//! use crate::lapin::Credentials;
 //! use crate::lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
 //! use crate::lapin::client::Client;
 //! use crate::lapin::types::FieldTable;
@@ -65,9 +65,9 @@
 //! use env_logger;
 //! use failure::Error;
 //! use futures::{future, Future, Stream};
-//! use lapin_async::credentials::Credentials;
-//! use lapin_async::connection_properties::ConnectionProperties;
+//! use lapin_async::ConnectionProperties;
 //! use lapin_futures as lapin;
+//! use crate::lapin::Credentials;
 //! use crate::lapin::client::Client;
 //! use crate::lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
@@ -111,13 +111,17 @@
 //! }
 //! ```
 
+pub use lapin_async::ConsumerSubscriber;
+pub use lapin_async::Credentials;
+pub use lapin_async::{Error, ErrorKind};
+pub use lapin_async::Queue;
+
+pub use client::Connect;
+
 pub mod channel;
 pub mod client;
 pub mod confirmation;
 pub mod consumer;
-pub mod error;
 pub mod message;
 pub mod types;
 pub mod uri;
-
-pub use client::Connect;

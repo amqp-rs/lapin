@@ -3,13 +3,9 @@ use lapin_async as lapin;
 use log::info;
 
 use crate::lapin::{
-  channel::BasicProperties,
-  channel::options::*,
-  connection::Connection,
-  connection_properties::ConnectionProperties,
-  consumer::ConsumerSubscriber,
-  credentials::Credentials,
+  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
   message::Delivery,
+  options::*,
   types::FieldTable,
 };
 
@@ -40,26 +36,26 @@ fn main() {
       let channel_a = conn.create_channel().wait().expect("create_channel");
       //receive channel
       let channel_b = conn.create_channel().wait().expect("create_channel");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
 
       //create the hello queue
       let queue = channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
       info!("[{}] declared queue: {:?}", line!(), queue);
 
       channel_a.confirm_select(ConfirmSelectOptions::default()).wait().expect("confirm_select");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
 
       channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will consume");
       channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).wait().expect("basic_consume");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will publish");
       let payload = b"Hello world!";
       channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).wait().expect("basic_publish");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
+      info!("[{}] state: {:?}", line!(), conn.status().state());
 }
 

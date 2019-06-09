@@ -1,5 +1,5 @@
 use crate::{
-  channel::BasicProperties,
+  BasicProperties,
   types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
 };
 
@@ -14,7 +14,7 @@ pub struct Delivery {
 }
 
 impl Delivery {
-  pub fn new(delivery_tag: LongLongUInt, exchange: ShortString, routing_key: ShortString, redelivered: bool) -> Self {
+  pub(crate) fn new(delivery_tag: LongLongUInt, exchange: ShortString, routing_key: ShortString, redelivered: bool) -> Self {
     Self {
       delivery_tag,
       exchange,
@@ -25,7 +25,7 @@ impl Delivery {
     }
   }
 
-  pub fn receive_content(&mut self, data: Vec<u8>) {
+  pub(crate) fn receive_content(&mut self, data: Vec<u8>) {
     self.data.extend(data);
   }
 }
@@ -37,7 +37,7 @@ pub struct BasicGetMessage {
 }
 
 impl BasicGetMessage {
-  pub fn new(delivery_tag: LongLongUInt, exchange: ShortString, routing_key: ShortString, redelivered: bool, message_count: LongUInt) -> Self {
+  pub(crate) fn new(delivery_tag: LongLongUInt, exchange: ShortString, routing_key: ShortString, redelivered: bool, message_count: LongUInt) -> Self {
     Self {
       delivery: Delivery::new(delivery_tag, exchange, routing_key, redelivered),
       message_count,
@@ -53,7 +53,7 @@ pub struct BasicReturnMessage {
 }
 
 impl BasicReturnMessage {
-  pub fn new(exchange: ShortString, routing_key: ShortString, reply_code: ShortUInt, reply_text: ShortString) -> Self {
+  pub(crate) fn new(exchange: ShortString, routing_key: ShortString, reply_code: ShortUInt, reply_text: ShortString) -> Self {
     Self {
       delivery: Delivery::new(0, exchange, routing_key, false),
       reply_code,

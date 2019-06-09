@@ -12,7 +12,7 @@ impl Configuration {
     self.inner.read().channel_max
   }
 
-  pub fn set_channel_max(&self, channel_max: u16) {
+  pub(crate) fn set_channel_max(&self, channel_max: u16) {
     self.inner.write().channel_max = channel_max;
   }
 
@@ -20,7 +20,7 @@ impl Configuration {
     self.inner.read().frame_max
   }
 
-  pub fn set_frame_max(&self, frame_max: u32) {
+  pub(crate) fn set_frame_max(&self, frame_max: u32) {
     self.inner.write().frame_max = frame_max;
   }
 
@@ -28,7 +28,7 @@ impl Configuration {
     self.inner.read().heartbeat
   }
 
-  pub fn set_heartbeat(&self, heartbeat: u16) {
+  pub(crate) fn set_heartbeat(&self, heartbeat: u16) {
     self.inner.write().heartbeat = heartbeat;
   }
 }

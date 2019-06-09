@@ -13,13 +13,12 @@ use crate::{
   wait::{Wait, WaitHandle},
 };
 
-pub type SendId = u64;
+pub(crate) type SendId = u64;
 
 #[derive(Clone, Debug)]
-pub enum Priority {
+pub(crate) enum Priority {
   LOW,
   NORMAL,
-  HIGH,
   CRITICAL,
 }
 
@@ -30,36 +29,32 @@ impl Default for Priority {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct Frames {
+pub(crate) struct Frames {
   inner: Arc<Mutex<Inner>>,
 }
 
 impl Frames {
-  pub fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
+  pub(crate) fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
     self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
-  pub fn retry(&self, send_id: SendId, frame: AMQPFrame) {
+  pub(crate) fn retry(&self, send_id: SendId, frame: AMQPFrame) {
     self.inner.lock().priority_frames.push_back((send_id, frame))
   }
 
-  pub fn pop(&self) -> Option<(SendId, AMQPFrame)> {
+  pub(crate) fn pop(&self) -> Option<(SendId, AMQPFrame)> {
     self.inner.lock().pop()
   }
 
-  pub fn is_empty(&self) -> bool {
-    self.inner.lock().is_empty()
-  }
-
-  pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
+  pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
     self.inner.lock().expected_replies.get_mut(&channel_id).and_then(|replies| replies.pop_front())
   }
 
-  pub fn clear_expected_replies(&self, channel_id: u16) {
+  pub(crate) fn clear_expected_replies(&self, channel_id: u16) {
     self.inner.lock().expected_replies.remove(&channel_id);
   }
 
-  pub fn mark_sent(&self, send_id: SendId) {
+  pub(crate) fn mark_sent(&self, send_id: SendId) {
     if let Some(send) = self.inner.lock().outbox.remove(&send_id) {
       send.finish(());
     }
@@ -67,7 +62,7 @@ impl Frames {
 }
 
 #[derive(Debug)]
-pub struct Inner {
+struct Inner {
   priority_frames:  VecDeque<(SendId, AMQPFrame)>,
   frames:           VecDeque<(SendId, AMQPFrame)>,
   low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
@@ -95,7 +90,6 @@ impl Inner {
     match priority {
       Priority::LOW      => self.low_prio_frames.push_back((send_id, frame)),
       Priority::NORMAL   => self.frames.push_back((send_id, frame)),
-      Priority::HIGH     => self.priority_frames.push_back((send_id, frame)),
       Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
     }
     let (wait, wait_handle) = Wait::new();
@@ -109,9 +103,5 @@ impl Inner {
 
   fn pop(&mut self) -> Option<(SendId, AMQPFrame)> {
     self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| self.low_prio_frames.pop_front())
-  }
-
-  fn is_empty(&self) -> bool {
-    self.priority_frames.is_empty() && self.frames.is_empty() && self.low_prio_frames.is_empty()
   }
 }

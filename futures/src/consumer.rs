@@ -1,5 +1,4 @@
 use futures::{Async, Poll, Stream, task};
-use lapin_async::consumer::ConsumerSubscriber;
 use log::trace;
 use parking_lot::Mutex;
 
@@ -9,7 +8,7 @@ use std::{
 };
 
 use crate::{
-  error::Error,
+  ConsumerSubscriber, Error,
   message::Delivery,
   types::ShortString,
 };

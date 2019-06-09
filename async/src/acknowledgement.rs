@@ -14,42 +14,42 @@ use crate::{
 pub type DeliveryTag = u64;
 
 #[derive(Debug, Default, Clone)]
-pub struct Acknowledgements {
+pub(crate) struct Acknowledgements {
   inner: Arc<Mutex<Inner>>,
 }
 
 impl Acknowledgements {
-  pub fn register_pending(&self, delivery_tag: DeliveryTag) {
+  pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) {
     self.inner.lock().register_pending(delivery_tag);
   }
 
-  pub fn get_last_pending(&self) -> Option<Wait<Option<Boolean>>> {
+  pub(crate) fn get_last_pending(&self) -> Option<Wait<Option<Boolean>>> {
     self.inner.lock().last.take()
   }
 
-  pub fn ack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+  pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
     self.inner.lock().ack(delivery_tag)
   }
 
-  pub fn nack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+  pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
     self.inner.lock().nack(delivery_tag)
   }
 
-  pub fn ack_all_pending(&self) {
+  pub(crate) fn ack_all_pending(&self) {
     let mut inner = self.inner.lock();
     for wait in inner.drain_pending() {
       wait.finish(Some(true));
     }
   }
 
-  pub fn nack_all_pending(&self) {
+  pub(crate) fn nack_all_pending(&self) {
     let mut inner = self.inner.lock();
     for wait in inner.drain_pending() {
       wait.finish(Some(false));
     }
   }
 
-  pub fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+  pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
     let mut inner = self.inner.lock();
     for tag in inner.list_pending_before(delivery_tag) {
       inner.ack(tag)?;
@@ -57,7 +57,7 @@ impl Acknowledgements {
     Ok(())
   }
 
-  pub fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+  pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
     let mut inner = self.inner.lock();
     for tag in inner.list_pending_before(delivery_tag) {
       inner.nack(tag)?;

@@ -21,4 +21,3 @@ impl Default for Credentials {
     Self::new("guest".into(), "guest".into())
   }
 }
-

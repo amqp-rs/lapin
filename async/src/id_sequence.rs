@@ -6,28 +6,26 @@ use std::{
 };
 
 #[derive(Clone, Debug)]
-pub struct IdSequence<T> {
+pub(crate) struct IdSequence<T> {
   inner: Arc<Mutex<Inner<T>>>,
 }
 
 impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
-  pub fn new(allow_zero: bool) -> Self {
-    Self {
-      inner: Arc::new(Mutex::new(Inner::new(allow_zero)))
-    }
+  pub(crate) fn new(allow_zero: bool) -> Self {
+    Self { inner: Arc::new(Mutex::new(Inner::new(allow_zero))) }
   }
 
-  pub fn next(&self) -> T {
+  pub(crate) fn next(&self) -> T {
     self.inner.lock().next()
   }
 
-  pub fn set_max(&self, max: T) {
+  pub(crate) fn set_max(&self, max: T) {
     self.inner.lock().max = Some(max);
   }
 }
 
 #[derive(Debug)]
-pub struct Inner<T> {
+struct Inner<T> {
   allow_zero: bool,
   zero:       T,
   one:        T,

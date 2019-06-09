@@ -26,11 +26,11 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct Connection {
-  pub        configuration: Configuration,
-  pub        status:        ConnectionStatus,
-  pub(crate) channels:      Channels,
-             registration:  Registration,
-             frames:        Frames,
+  configuration: Configuration,
+  status:        ConnectionStatus,
+  channels:      Channels,
+  registration:  Registration,
+  frames:        Frames,
 }
 
 impl Default for Connection {
@@ -80,6 +80,14 @@ impl Connection {
     }
   }
 
+  pub fn configuration(&self) -> &Configuration {
+    &self.configuration
+  }
+
+  pub fn status(&self) -> &ConnectionStatus {
+    &self.status
+  }
+
   fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
     move |stream, uri| {
       let conn = Connection::default();
@@ -94,15 +102,23 @@ impl Connection {
       }
       conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
       let (wait, wait_handle) = Wait::new();
-      conn.status.set_state(ConnectionState::SentProtocolHeader(wait_handle, credentials, options));
+      conn.set_state(ConnectionState::SentProtocolHeader(wait_handle, credentials, options));
       let io_loop = IoLoop::new(conn.clone(), stream)?;
       // FIXME: how do we bubble errors up during connection?
       Ok((wait, io_loop))
     }
   }
 
-  pub fn set_vhost(&self, vhost: &str) {
-    self.status.set_vhost(vhost);
+  pub(crate) fn set_state(&self, state: ConnectionState) {
+    self.status.set_state(state);
+  }
+
+  pub(crate) fn block(&self) {
+    self.status.block();
+  }
+
+  pub(crate) fn unblock(&self) {
+    self.status.unblock();
   }
 
   fn set_readable(&self) -> Result<(), Error> {
@@ -111,26 +127,26 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  pub(crate) fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
     trace!("connection send_frame; channel_id={}", channel_id);
     let wait = self.frames.push(channel_id, priority, frame, expected_reply);
     self.set_readable()?;
     Ok(wait)
   }
 
-  pub fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
+  pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
     self.frames.next_expected_reply(channel_id)
   }
 
   /// next message to send to the network
   ///
   /// returns None if there's no message to send
-  pub fn next_frame(&self) -> Option<(SendId, AMQPFrame)> {
+  pub(crate) fn next_frame(&self) -> Option<(SendId, AMQPFrame)> {
     self.frames.pop()
   }
 
   /// updates the current state with a new received frame
-  pub fn handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
+  pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
     trace!("will handle frame: {:?}", f);
     match f {
       AMQPFrame::ProtocolHeader => {
@@ -153,46 +169,40 @@ impl Connection {
     Ok(())
   }
 
-  pub fn send_heartbeat(&self) -> Result<(), Error> {
+  pub(crate) fn send_heartbeat(&self) -> Result<(), Error> {
     self.set_readable()?;
     self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?;
     Ok(())
   }
 
-  #[doc(hidden)]
-  pub fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<(), Error> {
+  pub(crate) fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<(), Error> {
     self.set_readable()?;
     self.frames.retry(send_id, frame);
     Ok(())
   }
 
-  #[doc(hidden)]
-  pub fn has_pending_frames(&self) -> bool {
-    !self.frames.is_empty()
-  }
-
-  pub fn mark_sent(&self, send_id: SendId) {
+  pub(crate) fn mark_sent(&self, send_id: SendId) {
     self.frames.mark_sent(send_id);
   }
 
-  pub fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
+  pub(crate) fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
     self.frames.clear_expected_replies(channel_id);
     self.channels.remove(channel_id)
   }
 
-  pub fn set_closing(&self) {
-    self.status.set_state(ConnectionState::Closing);
+  pub(crate) fn set_closing(&self) {
+    self.set_state(ConnectionState::Closing);
     self.channels.set_closing();
   }
 
-  pub fn set_closed(&self) -> Result<(), Error> {
-    self.status.set_state(ConnectionState::Closed);
+  pub(crate) fn set_closed(&self) -> Result<(), Error> {
+    self.set_state(ConnectionState::Closed);
     self.channels.set_closed()
   }
 
-  pub fn set_error(&self) -> Result<(), Error> {
+  pub(crate) fn set_error(&self) -> Result<(), Error> {
     error!("Connection error");
-    self.status.set_state(ConnectionState::Error);
+    self.set_state(ConnectionState::Error);
     self.channels.set_error()
   }
 }
@@ -229,7 +239,7 @@ mod tests {
   use env_logger;
 
   use super::*;
-  use crate::channel::BasicProperties;
+  use crate::BasicProperties;
   use crate::channel_status::ChannelState;
   use crate::consumer::ConsumerSubscriber;
   use crate::message::Delivery;
@@ -255,17 +265,17 @@ mod tests {
 
     // Bootstrap connection state to a consuming state
     let conn = Connection::default();
-    conn.status.set_state(ConnectionState::Connected);
+    conn.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.channels.create(conn.clone()).unwrap();
-    channel.status.set_state(ChannelState::Connected);
+    channel.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
-    queue.consumers.insert(consumer_tag.clone(), consumer);
+    queue.register_consumer(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
-      c.queues.register(queue);
+      c.register_queue(queue);
     });
     // Now test the state machine behaviour
     {
@@ -284,7 +294,7 @@ mod tests {
         )
       );
       conn.handle_frame(deliver_frame).unwrap();
-      let channel_state = channel.status.state();
+      let channel_state = channel.status().state();
       let expected_state = ChannelState::WillReceiveContent(
         Some(queue_name.clone()),
         Some(consumer_tag.clone())
@@ -303,14 +313,14 @@ mod tests {
         })
       );
       conn.handle_frame(header_frame).unwrap();
-      let channel_state = channel.status.state();
+      let channel_state = channel.status().state();
       let expected_state = ChannelState::ReceivingContent(Some(queue_name.clone()), Some(consumer_tag.clone()), 2);
       assert_eq!(channel_state, expected_state);
     }
     {
       let body_frame = AMQPFrame::Body(channel.id(), "{}".as_bytes().to_vec());
       conn.handle_frame(body_frame).unwrap();
-      let channel_state = channel.status.state();
+      let channel_state = channel.status().state();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);
     }
@@ -325,17 +335,17 @@ mod tests {
 
     // Bootstrap connection state to a consuming state
     let conn = Connection::default();
-    conn.status.set_state(ConnectionState::Connected);
+    conn.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
     let channel = conn.channels.create(conn.clone()).unwrap();
-    channel.status.set_state(ChannelState::Connected);
+    channel.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
     let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
-    queue.consumers.insert(consumer_tag.clone(), consumer);
+    queue.register_consumer(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
-      c.queues.register(queue);
+      c.register_queue(queue);
     });
     // Now test the state machine behaviour
     {
@@ -354,7 +364,7 @@ mod tests {
         )
       );
       conn.handle_frame(deliver_frame).unwrap();
-      let channel_state = channel.status.state();
+      let channel_state = channel.status().state();
       let expected_state = ChannelState::WillReceiveContent(
         Some(queue_name.clone()),
         Some(consumer_tag.clone())
@@ -373,7 +383,7 @@ mod tests {
         })
       );
       conn.handle_frame(header_frame).unwrap();
-      let channel_state = channel.status.state();
+      let channel_state = channel.status().state();
       let expected_state = ChannelState::Connected;
       assert_eq!(channel_state, expected_state);
     }
