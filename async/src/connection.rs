@@ -63,6 +63,16 @@ impl Evented for Connection {
 }
 
 impl Connection {
+  /// Connect to an AMQP Server
+  pub fn connect(uri: &str, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> {
+    Connect::connect(uri, credentials, options)
+  }
+
+  /// Connect to an AMQP Server
+  pub fn connect_uri(uri: AMQPUri, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> {
+    Connect::connect(uri, credentials, options)
+  }
+
   pub fn create_channel(&self) -> Confirmation<Channel> {
     match self.channels.create(self.clone()) {
       Ok(channel) => channel.channel_open(),

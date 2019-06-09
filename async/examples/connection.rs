@@ -3,9 +3,9 @@ use lapin_async as lapin;
 use log::info;
 
 use crate::lapin::{
-  Connect as _,
   channel::BasicProperties,
   channel::options::*,
+  connection::Connection,
   connection_properties::ConnectionProperties,
   consumer::ConsumerSubscriber,
   credentials::Credentials,
@@ -30,7 +30,7 @@ fn main() {
       env_logger::init();
 
       let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-      let conn = addr.connect(Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
+      let conn = Connection::connect(&addr, Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
 
       info!("CONNECTED");
 
