@@ -19,7 +19,7 @@ services: rabbitmq
 
 script:
     - cargo build --verbose --all
-    - cargo test  --verbose --all
+    - cargo test  --verbose --all || RUST_LOG=lapin=trace cargo test --verbose --all
 
 after_success: |
     if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
