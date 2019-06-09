@@ -26,10 +26,6 @@ pub struct Error {
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Debug, Fail)]
 pub enum ErrorKind {
-  #[fail(display = "output buffer is too small")]
-  SendBufferTooSmall,
-  #[fail(display = "input buffer is too small")]
-  ReceiveBufferTooSmall,
   #[fail(display = "invalid protocol method: {:?}", _0)]
   InvalidMethod(AMQPClass),
   #[fail(display = "invalid channel: {}", _0)]
@@ -48,8 +44,6 @@ pub enum ErrorKind {
   ParsingError(String),
   #[fail(display = "Failed to serialise: {:?}", _0)]
   SerialisationError(#[fail(cause)] GenError),
-  #[fail(display = "no new message")]
-  NoNewMessage,
   #[fail(display = "IO error: {:?}", _0)]
   IOError(#[fail(cause)] io::Error),
   /// A hack to prevent developers from exhaustively match on the enum's variants

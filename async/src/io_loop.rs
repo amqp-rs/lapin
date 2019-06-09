@@ -174,9 +174,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       if self.wants_to_write() && !self.connection.status.blocked() {
         if let Err(e) = self.write_to_stream() {
           match e.kind() {
-            ErrorKind::NoNewMessage => self.has_data = false,
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
-            ErrorKind::SendBufferTooSmall => { /* We already shifted the buffer and we already limit the size of the frames, so retry */ },
             _ => {
               error!("error writing: {:?}", e);
               self.connection.set_error()?;
@@ -278,7 +276,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
               // Requeue msg
               self.connection.requeue_frame(send_id, next_msg)?;
               self.send_buffer.shift();
-              Err(ErrorKind::SendBufferTooSmall.into())
+              Ok(())
             },
             GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
               error!("error generating frame: {:?}", e);
@@ -289,7 +287,8 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
         }
       }
     } else {
-      Err(ErrorKind::NoNewMessage.into())
+      self.has_data = false;
+      Ok(())
     }
   }
 
