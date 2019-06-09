@@ -200,7 +200,7 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       if self.can_parse() {
         self.parse()?;
       }
-      if !self.can_read || !self.can_write {
+      if !self.wants_to_read() || !self.wants_to_write() {
         if self.wants_to_read() || self.can_parse() || self.has_data {
           trace!("io_loop send continue; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
           self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
