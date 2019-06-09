@@ -1,10 +1,10 @@
-use amq_protocol::uri::AMQPUri;
 use futures::{Future, Poll};
 use lapin_async::{
   Connect as LapinAsyncConnect,
   confirmation::Confirmation,
   connection::Connection,
   credentials::Credentials,
+  uri::AMQPUri,
 };
 
 use crate::{
