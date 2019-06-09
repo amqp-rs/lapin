@@ -49,13 +49,10 @@ fn main() {
 
   info!("CONNECTED");
 
-  let channel_a = conn.create_channel().unwrap();
-  let channel_b = conn.create_channel().unwrap();
+  let channel_a = conn.create_channel().wait().expect("create_channel");
+  let channel_b = conn.create_channel().wait().expect("create_channel");
 
-  channel_a.channel_open().wait().expect("channel_open");
   channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
-
-  channel_b.channel_open().wait().expect("channel_open");
   channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
 
   info!("will consume");

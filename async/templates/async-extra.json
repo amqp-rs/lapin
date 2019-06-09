@@ -53,7 +53,10 @@
   "channel": {
     "open": {
       "metadata": {
-        "channel_init": true
+        "channel_init": true,
+        "confirmation": {
+          "type": "Channel"
+        }
       }
     },
     "open-ok": {

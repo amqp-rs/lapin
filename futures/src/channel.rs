@@ -24,10 +24,8 @@ pub struct Channel {
 impl Channel {
   /// create a channel
   pub fn create(conn: Connection) -> impl Future<Item = Self, Error = Error> {
-    future::result(conn.create_channel().map(|inner| Channel { inner, conn })).and_then(|channel| {
-      let confirmation: ConfirmationFuture<()> = channel.inner.channel_open().into();
-      confirmation.map(|_| channel)
-    })
+    let confirmation: ConfirmationFuture<InnerChannel> = conn.create_channel().into();
+    confirmation.map(|inner| Channel { inner, conn })
   }
 
   pub fn id(&self) -> u16 {

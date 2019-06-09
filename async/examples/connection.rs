@@ -36,14 +36,10 @@ fn main() {
 
       //now connected
 
-      let channel_a = conn.create_channel().unwrap();
-      let channel_b = conn.create_channel().unwrap();
       //send channel
-      channel_a.channel_open().wait().expect("channel_open");
-      info!("[{}] state: {:?}", line!(), conn.status.state());
-
+      let channel_a = conn.create_channel().wait().expect("create_channel");
       //receive channel
-      channel_b.channel_open().wait().expect("channel_open");
+      let channel_b = conn.create_channel().wait().expect("create_channel");
       info!("[{}] state: {:?}", line!(), conn.status.state());
 
       //create the hello queue

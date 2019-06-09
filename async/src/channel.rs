@@ -336,8 +336,9 @@ impl Channel {
     self.connection.set_closed()
   }
 
-  fn on_channel_open_ok_received(&self, _method: protocol::channel::OpenOk) -> Result<(), Error> {
+  fn on_channel_open_ok_received(&self, _method: protocol::channel::OpenOk, wait_handle: WaitHandle<Channel>) -> Result<(), Error> {
     self.status.set_state(ChannelState::Connected);
+    wait_handle.finish(self.clone());
     Ok(())
   }
 

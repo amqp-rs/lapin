@@ -50,16 +50,10 @@ fn connection() {
 
       //now connected
 
-      let channel_a = conn.create_channel().unwrap();
-      let channel_b = conn.create_channel().unwrap();
-
       //send channel
-      channel_a.channel_open().wait().expect("channel_open");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
-
+      let channel_a = conn.create_channel().wait().expect("create_channel");
       //receive channel
-      channel_b.channel_open().wait().expect("channel_open");
-      println!("[{}] state: {:?}", line!(), conn.status.state());
+      let channel_b = conn.create_channel().wait().expect("create_channel");
 
       //create the hello queue
       let queue = channel_a.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");

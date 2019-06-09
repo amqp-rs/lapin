@@ -63,8 +63,11 @@ impl Evented for Connection {
 }
 
 impl Connection {
-  pub fn create_channel(&self) -> Result<Channel, Error> {
-    self.channels.create(self.clone())
+  pub fn create_channel(&self) -> Confirmation<Channel> {
+    match self.channels.create(self.clone()) {
+      Ok(channel) => channel.channel_open(),
+      Err(error)  => Confirmation::new_error(error),
+    }
   }
 
   fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
@@ -244,7 +247,7 @@ mod tests {
     let conn = Connection::default();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
-    let channel = conn.create_channel().unwrap();
+    let channel = conn.channels.create(conn.clone()).unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
@@ -314,7 +317,7 @@ mod tests {
     let conn = Connection::default();
     conn.status.set_state(ConnectionState::Connected);
     conn.configuration.set_channel_max(2047);
-    let channel = conn.create_channel().unwrap();
+    let channel = conn.channels.create(conn.clone()).unwrap();
     channel.status.set_state(ChannelState::Connected);
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
