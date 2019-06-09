@@ -117,12 +117,11 @@ impl Channel {
   /// `Consumer` implements `futures::Stream`, so it can be used with any of
   /// the usual combinators
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer, Error = Error> {
-    let mut consumer = Consumer::new(self.id(), queue.name.clone(), consumer_tag.into());
-    let subscriber = consumer.subscriber();
-    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue.name.as_str(), consumer_tag, options, arguments, Box::new(subscriber)).into();
+    let consumer = Consumer::default();
+    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue.name.as_str(), consumer_tag, options, arguments, Box::new(consumer.clone())).into();
     confirmation.map(|consumer_tag| {
       trace!("basic_consume received response, returning consumer");
-      consumer.update_consumer_tag(consumer_tag);
+      consumer.set_consumer_tag(consumer_tag);
       consumer
     })
   }

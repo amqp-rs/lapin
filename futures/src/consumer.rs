@@ -14,12 +14,37 @@ use crate::{
   types::ShortString,
 };
 
-#[derive(Clone, Debug)]
-pub struct ConsumerSub {
+#[derive(Clone, Debug, Default)]
+pub struct Consumer {
   inner: Arc<Mutex<ConsumerInner>>,
 }
 
-impl ConsumerSubscriber for ConsumerSub {
+impl Consumer {
+  pub(crate) fn set_consumer_tag(&self, consumer_tag: ShortString) {
+    self.inner.lock().tag = consumer_tag;
+  }
+}
+
+#[derive(Debug)]
+struct ConsumerInner {
+  deliveries: VecDeque<Delivery>,
+  task:       Option<task::Task>,
+  canceled:   bool,
+  tag:        ShortString,
+}
+
+impl Default for ConsumerInner {
+  fn default() -> Self {
+    Self {
+      deliveries: VecDeque::new(),
+      task:       None,
+      canceled:   false,
+      tag:        ShortString::default(),
+    }
+  }
+}
+
+impl ConsumerSubscriber for Consumer {
   fn new_delivery(&self, delivery: Delivery) {
     trace!("new_delivery;");
     let mut inner = self.inner.lock();
@@ -30,8 +55,7 @@ impl ConsumerSubscriber for ConsumerSub {
   }
   fn drop_prefetched_messages(&self) {
     trace!("drop_prefetched_messages;");
-    let mut inner = self.inner.lock();
-    inner.deliveries.clear();
+    self.inner.lock().deliveries.clear();
   }
   fn cancel(&self) {
     trace!("cancel;");
@@ -42,69 +66,25 @@ impl ConsumerSubscriber for ConsumerSub {
   }
 }
 
-#[derive(Clone)]
-pub struct Consumer {
-  inner:        Arc<Mutex<ConsumerInner>>,
-  channel_id:   u16,
-  queue:        ShortString,
-  consumer_tag: ShortString,
-}
-
-#[derive(Debug)]
-struct ConsumerInner {
-  deliveries: VecDeque<Delivery>,
-  task:       Option<task::Task>,
-  canceled:   bool,
-}
-
-impl Default for ConsumerInner {
-  fn default() -> Self {
-    Self {
-      deliveries: VecDeque::new(),
-      task:       None,
-      canceled:   false,
-    }
-  }
-}
-
-impl Consumer {
-  pub fn new(channel_id: u16, queue: ShortString, consumer_tag: ShortString) -> Consumer {
-    Consumer {
-      inner: Arc::new(Mutex::new(ConsumerInner::default())),
-      channel_id,
-      queue,
-      consumer_tag,
-    }
-  }
-
-  pub fn update_consumer_tag(&mut self, consumer_tag: ShortString) {
-    self.consumer_tag = consumer_tag;
-  }
-
-  pub fn subscriber(&self) -> ConsumerSub {
-    ConsumerSub { inner: self.inner.clone() }
-  }
-}
-
 impl Stream for Consumer {
   type Item = Delivery;
   type Error = Error;
 
   fn poll(&mut self) -> Poll<Option<Delivery>, Error> {
-    trace!("consumer poll; consumer_tag={:?} polling transport", self.consumer_tag);
+    trace!("consumer poll; polling transport");
     let mut inner = self.inner.lock();
-    trace!("consumer poll; consumer_tag={:?} acquired inner lock", self.consumer_tag);
+    trace!("consumer poll; acquired inner lock, consumer_tag={}", inner.tag);
     if inner.task.is_none() {
       inner.task = Some(task::current());
     }
     if let Some(delivery) = inner.deliveries.pop_front() {
-      trace!("delivery; consumer_tag={:?} delivery_tag={:?}", self.consumer_tag, delivery.delivery_tag);
+      trace!("delivery; consumer_tag={}, delivery_tag={:?}", inner.tag, delivery.delivery_tag);
       Ok(Async::Ready(Some(delivery)))
     } else if inner.canceled {
-      trace!("consumer canceled; consumer_tag={:?}", self.consumer_tag);
+      trace!("consumer canceled; consumer_tag={}", inner.tag);
       Ok(Async::Ready(None))
     } else {
-      trace!("delivery; consumer_tag={:?} status=NotReady", self.consumer_tag);
+      trace!("delivery; status=NotReady, consumer_tag={}", inner.tag);
       Ok(Async::NotReady)
     }
   }
