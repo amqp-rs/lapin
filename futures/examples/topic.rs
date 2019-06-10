@@ -1,11 +1,9 @@
 use env_logger;
 use failure::Error;
 use futures::Future;
-use lapin_async::ConnectionProperties;
 use lapin_futures as lapin;
-use crate::lapin::Credentials;
-use crate::lapin::client::Client;
-use crate::lapin::channel::{BasicProperties, BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions};
+use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+use crate::lapin::options::{BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use tokio;
 use tokio::runtime::Runtime;

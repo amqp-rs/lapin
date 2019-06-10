@@ -1,17 +1,13 @@
-pub use lapin_async::BasicProperties;
-pub use lapin_async::options::*;
-
 use futures::{Future, future};
-use lapin_async;
-use lapin_async::Channel as InnerChannel;
-use lapin_async::Connection;
+use lapin_async::{Channel as InnerChannel, Connection};
 use log::trace;
 
-use crate::{Error, Queue};
-use crate::confirmation::ConfirmationFuture;
-use crate::consumer::Consumer;
-use crate::message::{BasicGetMessage, BasicReturnMessage};
-use crate::types::*;
+use crate::{
+  BasicProperties, ConfirmationFuture, Consumer, Error, Queue,
+  message::{BasicGetMessage, BasicReturnMessage},
+  options::*,
+  types::{Boolean, FieldTable, LongUInt, ShortString, ShortUInt},
+};
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 #[derive(Clone)]

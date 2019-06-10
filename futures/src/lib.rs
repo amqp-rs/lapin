@@ -22,11 +22,9 @@
 //! use failure::Error;
 //! use futures::future;
 //! use futures::future::Future;
-//! use lapin_async::ConnectionProperties;
 //! use lapin_futures as lapin;
-//! use crate::lapin::Credentials;
-//! use crate::lapin::channel::{BasicPublishOptions, BasicProperties, QueueDeclareOptions};
-//! use crate::lapin::client::Client;
+//! use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+//! use crate::lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::info;
 //! use tokio;
@@ -65,11 +63,9 @@
 //! use env_logger;
 //! use failure::Error;
 //! use futures::{future, Future, Stream};
-//! use lapin_async::ConnectionProperties;
 //! use lapin_futures as lapin;
-//! use crate::lapin::Credentials;
-//! use crate::lapin::client::Client;
-//! use crate::lapin::channel::{BasicConsumeOptions, QueueDeclareOptions};
+//! use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+//! use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
 //! use tokio;
@@ -111,17 +107,17 @@
 //! }
 //! ```
 
-pub use lapin_async::ConsumerSubscriber;
-pub use lapin_async::Credentials;
-pub use lapin_async::{Error, ErrorKind};
-pub use lapin_async::Queue;
+pub use lapin_async::{
+  message, options, protocol, tcp, types, uri,
+  BasicProperties, Configuration, ConnectionProperties, ConnectionSASLMechanism, ConsumerSubscriber, Credentials, Error, ErrorKind, Queue,
+};
 
-pub use client::Connect;
+pub use channel::Channel;
+pub use client::{Client, ClientFuture, Connect};
+pub use confirmation::ConfirmationFuture;
+pub use consumer::Consumer;
 
-pub mod channel;
-pub mod client;
-pub mod confirmation;
-pub mod consumer;
-pub mod message;
-pub mod types;
-pub mod uri;
+mod channel;
+mod client;
+mod confirmation;
+mod consumer;

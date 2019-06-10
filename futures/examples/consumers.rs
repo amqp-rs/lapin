@@ -1,11 +1,9 @@
 use env_logger;
 use failure::{err_msg, Error};
 use futures::{Future, IntoFuture, Stream};
-use lapin_async::ConnectionProperties;
 use lapin_futures as lapin;
-use crate::lapin::Credentials;
-use crate::lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, QueueDeclareOptions};
-use crate::lapin::client::Client;
+use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::info;
 use futures;
