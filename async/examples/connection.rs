@@ -46,11 +46,11 @@ fn main() {
       channel_a.confirm_select(ConfirmSelectOptions::default()).wait().expect("confirm_select");
       info!("[{}] state: {:?}", line!(), conn.status().state());
 
-      channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
+      let queue = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
       info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will consume");
-      channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).wait().expect("basic_consume");
+      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).wait().expect("basic_consume");
       info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will publish");

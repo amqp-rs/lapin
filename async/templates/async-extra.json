@@ -135,6 +135,7 @@
   "basic": {
     "consume": {
       "metadata": {
+        "require_wrapper": true,
         "extra_args": [
           {
             "name": "subscriber",

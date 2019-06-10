@@ -60,13 +60,13 @@ fn connection() {
       channel_a.queue_purge("hello-async", QueuePurgeOptions::default()).wait().expect("queue_purge");
       println!("[{}] state: {:?}", line!(), conn.status().state());
 
-      channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
+      let queue = channel_b.queue_declare("hello-async", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
       println!("[{}] state: {:?}", line!(), conn.status().state());
 
       println!("will consume");
       let hello_world = Arc::new(AtomicBool::new(false));
       let subscriber = Subscriber { hello_world: hello_world.clone(), };
-      channel_b.basic_consume("hello-async", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).wait().expect("basic_consume");
+      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).wait().expect("basic_consume");
       println!("[{}] state: {:?}", line!(), conn.status().state());
 
       println!("will publish");

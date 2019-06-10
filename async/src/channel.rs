@@ -1,6 +1,8 @@
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
 
+use std::borrow::Borrow;
+
 use crate::{
   BasicProperties,
   acknowledgement::{Acknowledgements, DeliveryTag},
@@ -72,6 +74,10 @@ impl Channel {
 
   pub fn id(&self) -> u16 {
     self.id
+  }
+
+  pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable, subscriber: Box<dyn ConsumerSubscriber>) -> Confirmation<ShortString> {
+    self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
   }
 
   pub fn wait_for_confirms(&self) -> Vec<BasicReturnMessage> {

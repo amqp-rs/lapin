@@ -46,6 +46,12 @@ impl Queue {
   }
 }
 
+impl Borrow<str> for Queue {
+  fn borrow(&self) -> &str {
+    self.name.as_str()
+  }
+}
+
 impl QueueState {
   pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
     self.consumers.insert(consumer_tag, consumer);
