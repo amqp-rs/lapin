@@ -194,6 +194,7 @@
           }
         ],
         "end_hook": {
+          "override_send_res": true,
           "params": ["60", "payload", "properties"]
         }
       }
