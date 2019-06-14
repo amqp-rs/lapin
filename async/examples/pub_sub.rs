@@ -3,7 +3,8 @@ use lapin_async as lapin;
 use log::info;
 
 use crate::lapin::{
-  BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
+  BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber,
+  auth::Credentials,
   message::Delivery,
   options::*,
   types::FieldTable,

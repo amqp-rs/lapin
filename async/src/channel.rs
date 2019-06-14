@@ -6,12 +6,12 @@ use std::borrow::Borrow;
 use crate::{
   BasicProperties,
   acknowledgement::{Acknowledgements, DeliveryTag},
+  auth::Credentials,
   channel_status::{ChannelStatus, ChannelState},
   confirmation::Confirmation,
   connection::Connection,
   connection_status::ConnectionState,
   consumer::{Consumer, ConsumerSubscriber},
-  credentials::Credentials,
   error::{Error, ErrorKind},
   frames::Priority,
   id_sequence::IdSequence,
@@ -291,7 +291,7 @@ impl Channel {
 
       options.client_properties.insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-      self.connection_start_ok(options.client_properties, &mechanism, &credentials.auth_string(options.mechanism), &locale, wait_handle, credentials).as_error()
+      self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_auth_string(options.mechanism), &locale, wait_handle, credentials).as_error()
     } else {
       error!("Invalid state: {:?}", state);
       self.connection.set_error()?;

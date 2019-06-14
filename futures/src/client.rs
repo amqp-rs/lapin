@@ -5,7 +5,8 @@ use lapin_async::{
 };
 
 use crate::{
-  Channel, ConfirmationFuture, ConnectionProperties, Credentials, Error,
+  Channel, ConfirmationFuture, ConnectionProperties, Error,
+  auth::Credentials,
   uri::AMQPUri,
 };
 

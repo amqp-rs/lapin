@@ -3,9 +3,8 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 use crate::{
-  connection::Connection,
-  connection_properties::ConnectionProperties,
-  credentials::Credentials,
+  Connection, ConnectionProperties,
+  auth::Credentials,
   wait::WaitHandle,
 };
 

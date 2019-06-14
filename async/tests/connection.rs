@@ -11,7 +11,8 @@ use std::{
 };
 
 use crate::lapin::{
-  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
+  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber,
+  auth::Credentials,
   message::Delivery,
   options::*,
   types::FieldTable,

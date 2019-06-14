@@ -23,7 +23,8 @@
 //! use futures::future;
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
-//! use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+//! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+//! use crate::lapin::auth::Credentials;
 //! use crate::lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::info;
@@ -64,7 +65,8 @@
 //! use failure::Error;
 //! use futures::{future, Future, Stream};
 //! use lapin_futures as lapin;
-//! use crate::lapin::{BasicProperties, Client, ConnectionProperties, Credentials};
+//! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+//! use crate::lapin::auth::Credentials;
 //! use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
@@ -108,8 +110,8 @@
 //! ```
 
 pub use lapin_async::{
-  message, options, protocol, tcp, types, uri,
-  BasicProperties, Configuration, ConnectionProperties, ConnectionSASLMechanism, ConsumerSubscriber, Credentials, Error, ErrorKind, Queue,
+  auth, message, options, protocol, tcp, types, uri,
+  BasicProperties, Configuration, ConnectionProperties, ConsumerSubscriber, Error, ErrorKind, Queue,
 };
 
 pub use channel::Channel;

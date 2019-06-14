@@ -9,13 +9,13 @@ use log::{debug, error, trace};
 use std::io;
 
 use crate::{
+  auth::Credentials,
   channel::{Channel, Reply},
   channels::Channels,
   confirmation::Confirmation,
   configuration::Configuration,
   connection_properties::ConnectionProperties,
   connection_status::{ConnectionStatus, ConnectionState},
-  credentials::Credentials,
   error::{Error, ErrorKind},
   frames::{Frames, Priority, SendId},
   io_loop::IoLoop,

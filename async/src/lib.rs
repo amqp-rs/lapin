@@ -19,7 +19,8 @@
 //! use log::info;
 //!
 //! use crate::lapin::{
-//!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber, Credentials,
+//!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber,
+//!   auth::Credentials,
 //!   message::Delivery,
 //!   options::*,
 //!   types::FieldTable,
@@ -65,17 +66,16 @@
 
 pub use amq_protocol::{
   protocol::{self, BasicProperties},
-  tcp, types, uri,
+  auth, tcp, types, uri,
 };
 
 pub use channel::{Channel, options};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection};
-pub use connection_properties::{ConnectionProperties, ConnectionSASLMechanism};
+pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::ConsumerSubscriber;
-pub use credentials::Credentials;
 pub use error::{Error, ErrorKind};
 pub use queue::Queue;
 
@@ -92,7 +92,6 @@ mod connection;
 mod connection_properties;
 mod connection_status;
 mod consumer;
-mod credentials;
 mod error;
 mod frames;
 mod id_sequence;
