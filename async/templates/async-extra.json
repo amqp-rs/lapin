@@ -6,10 +6,14 @@
           {
             "name": "wait_handle",
             "type": "WaitHandle<Connection>"
+          },
+          {
+            "name": "credentials",
+            "type": "Credentials"
           }
         ],
         "end_hook": {
-          "params": ["wait_handle"]
+          "params": ["wait_handle", "credentials"]
         }
       }
     },
@@ -38,16 +42,6 @@
         "channel_deinit": true,
         "received_hook": true,
         "end_hook": true
-      }
-    },
-    "secure": {
-      "metadata": {
-        "skip": true
-      }
-    },
-    "secure-ok": {
-      "metadata": {
-        "skip": true
       }
     }
   },

@@ -11,6 +11,7 @@ use crate::{
   connection::Connection,
   connection_status::ConnectionState,
   consumer::{Consumer, ConsumerSubscriber},
+  credentials::Credentials,
   error::{Error, ErrorKind},
   frames::Priority,
   id_sequence::IdSequence,
@@ -173,8 +174,8 @@ impl Channel {
     Err(error)
   }
 
-  fn on_connection_start_ok_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
-    self.connection.set_state(ConnectionState::SentStartOk(wait_handle));
+  fn on_connection_start_ok_sent(&self, wait_handle: WaitHandle<Connection>, credentials: Credentials) -> Result<(), Error> {
+    self.connection.set_state(ConnectionState::SentStartOk(wait_handle, credentials));
     Ok(())
   }
 
@@ -290,7 +291,20 @@ impl Channel {
 
       options.client_properties.insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-      self.connection_start_ok(options.client_properties, &mechanism, &credentials.sasl_plain_auth_string(), &locale, wait_handle).as_error()
+      self.connection_start_ok(options.client_properties, &mechanism, &credentials.auth_string(options.mechanism), &locale, wait_handle, credentials).as_error()
+    } else {
+      error!("Invalid state: {:?}", state);
+      self.connection.set_error()?;
+      Err(ErrorKind::InvalidConnectionState(state).into())
+    }
+  }
+
+  fn on_connection_secure_received(&self, method: protocol::connection::Secure) -> Result<(), Error> {
+    trace!("Server sent connection::Secure: {:?}", method);
+
+    let state = self.connection.status().state();
+    if let ConnectionState::SentStartOk(_, credentials) = state {
+      self.connection_secure_ok(&credentials.rabbit_cr_demo_answer()).as_error()
     } else {
       error!("Invalid state: {:?}", state);
       self.connection.set_error()?;
@@ -302,7 +316,7 @@ impl Channel {
     debug!("Server sent Connection::Tune: {:?}", method);
 
     let state = self.connection.status().state();
-    if let ConnectionState::SentStartOk(wait_handle) = state {
+    if let ConnectionState::SentStartOk(wait_handle, _) = state {
       self.tune_connection_configuration(method.channel_max, method.frame_max, method.heartbeat);
 
       self.connection_tune_ok(self.connection.configuration().channel_max(), self.connection.configuration().frame_max(), self.connection.configuration().heartbeat()).as_error()?;

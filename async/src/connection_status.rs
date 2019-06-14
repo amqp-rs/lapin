@@ -48,7 +48,7 @@ impl ConnectionStatus {
 pub enum ConnectionState {
   Initial,
   SentProtocolHeader(WaitHandle<Connection>, Credentials, ConnectionProperties),
-  SentStartOk(WaitHandle<Connection>),
+  SentStartOk(WaitHandle<Connection>, Credentials),
   SentOpen(WaitHandle<Connection>),
   Connected,
   Closing,
@@ -67,7 +67,7 @@ impl PartialEq for ConnectionState {
     match (self, other) {
       (ConnectionState::Initial,                ConnectionState::Initial)                => true,
       (ConnectionState::SentProtocolHeader(..), ConnectionState::SentProtocolHeader(..)) => true,
-      (ConnectionState::SentStartOk(_),         ConnectionState::SentStartOk(_))         => true,
+      (ConnectionState::SentStartOk(..),        ConnectionState::SentStartOk(..))        => true,
       (ConnectionState::SentOpen(_),            ConnectionState::SentOpen(_))            => true,
       (ConnectionState::Connected,              ConnectionState::Connected)              => true,
       (ConnectionState::Closing,                ConnectionState::Closing)                => true,

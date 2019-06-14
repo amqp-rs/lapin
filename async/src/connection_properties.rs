@@ -4,18 +4,23 @@ use crate::types::FieldTable;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnectionSASLMechanism {
-  PLAIN,
+  Plain,
+  RabbitCrDemo,
 }
 
 impl Default for ConnectionSASLMechanism {
   fn default() -> Self {
-    ConnectionSASLMechanism::PLAIN
+    ConnectionSASLMechanism::Plain
   }
 }
 
 impl fmt::Display for ConnectionSASLMechanism {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{:?}", self)
+    let mechanism = match self {
+      ConnectionSASLMechanism::Plain        => "PLAIN",
+      ConnectionSASLMechanism::RabbitCrDemo => "RABBIT-CR-DEMO",
+    };
+    write!(f, "{}", mechanism)
   }
 }
 
