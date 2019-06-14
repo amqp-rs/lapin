@@ -15,6 +15,7 @@
     },
     "open": {
       "metadata": {
+        "internal": true,
         "bypass_wait_handle": true,
         "extra_args": [
           {
@@ -53,6 +54,7 @@
   "channel": {
     "open": {
       "metadata": {
+        "internal": true,
         "channel_init": true,
         "confirmation": {
           "type": "Channel"
