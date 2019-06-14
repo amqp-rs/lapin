@@ -20,6 +20,7 @@ use crate::{
   io_loop::IoLoop,
   registration::Registration,
   tcp::AMQPUriTcpExt,
+  types::ShortUInt,
   wait::Wait,
 };
 
@@ -85,6 +86,10 @@ impl Connection {
 
   pub fn status(&self) -> &ConnectionStatus {
     &self.status
+  }
+
+  pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
+    self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
   }
 
   fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {

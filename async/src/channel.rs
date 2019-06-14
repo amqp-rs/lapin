@@ -77,6 +77,10 @@ impl Channel {
     self.id
   }
 
+  pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
+    self.do_channel_close(reply_code, reply_text, 0, 0)
+  }
+
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable, subscriber: Box<dyn ConsumerSubscriber>) -> Confirmation<ShortString> {
     self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
   }
@@ -170,7 +174,7 @@ impl Channel {
   }
 
   fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<(), Error> {
-    self.channel_close(AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed", class_id, method_id).as_error()?;
+    self.do_channel_close(AMQPSoftError::PRECONDITIONFAILED.get_id(), "precondition failed", class_id, method_id).as_error()?;
     Err(error)
   }
 
