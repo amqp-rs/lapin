@@ -24,7 +24,6 @@
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
 //! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
-//! use crate::lapin::auth::Credentials;
 //! use crate::lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::info;
@@ -37,7 +36,7 @@
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+//!    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)
@@ -66,7 +65,6 @@
 //! use futures::{future, Future, Stream};
 //! use lapin_futures as lapin;
 //! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
-//! use crate::lapin::auth::Credentials;
 //! use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
@@ -79,7 +77,7 @@
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+//!    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel().map_err(Error::from)

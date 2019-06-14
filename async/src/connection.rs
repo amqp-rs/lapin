@@ -9,7 +9,6 @@ use log::{debug, error, trace};
 use std::io;
 
 use crate::{
-  auth::Credentials,
   channel::{Channel, Reply},
   channels::Channels,
   confirmation::Confirmation,
@@ -64,13 +63,13 @@ impl Evented for Connection {
 
 impl Connection {
   /// Connect to an AMQP Server
-  pub fn connect(uri: &str, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> {
-    Connect::connect(uri, credentials, options)
+  pub fn connect(uri: &str, options: ConnectionProperties) -> Confirmation<Connection> {
+    Connect::connect(uri, options)
   }
 
   /// Connect to an AMQP Server
-  pub fn connect_uri(uri: AMQPUri, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> {
-    Connect::connect(uri, credentials, options)
+  pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Confirmation<Connection> {
+    Connect::connect(uri, options)
   }
 
   pub fn create_channel(&self) -> Confirmation<Channel> {
@@ -88,7 +87,7 @@ impl Connection {
     &self.status
   }
 
-  fn connector(credentials: Credentials, options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
+  fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
     move |stream, uri| {
       let conn = Connection::default();
       if let Some(frame_max) = uri.query.frame_max {
@@ -102,7 +101,7 @@ impl Connection {
       }
       conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
       let (wait, wait_handle) = Wait::new();
-      conn.set_state(ConnectionState::SentProtocolHeader(wait_handle, credentials, options));
+      conn.set_state(ConnectionState::SentProtocolHeader(wait_handle, uri.authority.userinfo.into(), options));
       let io_loop = IoLoop::new(conn.clone(), stream)?;
       // FIXME: how do we bubble errors up during connection?
       Ok((wait, io_loop))
@@ -210,25 +209,25 @@ impl Connection {
 /// Trait providing a method to connect to an AMQP server
 pub trait Connect {
   /// connect to an AMQP server
-  fn connect(self, credentials: Credentials, options: ConnectionProperties) -> Confirmation<Connection> where Self: Sized {
-    self.connect_raw(credentials, options).into()
+  fn connect(self, options: ConnectionProperties) -> Confirmation<Connection> where Self: Sized {
+    self.connect_raw(options).into()
   }
 
   /// connect to an AMQP server, for internal use
-  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error>;
+  fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error>;
 }
 
 impl Connect for AMQPUri {
-  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
-    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(credentials, options)).map_err(ErrorKind::IOError)??;
+  fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
+    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options)).map_err(ErrorKind::IOError)??;
     io_loop.run()?;
     Ok(conn)
   }
 }
 
 impl Connect for &str {
-  fn connect_raw(self, credentials: Credentials, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
-    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(credentials, options)).map_err(ErrorKind::IOError)??;
+  fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
+    let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options)).map_err(ErrorKind::IOError)??;
     io_loop.run()?;
     Ok(conn)
   }

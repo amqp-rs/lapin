@@ -4,7 +4,6 @@ use log::info;
 
 use crate::lapin::{
   BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber,
-  auth::Credentials,
   message::Delivery,
   options::*,
   types::FieldTable,
@@ -27,7 +26,7 @@ fn main() {
       env_logger::init();
 
       let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-      let conn = Connection::connect(&addr, Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
+      let conn = Connection::connect(&addr, ConnectionProperties::default()).wait().expect("connection error");
 
       info!("CONNECTED");
 

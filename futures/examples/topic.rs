@@ -3,7 +3,6 @@ use failure::Error;
 use futures::Future;
 use lapin_futures as lapin;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
-use crate::lapin::auth::Credentials;
 use crate::lapin::options::{BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use tokio;
@@ -16,7 +15,7 @@ fn main() {
     let runtime = Runtime::new().unwrap();
 
     runtime.block_on_all(
-        Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+        Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
             client.create_channel()
                 .and_then(|channel| {
                     channel.clone().exchange_declare("hello_topic", "topic", ExchangeDeclareOptions::default(), FieldTable::default()).map(move |_| channel)

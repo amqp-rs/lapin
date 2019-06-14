@@ -12,7 +12,6 @@ use std::{
 
 use crate::lapin::{
   BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber,
-  auth::Credentials,
   message::Delivery,
   options::*,
   types::FieldTable,
@@ -41,7 +40,7 @@ fn connection() {
       let _ = env_logger::try_init();
 
       let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-      let conn = Connection::connect(&addr, Credentials::default(), ConnectionProperties::default()).wait().expect("connection error");
+      let conn = Connection::connect(&addr, ConnectionProperties::default()).wait().expect("connection error");
 
       println!("CONNECTED with configuration: {:?}", conn.configuration());
 

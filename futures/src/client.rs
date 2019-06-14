@@ -6,7 +6,6 @@ use lapin_async::{
 
 use crate::{
   Channel, ConfirmationFuture, ConnectionProperties, Error,
-  auth::Credentials,
   uri::AMQPUri,
 };
 
@@ -18,13 +17,13 @@ pub struct Client {
 
 impl Client {
   /// Connect to an AMQP Server
-  pub fn connect(uri: &str, credentials: Credentials, options: ConnectionProperties) -> ClientFuture {
-    Connect::connect(uri, credentials, options)
+  pub fn connect(uri: &str, options: ConnectionProperties) -> ClientFuture {
+    Connect::connect(uri, options)
   }
 
   /// Connect to an AMQP Server
-  pub fn connect_uri(uri: AMQPUri, credentials: Credentials, options: ConnectionProperties) -> ClientFuture {
-    Connect::connect(uri, credentials, options)
+  pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> ClientFuture {
+    Connect::connect(uri, options)
   }
 
   /// Return a future that resolves to a `Channel` once the method succeeds
@@ -53,17 +52,17 @@ impl From<Confirmation<Connection>> for ClientFuture {
 /// Trait providing a method to connect to an AMQP server
 pub trait Connect {
   /// Connect to an AMQP server
-  fn connect(self, credentials: Credentials, options: ConnectionProperties) -> ClientFuture;
+  fn connect(self, options: ConnectionProperties) -> ClientFuture;
 }
 
 impl Connect for AMQPUri {
-  fn connect(self, credentials: Credentials, options: ConnectionProperties) -> ClientFuture {
-    LapinAsyncConnect::connect(self, credentials, options).into()
+  fn connect(self, options: ConnectionProperties) -> ClientFuture {
+    LapinAsyncConnect::connect(self, options).into()
   }
 }
 
 impl Connect for &str {
-  fn connect(self, credentials: Credentials, options: ConnectionProperties) -> ClientFuture {
-    LapinAsyncConnect::connect(self, credentials, options).into()
+  fn connect(self, options: ConnectionProperties) -> ClientFuture {
+    LapinAsyncConnect::connect(self, options).into()
   }
 }

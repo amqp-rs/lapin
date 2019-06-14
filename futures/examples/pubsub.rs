@@ -6,7 +6,6 @@ use failure::Error;
 use futures::{Future, Stream};
 use lapin_futures as lapin;
 use crate::lapin::{BasicProperties, ConnectionProperties, Client};
-use crate::lapin::auth::Credentials;
 use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::{debug, info};
@@ -19,7 +18,7 @@ fn main() {
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
   Runtime::new().unwrap().block_on_all(
-    Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
       let publisher = client.create_channel().and_then(|pub_channel| {
         let id = pub_channel.id();
         info!("created publisher channel with id: {}", id);

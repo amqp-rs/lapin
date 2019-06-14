@@ -3,7 +3,6 @@ use failure::{err_msg, Error};
 use futures::{Future, IntoFuture, Stream};
 use lapin_futures as lapin;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
-use crate::lapin::auth::Credentials;
 use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::info;
@@ -42,7 +41,7 @@ fn main() {
     // let runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
     runtime.block_on_all(
-        Client::connect(&addr, Credentials::default(), ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+        Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
             let _client = client.clone();
             futures::stream::iter_ok(0..N_CONSUMERS)
                 .for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
