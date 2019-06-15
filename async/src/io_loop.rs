@@ -20,9 +20,9 @@ use crate::{
   error::{Error, ErrorKind},
 };
 
-const SOCKET:   Token = Token(0);
-const DATA:     Token = Token(1);
-const CONTINUE: Token = Token(2);
+const SOCKET:   Token = Token(1);
+const DATA:     Token = Token(2);
+const CONTINUE: Token = Token(3);
 
 const FRAMES_STORAGE: usize = 32;
 
