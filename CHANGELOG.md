@@ -1,16 +1,36 @@
-### 0.19.0 (???)
+### 0.20.0 (2019-06-14)
+
+#### Breaking changes
+
+* Some internal methods are no longer public (channel and connection handling)
+* Rework how we close channels and connection
+
+### 0.20.0 (2019-06-14)
+
+#### Breaking changes
+
+* Drop duplicate Credentials param from connect, use the credentials from the AMQPUri.
+
+### 0.19.0 (2019-06-14)
 
 #### Bug Fixes
 
 * Better consumers handling
 * Misc code cleanup and modernization
+* AMQP is now fully supported, no more crahs on unexpected frames
 
 #### Breaking changes
 
-* Method options are now generated, which hardcoded fields from AMQP omitted, and shared between async and futures
+* Method options are now generated. Hardcoded fields from AMQP omitted. Options are shared between async and futures
 * **async**
-  * Methods are now on a new `ChannelHandle` which is now returned instead of `channel_id` by `create_channel`
+  * Methods are now on the `Channel` object which is now returned instead of `channel_id` by `create_channel`
   * Methods are now generated from protocol specifications
+  * Methods return a Confirmation that can be awaited
+  * ShortString and LongString are now concrete types (!= String), which can be created from &str or String using `into()`
+  * Connection::connect has been rewritten
+* **futures**
+  * Port to the new lapin-async
+  * Client::connect has been rewritten
 
 ### 0.18.0 (2019-03-03)
 
