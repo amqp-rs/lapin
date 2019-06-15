@@ -175,7 +175,7 @@ impl Channel {
 
   /// closes the channel
   pub fn close(&self, code: u16, message: &str) -> ConfirmationFuture<()> {
-    self.inner.channel_close(code, message, 0, 0).into()
+    self.inner.close(code, message).into()
   }
 
   /// update a channel flow
