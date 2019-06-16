@@ -184,7 +184,29 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
     self.can_read
   }
 
-  fn do_run(&mut self) -> Result<(), Error> {
+  fn run(&mut self, events: &mut Events) -> Result<(), Error> {
+    // First, update our internal state
+    trace!("io_loop run");
+    self.ensure_setup()?;
+    trace!("io_loop poll");
+    self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
+    trace!("io_loop poll done");
+    for event in events.iter() {
+      match event.token() {
+        SOCKET    => {
+          if event.readiness().is_readable() {
+            self.can_read = true;
+          }
+          if event.readiness().is_writable() {
+            self.can_write = true;
+          }
+        },
+        DATA      => self.has_data = true,
+        _         => {},
+      }
+    }
+
+    // Then, actually run an iteration of the event loop
     trace!("io_loop do_run; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
     loop {
       if self.send_heartbeat.load(Ordering::Relaxed) {
@@ -229,29 +251,6 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
     }
     trace!("io_loop do_run done; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
     Ok(())
-  }
-
-  fn run(&mut self, events: &mut Events) -> Result<(), Error> {
-    trace!("io_loop run");
-    self.ensure_setup()?;
-    trace!("io_loop poll");
-    self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
-    trace!("io_loop poll done");
-    for event in events.iter() {
-      match event.token() {
-        SOCKET    => {
-          if event.readiness().is_readable() {
-            self.can_read = true;
-          }
-          if event.readiness().is_writable() {
-            self.can_write = true;
-          }
-        },
-        DATA      => self.has_data = true,
-        _         => {},
-      }
-    }
-    self.do_run()
   }
 
   fn can_parse(&self) -> bool {
