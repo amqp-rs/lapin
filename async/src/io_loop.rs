@@ -76,9 +76,6 @@ pub(crate) struct IoLoop<T> {
 impl<T> Drop for IoLoop<T> {
   fn drop(&mut self) {
     self.connection.run().expect("io loop failed");
-    if let Some(hb_handle) = self.hb_handle.take() {
-      hb_handle.join().expect("heartbeat loop failed");
-    }
   }
 }
 
@@ -165,9 +162,13 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   pub(crate) fn run(mut self) -> Result<(), Error> {
     self.connection.clone().set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
       let mut events = Events::with_capacity(1024);
-      loop {
+      while self.status == Status::Initial || self.connection.status().connected() {
         self.do_run(&mut events)?;
       }
+      if let Some(hb_handle) = self.hb_handle.take() {
+        hb_handle.join().expect("heartbeat loop failed");
+      }
+      Ok(())
     }).map_err(ErrorKind::IOError)?);
     Ok(())
   }
