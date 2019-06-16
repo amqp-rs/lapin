@@ -46,6 +46,8 @@ pub enum ErrorKind {
   SerialisationError(#[fail(cause)] GenError),
   #[fail(display = "IO error: {:?}", _0)]
   IOError(#[fail(cause)] io::Error),
+  #[fail(display = "IO loop error")]
+  IoLoopError,
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants

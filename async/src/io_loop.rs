@@ -38,13 +38,36 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
 
   pub(crate) fn run(&self) -> Result<(), Error> {
     let inner  = self.inner.clone();
-    let handle = ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
+    self.inner.lock().connection.set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
       let mut events = Events::with_capacity(1024);
       loop {
         inner.lock().run(&mut events)?;
       }
-    }).map_err(ErrorKind::IOError)?;
-    self.inner.lock().handle = Some(handle);
+    }).map_err(ErrorKind::IOError)?);
+    Ok(())
+  }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct IoLoopHandle {
+  handle: Arc<Mutex<Option<JoinHandle<Result<(), Error>>>>>,
+}
+
+impl Default for IoLoopHandle {
+  fn default() -> Self {
+    Self { handle: Arc::new(Mutex::new(None)) }
+  }
+}
+
+impl IoLoopHandle {
+  pub(crate) fn register(&self, handle: JoinHandle<Result<(), Error>>) {
+    *self.handle.lock() = Some(handle);
+  }
+
+  pub(crate) fn wait(&self) -> Result<(), Error> {
+    if let Some(handle) = self.handle.lock().take() {
+      handle.join().expect("io loop")?
+    }
     Ok(())
   }
 }
@@ -62,7 +85,6 @@ struct Inner<T> {
   poll:           Poll,
   registration:   Registration,
   set_readiness:  SetReadiness,
-  handle:         Option<JoinHandle<Result<(), Error>>>,
   hb_handle:      Option<JoinHandle<()>>,
   frame_size:     usize,
   receive_buffer: Buffer,
@@ -75,9 +97,7 @@ struct Inner<T> {
 
 impl<T> Drop for Inner<T> {
   fn drop(&mut self) {
-    if let Some(handle) = self.handle.take() {
-      handle.join().expect("io loop failed").expect("io loop failed");
-    }
+    self.connection.run().expect("io loop failed");
     if let Some(hb_handle) = self.hb_handle.take() {
       hb_handle.join().expect("heartbeat loop failed");
     }
@@ -95,7 +115,6 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
       poll:           Poll::new().map_err(ErrorKind::IOError)?,
       registration,
       set_readiness,
-      handle:         None,
       hb_handle:      None,
       frame_size,
       receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),

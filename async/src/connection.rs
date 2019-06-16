@@ -6,7 +6,10 @@ use amq_protocol::{
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use log::{debug, error, trace};
 
-use std::io;
+use std::{
+  io,
+  thread::JoinHandle,
+};
 
 use crate::{
   channel::{Channel, Reply},
@@ -17,7 +20,7 @@ use crate::{
   connection_status::{ConnectionStatus, ConnectionState},
   error::{Error, ErrorKind},
   frames::{Frames, Priority, SendId},
-  io_loop::IoLoop,
+  io_loop::{IoLoop, IoLoopHandle},
   registration::Registration,
   tcp::AMQPUriTcpExt,
   types::ShortUInt,
@@ -31,6 +34,7 @@ pub struct Connection {
   channels:      Channels,
   registration:  Registration,
   frames:        Frames,
+  io_loop:       IoLoopHandle,
 }
 
 impl Default for Connection {
@@ -41,6 +45,7 @@ impl Default for Connection {
       channels:      Channels::default(),
       registration:  Registration::default(),
       frames:        Frames::default(),
+      io_loop:       IoLoopHandle::default(),
     };
 
     connection.channels.create_zero(connection.clone());
@@ -80,6 +85,13 @@ impl Connection {
     }
   }
 
+  /// Block current thread while the connection is still active.
+  /// This is useful when you only have a consumer and nothing else keeping your application
+  /// "alive".
+  pub fn run(&self) -> Result<(), Error> {
+    self.io_loop.wait()
+  }
+
   pub fn configuration(&self) -> &Configuration {
     &self.configuration
   }
@@ -90,6 +102,10 @@ impl Connection {
 
   pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
     self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
+  }
+
+  pub(crate) fn set_io_loop(&mut self, io_loop: JoinHandle<Result<(), Error>>) {
+    self.io_loop.register(io_loop);
   }
 
   fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
