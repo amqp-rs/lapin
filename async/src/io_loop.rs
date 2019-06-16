@@ -26,28 +26,6 @@ const CONTINUE: Token = Token(3);
 
 const FRAMES_STORAGE: usize = 32;
 
-pub(crate) struct IoLoop<T> {
-  inner: Arc<Mutex<Inner<T>>>,
-}
-
-impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
-  pub(crate) fn new(connection: Connection, socket: T) -> Result<Self, Error> {
-    let inner = Arc::new(Mutex::new(Inner::new(connection, socket)?));
-    Ok(Self { inner })
-  }
-
-  pub(crate) fn run(&self) -> Result<(), Error> {
-    let inner  = self.inner.clone();
-    self.inner.lock().connection.set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
-      let mut events = Events::with_capacity(1024);
-      loop {
-        inner.lock().run(&mut events)?;
-      }
-    }).map_err(ErrorKind::IOError)?);
-    Ok(())
-  }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct IoLoopHandle {
   handle: Arc<Mutex<Option<JoinHandle<Result<(), Error>>>>>,
@@ -78,7 +56,7 @@ enum Status {
   Setup,
 }
 
-struct Inner<T> {
+pub(crate) struct IoLoop<T> {
   connection:     Connection,
   socket:         T,
   status:         Status,
@@ -95,7 +73,7 @@ struct Inner<T> {
   send_heartbeat: Arc<AtomicBool>,
 }
 
-impl<T> Drop for Inner<T> {
+impl<T> Drop for IoLoop<T> {
   fn drop(&mut self) {
     self.connection.run().expect("io loop failed");
     if let Some(hb_handle) = self.hb_handle.take() {
@@ -104,8 +82,8 @@ impl<T> Drop for Inner<T> {
   }
 }
 
-impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
-  fn new(connection: Connection, socket: T) -> Result<Self, Error> {
+impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
+  pub(crate) fn new(connection: Connection, socket: T) -> Result<Self, Error> {
     let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
     let (registration, set_readiness) = Registration::new2();
     let inner = Self {
@@ -184,7 +162,17 @@ impl<T: Evented + Read + Write + Send + 'static> Inner<T> {
     self.can_read
   }
 
-  fn run(&mut self, events: &mut Events) -> Result<(), Error> {
+  pub(crate) fn run(mut self) -> Result<(), Error> {
+    self.connection.clone().set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
+      let mut events = Events::with_capacity(1024);
+      loop {
+        self.do_run(&mut events)?;
+      }
+    }).map_err(ErrorKind::IOError)?);
+    Ok(())
+  }
+
+  fn do_run(&mut self, events: &mut Events) -> Result<(), Error> {
     // First, update our internal state
     trace!("io_loop run");
     self.ensure_setup()?;
