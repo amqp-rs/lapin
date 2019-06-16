@@ -1,4 +1,15 @@
-### 0.20.0 (2019-06-14)
+### 0.21.1 (2019-06-16)
+
+#### Features
+
+* **async**
+  * `Connection::run` to keep the program running when there is nothing left to downgraded but consume new messages
+
+#### Bug Fixes
+
+* `io_loop` correctly exists once connection is no longer connected
+
+### 0.21.0 (2019-06-14)
 
 #### Breaking changes
 
@@ -12,6 +23,10 @@
 * Drop duplicate Credentials param from connect, use the credentials from the AMQPUri.
 
 ### 0.19.0 (2019-06-14)
+
+#### Features
+
+* All of AMQP methods and auth mechanisms are now supported
 
 #### Bug Fixes
 
