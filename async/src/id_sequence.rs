@@ -20,7 +20,7 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
   }
 
   pub(crate) fn set_max(&self, max: T) {
-    self.inner.lock().max = Some(max);
+    self.inner.lock().set_max(max)
   }
 }
 
@@ -42,6 +42,10 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
       max:  None,
       id:   T::default(),
     }
+  }
+
+  fn set_max(&mut self, max: T) {
+    self.max = if max == self.zero { None } else { Some(max) };
   }
 
   // FIXME: use Step trait once stable (https://github.com/rust-lang/rust/issues/42168)
