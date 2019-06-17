@@ -1,3 +1,9 @@
+### 0.21.2 (2019-06-17)
+
+#### Bug Fixes
+
+* Properly handle connection failures
+
 ### 0.21.1 (2019-06-16)
 
 #### Features
