@@ -103,6 +103,10 @@ impl Connection {
     &self.status
   }
 
+  pub(crate) fn flow(&self) -> bool {
+    self.channels.flow()
+  }
+
   pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
     self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
   }
@@ -168,7 +172,7 @@ impl Connection {
   ///
   /// returns None if there's no message to send
   pub(crate) fn next_frame(&self) -> Option<(SendId, AMQPFrame)> {
-    self.frames.pop()
+    self.frames.pop(self.flow())
   }
 
   /// updates the current state with a new received frame

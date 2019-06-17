@@ -41,6 +41,10 @@ impl ChannelStatus {
   pub(crate) fn set_send_flow(&self, flow: bool) {
     self.inner.write().send_flow = flow;
   }
+
+  pub(crate) fn flow(&self) -> bool {
+    self.inner.read().send_flow
+  }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,7 +68,7 @@ impl Default for ChannelState {
 #[derive(Debug)]
 struct Inner {
   confirm:   bool,
-  send_flow: bool, // FIXME: we should respect that
+  send_flow: bool,
   state:     ChannelState,
 }
 

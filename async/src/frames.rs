@@ -42,8 +42,8 @@ impl Frames {
     self.inner.lock().priority_frames.push_back((send_id, frame))
   }
 
-  pub(crate) fn pop(&self) -> Option<(SendId, AMQPFrame)> {
-    self.inner.lock().pop()
+  pub(crate) fn pop(&self, flow: bool) -> Option<(SendId, AMQPFrame)> {
+    self.inner.lock().pop(flow)
   }
 
   pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
@@ -105,8 +105,8 @@ impl Inner {
     wait
   }
 
-  fn pop(&mut self) -> Option<(SendId, AMQPFrame)> {
-    self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| self.low_prio_frames.pop_front())
+  fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame)> {
+    self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| if flow { self.low_prio_frames.pop_front() } else { None })
   }
 
   fn drop_pending(&mut self) {

@@ -82,6 +82,10 @@ impl Channels {
     }
     Ok(())
   }
+
+  pub(crate) fn flow(&self) -> bool {
+    self.inner.lock().channels.values().all(|c| c.status().flow())
+  }
 }
 
 #[derive(Debug)]
