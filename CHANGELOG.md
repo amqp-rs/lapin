@@ -37,6 +37,8 @@
 #### Breaking changes
 
 * Method options are now generated. Hardcoded fields from AMQP omitted. Options are shared between async and futures
+* The way we handle `publisher_confirm` has changed. You now need to call `confirm_select` explicitely, and then
+  `wait_for_confirms` to wait for all pending confirmations
 * **async**
   * Methods are now on the `Channel` object which is now returned instead of `channel_id` by `create_channel`
   * Methods are now generated from protocol specifications
