@@ -59,9 +59,3 @@ Then include it in your code like this:
 ```rust
 use lapin_async;
 ```
-
-## TLS integration
-
-You can use [lapin-futures-rustls](https://crates.io/crates/lapin-futures-rustls) or
-[lapin-futures-tls-api](https://crates.io/crates/lapin-futures-tls-api) if you need to
-connect to a rabbitmq server using a TLS connection.
