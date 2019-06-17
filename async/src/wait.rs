@@ -10,6 +10,7 @@ use std::{
 
 pub struct Wait<T> {
   recv: Receiver<T>,
+  send: SyncSender<T>,
   task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
@@ -26,8 +27,13 @@ pub trait NotifyReady {
 impl<T> Wait<T> {
   pub(crate) fn new() -> (Self, WaitHandle<T>) {
     let (send, recv) = sync_channel(1);
-    let task = Arc::new(Mutex::new(None));
-    (Self { recv, task: task.clone() }, WaitHandle { send, task })
+    let wait         = Self { recv, send, task: Arc::new(Mutex::new(None)) };
+    let wait_handle  = wait.handle();
+    (wait, wait_handle)
+  }
+
+  fn handle(&self) -> WaitHandle<T> {
+    WaitHandle { send: self.send.clone(), task: self.task.clone() }
   }
 
   pub(crate) fn try_wait(&self) -> Option<T> {

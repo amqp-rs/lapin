@@ -70,8 +70,8 @@ impl Channels {
   }
 
   pub(crate) fn set_closed(&self) -> Result<(), Error> {
-    for channel in self.inner.lock().channels.values() {
-      channel.set_closed()?;
+    for (_, channel) in self.inner.lock().channels.drain() {
+      channel.set_state(ChannelState::Closed);
     }
     Ok(())
   }

@@ -54,6 +54,7 @@ impl IoLoopHandle {
 enum Status {
   Initial,
   Setup,
+  Stop,
 }
 
 pub(crate) struct IoLoop<T> {
@@ -71,12 +72,6 @@ pub(crate) struct IoLoop<T> {
   can_read:       bool,
   has_data:       bool,
   send_heartbeat: Arc<AtomicBool>,
-}
-
-impl<T> Drop for IoLoop<T> {
-  fn drop(&mut self) {
-    self.connection.run().expect("io loop failed");
-  }
 }
 
 impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
@@ -106,9 +101,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 
   fn start_heartbeat(&mut self, interval: Duration) -> Result<(), Error> {
+    let connection    = self.connection.clone();
     let send_hartbeat = self.send_heartbeat.clone();
     let hb_handle = ThreadBuilder::new().name("heartbeat".to_owned()).spawn(move || {
-      loop {
+      while connection.status().connected() {
         let start         = Instant::now();
         let mut remaining = interval;
 
@@ -159,13 +155,18 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     self.can_read
   }
 
+  fn should_continue(&self) -> bool {
+    (self.status == Status::Initial || self.connection.status().connected()) && self.status != Status::Stop && !self.connection.status().errored()
+  }
+
   pub(crate) fn run(mut self) -> Result<(), Error> {
     self.connection.clone().set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
       let mut events = Events::with_capacity(1024);
-      while self.status == Status::Initial || self.connection.status().connected() {
+      while self.should_continue() {
         self.do_run(&mut events)?;
       }
       if let Some(hb_handle) = self.hb_handle.take() {
+        hb_handle.thread().unpark();
         hb_handle.join().expect("heartbeat loop failed");
       }
       Ok(())
@@ -214,7 +215,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         }
         self.send_buffer.shift_unless_available(self.frame_size);
       }
-      if self.wants_to_read() {
+      if self.connection.status().closed() {
+        self.status = Status::Stop;
+      }
+      if self.should_continue() && self.wants_to_read() {
         if let Err(e) = self.read_from_stream() {
           match e.kind() {
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_read = false,
@@ -230,8 +234,8 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       if self.can_parse() {
         self.parse()?;
       }
-      if !self.wants_to_read() || !self.wants_to_write() {
-        if self.wants_to_read() || self.can_parse() || self.has_data {
+      if !self.wants_to_read() || !self.wants_to_write() || self.status == Status::Stop || self.connection.status().errored() {
+        if self.status != Status::Stop && (self.wants_to_read() || self.can_parse() || self.has_data) {
           trace!("io_loop send continue; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
           self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
         }
@@ -256,15 +260,13 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 
   fn read_from_stream(&mut self) -> Result<(), Error> {
-    let state = self.connection.status().state();
-    if state == ConnectionState::Initial || state == ConnectionState::Closed || state == ConnectionState::Error {
-      self.connection.set_error()?;
-      Err(ErrorKind::InvalidConnectionState(state).into())
-    } else {
-      self.socket.read(&mut self.receive_buffer.space()).map(|sz| {
+    match self.connection.status().state() {
+      ConnectionState::Closed => Ok(()),
+      ConnectionState::Error  => Err(ErrorKind::InvalidConnectionState(ConnectionState::Error).into()),
+      _                       => self.socket.read(&mut self.receive_buffer.space()).map(|sz| {
         trace!("read {} bytes", sz);
         self.receive_buffer.fill(sz);
-      }).map_err(|e| ErrorKind::IOError(e).into())
+      }).map_err(|e| ErrorKind::IOError(e).into()),
     }
   }
 
@@ -302,7 +304,6 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   fn parse(&mut self) -> Result<(), Error> {
     match parse_frame(self.receive_buffer.data()) {
       Ok((i, f)) => {
-
         let consumed = self.receive_buffer.data().offset(i);
         self.receive_buffer.consume(consumed);
 

@@ -59,6 +59,10 @@ impl Frames {
       send.finish(());
     }
   }
+
+  pub(crate) fn drop_pending(&self) {
+    self.inner.lock().drop_pending();
+  }
 }
 
 #[derive(Debug)]
@@ -103,5 +107,15 @@ impl Inner {
 
   fn pop(&mut self) -> Option<(SendId, AMQPFrame)> {
     self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| self.low_prio_frames.pop_front())
+  }
+
+  fn drop_pending(&mut self) {
+    self.priority_frames.clear();
+    self.frames.clear();
+    self.low_prio_frames.clear();
+    self.expected_replies.clear();
+    for (_, wait_handle) in self.outbox.drain() {
+      wait_handle.finish(());
+    }
   }
 }

@@ -64,7 +64,11 @@ impl Channel {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
+    {{#if method.metadata.channel_deinit ~}}
+    if !self.status.is_closing() {
+    {{else}}
     if !self.status.is_connected() {
+    {{/if ~}}
     {{/if ~}}
       return Confirmation::new_error(ErrorKind::NotConnected.into());
     }

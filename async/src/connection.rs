@@ -79,6 +79,9 @@ impl Connection {
   }
 
   pub fn create_channel(&self) -> Confirmation<Channel> {
+    if !self.status.connected() {
+      return Confirmation::new_error(ErrorKind::InvalidConnectionState(self.status.state()).into());
+    }
     match self.channels.create(self.clone()) {
       Ok(channel) => channel.channel_open(),
       Err(error)  => Confirmation::new_error(error),
@@ -104,8 +107,12 @@ impl Connection {
     self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
   }
 
-  pub(crate) fn set_io_loop(&mut self, io_loop: JoinHandle<Result<(), Error>>) {
+  pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<(), Error>>) {
     self.io_loop.register(io_loop);
+  }
+
+  pub(crate) fn drop_pending_frames(&self) {
+    self.frames.drop_pending();
   }
 
   fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
@@ -124,7 +131,6 @@ impl Connection {
       let (wait, wait_handle) = Wait::new();
       conn.set_state(ConnectionState::SentProtocolHeader(wait_handle, uri.authority.userinfo.into(), options));
       let io_loop = IoLoop::new(conn.clone(), stream)?;
-      // FIXME: how do we bubble errors up during connection?
       Ok((wait, io_loop))
     }
   }

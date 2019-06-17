@@ -41,6 +41,14 @@ impl ConnectionStatus {
   pub fn connected(&self) -> bool {
     self.inner.read().state == ConnectionState::Connected
   }
+
+  pub fn closed(&self) -> bool {
+    self.inner.read().state == ConnectionState::Closed
+  }
+
+  pub fn errored(&self) -> bool {
+    self.inner.read().state == ConnectionState::Error
+  }
 }
 
 #[derive(Clone, Debug)]

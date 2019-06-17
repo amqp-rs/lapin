@@ -351,7 +351,17 @@ impl Channel {
     } else {
       info!("Connection closed on channel {}: {:?}", self.id, method);
     }
-    self.connection_close_ok().as_error()
+    let state = self.connection.status().state();
+    self.connection.set_closing();
+    self.connection.drop_pending_frames();
+    self.connection_close_ok().as_error()?;
+    match state {
+      ConnectionState::SentProtocolHeader(wait_handle, ..) => wait_handle.finish(self.connection.clone()),
+      ConnectionState::SentStartOk(wait_handle, _)         => wait_handle.finish(self.connection.clone()),
+      ConnectionState::SentOpen(wait_handle)               => wait_handle.finish(self.connection.clone()),
+      _                                                    => {},
+    }
+    Ok(())
   }
 
   fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
