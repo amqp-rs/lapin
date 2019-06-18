@@ -54,6 +54,15 @@ impl<T> Wait<T> {
 impl<T> WaitHandle<T> {
   pub(crate) fn finish(&self, val: T) {
     let _ = self.send.send(Ok(val));
+    self.notify();
+  }
+
+  pub(crate) fn error(&self, error: Error) {
+    let _ = self.send.send(Err(error));
+    self.notify();
+  }
+
+  fn notify(&self) {
     if let Some(task) = self.task.lock().take() {
       task.notify();
     }

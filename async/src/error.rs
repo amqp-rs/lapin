@@ -30,6 +30,8 @@ pub enum ErrorKind {
   InvalidMethod(AMQPClass),
   #[fail(display = "invalid channel: {}", _0)]
   InvalidChannel(u16),
+  #[fail(display = "connection refused")]
+  ConnectionRefused,
   #[fail(display = "not connected")]
   NotConnected,
   #[fail(display = "unexpected reply")]

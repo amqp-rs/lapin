@@ -356,9 +356,9 @@ impl Channel {
     self.connection.drop_pending_frames();
     self.connection_close_ok().as_error()?;
     match state {
-      ConnectionState::SentProtocolHeader(wait_handle, ..) => wait_handle.finish(self.connection.clone()),
-      ConnectionState::SentStartOk(wait_handle, _)         => wait_handle.finish(self.connection.clone()),
-      ConnectionState::SentOpen(wait_handle)               => wait_handle.finish(self.connection.clone()),
+      ConnectionState::SentProtocolHeader(wait_handle, ..) => wait_handle.error(ErrorKind::ConnectionRefused.into()),
+      ConnectionState::SentStartOk(wait_handle, _)         => wait_handle.error(ErrorKind::ConnectionRefused.into()),
+      ConnectionState::SentOpen(wait_handle)               => wait_handle.error(ErrorKind::ConnectionRefused.into()),
       _                                                    => {},
     }
     Ok(())
