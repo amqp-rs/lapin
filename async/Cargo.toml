@@ -12,12 +12,22 @@ categories = ["database"]
 license = "MIT"
 build = "build.rs"
 
+[features]
+default    = ["native-tls"]
+native-tls = ["amq-protocol/native-tls"]
+openssl    = ["amq-protocol/openssl"]
+rustls     = ["amq-protocol/rustls"]
+tokio      = ["amq-protocol/tokio"]
+
 [build-dependencies]
 amq-protocol-codegen = "^2.0.2"
 serde_json = "^1.0"
 
+[dependencies.amq-protocol]
+version = "^2.0.2"
+default-features = false
+
 [dependencies]
-amq-protocol = "^2.0.2"
 failure = "^0.1"
 log = "^0.4"
 mio = "^0.6"

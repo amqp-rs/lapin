@@ -11,14 +11,21 @@ keywords = ["amqp", "rabbitmq", "futures", "tokio"]
 categories = ["database"]
 license = "MIT"
 
+[features]
+default    = ["native-tls"]
+native-tls = ["lapin-async/native-tls"]
+openssl    = ["lapin-async/openssl"]
+rustls     = ["lapin-async/rustls"]
+
+[dependencies.lapin-async]
+version = "^0.21.3"
+default-features = false
+path = "../async"
+
 [dependencies]
 futures = "^0.1"
 log = "^0.4"
 parking_lot = "^0.8"
-
-[dependencies.lapin-async]
-version = "^0.21.3"
-path = "../async"
 
 [dev-dependencies]
 env_logger = "^0.6"
