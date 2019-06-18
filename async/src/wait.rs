@@ -8,15 +8,17 @@ use std::{
   },
 };
 
+use crate::error::Error;
+
 pub struct Wait<T> {
-  recv: Receiver<T>,
-  send: SyncSender<T>,
+  recv: Receiver<Result<T, Error>>,
+  send: SyncSender<Result<T, Error>>,
   task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
 #[derive(Clone)]
 pub struct WaitHandle<T> {
-  send: SyncSender<T>,
+  send: SyncSender<Result<T, Error>>,
   task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
@@ -36,11 +38,11 @@ impl<T> Wait<T> {
     WaitHandle { send: self.send.clone(), task: self.task.clone() }
   }
 
-  pub(crate) fn try_wait(&self) -> Option<T> {
+  pub(crate) fn try_wait(&self) -> Option<Result<T, Error>> {
     self.recv.try_recv().ok()
   }
 
-  pub(crate) fn wait(&self) -> T {
+  pub(crate) fn wait(&self) -> Result<T, Error> {
     self.recv.recv().unwrap()
   }
 
@@ -51,7 +53,7 @@ impl<T> Wait<T> {
 
 impl<T> WaitHandle<T> {
   pub(crate) fn finish(&self, val: T) {
-    let _ = self.send.send(val);
+    let _ = self.send.send(Ok(val));
     if let Some(task) = self.task.lock().take() {
       task.notify();
     }

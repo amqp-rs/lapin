@@ -28,7 +28,11 @@ impl<T> Future for ConfirmationFuture<T> {
           confirmation.subscribe(Box::new(Watcher(task::current())));
           self.subsribed = true;
         }
-        Ok(confirmation.try_wait().map(Async::Ready).unwrap_or(Async::NotReady))
+        Ok(if let Some(res) = confirmation.try_wait() {
+          Async::Ready(res?)
+        } else {
+          Async::NotReady
+        })
       },
     }
   }

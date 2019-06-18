@@ -37,7 +37,7 @@ impl<T> Confirmation<T> {
     }
   }
 
-  pub fn try_wait(&self) -> Option<T> {
+  pub fn try_wait(&self) -> Option<Result<T, Error>> {
     match &self.kind {
       ConfirmationKind::Wait(wait) => wait.try_wait(),
       ConfirmationKind::Error(_)   => None,
@@ -45,10 +45,10 @@ impl<T> Confirmation<T> {
   }
 
   pub fn wait(self) -> Result<T, Error> {
-    Ok(match self.kind {
+    match self.kind {
       ConfirmationKind::Wait(wait)   => wait.wait(),
       ConfirmationKind::Error(error) => return Err(error),
-    })
+    }
   }
 }
 

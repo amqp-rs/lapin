@@ -85,13 +85,13 @@ impl Channel {
     self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
   }
 
-  pub fn wait_for_confirms(&self) -> Vec<BasicReturnMessage> {
-    if let Some(wait) = self.acknowledgements.get_last_pending() {
-      wait.wait();
+  pub fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>, Error> {
+    Ok(if let Some(wait) = self.acknowledgements.get_last_pending() {
+      wait.wait()?;
       self.returned_messages.drain()
     } else {
       Vec::new()
-    }
+    })
   }
 
   #[cfg(test)]

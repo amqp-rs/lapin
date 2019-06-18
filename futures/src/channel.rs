@@ -197,6 +197,6 @@ impl Channel {
 
   pub fn wait_for_confirms(&self) -> impl Future<Item = Vec<BasicReturnMessage>, Error = Error> {
     // TODO: make async
-    future::ok(self.inner.wait_for_confirms())
+    future::result(self.inner.wait_for_confirms())
   }
 }
