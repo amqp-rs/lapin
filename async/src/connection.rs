@@ -19,6 +19,7 @@ use crate::{
   connection_properties::ConnectionProperties,
   connection_status::{ConnectionStatus, ConnectionState},
   error::{Error, ErrorKind},
+  error_handler::ErrorHandler,
   frames::{Frames, Priority, SendId},
   io_loop::{IoLoop, IoLoopHandle},
   registration::Registration,
@@ -35,6 +36,7 @@ pub struct Connection {
   registration:  Registration,
   frames:        Frames,
   io_loop:       IoLoopHandle,
+  error_handler: ErrorHandler,
 }
 
 impl Default for Connection {
@@ -46,6 +48,7 @@ impl Default for Connection {
       registration:  Registration::default(),
       frames:        Frames::default(),
       io_loop:       IoLoopHandle::default(),
+      error_handler: ErrorHandler::default(),
     };
 
     connection.channels.create_zero(connection.clone());
@@ -93,6 +96,10 @@ impl Connection {
   /// "alive".
   pub fn run(&self) -> Result<(), Error> {
     self.io_loop.wait()
+  }
+
+  pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
+    self.error_handler.set_handler(handler);
   }
 
   pub fn configuration(&self) -> &Configuration {
@@ -233,7 +240,9 @@ impl Connection {
   pub(crate) fn set_error(&self) -> Result<(), Error> {
     error!("Connection error");
     self.set_state(ConnectionState::Error);
-    self.channels.set_error()
+    self.channels.set_error()?;
+    self.error_handler.on_error();
+    Ok(())
   }
 }
 

@@ -92,6 +92,7 @@ mod connection_properties;
 mod connection_status;
 mod consumer;
 mod error;
+mod error_handler;
 mod frames;
 mod id_sequence;
 mod io_loop;
