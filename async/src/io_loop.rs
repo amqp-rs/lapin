@@ -208,6 +208,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
             _ => {
               error!("error writing: {:?}", e);
+              if let ConnectionState::SentProtocolHeader(wait_handle, ..) = self.connection.status().state() {
+                wait_handle.error(ErrorKind::ConnectionRefused.into());
+                self.status = Status::Stop;
+              }
               self.connection.set_error()?;
               return Err(e);
             }
