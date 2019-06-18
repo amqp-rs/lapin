@@ -1,3 +1,10 @@
+### 0.21.3 (2019-06-18)
+
+#### Bug Fixes
+
+* More work around connection failures, properly report those as errors
+* Add a way to register a connection error handler
+
 ### 0.21.2 (2019-06-17)
 
 #### Bug Fixes
