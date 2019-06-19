@@ -30,7 +30,7 @@ struct Subscriber {
 
 impl ConsumerSubscriber for Subscriber {
   fn new_delivery(&self, delivery: Delivery) {
-    self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).into_result().expect("basic_ack");
+    self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).as_error().expect("basic_ack");
   }
   fn drop_prefetched_messages(&self) {}
   fn cancel(&self) {}

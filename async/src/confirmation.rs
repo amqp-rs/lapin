@@ -16,11 +16,13 @@ impl<T> Confirmation<T> {
   }
 
   pub(crate) fn new_error(error: Error) -> Self {
-    Self { kind: ConfirmationKind::Error(error) }
+    let (wait, wait_handle) = Wait::new();
+    wait_handle.error(error);
+    Self::new(wait)
   }
 
-  pub(crate) fn as_error(self) -> Result<(), Error> {
-    self.into_result().map(|_| ())
+  pub fn as_error(self) -> Result<(), Error> {
+    self.try_wait().transpose().map(|_| ())
   }
 
   pub fn subscribe(&self, task: Box<dyn NotifyReady + Send>) {
@@ -29,25 +31,15 @@ impl<T> Confirmation<T> {
     }
   }
 
-  pub fn into_result(self) -> Result<Self, Error> {
-    if let ConfirmationKind::Error(err) = self.kind {
-      Err(err)
-    } else {
-      Ok(self)
-    }
-  }
-
   pub fn try_wait(&self) -> Option<Result<T, Error>> {
     match &self.kind {
       ConfirmationKind::Wait(wait) => wait.try_wait(),
-      ConfirmationKind::Error(_)   => None,
     }
   }
 
   pub fn wait(self) -> Result<T, Error> {
     match self.kind {
       ConfirmationKind::Wait(wait)   => wait.wait(),
-      ConfirmationKind::Error(error) => return Err(error),
     }
   }
 }
@@ -55,16 +47,13 @@ impl<T> Confirmation<T> {
 #[derive(Debug)]
 enum ConfirmationKind<T> {
   Wait(Wait<T>),
-  Error(Error),
 }
 
 impl<T> From<Result<Wait<T>, Error>> for Confirmation<T> {
   fn from(res: Result<Wait<T>, Error>) -> Self {
-    Self {
-      kind: match res {
-        Ok(wait) => ConfirmationKind::Wait(wait),
-        Err(err) => ConfirmationKind::Error(err),
-      }
+    match res {
+      Ok(wait) => Confirmation::new(wait),
+      Err(err) => Confirmation::new_error(err),
     }
   }
 }

@@ -4,7 +4,7 @@ use lapin_async::confirmation::{Confirmation, NotifyReady};
 use crate::Error;
 
 pub struct ConfirmationFuture<T> {
-  inner:     Result<Confirmation<T>, Option<Error>>,
+  inner:     Confirmation<T>,
   subsribed: bool,
 }
 
@@ -21,25 +21,20 @@ impl<T> Future for ConfirmationFuture<T> {
   type Error = Error;
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-    match &mut self.inner {
-      Err(err)         => Err(err.take().expect("ConfirmationFuture polled twice but we were in an error state")),
-      Ok(confirmation) => {
-        if !self.subsribed {
-          confirmation.subscribe(Box::new(Watcher(task::current())));
-          self.subsribed = true;
-        }
-        Ok(if let Some(res) = confirmation.try_wait() {
-          Async::Ready(res?)
-        } else {
-          Async::NotReady
-        })
-      },
+    if !self.subsribed {
+      self.inner.subscribe(Box::new(Watcher(task::current())));
+      self.subsribed = true;
     }
+    Ok(if let Some(res) = self.inner.try_wait() {
+      Async::Ready(res?)
+    } else {
+      Async::NotReady
+    })
   }
 }
 
 impl<T> From<Confirmation<T>> for ConfirmationFuture<T> {
   fn from(confirmation: Confirmation<T>) -> Self {
-    Self { inner: confirmation.into_result().map_err(Some), subsribed: false }
+    Self { inner: confirmation, subsribed: false }
   }
 }
