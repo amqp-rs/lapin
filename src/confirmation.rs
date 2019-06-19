@@ -80,3 +80,35 @@ impl<T> fmt::Debug for Confirmation<T> {
     write!(f, "Confirmation")
   }
 }
+
+#[cfg(feature = "futures")]
+mod futures {
+  use super::*;
+
+  use ::futures::{
+    future::TryFuture,
+    task::{Context, Poll, Waker},
+  };
+
+  use std::pin::Pin;
+
+  impl<T, I> TryFuture for Confirmation<T, I> {
+    type Ok = T;
+    type Error = Error;
+
+    fn try_poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Error>> {
+      if !self.has_subscriber() {
+        self.subscribe(Box::new(Watcher(cx.waker().clone())));
+      }
+      self.try_wait().map(Poll::Ready).unwrap_or(Poll::Pending)
+    }
+  }
+
+  struct Watcher(Waker);
+
+  impl NotifyReady for Watcher {
+    fn notify(&self) {
+      self.0.wake_by_ref();
+    }
+  }
+}

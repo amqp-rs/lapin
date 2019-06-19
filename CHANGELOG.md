@@ -4,6 +4,10 @@
 
 * `lapin-async` as been renamed to `lapin`
 
+#### Features
+
+* `lapin` has experimental support for `futures-0.3` + `std::future::Future` through its `futures` feature
+
 ### 0.22.0 (2019-06-20)
 
 #### Features
