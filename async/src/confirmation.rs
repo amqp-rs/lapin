@@ -1,16 +1,17 @@
 pub use crate::wait::NotifyReady;
 
+use std::fmt;
+
 use crate:: {
   error::Error,
   wait::Wait,
 };
 
-#[derive(Debug)]
-pub struct Confirmation<T> {
-  kind: ConfirmationKind<T>,
+pub struct Confirmation<T, I=()> {
+  kind: ConfirmationKind<T, I>,
 }
 
-impl<T> Confirmation<T> {
+impl<T, I> Confirmation<T, I> {
   pub(crate) fn new(wait: Wait<T>) -> Self {
     Self { kind: ConfirmationKind::Wait(wait) }
   }
@@ -26,27 +27,36 @@ impl<T> Confirmation<T> {
   }
 
   pub fn subscribe(&self, task: Box<dyn NotifyReady + Send>) {
-    if let ConfirmationKind::Wait(ref wait) = self.kind {
-      wait.subscribe(task);
+    match &self.kind {
+      ConfirmationKind::Wait(wait)   => wait.subscribe(task),
+      ConfirmationKind::Map(wait, _) => wait.subscribe(task),
     }
   }
 
   pub fn try_wait(&self) -> Option<Result<T, Error>> {
     match &self.kind {
-      ConfirmationKind::Wait(wait) => wait.try_wait(),
+      ConfirmationKind::Wait(wait)   => wait.try_wait(),
+      ConfirmationKind::Map(wait, f) => wait.try_wait().map(|res| res.map(f)),
     }
   }
 
   pub fn wait(self) -> Result<T, Error> {
     match self.kind {
       ConfirmationKind::Wait(wait)   => wait.wait(),
+      ConfirmationKind::Map(wait, f) => wait.wait().map(f),
     }
   }
 }
 
-#[derive(Debug)]
-enum ConfirmationKind<T> {
+impl<T> Confirmation<T> {
+  pub(crate) fn map<M>(self, f: Box<dyn Fn(T) -> M + Send + 'static>) -> Confirmation<M, T> {
+    Confirmation { kind: ConfirmationKind::Map(Box::new(self), f) }
+  }
+}
+
+enum ConfirmationKind<T, I> {
   Wait(Wait<T>),
+  Map(Box<Confirmation<I>>, Box<dyn Fn(I) -> T + Send + 'static>)
 }
 
 impl<T> From<Result<Wait<T>, Error>> for Confirmation<T> {
@@ -55,5 +65,11 @@ impl<T> From<Result<Wait<T>, Error>> for Confirmation<T> {
       Ok(wait) => Confirmation::new(wait),
       Err(err) => Confirmation::new_error(err),
     }
+  }
+}
+
+impl<T> fmt::Debug for Confirmation<T> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Confirmation")
   }
 }

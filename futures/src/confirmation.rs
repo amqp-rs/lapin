@@ -3,8 +3,8 @@ use lapin_async::confirmation::{Confirmation, NotifyReady};
 
 use crate::Error;
 
-pub struct ConfirmationFuture<T> {
-  inner:     Confirmation<T>,
+pub struct ConfirmationFuture<T, I=()> {
+  inner:     Confirmation<T, I>,
   subsribed: bool,
 }
 
@@ -16,7 +16,7 @@ impl NotifyReady for Watcher {
   }
 }
 
-impl<T> Future for ConfirmationFuture<T> {
+impl<T, I> Future for ConfirmationFuture<T, I> {
   type Item = T;
   type Error = Error;
 
@@ -33,8 +33,8 @@ impl<T> Future for ConfirmationFuture<T> {
   }
 }
 
-impl<T> From<Confirmation<T>> for ConfirmationFuture<T> {
-  fn from(confirmation: Confirmation<T>) -> Self {
+impl<T, I> From<Confirmation<T, I>> for ConfirmationFuture<T, I> {
+  fn from(confirmation: Confirmation<T, I>) -> Self {
     Self { inner: confirmation, subsribed: false }
   }
 }

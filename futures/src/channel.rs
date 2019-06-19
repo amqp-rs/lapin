@@ -1,4 +1,4 @@
-use futures::{Future, future};
+use futures::Future;
 use lapin_async::{Channel as InnerChannel, Connection};
 use log::trace;
 
@@ -195,8 +195,7 @@ impl Channel {
     self.inner.tx_rollback().into()
   }
 
-  pub fn wait_for_confirms(&self) -> impl Future<Item = Vec<BasicReturnMessage>, Error = Error> {
-    // TODO: make async
-    future::result(self.inner.wait_for_confirms())
+  pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>, Option<Boolean>> {
+    self.inner.wait_for_confirms().into()
   }
 }
