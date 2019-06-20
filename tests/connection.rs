@@ -1,5 +1,5 @@
 use env_logger;
-use lapin_async as lapin;
+use lapin;
 
 use std::{
   sync::{

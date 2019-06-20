@@ -1,21 +1,13 @@
 #![warn(rust_2018_idioms)]
 
-//! lapin-async
+//! lapin
 //!
-//! this library is meant for use in an event loop. The library exposes, through the
-//! [Connection struct](https://docs.rs/lapin-async/0.1.0/lapin_async/connection/struct.Connection.html),
-//! a state machine you can drive through IO you manage.
-//!
-//! Typically, your code would own the socket and buffers, and regularly pass the
-//! input and output buffers to the state machine so it receives messages and
-//! serializes new ones to send. You can then query the current state and see
-//! if it received new messages for the consumers.
+//! This project follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ.
 //!
 //! ## Example
 //!
 //! ```rust,no_run
 //! use env_logger;
-//! use lapin_async as lapin;
 //! use log::info;
 //!
 //! use crate::lapin::{

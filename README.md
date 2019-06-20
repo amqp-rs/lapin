@@ -7,31 +7,87 @@
 
 ![](logo.jpg)
 
-this project is separated into two crates. See the READMEs in the subfolder for each library.
+[![Crates.io Version](https://img.shields.io/crates/v/lapin.svg)](https://crates.io/crates/lapin)
 
-It follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ. As this is a young project,
-only part of the specification is implemented now.
+This project follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ.
 
-What you can do:
+lapin is available on [crates.io](https://crates.io/crates/lapin) and can be included in your Cargo enabled project like this:
 
-- connect to a server, close the connection
-- create and close channels
-- using all the basic methods. That means you can publish messages, make a consumer, ack or reject messages
-- authentication method is only PLAIN for now
+```toml
+[dependencies]
+lapin = "^0.23"
+```
+
+Then include it in your code like this:
+
+```rust
+use lapin;
+```
+
+## Example
+
+```rust
+use env_logger;
+use lapin;
+use log::info;
+
+use crate::lapin::{
+  BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber,
+  message::Delivery,
+  options::*,
+  types::FieldTable,
+};
+
+#[derive(Clone,Debug)]
+struct Subscriber {
+  channel: Channel,
+}
+
+impl ConsumerSubscriber for Subscriber {
+  fn new_delivery(&self, delivery: Delivery) {
+    self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).as_error().expect("basic_ack");
+  }
+  fn drop_prefetched_messages(&self) {}
+  fn cancel(&self) {}
+}
+
+fn main() {
+  env_logger::init();
+
+  let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+  let conn = Connection::connect(&addr, ConnectionProperties::default()).wait().expect("connection error");
+
+  info!("CONNECTED");
+
+  let channel_a = conn.create_channel().wait().expect("create_channel");
+  let channel_b = conn.create_channel().wait().expect("create_channel");
+
+  channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
+  channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
+
+  info!("will consume");
+  channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber { channel: channel_b.clone() })).wait().expect("basic_consume");
+
+  let payload = b"Hello world!";
+
+  loop {
+    channel_a.basic_publish("", "hello", BasicPublishOptions::default(), payload.to_vec(), BasicProperties::default()).wait().expect("basic_publish");
+  }
+}
+
+```
 
 ## lapin-futures
 
 [![Crates.io Version](https://img.shields.io/crates/v/lapin-futures.svg)](https://crates.io/crates/lapin-futures)
 
-a library with a futures based API, that you can use with tokio-core or futures-cpupool.
-
-This is the recommended way to use lapin as an AMQP client.
+a library with a futures-0.1 based API, that you can use with executors such as tokio or futures-cpupool.
 
 lapin-futures is available on [crates.io](https://crates.io/crates/lapin-futures) and can be included in your Cargo enabled project like this:
 
 ```toml
 [dependencies]
-lapin-futures = "^0.21"
+lapin-futures = "^0.23"
 ```
 
 Then include it in your code like this:
@@ -40,22 +96,4 @@ Then include it in your code like this:
 use lapin_futures;
 ```
 
-## lapin-async
 
-[![Crates.io Version](https://img.shields.io/crates/v/lapin-async.svg)](https://crates.io/crates/lapin-async)
-
-A low level library meant for usage in an event loop like one you'd build with mio.
-This library assumes non blocking IO.
-
-lapin-async is available on [crates.io](https://crates.io/crates/lapin-async) and can be included in your Cargo enabled project like this:
-
-```toml
-[dependencies]
-lapin-async = "^0.21"
-```
-
-Then include it in your code like this:
-
-```rust
-use lapin_async;
-```

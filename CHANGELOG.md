@@ -1,3 +1,9 @@
+### 0.23.0 (???)
+
+#### Breaking changes
+
+* `lapin-async` as been renamed to `lapin`
+
 ### 0.22.0 (2019-06-20)
 
 #### Features

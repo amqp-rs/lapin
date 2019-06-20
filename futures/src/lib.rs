@@ -2,18 +2,9 @@
 
 //! lapin-futures
 //!
-//! This library offers a futures based API over the lapin-async library.
-//! It leverages the tokio-io and futures library, so you can use it
-//! with tokio, futures-cpupool or any other reactor.
-//!
-//! The library is designed so it does not own the socket, so you
-//! can use any TCP, TLS or unix socket based stream.
-//!
-//! Calls to the underlying stream are guarded by a mutex, so you could
-//! use one connection from multiple threads.
-//!
-//! There's an [example available](https://github.com/sozu-proxy/lapin/blob/master/futures/examples/client.rs)
-//! using tokio.
+//! This library offers a futures-0.1 based API over the lapin library.
+//! It leverages the futures-0.1 library, so you can use it
+//! with tokio, futures-cpupool or any other executor.
 //!
 //! ## Publishing a message
 //!
@@ -107,7 +98,7 @@
 //! }
 //! ```
 
-pub use lapin_async::{
+pub use lapin::{
   auth, message, options, protocol, tcp, types, uri,
   BasicProperties, Configuration, ConnectionProperties, ConsumerSubscriber, Error, ErrorKind, Queue,
 };

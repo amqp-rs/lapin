@@ -58,7 +58,7 @@ pub enum ErrorKind {
   ///
   /// [stabilized]: https://github.com/rust-lang/rust/issues/44109
   #[doc(hidden)]
-  #[fail(display = "lapin_async::error::ErrorKind::__Nonexhaustive: this should not be printed")]
+  #[fail(display = "lapin::error::ErrorKind::__Nonexhaustive: this should not be printed")]
   __Nonexhaustive,
 }
 

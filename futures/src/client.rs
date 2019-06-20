@@ -1,6 +1,6 @@
 use futures::{Future, Poll};
-use lapin_async::{
-  Connect as LapinAsyncConnect, Connection,
+use lapin::{
+  Connect as LapinConnect, Connection,
   confirmation::Confirmation,
 };
 
@@ -62,12 +62,12 @@ pub trait Connect {
 
 impl Connect for AMQPUri {
   fn connect(self, options: ConnectionProperties) -> ClientFuture {
-    LapinAsyncConnect::connect(self, options).into()
+    LapinConnect::connect(self, options).into()
   }
 }
 
 impl Connect for &str {
   fn connect(self, options: ConnectionProperties) -> ClientFuture {
-    LapinAsyncConnect::connect(self, options).into()
+    LapinConnect::connect(self, options).into()
   }
 }

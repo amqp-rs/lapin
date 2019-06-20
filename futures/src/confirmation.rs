@@ -1,5 +1,5 @@
 use futures::{Async, Future, Poll, task};
-use lapin_async::confirmation::{Confirmation, NotifyReady};
+use lapin::confirmation::{Confirmation, NotifyReady};
 
 use crate::Error;
 

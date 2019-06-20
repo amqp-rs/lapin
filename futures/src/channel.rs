@@ -1,5 +1,5 @@
 use futures::Future;
-use lapin_async::{Channel as InnerChannel, Connection};
+use lapin::{Channel as InnerChannel, Connection};
 use log::trace;
 
 use crate::{
