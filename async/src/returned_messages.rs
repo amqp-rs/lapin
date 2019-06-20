@@ -1,11 +1,15 @@
 use log::error;
 use parking_lot::Mutex;
 
-use std::sync::Arc;
+use std::{
+  collections::VecDeque,
+  sync::Arc,
+};
 
 use crate::{
   BasicProperties,
   message::BasicReturnMessage,
+  wait::WaitHandle,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -37,12 +41,17 @@ impl ReturnedMessages {
   pub(crate) fn drain(&self) -> Vec<BasicReturnMessage> {
     self.inner.lock().messages.drain(..).collect()
   }
+
+  pub(crate) fn register_waiter(&self, waiter: WaitHandle<()>) {
+    self.inner.lock().waiters.push_back(waiter);
+  }
 }
 
 #[derive(Debug, Default)]
 pub struct Inner {
   current_message: Option<BasicReturnMessage>,
   messages:        Vec<BasicReturnMessage>,
+  waiters:         VecDeque<WaitHandle<()>>,
 }
 
 impl Inner {
@@ -50,6 +59,9 @@ impl Inner {
     if let Some(message) = self.current_message.take() {
       error!("Server returned us a message: {:?}", message);
       self.messages.push(message);
+      if let Some(wait_handle) = self.waiters.pop_front() {
+        wait_handle.finish(());
+      }
     }
   }
 }

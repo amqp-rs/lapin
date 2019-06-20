@@ -40,14 +40,15 @@ pub struct Channel {
 
 impl Channel {
   pub(crate) fn new(channel_id: u16, connection: Connection) -> Channel {
+    let returned_messages = ReturnedMessages::default();
     Channel {
-      id:                channel_id,
+      id:               channel_id,
       connection,
-      status:            ChannelStatus::default(),
-      acknowledgements:  Acknowledgements::default(),
-      delivery_tag:      IdSequence::new(false),
-      queues:            Queues::default(),
-      returned_messages: ReturnedMessages::default(),
+      status:           ChannelStatus::default(),
+      acknowledgements: Acknowledgements::new(returned_messages.clone()),
+      delivery_tag:     IdSequence::new(false),
+      queues:           Queues::default(),
+      returned_messages,
     }
   }
 

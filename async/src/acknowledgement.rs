@@ -7,17 +7,22 @@ use std::{
 
 use crate::{
   error::{Error, ErrorKind},
+  returned_messages::ReturnedMessages,
   wait::{Wait, WaitHandle},
 };
 
 pub type DeliveryTag = u64;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct Acknowledgements {
   inner: Arc<Mutex<Inner>>,
 }
 
 impl Acknowledgements {
+  pub(crate) fn new(returned_messages: ReturnedMessages) -> Self {
+    Self { inner: Arc::new(Mutex::new(Inner::new(returned_messages))) }
+  }
+
   pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) {
     self.inner.lock().register_pending(delivery_tag);
   }
@@ -65,13 +70,22 @@ impl Acknowledgements {
   }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Inner {
-  last:    Option<Wait<()>>,
-  pending: HashMap<DeliveryTag, WaitHandle<()>>,
+  last:              Option<Wait<()>>,
+  pending:           HashMap<DeliveryTag, WaitHandle<()>>,
+  returned_messages: ReturnedMessages,
 }
 
 impl Inner {
+  fn new(returned_messages: ReturnedMessages) -> Self {
+    Self {
+      last:    None,
+      pending: HashMap::default(),
+      returned_messages,
+    }
+  }
+
   fn register_pending(&mut self, delivery_tag: DeliveryTag) {
     let (wait, wait_handle) = Wait::new();
     self.pending.insert(delivery_tag, wait_handle);
@@ -80,7 +94,11 @@ impl Inner {
 
   fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<(), Error> {
     if let Some(delivery_wait) =  self.pending.remove(&delivery_tag) {
-      delivery_wait.finish(());
+      if success {
+        delivery_wait.finish(());
+      } else {
+        self.returned_messages.register_waiter(delivery_wait);
+      }
       Ok(())
     } else {
       Err(ErrorKind::PreconditionFailed.into())
