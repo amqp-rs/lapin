@@ -26,6 +26,10 @@ impl ConnectionStatus {
     self.inner.read().vhost.clone()
   }
 
+  pub(crate) fn set_vhost(&self, vhost: &str) {
+    self.inner.write().vhost = vhost.into();
+  }
+
   pub(crate) fn block(&self) {
     self.inner.write().blocked = true;
   }

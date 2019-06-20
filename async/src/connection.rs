@@ -129,6 +129,7 @@ impl Connection {
   fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
     move |stream, uri| {
       let conn = Connection::default();
+      conn.status.set_vhost(&uri.vhost);
       if let Some(frame_max) = uri.query.frame_max {
         conn.configuration.set_frame_max(frame_max);
       }
