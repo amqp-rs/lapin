@@ -528,3 +528,22 @@ impl Channel {
 }
 
 include!(concat!(env!("OUT_DIR"), "/channel.rs"));
+
+#[cfg(feature = "futures")]
+mod futures {
+  use super::*;
+
+  use crate::streaming_consumer::StreamingConsumer;
+
+  impl Channel {
+    pub fn basic_consume_streaming(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> Confirmation<StreamingConsumer, ShortString> {
+      let consumer = StreamingConsumer::default();
+      self.basic_consume(queue, consumer_tag, options, arguments, Box::new(consumer.clone())).map(Box::new(move |tag| {
+        let consumer = consumer.clone();
+        consumer.inner().set_tag(tag);
+        consumer
+      }))
+    }
+  }
+
+}

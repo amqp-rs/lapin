@@ -96,3 +96,40 @@ impl fmt::Debug for StreamingConsumer {
     write!(f, "StreamingConsumer({})", self.inner().tag())
   }
 }
+
+#[cfg(feature = "futures")]
+mod futures {
+  use super::*;
+
+  use ::futures::{
+    stream::Stream,
+    task::{Context, Poll},
+  };
+
+  use std::pin::Pin;
+
+  use crate::confirmation::futures::Watcher;
+
+  impl Stream for StreamingConsumer {
+    type Item = Delivery;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+      trace!("consumer poll; polling transport");
+      let mut inner = self.inner();
+      trace!("consumer poll; acquired inner lock, consumer_tag={}", inner.tag());
+      if !inner.has_task() {
+        inner.set_task(Box::new(Watcher(cx.waker().clone())));
+      }
+      if let Some(delivery) = inner.next_delivery() {
+        trace!("delivery; consumer_tag={}, delivery_tag={:?}", inner.tag(), delivery.delivery_tag);
+        Poll::Ready(Some(delivery))
+      } else if inner.canceled() {
+        trace!("consumer canceled; consumer_tag={}", inner.tag());
+        Poll::Ready(None)
+      } else {
+        trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
+        Poll::Pending
+      }
+    }
+  }
+}
