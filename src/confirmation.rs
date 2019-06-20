@@ -82,7 +82,7 @@ impl<T> fmt::Debug for Confirmation<T> {
 }
 
 #[cfg(feature = "futures")]
-mod futures {
+pub(crate) mod futures {
   use super::*;
 
   use ::futures::{
@@ -104,7 +104,7 @@ mod futures {
     }
   }
 
-  struct Watcher(Waker);
+  pub(crate) struct Watcher(pub(crate) Waker);
 
   impl NotifyReady for Watcher {
     fn notify(&self) {
