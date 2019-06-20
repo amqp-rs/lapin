@@ -1,3 +1,18 @@
+### 0.22.0 (2019-06-20)
+
+#### Features
+
+* you can now select the TLS implementation used for amqps or disable amqps support
+
+#### Bug Fixes
+
+* vhosts are properly handled again
+* we now properly wait for the return message when last ack is a nack for publishers confirm
+
+#### Breaking changes
+
+* `wait_for_confirms()` is now async (needs to be awaited)
+
 ### 0.21.3 (2019-06-18)
 
 #### Bug Fixes
