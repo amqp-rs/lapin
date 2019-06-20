@@ -195,7 +195,7 @@ impl Channel {
     self.inner.tx_rollback().into()
   }
 
-  pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>, Option<Boolean>> {
+  pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>> {
     self.inner.wait_for_confirms().into()
   }
 }

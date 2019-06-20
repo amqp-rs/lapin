@@ -7,7 +7,6 @@ use std::{
 
 use crate::{
   error::{Error, ErrorKind},
-  types::Boolean,
   wait::{Wait, WaitHandle},
 };
 
@@ -23,7 +22,7 @@ impl Acknowledgements {
     self.inner.lock().register_pending(delivery_tag);
   }
 
-  pub(crate) fn get_last_pending(&self) -> Option<Wait<Option<Boolean>>> {
+  pub(crate) fn get_last_pending(&self) -> Option<Wait<()>> {
     self.inner.lock().last.take()
   }
 
@@ -38,14 +37,14 @@ impl Acknowledgements {
   pub(crate) fn ack_all_pending(&self) {
     let mut inner = self.inner.lock();
     for wait in inner.drain_pending() {
-      wait.finish(Some(true));
+      wait.finish(());
     }
   }
 
   pub(crate) fn nack_all_pending(&self) {
     let mut inner = self.inner.lock();
     for wait in inner.drain_pending() {
-      wait.finish(Some(false));
+      wait.finish(());
     }
   }
 
@@ -68,8 +67,8 @@ impl Acknowledgements {
 
 #[derive(Debug, Default)]
 struct Inner {
-  last:    Option<Wait<Option<Boolean>>>,
-  pending: HashMap<DeliveryTag, WaitHandle<Option<Boolean>>>,
+  last:    Option<Wait<()>>,
+  pending: HashMap<DeliveryTag, WaitHandle<()>>,
 }
 
 impl Inner {
@@ -79,9 +78,9 @@ impl Inner {
     self.last = Some(wait);
   }
 
-  fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: Boolean) -> Result<(), Error> {
+  fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<(), Error> {
     if let Some(delivery_wait) =  self.pending.remove(&delivery_tag) {
-      delivery_wait.finish(Some(success));
+      delivery_wait.finish(());
       Ok(())
     } else {
       Err(ErrorKind::PreconditionFailed.into())
@@ -98,7 +97,7 @@ impl Inner {
     Ok(())
   }
 
-  fn drain_pending(&mut self) -> Vec<WaitHandle<Option<Boolean>>> {
+  fn drain_pending(&mut self) -> Vec<WaitHandle<()>> {
     self.pending.drain().map(|tup| tup.1).collect()
   }
 

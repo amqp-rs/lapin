@@ -85,14 +85,14 @@ impl Channel {
     self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
   }
 
-  pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>, Option<Boolean>> {
+  pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>> {
     if let Some(wait) = self.acknowledgements.get_last_pending() {
       let returned_messages = self.returned_messages.clone();
       Confirmation::new(wait).map(Box::new(move |_| returned_messages.drain()))
     } else {
       let (wait, wait_handle) = Wait::new();
-      wait_handle.finish(Some(true));
-      Confirmation::new(wait).map(Box::new(move |_| Vec::default()))
+      wait_handle.finish(Vec::default());
+      Confirmation::new(wait)
     }
   }
 
