@@ -5,7 +5,13 @@ use crate::Error;
 
 pub struct ConfirmationFuture<T, I=()>(Confirmation<T, I>);
 
-struct Watcher(task::Task);
+pub(crate) struct Watcher(task::Task);
+
+impl Default for Watcher {
+  fn default() -> Self {
+    Self(task::current())
+  }
+}
 
 impl NotifyReady for Watcher {
   fn notify(&self) {
@@ -19,7 +25,7 @@ impl<T, I> Future for ConfirmationFuture<T, I> {
 
   fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
     if !self.0.has_subscriber() {
-      self.0.subscribe(Box::new(Watcher(task::current())));
+      self.0.subscribe(Box::new(Watcher::default()));
     }
     Ok(if let Some(res) = self.0.try_wait() {
       Async::Ready(res?)

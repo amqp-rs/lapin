@@ -72,6 +72,7 @@ pub use queue::Queue;
 
 pub mod confirmation;
 pub mod message;
+pub mod streaming_consumer;
 
 mod acknowledgement;
 mod buffer;

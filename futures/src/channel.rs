@@ -113,10 +113,10 @@ impl Channel {
   /// the usual combinators
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer, Error = Error> {
     let consumer = Consumer::default();
-    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue, consumer_tag, options, arguments, Box::new(consumer.clone())).into();
+    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue, consumer_tag, options, arguments, Box::new(consumer.subscriber())).into();
     confirmation.map(|consumer_tag| {
       trace!("basic_consume received response, returning consumer");
-      consumer.set_consumer_tag(consumer_tag);
+      consumer.subscriber().inner().set_tag(consumer_tag);
       consumer
     })
   }
