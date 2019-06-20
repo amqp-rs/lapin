@@ -86,17 +86,16 @@ pub(crate) mod futures {
   use super::*;
 
   use ::futures::{
-    future::TryFuture,
+    future::Future,
     task::{Context, Poll, Waker},
   };
 
   use std::pin::Pin;
 
-  impl<T, I> TryFuture for Confirmation<T, I> {
-    type Ok = T;
-    type Error = Error;
+  impl<T, I> Future for Confirmation<T, I> {
+    type Output = Result<T, Error>;
 
-    fn try_poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Error>> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
       if !self.has_subscriber() {
         self.subscribe(Box::new(Watcher(cx.waker().clone())));
       }
