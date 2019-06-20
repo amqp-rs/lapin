@@ -49,6 +49,10 @@ impl<T> Wait<T> {
   pub(crate) fn subscribe(&self, task: Box<dyn NotifyReady + Send>) {
     *self.task.lock() = Some(task);
   }
+
+  pub(crate) fn has_subscriber(&self) -> bool {
+    self.task.lock().is_some()
+  }
 }
 
 impl<T> WaitHandle<T> {

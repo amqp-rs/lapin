@@ -33,6 +33,13 @@ impl<T, I> Confirmation<T, I> {
     }
   }
 
+  pub fn has_subscriber(&self) -> bool {
+    match &self.kind {
+      ConfirmationKind::Wait(wait)   => wait.has_subscriber(),
+      ConfirmationKind::Map(wait, _) => wait.has_subscriber(),
+    }
+  }
+
   pub fn try_wait(&self) -> Option<Result<T, Error>> {
     match &self.kind {
       ConfirmationKind::Wait(wait)   => wait.try_wait(),
