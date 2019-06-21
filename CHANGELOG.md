@@ -3,6 +3,8 @@
 #### Breaking changes
 
 * `lapin-async` as been renamed to `lapin`
+* lapin: Instead of passing a `Box<dyn ConsumerSubscriber>` as a parameter to `basic_consume`, you must now call
+  `set_delegate(Box<dyn ConsumerDelegate>)` on the returned `Consumer`
 
 #### Features
 
