@@ -11,7 +11,7 @@ use crate::{
   confirmation::Confirmation,
   connection::Connection,
   connection_status::ConnectionState,
-  consumer::{Consumer, ConsumerSubscriber},
+  consumer::Consumer,
   error::{Error, ErrorKind},
   frames::Priority,
   id_sequence::IdSequence,
@@ -82,8 +82,8 @@ impl Channel {
     self.do_channel_close(reply_code, reply_text, 0, 0)
   }
 
-  pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable, subscriber: Box<dyn ConsumerSubscriber>) -> Confirmation<ShortString> {
-    self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
+  pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> Confirmation<Consumer> {
+    self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments)
   }
 
   pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>> {
@@ -449,9 +449,10 @@ impl Channel {
   }
 
   #[allow(clippy::too_many_arguments)]
-  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, wait_handle: WaitHandle<ShortString>, queue: ShortString, no_local: bool, no_ack: bool, exclusive: bool, subscriber: Box<dyn ConsumerSubscriber>) -> Result<(), Error> {
-    wait_handle.finish(method.consumer_tag.clone());
-    self.queues.register_consumer(queue.as_str(), method.consumer_tag.clone(), Consumer::new(method.consumer_tag, no_local, no_ack, exclusive, subscriber));
+  fn on_basic_consume_ok_received(&self, method: protocol::basic::ConsumeOk, wait_handle: WaitHandle<Consumer>, queue: ShortString) -> Result<(), Error> {
+    let consumer = Consumer::new(method.consumer_tag.clone());
+    self.queues.register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
+    wait_handle.finish(consumer);
     Ok(())
   }
 
@@ -528,22 +529,3 @@ impl Channel {
 }
 
 include!(concat!(env!("OUT_DIR"), "/channel.rs"));
-
-#[cfg(feature = "futures")]
-mod futures {
-  use super::*;
-
-  use crate::streaming_consumer::StreamingConsumer;
-
-  impl Channel {
-    pub fn basic_consume_streaming(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> Confirmation<StreamingConsumer, ShortString> {
-      let consumer = StreamingConsumer::default();
-      self.basic_consume(queue, consumer_tag, options, arguments, Box::new(consumer.clone())).map(Box::new(move |tag| {
-        let consumer = consumer.clone();
-        consumer.inner().set_tag(tag);
-        consumer
-      }))
-    }
-  }
-
-}

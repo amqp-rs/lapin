@@ -1,12 +1,11 @@
 use futures::Future;
 use lapin::{Channel as InnerChannel, Connection};
-use log::trace;
 
 use crate::{
   BasicProperties, ConfirmationFuture, Consumer, Error, Queue,
   message::{BasicGetMessage, BasicReturnMessage},
   options::*,
-  types::{Boolean, FieldTable, LongUInt, ShortString, ShortUInt},
+  types::{Boolean, FieldTable, LongUInt, ShortUInt},
 };
 
 /// `Channel` provides methods to act on a channel, such as managing queues
@@ -112,13 +111,8 @@ impl Channel {
   /// `Consumer` implements `futures::Stream`, so it can be used with any of
   /// the usual combinators
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable) -> impl Future<Item = Consumer, Error = Error> {
-    let consumer = Consumer::default();
-    let confirmation: ConfirmationFuture<ShortString> = self.inner.basic_consume(queue, consumer_tag, options, arguments, Box::new(consumer.subscriber())).into();
-    confirmation.map(|consumer_tag| {
-      trace!("basic_consume received response, returning consumer");
-      consumer.subscriber().inner().set_tag(consumer_tag);
-      consumer
-    })
+    let confirmation: ConfirmationFuture<lapin::Consumer> = self.inner.basic_consume(queue, consumer_tag, options, arguments).into();
+    confirmation.map(|consumer| Consumer(consumer))
   }
 
   pub fn basic_cancel(&self, consumer_tag: &str, options: BasicCancelOptions) -> ConfirmationFuture<()> {

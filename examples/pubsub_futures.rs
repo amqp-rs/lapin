@@ -25,7 +25,7 @@ async fn main() -> Result<(), Error> {
   channel_a.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).await?;
   let queue = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).await?;
 
-  let consumer  = channel_b.clone().basic_consume_streaming(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).await?;
+  let consumer  = channel_b.clone().basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).await?;
   let _consumer = runtime::spawn(async move {
     info!("will consume");
     consumer.for_each(move |delivery| {

@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::lapin::{
-  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber,
+  BasicProperties, Connection, ConnectionProperties, ConsumerDelegate,
   message::Delivery,
   options::*,
   types::FieldTable,
@@ -22,7 +22,7 @@ struct Subscriber {
     hello_world: Arc<AtomicBool>,
 }
 
-impl ConsumerSubscriber for Subscriber {
+impl ConsumerDelegate for Subscriber {
     fn new_delivery(&self, delivery: Delivery) {
       println!("received message: {:?}", delivery);
       println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
@@ -66,7 +66,7 @@ fn connection() {
       println!("will consume");
       let hello_world = Arc::new(AtomicBool::new(false));
       let subscriber = Subscriber { hello_world: hello_world.clone(), };
-      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(subscriber)).wait().expect("basic_consume");
+      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).wait().expect("basic_consume").set_delegate(Box::new(subscriber));
       println!("[{}] state: {:?}", line!(), conn.status().state());
 
       println!("will publish");

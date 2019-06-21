@@ -32,7 +32,7 @@ use lapin;
 use log::info;
 
 use crate::lapin::{
-  BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber,
+  BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
   message::Delivery,
   options::*,
   types::FieldTable,
@@ -43,7 +43,7 @@ struct Subscriber {
   channel: Channel,
 }
 
-impl ConsumerSubscriber for Subscriber {
+impl ConsumerDelegate for Subscriber {
   fn new_delivery(&self, delivery: Delivery) {
     self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).as_error().expect("basic_ack");
   }
@@ -66,7 +66,7 @@ fn main() {
   channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
 
   info!("will consume");
-  channel_b.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber { channel: channel_b.clone() })).wait().expect("basic_consume");
+  channel_b.clone().basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).wait().expect("basic_consume").set_delegate(Box::new(Subscriber { channel: channel_b }));
 
   let payload = b"Hello world!";
 

@@ -3,7 +3,7 @@ use lapin;
 use log::info;
 
 use crate::lapin::{
-  BasicProperties, Connection, ConnectionProperties, ConsumerSubscriber,
+  BasicProperties, Connection, ConnectionProperties, ConsumerDelegate,
   message::Delivery,
   options::*,
   types::FieldTable,
@@ -12,7 +12,7 @@ use crate::lapin::{
 #[derive(Clone,Debug,PartialEq)]
 struct Subscriber;
 
-impl ConsumerSubscriber for Subscriber {
+impl ConsumerDelegate for Subscriber {
     fn new_delivery(&self, delivery: Delivery) {
       info!("received message: {:?}", delivery);
     }
@@ -50,7 +50,7 @@ fn main() {
       info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will consume");
-      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber)).wait().expect("basic_consume");
+      channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).wait().expect("basic_consume").set_delegate(Box::new(Subscriber));
       info!("[{}] state: {:?}", line!(), conn.status().state());
 
       info!("will publish");

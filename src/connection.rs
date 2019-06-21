@@ -281,20 +281,9 @@ mod tests {
   use super::*;
   use crate::BasicProperties;
   use crate::channel_status::ChannelState;
-  use crate::consumer::ConsumerSubscriber;
-  use crate::message::Delivery;
   use crate::types::ShortString;
   use amq_protocol::protocol::{basic, AMQPClass};
   use amq_protocol::frame::AMQPContentHeader;
-
-  #[derive(Clone,Debug,PartialEq)]
-  struct DummySubscriber;
-
-  impl ConsumerSubscriber for DummySubscriber {
-    fn new_delivery(&self, _delivery: Delivery) {}
-    fn drop_prefetched_messages(&self) {}
-    fn cancel(&self) {}
-  }
 
   #[test]
   fn basic_consume_small_payload() {
@@ -312,7 +301,7 @@ mod tests {
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
-    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
+    let consumer = Consumer::new(consumer_tag.clone());
     queue.register_consumer(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
       c.register_queue(queue);
@@ -382,7 +371,7 @@ mod tests {
     let queue_name = ShortString::from("consumed");
     let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
     let consumer_tag = ShortString::from("consumer-tag");
-    let consumer = Consumer::new(consumer_tag.clone(), false, false, false, Box::new(DummySubscriber));
+    let consumer = Consumer::new(consumer_tag.clone());
     queue.register_consumer(consumer_tag.clone(), consumer);
     conn.channels.get(channel.id()).map(|c| {
       c.register_queue(queue);

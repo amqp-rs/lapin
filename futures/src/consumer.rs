@@ -1,5 +1,5 @@
 use futures::{Async, Poll, Stream};
-use lapin::streaming_consumer::StreamingConsumer;
+use lapin::Consumer as ConsumerInner;
 use log::trace;
 
 use crate::{
@@ -8,14 +8,8 @@ use crate::{
   message::Delivery,
 };
 
-#[derive(Clone, Debug, Default)]
-pub struct Consumer(StreamingConsumer);
-
-impl Consumer {
-  pub(crate) fn subscriber(&self) -> StreamingConsumer {
-    self.0.clone()
-  }
-}
+#[derive(Clone, Debug)]
+pub struct Consumer(pub(crate) ConsumerInner);
 
 impl Stream for Consumer {
   type Item = Delivery;

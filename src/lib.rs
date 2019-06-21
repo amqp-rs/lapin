@@ -11,7 +11,7 @@
 //! use log::info;
 //!
 //! use crate::lapin::{
-//!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerSubscriber,
+//!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
 //!   message::Delivery,
 //!   options::*,
 //!   types::FieldTable,
@@ -22,7 +22,7 @@
 //!   channel: Channel,
 //! }
 //!
-//! impl ConsumerSubscriber for Subscriber {
+//! impl ConsumerDelegate for Subscriber {
 //!   fn new_delivery(&self, delivery: Delivery) {
 //!     self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).as_error().expect("basic_ack");
 //!   }
@@ -45,7 +45,7 @@
 //!   let queue = channel_b.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).wait().expect("queue_declare");
 //!
 //!   info!("will consume");
-//!   channel_b.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default(), Box::new(Subscriber { channel: channel_b.clone() })).wait().expect("basic_consume");
+//!   channel_b.clone().basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default()).wait().expect("basic_consume").set_delegate(Box::new(Subscriber { channel: channel_b }));
 //!
 //!   let payload = b"Hello world!";
 //!
@@ -66,13 +66,12 @@ pub use configuration::Configuration;
 pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
-pub use consumer::ConsumerSubscriber;
+pub use consumer::{Consumer, ConsumerDelegate};
 pub use error::{Error, ErrorKind};
 pub use queue::Queue;
 
 pub mod confirmation;
 pub mod message;
-pub mod streaming_consumer;
 
 mod acknowledgement;
 mod buffer;

@@ -134,37 +134,15 @@
     "consume": {
       "metadata": {
         "require_wrapper": true,
-        "extra_args": [
-          {
-            "name": "subscriber",
-            "type": "Box<dyn ConsumerSubscriber>"
-          }
-        ],
         "state": [
           {
             "name": "queue",
             "type": "ShortString",
             "use_str_ref": true
-          },
-          {
-            "name": "no_local",
-            "type": "bool"
-          },
-          {
-            "name": "no_ack",
-            "type": "bool"
-          },
-          {
-            "name": "exclusive",
-            "type": "bool"
-          },
-          {
-            "name": "subscriber",
-            "type": "Box<dyn ConsumerSubscriber>"
           }
         ],
         "confirmation": {
-          "type": "ShortString"
+          "type": "Consumer"
         },
         "nowait_hook": {
           "fields": ["consumer_tag: consumer_tag.into()"]
