@@ -1,8 +1,10 @@
 #![feature(async_await)]
 
 use env_logger;
-use futures::future::FutureExt;
-use futures::stream::StreamExt;
+use futures::{
+  future::FutureExt,
+  stream::StreamExt,
+};
 use lapin::{
   BasicProperties, Connection, ConnectionProperties, Error,
   options::*,

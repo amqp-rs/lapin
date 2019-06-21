@@ -85,12 +85,11 @@ impl<T> fmt::Debug for Confirmation<T> {
 pub(crate) mod futures {
   use super::*;
 
-  use ::futures::{
+  use std::{
     future::Future,
+    pin::Pin,
     task::{Context, Poll, Waker},
   };
-
-  use std::pin::Pin;
 
   impl<T, I> Future for Confirmation<T, I> {
     type Output = Result<T, Error>;

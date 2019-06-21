@@ -158,12 +158,12 @@ impl fmt::Debug for Consumer {
 mod futures {
   use super::*;
 
-  use ::futures::{
-    stream::Stream,
+  use ::futures::stream::Stream;
+
+  use std::{
+    pin::Pin,
     task::{Context, Poll},
   };
-
-  use std::pin::Pin;
 
   use crate::confirmation::futures::Watcher;
 
