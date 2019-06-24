@@ -17,7 +17,6 @@ members = [".", "futures/"]
 
 [features]
 default    = ["native-tls"]
-futures    = ["futures-preview"]
 native-tls = ["amq-protocol/native-tls"]
 openssl    = ["amq-protocol/openssl"]
 rustls     = ["amq-protocol/rustls"]
@@ -31,7 +30,8 @@ serde_json = "^1.0"
 version = "^2.0.2"
 default-features = false
 
-[dependencies.futures-preview]
+[dependencies.futures]
+package = "futures-preview"
 version = "=0.3.0-alpha.16"
 optional = true
 
