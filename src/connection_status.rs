@@ -46,6 +46,10 @@ impl ConnectionStatus {
     self.inner.read().state == ConnectionState::Connected
   }
 
+  pub fn closing(&self) -> bool {
+    self.inner.read().state == ConnectionState::Closing
+  }
+
   pub fn closed(&self) -> bool {
     self.inner.read().state == ConnectionState::Closed
   }

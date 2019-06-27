@@ -50,7 +50,7 @@ impl IoLoopHandle {
   }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Status {
   Initial,
   Setup,
@@ -156,7 +156,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 
   fn should_continue(&self) -> bool {
-    (self.status == Status::Initial || self.connection.status().connected()) && self.status != Status::Stop && !self.connection.status().errored()
+    (self.status == Status::Initial || self.connection.status().connected() || self.connection.status().closing()) && self.status != Status::Stop && !self.connection.status().errored()
   }
 
   pub(crate) fn run(mut self) -> Result<(), Error> {
@@ -246,7 +246,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         break;
       }
     }
-    trace!("io_loop do_run done; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
+    trace!("io_loop do_run done; can_read={}, can_write={}, has_data={}, status={:?}", self.can_read, self.can_write, self.has_data, self.status);
     Ok(())
   }
 
