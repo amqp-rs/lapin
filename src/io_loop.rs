@@ -156,7 +156,8 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 
   fn should_continue(&self) -> bool {
-    (self.status == Status::Initial || self.connection.status().connected() || self.connection.status().closing()) && self.status != Status::Stop && !self.connection.status().errored()
+    let connection_status = self.connection.status();
+    (self.status == Status::Initial || connection_status.connected() || connection_status.closing()) && self.status != Status::Stop && !connection_status.errored()
   }
 
   pub(crate) fn run(mut self) -> Result<(), Error> {
