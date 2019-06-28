@@ -14,7 +14,7 @@ use crate::{
   wait::NotifyReady,
 };
 
-pub trait ConsumerDelegate: fmt::Debug + Send + Sync {
+pub trait ConsumerDelegate: Send + Sync {
   fn new_delivery(&self, delivery: Delivery);
   fn drop_prefetched_messages(&self);
   fn cancel(&self);
@@ -83,6 +83,12 @@ pub struct ConsumerInner {
   canceled:        bool,
   tag:             ShortString,
   delegate:        Option<Box<dyn ConsumerDelegate>>,
+}
+
+impl fmt::Debug for ConsumerInner {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "ConsumerInnder({})", self.tag)
+  }
 }
 
 impl ConsumerInner {
