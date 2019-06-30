@@ -24,31 +24,19 @@ pub struct Error {
 ///
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum ErrorKind {
-  #[fail(display = "invalid protocol method: {:?}", _0)]
   InvalidMethod(AMQPClass),
-  #[fail(display = "invalid channel: {}", _0)]
   InvalidChannel(u16),
-  #[fail(display = "connection refused")]
   ConnectionRefused,
-  #[fail(display = "not connected")]
   NotConnected,
-  #[fail(display = "unexpected reply")]
   UnexpectedReply,
-  #[fail(display = "precondition failed")]
   PreconditionFailed,
-  #[fail(display = "The maximum number of channels for this connection has been reached")]
   ChannelLimitReached,
-  #[fail(display = "invalid connection state: {:?}", _0)]
   InvalidConnectionState(ConnectionState),
-  #[fail(display = "Failed to parse: {}", _0)]
   ParsingError(String),
-  #[fail(display = "Failed to serialise: {:?}", _0)]
-  SerialisationError(#[fail(cause)] GenError),
-  #[fail(display = "IO error: {:?}", _0)]
-  IOError(#[fail(cause)] io::Error),
-  #[fail(display = "IO loop error")]
+  SerialisationError(GenError),
+  IOError(io::Error),
   IoLoopError,
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
@@ -58,8 +46,38 @@ pub enum ErrorKind {
   ///
   /// [stabilized]: https://github.com/rust-lang/rust/issues/44109
   #[doc(hidden)]
-  #[fail(display = "lapin::error::ErrorKind::__Nonexhaustive: this should not be printed")]
   __Nonexhaustive,
+}
+
+impl fmt::Display for ErrorKind {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use ErrorKind::*;
+    match self {
+      InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
+      InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
+      ConnectionRefused => write!(f, "connection refused"),
+      NotConnected => write!(f, "not connected"),
+      UnexpectedReply => write!(f, "unexpected reply"),
+      PreconditionFailed => write!(f, "precondition failed"),
+      ChannelLimitReached => write!(f, "The maximum number of channels for this connection has been reached"),
+      InvalidConnectionState(state) => write!(f, "invalid connection state: {:?}", state),
+      ParsingError(e) => write!(f, "Failed to parse: {}", e),
+      SerialisationError(e) => write!(f, "Failed to serialise: {:?}", e),
+      IOError(e) => write!(f, "IO error: {:?}", e),
+      IoLoopError => write!(f, "IO loop error"),
+      __Nonexhaustive => write!(f, "lapin::error::ErrorKind::__Nonexhaustive: this should not be printed"),
+    }
+  }
+}
+
+impl Fail for ErrorKind {
+  fn cause(&self) -> Option<&dyn Fail> {
+    match self {
+      ErrorKind::SerialisationError(cause) => Some(cause),
+      ErrorKind::IOError(cause) => Some(cause),
+      _ => None,
+    }
+  }
 }
 
 impl Error {

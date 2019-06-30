@@ -36,7 +36,7 @@ version = "=0.3.0-alpha.16"
 optional = true
 
 [dependencies]
-failure = "^0.1"
+failure = { version = "^0.1", default-features = false, features = ["std"] }
 log = "^0.4"
 mio = "^0.6"
 parking_lot = '^0.8'
