@@ -43,4 +43,8 @@ parking_lot = '^0.8'
 
 [dev-dependencies]
 env_logger = "^0.6"
-runtime    = "^0.3.0-alpha.5"
+runtime = "^0.3.0-alpha.6"
+
+[[example]]
+name = "pubsub_futures"
+required-features = ["futures"]
