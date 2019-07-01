@@ -15,9 +15,9 @@ use crate::{
 };
 
 pub trait ConsumerDelegate: Send + Sync {
-  fn new_delivery(&self, delivery: Delivery);
-  fn drop_prefetched_messages(&self);
-  fn cancel(&self);
+  fn on_new_delivery(&self, delivery: Delivery);
+  fn drop_prefetched_messages(&self) {}
+  fn on_canceled(&self) {}
 }
 
 #[derive(Clone)]
@@ -39,7 +39,7 @@ impl Consumer {
   pub fn set_delegate(&self, delegate: Box<dyn ConsumerDelegate>) {
     let mut inner = self.inner();
     for delivery in inner.deliveries.drain(..) {
-      delegate.new_delivery(delivery);
+      delegate.on_new_delivery(delivery);
     }
     inner.delegate = Some(delegate);
   }
@@ -126,7 +126,7 @@ impl ConsumerInner {
   fn new_delivery(&mut self, delivery: Delivery) {
     trace!("new_delivery; consumer_tag={}", self.tag);
     if let Some(delegate) = self.delegate.as_ref() {
-      delegate.new_delivery(delivery);
+      delegate.on_new_delivery(delivery);
     } else {
       self.deliveries.push_back(delivery);
     }
@@ -146,7 +146,7 @@ impl ConsumerInner {
   fn cancel(&mut self) {
     trace!("cancel; consumer_tag={}", self.tag);
     if let Some(delegate) = self.delegate.as_ref() {
-      delegate.cancel();
+      delegate.on_canceled();
     }
     self.deliveries.clear();
     self.canceled = true;

@@ -23,11 +23,9 @@
 //! }
 //!
 //! impl ConsumerDelegate for Subscriber {
-//!   fn new_delivery(&self, delivery: Delivery) {
+//!   fn on_new_delivery(&self, delivery: Delivery) {
 //!     self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).as_error().expect("basic_ack");
 //!   }
-//!   fn drop_prefetched_messages(&self) {}
-//!   fn cancel(&self) {}
 //! }
 //!
 //! fn main() {

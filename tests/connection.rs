@@ -23,7 +23,7 @@ struct Subscriber {
 }
 
 impl ConsumerDelegate for Subscriber {
-    fn new_delivery(&self, delivery: Delivery) {
+    fn on_new_delivery(&self, delivery: Delivery) {
       println!("received message: {:?}", delivery);
       println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
 
@@ -31,8 +31,6 @@ impl ConsumerDelegate for Subscriber {
 
       self.hello_world.store(true, Ordering::SeqCst);
     }
-    fn drop_prefetched_messages(&self) {}
-    fn cancel(&self) {}
 }
 
 #[test]

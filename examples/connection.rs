@@ -13,11 +13,9 @@ use crate::lapin::{
 struct Subscriber;
 
 impl ConsumerDelegate for Subscriber {
-    fn new_delivery(&self, delivery: Delivery) {
+    fn on_new_delivery(&self, delivery: Delivery) {
       info!("received message: {:?}", delivery);
     }
-    fn drop_prefetched_messages(&self) {}
-    fn cancel(&self) {}
 }
 
 fn main() {
