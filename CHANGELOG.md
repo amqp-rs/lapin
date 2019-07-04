@@ -1,3 +1,14 @@
+### 0.24.0 (2019-07-04)
+
+#### Bug Fixes
+
+* `Connection::close` no longer hangs
+* `ConsumerDelegate` no longer requires `fmt::Debug`
+
+#### Breaking changes
+
+* `ConsumerDelegate` methods have been renamed for clarity and only `on_new_delivery` is now mandatory
+
 ### 0.23.0 (2019-06-21)
 
 #### Breaking changes

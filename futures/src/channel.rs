@@ -95,11 +95,6 @@ impl Channel {
   }
 
   /// publishes a message on a queue
-  ///
-  /// the future's result is:
-  /// - `Some(true)` if we're on a confirm channel and the message was ack'd
-  /// - `Some(false)` if we're on a confirm channel and the message was nack'd
-  /// - `None` if we're not on a confirm channel
   pub fn basic_publish(&self, exchange: &str, routing_key: &str, payload: Vec<u8>, options: BasicPublishOptions, properties: BasicProperties) -> ConfirmationFuture<()> {
     self.inner.basic_publish(exchange, routing_key, options, payload, properties).into()
   }
@@ -189,6 +184,8 @@ impl Channel {
     self.inner.tx_rollback().into()
   }
 
+  /// When publishers confirm is enabled, wait for pending confirmations and return the nacked
+  /// messages
   pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>> {
     self.inner.wait_for_confirms().into()
   }

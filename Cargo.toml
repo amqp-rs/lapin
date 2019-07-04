@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -23,11 +23,11 @@ rustls     = ["amq-protocol/rustls"]
 tokio      = ["amq-protocol/tokio"]
 
 [build-dependencies]
-amq-protocol-codegen = "^2.0.2"
+amq-protocol-codegen = "^2.1.0"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "^2.0.2"
+version = "^2.1.0"
 default-features = false
 
 [dependencies.futures]
