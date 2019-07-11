@@ -125,6 +125,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   }
 
   fn heartbeat(&mut self) -> Result<(), Error> {
+    trace!("send heartbeat");
     self.connection.send_heartbeat()?;
     self.send_heartbeat.store(false, Ordering::Relaxed);
     Ok(())
