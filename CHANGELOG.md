@@ -1,3 +1,9 @@
+### 0.24.1 (2019-07-11)
+
+#### Bug Fixes
+
+* Properly handle network disconnections on OSX
+
 ### 0.24.0 (2019-07-04)
 
 #### Bug Fixes
