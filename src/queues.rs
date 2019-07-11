@@ -36,9 +36,7 @@ impl Queues {
 
   pub(crate) fn deregister_consumer(&self, consumer_tag: &str) {
     for queue in self.queues.lock().values_mut() {
-      if let Some(consumer) = queue.deregister_consumer(consumer_tag) {
-        consumer.cancel();
-      }
+      queue.deregister_consumer(consumer_tag);
     }
   }
 
