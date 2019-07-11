@@ -72,6 +72,7 @@ pub(crate) struct IoLoop<T> {
   can_read:       bool,
   has_data:       bool,
   send_heartbeat: Arc<AtomicBool>,
+  poll_timeout:   Option<Duration>,
 }
 
 impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
@@ -93,6 +94,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       can_read:       false,
       has_data:       false,
       send_heartbeat: Arc::new(AtomicBool::new(false)),
+      poll_timeout:   None,
     };
     inner.poll.register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     inner.poll.register(&inner.connection, DATA, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
@@ -140,7 +142,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       let heartbeat = self.connection.configuration().heartbeat();
       if heartbeat != 0 {
         trace!("io_loop: start heartbeat");
-        self.start_heartbeat(Duration::from_secs(heartbeat as u64))?;
+        let heartbeat = Duration::from_secs(heartbeat as u64);
+        self.start_heartbeat(heartbeat)?;
+        self.poll_timeout = Some(heartbeat);
         trace!("io_loop: heartbeat started");
       }
       self.status = Status::Setup;
@@ -181,7 +185,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     trace!("io_loop run");
     self.ensure_setup()?;
     trace!("io_loop poll");
-    self.poll.poll(events, None).map_err(ErrorKind::IOError)?;
+    self.poll.poll(events, self.poll_timeout).map_err(ErrorKind::IOError)?;
     trace!("io_loop poll done");
     for event in events.iter() {
       match event.token() {
