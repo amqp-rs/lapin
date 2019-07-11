@@ -94,7 +94,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       has_data:       false,
       send_heartbeat: Arc::new(AtomicBool::new(false)),
     };
-    inner.poll.register(&inner.socket, SOCKET, Ready::readable() | Ready::writable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
+    inner.poll.register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     inner.poll.register(&inner.connection, DATA, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     inner.poll.register(&inner.registration, CONTINUE, Ready::readable(), PollOpt::edge()).map_err(ErrorKind::IOError)?;
     Ok(inner)
