@@ -56,17 +56,13 @@ impl Channel {
     &self.status
   }
 
-  pub(crate) fn set_closing(&self) {
-    self.set_state(ChannelState::Closing);
-  }
-
-  pub(crate) fn set_closed(&self) -> Result<(), Error> {
-    self.set_state(ChannelState::Closed);
+  fn set_closed(&self) -> Result<(), Error> {
+    channel.set_state(ChannelState::Closed);
     self.connection.remove_channel(self.id)
   }
 
-  pub(crate) fn set_error(&self) -> Result<(), Error> {
-    self.set_state(ChannelState::Error);
+  fn set_error(&self) -> Result<(), Error> {
+    channel.set_state(ChannelState::Error);
     self.connection.remove_channel(self.id)
   }
 
@@ -201,7 +197,7 @@ impl Channel {
   }
 
   fn on_channel_close_sent(&self) -> Result<(), Error> {
-    self.set_closing();
+    self.set_state(ChannelState::Closing);
     Ok(())
   }
 

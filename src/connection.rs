@@ -41,12 +41,13 @@ pub struct Connection {
 
 impl Default for Connection {
   fn default() -> Self {
+    let frames     = Frames::default();
     let connection = Self {
       configuration: Configuration::default(),
       status:        ConnectionStatus::default(),
-      channels:      Channels::default(),
+      channels:      Channels::new(frames.clone()),
       registration:  Registration::default(),
-      frames:        Frames::default(),
+      frames,
       io_loop:       IoLoopHandle::default(),
       error_handler: ErrorHandler::default(),
     };
@@ -89,6 +90,10 @@ impl Connection {
       Ok(channel) => channel.channel_open(),
       Err(error)  => Confirmation::new_error(error),
     }
+  }
+
+  pub(crate) fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
+    self.channels.remove(channel_id)
   }
 
   /// Block current thread while the connection is still active.
@@ -221,11 +226,6 @@ impl Connection {
 
   pub(crate) fn mark_sent(&self, send_id: SendId) {
     self.frames.mark_sent(send_id);
-  }
-
-  pub(crate) fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
-    self.frames.clear_expected_replies(channel_id);
-    self.channels.remove(channel_id)
   }
 
   pub(crate) fn set_closing(&self) {

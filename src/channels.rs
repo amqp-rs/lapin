@@ -10,15 +10,21 @@ use std::{
 use crate::{
   BasicProperties, Channel, ChannelState, Error, ErrorKind,
   connection::Connection,
+  frames::Frames,
   id_sequence::IdSequence,
 };
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct Channels {
-  inner: Arc<Mutex<Inner>>,
+  inner:  Arc<Mutex<Inner>>,
+  frames: Frames,
 }
 
 impl Channels {
+  pub(crate) fn new(frames: Frames) -> Self {
+    Self { inner: Default::default(), frames }
+  }
+
   pub(crate) fn create(&self, connection: Connection) -> Result<Channel, Error> {
     self.inner.lock().create(connection)
   }
@@ -31,7 +37,8 @@ impl Channels {
     self.inner.lock().channels.get(&id).cloned()
   }
 
-  pub(crate) fn remove(&self, id: u16) -> Result<(), Error> {
+  pub(crate) fn remove(&self, id: u16, state: ChannelState) -> Result<(), Error> {
+    self.frames.clear_expected_replies(id);
     if self.inner.lock().channels.remove(&id).is_some() {
       Ok(())
     } else {
@@ -65,20 +72,22 @@ impl Channels {
 
   pub(crate) fn set_closing(&self) {
     for channel in self.inner.lock().channels.values() {
-      channel.set_closing();
+      channel.set_state(ChannelState::Closing);
     }
   }
 
   pub(crate) fn set_closed(&self) -> Result<(), Error> {
-    for (_, channel) in self.inner.lock().channels.drain() {
+    for (id, channel) in self.inner.lock().channels.drain() {
+      self.frames.clear_expected_replies(id);
       channel.set_state(ChannelState::Closed);
     }
     Ok(())
   }
 
   pub(crate) fn set_error(&self) -> Result<(), Error> {
-    for channel in self.inner.lock().channels.values() {
-      channel.set_error()?;
+    for (id, channel) in self.inner.lock().channels.drain() {
+      self.frames.clear_expected_replies(id);
+      channel.set_state(ChannelState::Error);
     }
     Ok(())
   }
