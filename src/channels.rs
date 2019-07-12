@@ -37,7 +37,7 @@ impl Channels {
     self.inner.lock().channels.get(&id).cloned()
   }
 
-  pub(crate) fn remove(&self, id: u16, state: ChannelState) -> Result<(), Error> {
+  pub(crate) fn remove(&self, id: u16) -> Result<(), Error> {
     self.frames.clear_expected_replies(id);
     if self.inner.lock().channels.remove(&id).is_some() {
       Ok(())

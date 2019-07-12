@@ -57,12 +57,12 @@ impl Channel {
   }
 
   fn set_closed(&self) -> Result<(), Error> {
-    channel.set_state(ChannelState::Closed);
+    self.set_state(ChannelState::Closed);
     self.connection.remove_channel(self.id)
   }
 
   fn set_error(&self) -> Result<(), Error> {
-    channel.set_state(ChannelState::Error);
+    self.set_state(ChannelState::Error);
     self.connection.remove_channel(self.id)
   }
 
