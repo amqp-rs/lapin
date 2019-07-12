@@ -1,3 +1,17 @@
+### 0.25.0 (2019-07-12)
+
+#### Bug Fixes
+
+* Consumer streams now properly forward connection errors
+
+#### Breaking changes
+
+* lapin's consumer stream now returns a Result
+
+#### Features
+
+* `ConsumerDelegate` now has a `on_error` hook
+
 ### 0.24.1 (2019-07-11)
 
 #### Bug Fixes
