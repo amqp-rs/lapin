@@ -67,6 +67,12 @@ impl QueueState {
     self.consumers.get_mut(consumer_tag.borrow())
   }
 
+  pub(crate) fn cancel_consumers(&mut self) {
+    for (_, consumer) in self.consumers.drain() {
+      consumer.cancel();
+    }
+  }
+
   pub(crate) fn name(&self) -> ShortString {
     self.name.clone()
   }

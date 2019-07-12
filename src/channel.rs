@@ -58,12 +58,19 @@ impl Channel {
 
   fn set_closed(&self) -> Result<(), Error> {
     self.set_state(ChannelState::Closed);
+    self.cancel_consumers();
     self.connection.remove_channel(self.id)
   }
 
   fn set_error(&self) -> Result<(), Error> {
     self.set_state(ChannelState::Error);
+    // FIXME: set error instead of cancel
+    self.cancel_consumers();
     self.connection.remove_channel(self.id)
+  }
+
+  pub(crate) fn cancel_consumers(&self) {
+    self.queues.cancel_consumers();
   }
 
   pub(crate) fn set_state(&self, state: ChannelState) {

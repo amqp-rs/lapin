@@ -80,6 +80,7 @@ impl Channels {
     for (id, channel) in self.inner.lock().channels.drain() {
       self.frames.clear_expected_replies(id);
       channel.set_state(ChannelState::Closed);
+      channel.cancel_consumers();
     }
     Ok(())
   }
@@ -88,6 +89,8 @@ impl Channels {
     for (id, channel) in self.inner.lock().channels.drain() {
       self.frames.clear_expected_replies(id);
       channel.set_state(ChannelState::Error);
+      // FIXME: set error instead of cancel
+      channel.cancel_consumers();
     }
     Ok(())
   }

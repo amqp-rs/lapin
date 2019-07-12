@@ -46,6 +46,12 @@ impl Queues {
     }
   }
 
+  pub(crate) fn cancel_consumers(&self) {
+    for queue in self.queues.lock().values_mut() {
+      queue.cancel_consumers();
+    }
+  }
+
   pub(crate) fn start_consumer_delivery(&self, consumer_tag: &str, message: Delivery) -> Option<ShortString> {
     for queue in self.queues.lock().values_mut() {
       if let Some(consumer) = queue.get_consumer(consumer_tag) {
