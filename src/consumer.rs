@@ -9,6 +9,7 @@ use std::{
 
 use crate::{
   BasicProperties,
+  error::Error,
   message::Delivery,
   types::ShortString,
   wait::NotifyReady,
@@ -18,6 +19,7 @@ pub trait ConsumerDelegate: Send + Sync {
   fn on_new_delivery(&self, delivery: Delivery);
   fn drop_prefetched_messages(&self) {}
   fn on_canceled(&self) {}
+  fn on_error(&self, _error: Error) {}
 }
 
 #[derive(Clone)]
@@ -74,6 +76,10 @@ impl Consumer {
   pub(crate) fn cancel(&self) {
     self.inner().cancel();
   }
+
+  pub(crate) fn set_error(&self, error: Error) {
+    self.inner().set_error(error);
+  }
 }
 
 pub struct ConsumerInner {
@@ -83,6 +89,7 @@ pub struct ConsumerInner {
   canceled:        bool,
   tag:             ShortString,
   delegate:        Option<Box<dyn ConsumerDelegate>>,
+  error:           Option<Error>,
 }
 
 impl fmt::Debug for ConsumerInner {
@@ -100,6 +107,7 @@ impl ConsumerInner {
       canceled:        false,
       tag:             consumer_tag,
       delegate:        None,
+      error:           None,
     }
   }
 
@@ -117,6 +125,10 @@ impl ConsumerInner {
 
   pub fn canceled(&self) -> bool {
     self.canceled
+  }
+
+  pub fn error(&mut self) -> Option<Error> {
+    self.error.take()
   }
 
   pub fn tag(&self) -> &ShortString {
@@ -152,6 +164,12 @@ impl ConsumerInner {
     self.canceled = true;
     self.task.take();
   }
+
+  pub fn set_error(&mut self, error: Error) {
+    trace!("set_error; consumer_tag={}", self.tag);
+    self.error = Some(error);
+    self.cancel();
+  }
 }
 
 impl fmt::Debug for Consumer {
@@ -174,7 +192,7 @@ mod futures {
   use crate::confirmation::futures::Watcher;
 
   impl Stream for Consumer {
-    type Item = Delivery;
+    type Item = Result<Delivery, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
       trace!("consumer poll; polling transport");
@@ -185,10 +203,14 @@ mod futures {
       }
       if let Some(delivery) = inner.next_delivery() {
         trace!("delivery; consumer_tag={}, delivery_tag={:?}", inner.tag(), delivery.delivery_tag);
-        Poll::Ready(Some(delivery))
+        Poll::Ready(Some(Ok(delivery)))
       } else if inner.canceled() {
         trace!("consumer canceled; consumer_tag={}", inner.tag());
-        Poll::Ready(None)
+        if let Some(error) = inner.error() {
+          Poll::Ready(Some(Err(error)))
+        } else {
+          Poll::Ready(None)
+        }
       } else {
         trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
         Poll::Pending

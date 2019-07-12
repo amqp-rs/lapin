@@ -6,7 +6,9 @@ use std::{
 
 use crate::{
   BasicProperties,
+  connection_status::ConnectionState,
   consumer::Consumer,
+  error::ErrorKind,
   message::BasicGetMessage,
   types::ShortString,
   wait::WaitHandle,
@@ -70,6 +72,12 @@ impl QueueState {
   pub(crate) fn cancel_consumers(&mut self) {
     for (_, consumer) in self.consumers.drain() {
       consumer.cancel();
+    }
+  }
+
+  pub(crate) fn error_consumers(&mut self) {
+    for (_, consumer) in self.consumers.drain() {
+      consumer.set_error(ErrorKind::InvalidConnectionState(ConnectionState::Error).into());
     }
   }
 

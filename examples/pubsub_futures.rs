@@ -31,6 +31,7 @@ async fn main() -> Result<(), Error> {
   let _consumer = runtime::spawn(async move {
     info!("will consume");
     consumer.for_each(move |delivery| {
+      let delivery = delivery.expect("error caught in in consumer");
       channel_b.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).map(|_| ())
     }).await
   });

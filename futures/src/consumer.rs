@@ -27,7 +27,11 @@ impl Stream for Consumer {
       Ok(Async::Ready(Some(delivery)))
     } else if inner.canceled() {
       trace!("consumer canceled; consumer_tag={}", inner.tag());
-      Ok(Async::Ready(None))
+      if let Some(error) = inner.error() {
+        Err(error)
+      } else {
+        Ok(Async::Ready(None))
+      }
     } else {
       trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
       Ok(Async::NotReady)
