@@ -283,13 +283,15 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
   fn serialize(&mut self) -> Result<(), Error> {
     if let Some((send_id, next_msg)) = self.connection.next_frame() {
       trace!("will write to buffer: {:?}", next_msg);
-      match gen_frame(self.send_buffer.space(), &next_msg).map(|tup| tup.0) {
-        Ok(sz) => {
-          self.send_buffer.fill(sz);
+      let checkpoint = self.send_buffer.checkpoint();
+      let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
+      match res.map(|w| w.into_inner().1) {
+        Ok(_) => {
           self.connection.mark_sent(send_id);
           Ok(())
         },
         Err(e) => {
+          self.send_buffer.rollback(checkpoint);
           match e {
             GenError::BufferTooSmall(_) => {
               // Requeue msg
@@ -297,7 +299,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
               self.send_buffer.shift();
               Ok(())
             },
-            GenError::InvalidOffset | GenError::CustomError(_) | GenError::NotYetImplemented => {
+            e => {
               error!("error generating frame: {:?}", e);
               self.connection.set_error()?;
               Err(ErrorKind::SerialisationError(e).into())

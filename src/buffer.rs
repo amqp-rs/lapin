@@ -1,3 +1,5 @@
+use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
+
 use std::{cmp, io};
 
 #[derive(Debug,PartialEq,Clone)]
@@ -5,8 +7,10 @@ pub(crate) struct Buffer {
   memory:   Vec<u8>,
   capacity: usize,
   position: usize,
-  end:      usize
+  end:      usize,
 }
+
+pub(crate) struct Checkpoint(usize);
 
 impl Buffer {
   pub(crate) fn with_capacity(capacity: usize) -> Buffer {
@@ -16,6 +20,14 @@ impl Buffer {
       position: 0,
       end:      0
     }
+  }
+
+  pub(crate) fn checkpoint(&self) -> Checkpoint {
+    Checkpoint(self.end)
+  }
+
+  pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {
+    self.end = checkpoint.0;
   }
 
   pub(crate) fn grow(&mut self, new_size: usize) -> bool {
@@ -83,6 +95,24 @@ impl io::Write for &mut Buffer {
   }
 
   fn flush(&mut self) -> io::Result<()> { Ok(()) }
+}
+
+impl BackToTheBuffer for &mut Buffer {
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>>(mut s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<WriteContext<Self>, GenError> {
+      if s.write.available_space() < reserved {
+        return Err(GenError::BufferTooSmall(reserved - s.write.available_space()));
+      }
+      let start = s.write.end;
+      s.write.end += reserved;
+      gen(s).and_then(|(s, tmp)| {
+          let end = s.write.end;
+          s.write.end = start;
+          before(s, tmp).and_then(|s| {
+            s.write.end = end;
+            Ok(s)
+          })
+      })
+    }
 }
 
 #[cfg(test)]
