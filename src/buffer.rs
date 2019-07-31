@@ -1,4 +1,4 @@
-use std::{cmp, ptr};
+use std::{cmp, io, ptr};
 
 #[derive(Debug,PartialEq,Clone)]
 pub(crate) struct Buffer {
@@ -70,6 +70,16 @@ impl Buffer {
       self.shift();
     }
   }
+}
+
+impl io::Write for &mut Buffer {
+  fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+    let amt = self.space().write(data)?;
+    self.fill(amt);
+    Ok(amt)
+  }
+
+  fn flush(&mut self) -> io::Result<()> { Ok(()) }
 }
 
 #[cfg(test)]
