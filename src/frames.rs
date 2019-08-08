@@ -11,6 +11,7 @@ use crate::{
   channel::Reply,
   id_sequence::IdSequence,
   wait::{Wait, WaitHandle},
+  error::{Error, ErrorKind},
 };
 
 pub(crate) type SendId = u64;
@@ -62,6 +63,12 @@ impl Frames {
 
   pub(crate) fn drop_pending(&self) {
     self.inner.lock().drop_pending();
+  }
+
+  pub(crate) fn clear_with_error(&self) {
+    for (_, wait_handle) in self.inner.lock().outbox.drain() {
+      wait_handle.error(Error::from(ErrorKind::IoLoopError));
+    }
   }
 }
 
