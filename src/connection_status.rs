@@ -35,7 +35,7 @@ impl ConnectionStatus {
   }
 
   pub(crate) fn unblock(&self) {
-    self.inner.write().blocked = true;
+    self.inner.write().blocked = false;
   }
 
   pub fn blocked(&self) -> bool {
