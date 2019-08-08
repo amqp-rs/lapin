@@ -25,7 +25,6 @@ path = ".."
 [dependencies]
 futures = "^0.1"
 log = "^0.4"
-parking_lot = "^0.8"
 
 [dev-dependencies]
 env_logger = "^0.6"
