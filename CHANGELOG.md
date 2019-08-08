@@ -1,3 +1,14 @@
+### 0.26.0 (2019-08-08)
+
+#### Bug Fixes
+
+* Fix unblocking connection
+* Properly broadcast connection error to all pending tasks/futures
+
+#### Breaking changes
+
+* Unused IoLoopError has been dropped
+
 ### 0.25.0 (2019-07-12)
 
 #### Bug Fixes

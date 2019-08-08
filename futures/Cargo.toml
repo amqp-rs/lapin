@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.25.0"
+version = "0.26.0"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/sozu-proxy/lapin"
@@ -18,7 +18,7 @@ openssl    = ["lapin/openssl"]
 rustls     = ["lapin/rustls"]
 
 [dependencies.lapin]
-version = "^0.25.0"
+version = "^0.26.0"
 default-features = false
 path = ".."
 
