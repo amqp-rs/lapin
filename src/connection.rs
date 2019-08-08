@@ -242,6 +242,7 @@ impl Connection {
     error!("Connection error");
     self.set_state(ConnectionState::Error);
     self.channels.set_error()?;
+    self.frames.clear_with_error();
     self.error_handler.on_error();
     Ok(())
   }
