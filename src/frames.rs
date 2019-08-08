@@ -9,9 +9,10 @@ use std::{
 
 use crate::{
   channel::Reply,
+  connection_status::ConnectionState,
   id_sequence::IdSequence,
   wait::{Wait, WaitHandle},
-  error::{Error, ErrorKind},
+  error::ErrorKind,
 };
 
 pub(crate) type SendId = u64;
@@ -67,7 +68,7 @@ impl Frames {
 
   pub(crate) fn clear_with_error(&self) {
     for (_, wait_handle) in self.inner.lock().outbox.drain() {
-      wait_handle.error(Error::from(ErrorKind::IoLoopError));
+      wait_handle.error(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
     }
   }
 }

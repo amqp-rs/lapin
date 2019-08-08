@@ -37,7 +37,6 @@ pub enum ErrorKind {
   ParsingError(String),
   SerialisationError(GenError),
   IOError(io::Error),
-  IoLoopError,
   /// A hack to prevent developers from exhaustively match on the enum's variants
   ///
   /// The purpose of this variant is to let the `ErrorKind` enumeration grow more variants
@@ -64,7 +63,6 @@ impl fmt::Display for ErrorKind {
       ParsingError(e) => write!(f, "Failed to parse: {}", e),
       SerialisationError(e) => write!(f, "Failed to serialise: {:?}", e),
       IOError(e) => write!(f, "IO error: {:?}", e),
-      IoLoopError => write!(f, "IO loop error"),
       __Nonexhaustive => write!(f, "lapin::error::ErrorKind::__Nonexhaustive: this should not be printed"),
     }
   }
