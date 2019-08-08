@@ -1,4 +1,4 @@
-use std::{cmp, io, ptr};
+use std::{cmp, io};
 
 #[derive(Debug,PartialEq,Clone)]
 pub(crate) struct Buffer {
@@ -58,8 +58,11 @@ impl Buffer {
 
   pub(crate) fn shift(&mut self) {
     let length = self.end - self.position;
-    unsafe {
-      ptr::copy((&self.memory[self.position..self.end]).as_ptr(), (&mut self.memory[..length]).as_mut_ptr(), length);
+    if length > self.position {
+      return
+    } else {
+      let (start, end) = self.memory.split_at_mut(length);
+      start.copy_from_slice(&end[(self.position-length)..self.position]);
     }
     self.position = 0;
     self.end      = length;
