@@ -1,3 +1,9 @@
+### 0.26.1 (2019-08-09)
+
+#### Bug Fixes
+
+* Properly broadcast channel error to all pending tasks/futures
+
 ### 0.26.0 (2019-08-08)
 
 #### Bug Fixes
