@@ -6,7 +6,10 @@ use failure::{Backtrace, Context, Fail};
 
 use std::{fmt, io};
 
-use crate::connection_status::ConnectionState;
+use crate::{
+  channel_status::ChannelState,
+  connection_status::ConnectionState,
+};
 
 /// The type of error that can be returned in this crate.
 ///
@@ -33,6 +36,7 @@ pub enum ErrorKind {
   UnexpectedReply,
   PreconditionFailed,
   ChannelLimitReached,
+  InvalidChannelState(ChannelState),
   InvalidConnectionState(ConnectionState),
   ParsingError(String),
   SerialisationError(GenError),
@@ -59,6 +63,7 @@ impl fmt::Display for ErrorKind {
       UnexpectedReply => write!(f, "unexpected reply"),
       PreconditionFailed => write!(f, "precondition failed"),
       ChannelLimitReached => write!(f, "The maximum number of channels for this connection has been reached"),
+      InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
       InvalidConnectionState(state) => write!(f, "invalid connection state: {:?}", state),
       ParsingError(e) => write!(f, "Failed to parse: {}", e),
       SerialisationError(e) => write!(f, "Failed to serialise: {:?}", e),

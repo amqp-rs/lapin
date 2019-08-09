@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
   channel::Reply,
-  connection_status::ConnectionState,
+  channel_status::ChannelState,
   id_sequence::IdSequence,
   wait::{Wait, WaitHandle},
   error::ErrorKind,
@@ -52,10 +52,6 @@ impl Frames {
     self.inner.lock().expected_replies.get_mut(&channel_id).and_then(|replies| replies.pop_front())
   }
 
-  pub(crate) fn clear_expected_replies(&self, channel_id: u16) {
-    self.inner.lock().expected_replies.remove(&channel_id);
-  }
-
   pub(crate) fn mark_sent(&self, send_id: SendId) {
     if let Some((_, send)) = self.inner.lock().outbox.remove(&send_id) {
       send.finish(());
@@ -66,10 +62,21 @@ impl Frames {
     self.inner.lock().drop_pending();
   }
 
-  pub(crate) fn clear_with_error(&self) {
-    for (_, (_, wait_handle)) in self.inner.lock().outbox.drain() {
-      wait_handle.error(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
+  pub(crate) fn clear_expected_replies(&self, channel_id: u16) {
+    let mut outbox = HashMap::default();
+    let mut inner  = self.inner.lock();
+
+    inner.expected_replies.remove(&channel_id);
+
+    for (send_id, (chan_id, wait_handle)) in inner.outbox.drain() {
+      if chan_id == channel_id {
+        wait_handle.error(ErrorKind::InvalidChannelState(ChannelState::Error).into())
+      } else {
+        outbox.insert(send_id, (chan_id, wait_handle));
+      }
     }
+
+    inner.outbox = outbox;
   }
 }
 
