@@ -61,8 +61,8 @@ impl Buffer {
     if length > self.position {
       return
     } else {
-      let (start, end) = self.memory.split_at_mut(length);
-      start.copy_from_slice(&end[(self.position-length)..self.position]);
+      let (start, end) = self.memory.split_at_mut(self.position);
+      start[..length].copy_from_slice(&end[..length]);
     }
     self.position = 0;
     self.end      = length;
