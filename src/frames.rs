@@ -57,7 +57,7 @@ impl Frames {
   }
 
   pub(crate) fn mark_sent(&self, send_id: SendId) {
-    if let Some(send) = self.inner.lock().outbox.remove(&send_id) {
+    if let Some((_, send)) = self.inner.lock().outbox.remove(&send_id) {
       send.finish(());
     }
   }
@@ -67,7 +67,7 @@ impl Frames {
   }
 
   pub(crate) fn clear_with_error(&self) {
-    for (_, wait_handle) in self.inner.lock().outbox.drain() {
+    for (_, (_, wait_handle)) in self.inner.lock().outbox.drain() {
       wait_handle.error(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
     }
   }
@@ -79,7 +79,7 @@ struct Inner {
   frames:           VecDeque<(SendId, AMQPFrame)>,
   low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
   expected_replies: HashMap<u16, VecDeque<Reply>>,
-  outbox:           HashMap<SendId, WaitHandle<()>>,
+  outbox:           HashMap<SendId, (u16, WaitHandle<()>)>,
   send_id:          IdSequence<SendId>,
 }
 
@@ -105,7 +105,7 @@ impl Inner {
       Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
     }
     let (wait, wait_handle) = Wait::new();
-    self.outbox.insert(send_id, wait_handle);
+    self.outbox.insert(send_id, (channel_id, wait_handle));
     if let Some(reply) = expected_reply {
       trace!("channel {} state is now waiting for {:?}", channel_id, reply);
       self.expected_replies.entry(channel_id).or_default().push_back(reply);
@@ -122,7 +122,7 @@ impl Inner {
     self.frames.clear();
     self.low_prio_frames.clear();
     self.expected_replies.clear();
-    for (_, wait_handle) in self.outbox.drain() {
+    for (_, (_, wait_handle)) in self.outbox.drain() {
       wait_handle.finish(());
     }
   }
