@@ -1,3 +1,9 @@
+### 0.26.3 (2019-08-12)
+
+#### Bug Fixes
+
+* Do not hang on tasks that require an answer in case of channel error
+
 ### 0.26.2 (2019-08-12)
 
 #### Bug Fixes
