@@ -177,6 +177,13 @@ impl Connection {
     Ok(wait)
   }
 
+  pub(crate) fn send_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Result<Wait<()>, Error> {
+    trace!("connection send_frames; channel_id={}", channel_id);
+    let wait = self.frames.push_frames(channel_id, frames);
+    self.set_readable()?;
+    Ok(wait)
+  }
+
   pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
     self.frames.next_expected_reply(channel_id)
   }

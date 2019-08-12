@@ -123,14 +123,15 @@ impl Channel {
       body_size: slice.len() as u64,
       properties,
     };
-    let mut wait = self.send_frame(Priority::LOW, AMQPFrame::Header(self.id, class_id, Box::new(header)), None)?;
-
     let frame_max = self.connection.configuration().frame_max();
-    //a content body frame 8 bytes of overhead
+    let mut frames = vec![AMQPFrame::Header(self.id, class_id, Box::new(header))]; // why the box ?
+
+    // a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {
-      wait = self.send_frame(Priority::LOW, AMQPFrame::Body(self.id, Vec::from(chunk)), None)?;
+      frames.push(AMQPFrame::Body(self.id, Vec::from(chunk)));
     }
-    Ok(wait)
+
+    self.connection.send_frames(self.id, frames)
   }
 
   pub(crate) fn handle_content_header_frame(&self, size: u64, properties: BasicProperties) -> Result<(), Error> {

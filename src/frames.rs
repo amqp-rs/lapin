@@ -40,6 +40,10 @@ impl Frames {
     self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
+  pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Wait<()> {
+    self.inner.lock().push_frames(channel_id, frames)
+  }
+
   pub(crate) fn retry(&self, send_id: SendId, frame: AMQPFrame) {
     self.inner.lock().priority_frames.push_back((send_id, frame))
   }
@@ -104,6 +108,25 @@ impl Inner {
       trace!("channel {} state is now waiting for {:?}", channel_id, reply);
       self.expected_replies.entry(channel_id).or_default().push_back(reply);
     }
+    wait
+  }
+
+  fn push_frames(&mut self, channel_id: u16, mut frames: Vec<AMQPFrame>) -> Wait<()> {
+    let send_id = self.send_id.next();
+    let (wait, wait_handle) = Wait::new();
+    let last_frame = frames.pop();
+
+    for frame in frames {
+      self.low_prio_frames.push_back((0, frame));
+    }
+    if let Some(last_frame) = last_frame {
+      self.low_prio_frames.push_back((send_id, last_frame));
+    } else {
+      wait_handle.finish(());
+    }
+
+    self.outbox.insert(send_id, (channel_id, wait_handle));
+
     wait
   }
 
