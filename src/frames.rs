@@ -63,20 +63,7 @@ impl Frames {
   }
 
   pub(crate) fn clear_expected_replies(&self, channel_id: u16) {
-    let mut outbox = HashMap::default();
-    let mut inner  = self.inner.lock();
-
-    inner.expected_replies.remove(&channel_id);
-
-    for (send_id, (chan_id, wait_handle)) in inner.outbox.drain() {
-      if chan_id == channel_id {
-        wait_handle.error(ErrorKind::InvalidChannelState(ChannelState::Error).into())
-      } else {
-        outbox.insert(send_id, (chan_id, wait_handle));
-      }
-    }
-
-    inner.outbox = outbox;
+    self.inner.lock().clear_expected_replies(channel_id);
   }
 }
 
@@ -132,5 +119,21 @@ impl Inner {
     for (_, (_, wait_handle)) in self.outbox.drain() {
       wait_handle.finish(());
     }
+  }
+
+  fn clear_expected_replies(&mut self, channel_id: u16) {
+    let mut outbox = HashMap::default();
+
+    self.expected_replies.remove(&channel_id);
+
+    for (send_id, (chan_id, wait_handle)) in self.outbox.drain() {
+      if chan_id == channel_id {
+        wait_handle.error(ErrorKind::InvalidChannelState(ChannelState::Error).into())
+      } else {
+        outbox.insert(send_id, (chan_id, wait_handle));
+      }
+    }
+
+    self.outbox = outbox;
   }
 }
