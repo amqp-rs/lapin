@@ -25,7 +25,7 @@ use crate::{
   registration::Registration,
   tcp::AMQPUriTcpExt,
   types::ShortUInt,
-  wait::Wait,
+  wait::{Cancellable, Wait},
 };
 
 #[derive(Clone, Debug)]
@@ -170,7 +170,7 @@ impl Connection {
     Ok(())
   }
 
-  pub(crate) fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  pub(crate) fn send_frame(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
     trace!("connection send_frame; channel_id={}", channel_id);
     let wait = self.frames.push(channel_id, priority, frame, expected_reply);
     self.set_readable()?;

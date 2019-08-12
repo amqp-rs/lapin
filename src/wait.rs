@@ -26,6 +26,16 @@ pub trait NotifyReady {
   fn notify(&self);
 }
 
+pub(crate) trait Cancellable: fmt::Debug {
+  fn cancel(&self, error: Error);
+}
+
+impl<T> Cancellable for WaitHandle<T> {
+  fn cancel(&self, error: Error) {
+    self.error(error);
+  }
+}
+
 impl<T> Wait<T> {
   pub(crate) fn new() -> (Self, WaitHandle<T>) {
     let (send, recv) = sync_channel(1);

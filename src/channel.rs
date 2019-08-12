@@ -21,7 +21,7 @@ use crate::{
   queues::Queues,
   returned_messages::ReturnedMessages,
   types::*,
-  wait::{Wait, WaitHandle},
+  wait::{Cancellable, Wait, WaitHandle},
 };
 
 #[cfg(test)]
@@ -108,11 +108,11 @@ impl Channel {
     self.queues.register(queue);
   }
 
-  pub(crate) fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  pub(crate) fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
     self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
   }
 
-  pub(crate) fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Result<Wait<()>, Error> {
+  pub(crate) fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
     self.connection.send_frame(self.id, priority, frame, expected_reply)
   }
 
@@ -124,7 +124,7 @@ impl Channel {
       properties,
     };
     let frame_max = self.connection.configuration().frame_max();
-    let mut frames = vec![AMQPFrame::Header(self.id, class_id, Box::new(header))]; // why the box ?
+    let mut frames = vec![AMQPFrame::Header(self.id, class_id, Box::new(header))];
 
     // a content body frame 8 bytes of overhead
     for chunk in slice.chunks(frame_max as usize - 8) {

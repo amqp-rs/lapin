@@ -11,7 +11,7 @@ use crate::{
   channel::Reply,
   channel_status::ChannelState,
   id_sequence::IdSequence,
-  wait::{Wait, WaitHandle},
+  wait::{Cancellable, Wait, WaitHandle},
   error::ErrorKind,
 };
 
@@ -36,7 +36,7 @@ pub(crate) struct Frames {
 }
 
 impl Frames {
-  pub(crate) fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
+  pub(crate) fn push(&self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Wait<()> {
     self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
@@ -53,7 +53,7 @@ impl Frames {
   }
 
   pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
-    self.inner.lock().expected_replies.get_mut(&channel_id).and_then(|replies| replies.pop_front())
+    self.inner.lock().expected_replies.get_mut(&channel_id).and_then(|replies| replies.pop_front()).map(|t| t.0)
   }
 
   pub(crate) fn mark_sent(&self, send_id: SendId) {
@@ -66,8 +66,8 @@ impl Frames {
     self.inner.lock().drop_pending();
   }
 
-  pub(crate) fn clear_expected_replies(&self, channel_id: u16) {
-    self.inner.lock().clear_expected_replies(channel_id);
+  pub(crate) fn clear_expected_replies(&self, channel_id: u16, channel_state: ChannelState) {
+    self.inner.lock().clear_expected_replies(channel_id, channel_state);
   }
 }
 
@@ -76,7 +76,7 @@ struct Inner {
   priority_frames:  VecDeque<(SendId, AMQPFrame)>,
   frames:           VecDeque<(SendId, AMQPFrame)>,
   low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
-  expected_replies: HashMap<u16, VecDeque<Reply>>,
+  expected_replies: HashMap<u16, VecDeque<(Reply, Box<dyn Cancellable + Send>)>>,
   outbox:           HashMap<SendId, (u16, WaitHandle<()>)>,
   send_id:          IdSequence<SendId>,
 }
@@ -95,7 +95,7 @@ impl Default for Inner {
 }
 
 impl Inner {
-  fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<Reply>) -> Wait<()> {
+  fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Wait<()> {
     let send_id = if let Priority::CRITICAL = priority { 0 } else { self.send_id.next() };
     match priority {
       Priority::LOW      => self.low_prio_frames.push_back((send_id, frame)),
@@ -138,25 +138,35 @@ impl Inner {
     self.priority_frames.clear();
     self.frames.clear();
     self.low_prio_frames.clear();
-    self.expected_replies.clear();
+    for (_, replies) in self.expected_replies.drain() {
+      Self::cancel_expected_replies(replies, ChannelState::Closed);
+    }
     for (_, (_, wait_handle)) in self.outbox.drain() {
       wait_handle.finish(());
     }
   }
 
-  fn clear_expected_replies(&mut self, channel_id: u16) {
+  fn clear_expected_replies(&mut self, channel_id: u16, channel_state: ChannelState) {
     let mut outbox = HashMap::default();
-
-    self.expected_replies.remove(&channel_id);
 
     for (send_id, (chan_id, wait_handle)) in self.outbox.drain() {
       if chan_id == channel_id {
-        wait_handle.error(ErrorKind::InvalidChannelState(ChannelState::Error).into())
+        wait_handle.error(ErrorKind::InvalidChannelState(channel_state.clone()).into())
       } else {
         outbox.insert(send_id, (chan_id, wait_handle));
       }
     }
 
     self.outbox = outbox;
+
+    if let Some(replies) = self.expected_replies.remove(&channel_id) {
+      Self::cancel_expected_replies(replies, channel_state);
+    }
+  }
+
+  fn cancel_expected_replies(replies: VecDeque<(Reply, Box<dyn Cancellable + Send>)>, channel_state: ChannelState) {
+    for (_, cancel) in replies {
+      cancel.cancel(ErrorKind::InvalidChannelState(channel_state.clone()).into());
+    }
   }
 }
