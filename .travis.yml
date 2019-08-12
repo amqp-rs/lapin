@@ -10,7 +10,7 @@ addons:
 cache: cargo
 
 rust:
-#    - 1.35.0
+#    - 1.36.0
 #    - stable
 #    - beta
     - nightly

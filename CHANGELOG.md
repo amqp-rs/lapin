@@ -1,3 +1,9 @@
+### 0.26.2 (2019-08-12)
+
+#### Bug Fixes
+
+* Fixes some frames ordering when using concurrent `basic_publish` under heavy load
+
 ### 0.26.1 (2019-08-09)
 
 #### Bug Fixes
