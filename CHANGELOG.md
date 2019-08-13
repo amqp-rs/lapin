@@ -1,3 +1,9 @@
+### 0.27.0 (XXX)
+
+#### Breaking changes
+
+* Updated amq-protocol to 3.0.0
+
 ### 0.26.3 (2019-08-12)
 
 #### Bug Fixes
