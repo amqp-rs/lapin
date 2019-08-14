@@ -373,12 +373,12 @@ impl Channel {
   }
 
   fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<(), Error> {
-    self.connection.block();
+    self.connection.do_block();
     Ok(())
   }
 
   fn on_connection_unblocked_received(&self, _method: protocol::connection::Unblocked) -> Result<(), Error> {
-    self.connection.unblock();
+    self.connection.do_unblock();
     Ok(())
   }
 

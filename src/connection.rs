@@ -119,13 +119,27 @@ impl Connection {
     self.channels.flow()
   }
 
+  fn channel0(&self) -> Channel {
+    self.channels.get(0).expect("channel 0")
+  }
+
   pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
-    self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
+    self.channel0().connection_close(reply_code, reply_text, 0, 0)
+  }
+
+  /// Block all consumers and publishers on this connection
+  pub fn block(&self, reason: &str) -> Confirmation<()> {
+    self.channel0().connection_blocked(reason)
+  }
+
+  /// Unblock all consumers and publishers on this connection
+  pub fn unblock(&self) -> Confirmation<()> {
+    self.channel0().connection_unblocked()
   }
 
   /// Update the secret used by some authentication module such as oauth2
   pub fn update_secret(&self, new_secret: &str, reason: &str) -> Confirmation<()> {
-    self.channels.get(0).expect("channel 0").connection_update_secret(new_secret, reason)
+    self.channel0().connection_update_secret(new_secret, reason)
   }
 
   pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<(), Error>>) {
@@ -161,11 +175,11 @@ impl Connection {
     self.status.set_state(state);
   }
 
-  pub(crate) fn block(&self) {
+  pub(crate) fn do_block(&self) {
     self.status.block();
   }
 
-  pub(crate) fn unblock(&self) {
+  pub(crate) fn do_unblock(&self) {
     self.status.unblock();
   }
 

@@ -45,6 +45,16 @@
         "end_hook": true
       }
     },
+    "blocked": {
+      "metadata": {
+        "internal": true
+      }
+    },
+    "unblocked": {
+      "metadata": {
+        "internal": true
+      }
+    },
     "update-secret": {
       "metadata": {
         "internal": true

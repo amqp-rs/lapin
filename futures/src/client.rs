@@ -36,6 +36,16 @@ impl Client {
     self.conn.update_secret(new_secret, reason).into()
   }
 
+  /// Block all consumers and publishers on this connection
+  pub fn block(&self, reason: &str) -> Confirmation<()> {
+    self.conn.block(reason)
+  }
+
+  /// Unblock all consumers and publishers on this connection
+  pub fn unblock(&self) -> Confirmation<()> {
+    self.conn.unblock()
+  }
+
   /// Register an error handler which will be called when connection reaches an Error state
   pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
     self.conn.on_error(handler);

@@ -3,6 +3,7 @@
 #### Breaking changes
 
 * Updated amq-protocol to 3.0.0
+* `Channel::connection_[,un}blocked` is now `Connection::{,un}block`
 
 #### Features
 
