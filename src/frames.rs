@@ -39,12 +39,12 @@ impl Frames {
     self.inner.lock().push(channel_id, priority, frame, expected_reply)
   }
 
-  pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Wait<()> {
+  pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<(AMQPFrame, Option<AMQPFrame>)>) -> Wait<()> {
     self.inner.lock().push_frames(channel_id, frames)
   }
 
   pub(crate) fn retry(&self, send_id: SendId, frame: AMQPFrame) {
-    self.inner.lock().priority_frames.push_back((send_id, frame))
+    self.inner.lock().retry(send_id, frame);
   }
 
   pub(crate) fn pop(&self, flow: bool) -> Option<(SendId, AMQPFrame)> {
@@ -72,9 +72,10 @@ impl Frames {
 
 #[derive(Debug)]
 struct Inner {
+  next_frame:       Option<(SendId, AMQPFrame)>,
   priority_frames:  VecDeque<(SendId, AMQPFrame)>,
   frames:           VecDeque<(SendId, AMQPFrame)>,
-  low_prio_frames:  VecDeque<(SendId, AMQPFrame)>,
+  low_prio_frames:  VecDeque<(SendId, AMQPFrame, Option<AMQPFrame>)>,
   expected_replies: HashMap<u16, VecDeque<(Reply, Box<dyn Cancellable + Send>)>>,
   outbox:           HashMap<SendId, (u16, WaitHandle<()>)>,
   send_id:          IdSequence<SendId>,
@@ -83,6 +84,7 @@ struct Inner {
 impl Default for Inner {
   fn default() -> Self {
     Self {
+      next_frame:       None,
       priority_frames:  VecDeque::default(),
       frames:           VecDeque::default(),
       low_prio_frames:  VecDeque::default(),
@@ -109,16 +111,16 @@ impl Inner {
     wait
   }
 
-  fn push_frames(&mut self, channel_id: u16, mut frames: Vec<AMQPFrame>) -> Wait<()> {
+  fn push_frames(&mut self, channel_id: u16, mut frames: Vec<(AMQPFrame, Option<AMQPFrame>)>) -> Wait<()> {
     let send_id = self.send_id.next();
     let (wait, wait_handle) = Wait::new();
     let last_frame = frames.pop();
 
     for frame in frames {
-      self.low_prio_frames.push_back((0, frame));
+      self.low_prio_frames.push_back((0, frame.0, frame.1));
     }
     if let Some(last_frame) = last_frame {
-      self.low_prio_frames.push_back((send_id, last_frame));
+      self.low_prio_frames.push_back((send_id, last_frame.0, last_frame.1));
     } else {
       wait_handle.finish(());
     }
@@ -129,7 +131,27 @@ impl Inner {
   }
 
   fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame)> {
-    self.priority_frames.pop_front().or_else(|| self.frames.pop_front()).or_else(|| if flow { self.low_prio_frames.pop_front() } else { None })
+    if let Some(frame) = self.next_frame.take().or_else(|| self.priority_frames.pop_front()).or_else(|| self.frames.pop_front()) {
+      return Some(frame);
+    }
+    if flow {
+      if let Some(mut frame) = self.low_prio_frames.pop_front() {
+        if let Some(next_frame) = frame.2 {
+          self.next_frame = Some((frame.0, next_frame));
+          frame.0 = 0;
+        }
+        return Some((frame.0, frame.1));
+      }
+    }
+    None
+  }
+
+  fn retry(&mut self, send_id: SendId, frame: AMQPFrame) {
+    if let AMQPFrame::Header(..) = &frame {
+      self.next_frame = Some((send_id, frame));
+    } else {
+      self.priority_frames.push_back((send_id, frame));
+    }
   }
 
   fn drop_pending(&mut self) {

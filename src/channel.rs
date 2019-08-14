@@ -121,10 +121,10 @@ impl Channel {
       properties,
     };
     let frame_max = self.connection.configuration().frame_max();
-    let mut frames = vec![AMQPFrame::Method(self.id, method), AMQPFrame::Header(self.id, class_id, Box::new(header))];
+    let mut frames = vec![(AMQPFrame::Method(self.id, method), Some(AMQPFrame::Header(self.id, class_id, Box::new(header))))];
 
     // a content body frame 8 bytes of overhead
-    frames.extend(payload.as_slice().chunks(frame_max as usize - 8).map(|chunk| AMQPFrame::Body(self.id, chunk.into())));
+    frames.extend(payload.as_slice().chunks(frame_max as usize - 8).map(|chunk| (AMQPFrame::Body(self.id, chunk.into()), None)));
 
     self.connection.send_frames(self.id, frames)
   }
