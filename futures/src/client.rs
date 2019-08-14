@@ -31,6 +31,11 @@ impl Client {
     Channel::create(&self.conn)
   }
 
+  /// Update the secret used by some authentication module such as oauth2
+  pub fn update_secret(&self, new_secret: &str, reason: &str) -> Confirmation<()> {
+    self.conn.update_secret(new_secret, reason).into()
+  }
+
   /// Register an error handler which will be called when connection reaches an Error state
   pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
     self.conn.on_error(handler);

@@ -123,6 +123,11 @@ impl Connection {
     self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
   }
 
+  /// Update the secret used by some authentication module such as oauth2
+  pub fn update_secret(&self, new_secret: &str, reason: &str) -> Confirmation<()> {
+    self.channels.get(0).expect("channel 0").connection_update_secret(new_secret, reason)
+  }
+
   pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<(), Error>>) {
     self.io_loop.register(io_loop);
   }

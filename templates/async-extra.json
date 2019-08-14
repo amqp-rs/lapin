@@ -44,6 +44,11 @@
         "received_hook": true,
         "end_hook": true
       }
+    },
+    "update-secret": {
+      "metadata": {
+        "internal": true
+      }
     }
   },
   "channel": {
