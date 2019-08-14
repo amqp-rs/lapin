@@ -1,3 +1,9 @@
+### 0.26.4 (2019-08-14)
+
+#### Bug Fixes
+
+* Rework how `basic_publish` is handled internally to ensure concurrent usages work as expected
+
 ### 0.26.3 (2019-08-12)
 
 #### Bug Fixes
