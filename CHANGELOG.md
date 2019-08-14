@@ -9,6 +9,12 @@
 
 * Add support for `update_secret` for oauth2 authentication module
 
+### 0.26.5 (2019-08-14)
+
+#### Bug Fixes
+
+* Fix retrying of `basic_publish` frames
+
 ### 0.26.4 (2019-08-14)
 
 #### Bug Fixes
