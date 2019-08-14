@@ -108,7 +108,11 @@ impl Channel {
     {{#if method.synchronous ~}}
     let (wait, {{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle) = Wait::new();
     {{/if ~}}
-    let send_res = self.send_method_frame(Priority::{{#if method.metadata.priority ~}}{{method.metadata.priority}}{{else}}NORMAL{{/if ~}}, method, {{#if method.synchronous ~}}Some((Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle))){{else}}None{{/if ~}});
+    {{#if method.metadata.carry_headers ~}}
+    let send_res = self.send_method_frame_with_body(method, payload, properties);
+    {{else}}
+    let send_res = self.send_method_frame(method, {{#if method.synchronous ~}}Some((Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle))){{else}}None{{/if ~}});
+    {{/if ~}}
     if let Err(err) = send_res {
       return Confirmation::new_error(err);
     }
@@ -131,11 +135,7 @@ impl Channel {
     {{/if ~}}
     Confirmation::new(wait)
     {{else}}
-    {{#if method.metadata.end_hook.override_send_res ~}}
-    Confirmation::new(end_hook_res.unwrap())
-    {{else}}
     Confirmation::new(send_res.unwrap())
-    {{/if ~}}
     {{/if ~}}
   }
   {{/if ~}}

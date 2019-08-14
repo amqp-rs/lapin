@@ -4,6 +4,16 @@
 
 * Updated amq-protocol to 3.0.0
 
+#### Features
+
+* Add support for `update_secret` for oauth2 authentication module
+
+### 0.26.4 (2019-08-14)
+
+#### Bug Fixes
+
+* Rework how `basic_publish` is handled internally to ensure concurrent usages work as expected
+
 ### 0.26.3 (2019-08-12)
 
 #### Bug Fixes

@@ -158,7 +158,7 @@
     },
     "publish": {
       "metadata": {
-        "priority": "LOW",
+        "carry_headers": true,
         "extra_args": [
           {
             "name": "payload",
@@ -169,10 +169,7 @@
             "type": "BasicProperties"
           }
         ],
-        "end_hook": {
-          "override_send_res": true,
-          "params": ["60", "payload", "properties"]
-        }
+        "end_hook": true
       }
     },
     "get": {
