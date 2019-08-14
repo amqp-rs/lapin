@@ -155,6 +155,7 @@ impl Inner {
   }
 
   fn drop_pending(&mut self) {
+    self.next_frame.take();
     self.priority_frames.clear();
     self.frames.clear();
     self.low_prio_frames.clear();
