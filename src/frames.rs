@@ -19,7 +19,6 @@ pub(crate) type SendId = u64;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Priority {
-  LOW,
   NORMAL,
   CRITICAL,
 }
@@ -98,7 +97,6 @@ impl Inner {
   fn push(&mut self, channel_id: u16, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Wait<()> {
     let send_id = if let Priority::CRITICAL = priority { 0 } else { self.send_id.next() };
     match priority {
-      Priority::LOW      => self.low_prio_frames.push_back((send_id, frame)),
       Priority::NORMAL   => self.frames.push_back((send_id, frame)),
       Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
     }

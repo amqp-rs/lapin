@@ -108,30 +108,29 @@ impl Channel {
     self.queues.register(queue);
   }
 
-  pub(crate) fn send_method_frame(&self, priority: Priority, method: AMQPClass, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
-    self.send_frame(priority, AMQPFrame::Method(self.id, method), expected_reply)
+  pub(crate) fn send_method_frame(&self, method: AMQPClass, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
+    self.send_frame(Priority::NORMAL, AMQPFrame::Method(self.id, method), expected_reply)
+  }
+
+  fn send_method_frame_with_body(&self, method: AMQPClass, payload: Vec<u8>, properties: BasicProperties) -> Result<Wait<()>, Error> {
+    let class_id = method.get_amqp_class_id();
+    let header = AMQPContentHeader {
+      class_id,
+      weight:    0,
+      body_size: payload.len() as u64,
+      properties,
+    };
+    let frame_max = self.connection.configuration().frame_max();
+    let mut frames = vec![AMQPFrame::Method(self.id, method), AMQPFrame::Header(self.id, class_id, Box::new(header))];
+
+    // a content body frame 8 bytes of overhead
+    frames.extend(payload.as_slice().chunks(frame_max as usize - 8).map(|chunk| AMQPFrame::Body(self.id, chunk.into())));
+
+    self.connection.send_frames(self.id, frames)
   }
 
   pub(crate) fn send_frame(&self, priority: Priority, frame: AMQPFrame, expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>) -> Result<Wait<()>, Error> {
     self.connection.send_frame(self.id, priority, frame, expected_reply)
-  }
-
-  fn send_content_frames(&self, class_id: u16, slice: &[u8], properties: BasicProperties) -> Result<Wait<()>, Error> {
-    let header = AMQPContentHeader {
-      class_id,
-      weight:    0,
-      body_size: slice.len() as u64,
-      properties,
-    };
-    let frame_max = self.connection.configuration().frame_max();
-    let mut frames = vec![AMQPFrame::Header(self.id, class_id, Box::new(header))];
-
-    // a content body frame 8 bytes of overhead
-    for chunk in slice.chunks(frame_max as usize - 8) {
-      frames.push(AMQPFrame::Body(self.id, Vec::from(chunk)));
-    }
-
-    self.connection.send_frames(self.id, frames)
   }
 
   pub(crate) fn handle_content_header_frame(&self, size: u64, properties: BasicProperties) -> Result<(), Error> {
@@ -216,13 +215,12 @@ impl Channel {
     self.set_closed()
   }
 
-  fn on_basic_publish_sent(&self, class_id: u16, payload: Vec<u8>, properties: BasicProperties) -> Result<Wait<()>, Error> {
+  fn on_basic_publish_sent(&self) -> Result<(), Error> {
     if self.status.confirm() {
       let delivery_tag = self.delivery_tag.next();
       self.acknowledgements.register_pending(delivery_tag);
-    };
-
-    self.send_content_frames(class_id, payload.as_slice(), properties)
+    }
+    Ok(())
   }
 
   fn on_basic_recover_async_sent(&self) -> Result<(), Error> {
