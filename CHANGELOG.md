@@ -1,3 +1,9 @@
+### 0.26.6 (2019-08-15)
+
+#### Bug Fixes
+
+* Better handle multiple channel publishing under heavy load
+
 ### 0.26.5 (2019-08-14)
 
 #### Bug Fixes
