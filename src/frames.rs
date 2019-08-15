@@ -72,7 +72,8 @@ impl Frames {
 
 #[derive(Debug)]
 struct Inner {
-  next_frame:       Option<(SendId, AMQPFrame)>,
+  /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
+  header_frames:    VecDeque<(SendId, AMQPFrame)>,
   priority_frames:  VecDeque<(SendId, AMQPFrame)>,
   frames:           VecDeque<(SendId, AMQPFrame)>,
   low_prio_frames:  VecDeque<(SendId, AMQPFrame, Option<AMQPFrame>)>,
@@ -84,7 +85,7 @@ struct Inner {
 impl Default for Inner {
   fn default() -> Self {
     Self {
-      next_frame:       None,
+      header_frames:    VecDeque::default(),
       priority_frames:  VecDeque::default(),
       frames:           VecDeque::default(),
       low_prio_frames:  VecDeque::default(),
@@ -131,13 +132,13 @@ impl Inner {
   }
 
   fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame)> {
-    if let Some(frame) = self.next_frame.take().or_else(|| self.priority_frames.pop_front()).or_else(|| self.frames.pop_front()) {
+    if let Some(frame) = self.header_frames.pop_front().or_else(|| self.priority_frames.pop_front()).or_else(|| self.frames.pop_front()) {
       return Some(frame);
     }
     if flow {
       if let Some(mut frame) = self.low_prio_frames.pop_front() {
         if let Some(next_frame) = frame.2 {
-          self.next_frame = Some((frame.0, next_frame));
+          self.header_frames.push_back((frame.0, next_frame));
           frame.0 = 0;
         }
         return Some((frame.0, frame.1));
@@ -148,14 +149,14 @@ impl Inner {
 
   fn retry(&mut self, send_id: SendId, frame: AMQPFrame) {
     if let AMQPFrame::Header(..) = &frame {
-      self.next_frame = Some((send_id, frame));
+      self.header_frames.push_front((send_id, frame));
     } else {
       self.priority_frames.push_back((send_id, frame));
     }
   }
 
   fn drop_pending(&mut self) {
-    self.next_frame.take();
+    self.header_frames.clear();
     self.priority_frames.clear();
     self.frames.clear();
     self.low_prio_frames.clear();
