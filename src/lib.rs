@@ -54,11 +54,12 @@
 //! ```
 
 pub use amq_protocol::{
-  protocol::{self, BasicProperties},
-  auth, tcp, types, uri,
+    auth,
+    protocol::{self, BasicProperties},
+    tcp, types, uri,
 };
 
-pub use channel::{Channel, options};
+pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection};

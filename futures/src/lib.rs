@@ -99,8 +99,8 @@
 //! ```
 
 pub use lapin::{
-  auth, message, options, protocol, tcp, types, uri,
-  BasicProperties, Configuration, ConnectionProperties, ConsumerDelegate, Error, ErrorKind, Queue,
+    auth, message, options, protocol, tcp, types, uri, BasicProperties, Configuration,
+    ConnectionProperties, ConsumerDelegate, Error, ErrorKind, Queue,
 };
 
 pub use channel::Channel;
