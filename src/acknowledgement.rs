@@ -6,9 +6,9 @@ use std::{
 };
 
 use crate::{
-    error::{Error, ErrorKind},
     returned_messages::ReturnedMessages,
     wait::{Wait, WaitHandle},
+    Error,
 };
 
 pub type DeliveryTag = u64;
@@ -103,7 +103,7 @@ impl Inner {
             }
             Ok(())
         } else {
-            Err(ErrorKind::PreconditionFailed.into())
+            Err(Error::PreconditionFailed)
         }
     }
 

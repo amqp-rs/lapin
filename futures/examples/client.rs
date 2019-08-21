@@ -9,7 +9,6 @@ use crate::lapin::options::{
 use crate::lapin::types::FieldTable;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 use env_logger;
-use failure::Error;
 use futures::{Future, Stream};
 use lapin_futures as lapin;
 use log::{debug, info};
@@ -22,7 +21,7 @@ fn main() {
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
     Runtime::new().unwrap().block_on_all(
-    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+    Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
       client.create_channel().and_then(|channel| {
         let id = channel.id();
         info!("created channel with id: {}", id);
@@ -78,7 +77,7 @@ fn main() {
             c.basic_ack(message.delivery_tag, false)
           })
         })
-      }).map_err(Error::from)
+      })
     }).map_err(|err| eprintln!("An error occured: {}", err))
   ).expect("runtime exited with failure")
 }

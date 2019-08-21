@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     connection::Connection, frames::Frames, id_sequence::IdSequence, BasicProperties, Channel,
-    ChannelState, Error, ErrorKind,
+    ChannelState, Error,
 };
 
 #[derive(Clone, Debug)]
@@ -43,7 +43,7 @@ impl Channels {
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
         } else {
-            Err(ErrorKind::InvalidChannel(id).into())
+            Err(Error::InvalidChannel(id))
         }
     }
 
@@ -51,7 +51,7 @@ impl Channels {
         if let Some(channel) = self.get(id) {
             channel.receive_method(method)
         } else {
-            Err(ErrorKind::InvalidChannel(id).into())
+            Err(Error::InvalidChannel(id))
         }
     }
 
@@ -64,7 +64,7 @@ impl Channels {
         if let Some(channel) = self.get(id) {
             channel.handle_content_header_frame(size, properties)
         } else {
-            Err(ErrorKind::InvalidChannel(id).into())
+            Err(Error::InvalidChannel(id))
         }
     }
 
@@ -72,7 +72,7 @@ impl Channels {
         if let Some(channel) = self.get(id) {
             channel.handle_body_frame(payload)
         } else {
-            Err(ErrorKind::InvalidChannel(id).into())
+            Err(Error::InvalidChannel(id))
         }
     }
 
@@ -148,6 +148,6 @@ impl Inner {
             }
             id = self.channel_id.next();
         }
-        Err(ErrorKind::ChannelLimitReached.into())
+        Err(Error::ChannelLimitReached)
     }
 }

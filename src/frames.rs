@@ -10,9 +10,9 @@ use std::{
 use crate::{
     channel::Reply,
     channel_status::ChannelState,
-    error::ErrorKind,
     id_sequence::IdSequence,
     wait::{Cancellable, Wait, WaitHandle},
+    Error,
 };
 
 pub(crate) type SendId = u64;
@@ -219,7 +219,7 @@ impl Inner {
 
         for (send_id, (chan_id, wait_handle)) in self.outbox.drain() {
             if chan_id == channel_id {
-                wait_handle.error(ErrorKind::InvalidChannelState(channel_state.clone()).into())
+                wait_handle.error(Error::InvalidChannelState(channel_state.clone()))
             } else {
                 outbox.insert(send_id, (chan_id, wait_handle));
             }
@@ -237,7 +237,7 @@ impl Inner {
         channel_state: ChannelState,
     ) {
         for (_, cancel) in replies {
-            cancel.cancel(ErrorKind::InvalidChannelState(channel_state.clone()).into());
+            cancel.cancel(Error::InvalidChannelState(channel_state.clone()));
         }
     }
 }

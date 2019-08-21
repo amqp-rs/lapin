@@ -5,7 +5,6 @@ use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDecla
 use crate::lapin::types::FieldTable;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 use env_logger;
-use failure::Error;
 use futures::{Future, Stream};
 use lapin_futures as lapin;
 use log::{debug, info};
@@ -21,7 +20,6 @@ fn main() {
         .unwrap()
         .block_on_all(
             Client::connect(&addr, ConnectionProperties::default())
-                .map_err(Error::from)
                 .and_then(|client| {
                     let publisher = client.create_channel().and_then(|pub_channel| {
                         let id = pub_channel.id();
@@ -53,43 +51,40 @@ fn main() {
 
                     tokio::spawn(publisher.map_err(|_| ()));
 
-                    client
-                        .create_channel()
-                        .and_then(|sub_channel| {
-                            let id = sub_channel.id();
-                            info!("created subscriber channel with id: {}", id);
+                    client.create_channel().and_then(|sub_channel| {
+                        let id = sub_channel.id();
+                        info!("created subscriber channel with id: {}", id);
 
-                            let ch = sub_channel.clone();
+                        let ch = sub_channel.clone();
 
-                            sub_channel
-                                .queue_declare(
-                                    "hello",
-                                    QueueDeclareOptions::default(),
+                        sub_channel
+                            .queue_declare(
+                                "hello",
+                                QueueDeclareOptions::default(),
+                                FieldTable::default(),
+                            )
+                            .and_then(move |queue| {
+                                info!("subscriber channel {} declared queue {}", id, "hello");
+                                sub_channel.basic_consume(
+                                    &queue,
+                                    "my_consumer",
+                                    BasicConsumeOptions::default(),
                                     FieldTable::default(),
                                 )
-                                .and_then(move |queue| {
-                                    info!("subscriber channel {} declared queue {}", id, "hello");
-                                    sub_channel.basic_consume(
-                                        &queue,
-                                        "my_consumer",
-                                        BasicConsumeOptions::default(),
-                                        FieldTable::default(),
-                                    )
-                                })
-                                .and_then(|stream| {
-                                    info!("got consumer stream");
+                            })
+                            .and_then(|stream| {
+                                info!("got consumer stream");
 
-                                    stream.for_each(move |message| {
-                                        debug!("got message: {:?}", message);
-                                        info!(
-                                            "decoded message: {:?}",
-                                            std::str::from_utf8(&message.data).unwrap()
-                                        );
-                                        ch.basic_ack(message.delivery_tag, false)
-                                    })
+                                stream.for_each(move |message| {
+                                    debug!("got message: {:?}", message);
+                                    info!(
+                                        "decoded message: {:?}",
+                                        std::str::from_utf8(&message.data).unwrap()
+                                    );
+                                    ch.basic_ack(message.delivery_tag, false)
                                 })
-                        })
-                        .map_err(Error::from)
+                            })
+                    })
                 })
                 .map_err(|err| eprintln!("An error occured: {}", err)),
         )

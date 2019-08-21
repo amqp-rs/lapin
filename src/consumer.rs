@@ -3,9 +3,7 @@ use parking_lot::{Mutex, MutexGuard};
 
 use std::{collections::VecDeque, fmt, sync::Arc};
 
-use crate::{
-    error::Error, message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties,
-};
+use crate::{message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties, Error};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: Delivery);

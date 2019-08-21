@@ -11,7 +11,6 @@ use crate::{
     confirmation::Confirmation,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
-    error::{Error, ErrorKind},
     error_handler::ErrorHandler,
     frames::{Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
@@ -19,6 +18,7 @@ use crate::{
     tcp::AMQPUriTcpExt,
     types::ShortUInt,
     wait::{Cancellable, Wait},
+    Error,
 };
 
 #[derive(Clone, Debug)]
@@ -89,9 +89,7 @@ impl Connection {
 
     pub fn create_channel(&self) -> Confirmation<Channel> {
         if !self.status.connected() {
-            return Confirmation::new_error(
-                ErrorKind::InvalidConnectionState(self.status.state()).into(),
-            );
+            return Confirmation::new_error(Error::InvalidConnectionState(self.status.state()));
         }
         match self.channels.create(self.clone()) {
             Ok(channel) => channel.channel_open(),
@@ -202,7 +200,7 @@ impl Connection {
         trace!("connection set readable");
         self.registration
             .set_readiness(Ready::readable())
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         Ok(())
     }
 
@@ -323,7 +321,7 @@ pub trait Connect {
 impl Connect for AMQPUri {
     fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
         let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options))
-            .map_err(ErrorKind::IOError)??;
+            .map_err(Error::IOError)??;
         io_loop.run()?;
         Ok(conn)
     }
@@ -332,7 +330,7 @@ impl Connect for AMQPUri {
 impl Connect for &str {
     fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
         let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options))
-            .map_err(ErrorKind::IOError)??;
+            .map_err(Error::IOError)??;
         io_loop.run()?;
         Ok(conn)
     }

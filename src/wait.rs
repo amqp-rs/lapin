@@ -8,7 +8,7 @@ use std::{
     },
 };
 
-use crate::error::Error;
+use crate::Error;
 
 pub struct Wait<T> {
     recv: Receiver<Result<T, Error>>,

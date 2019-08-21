@@ -11,7 +11,6 @@ use crate::{
     connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
-    error::{Error, ErrorKind},
     frames::Priority,
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -21,7 +20,7 @@ use crate::{
     returned_messages::ReturnedMessages,
     types::*,
     wait::{Cancellable, Wait, WaitHandle},
-    BasicProperties,
+    BasicProperties, Error,
 };
 
 #[cfg(test)]
@@ -426,7 +425,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
-            Err(ErrorKind::InvalidConnectionState(state).into())
+            Err(Error::InvalidConnectionState(state))
         }
     }
 
@@ -443,7 +442,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
-            Err(ErrorKind::InvalidConnectionState(state).into())
+            Err(Error::InvalidConnectionState(state))
         }
     }
 
@@ -469,7 +468,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
-            Err(ErrorKind::InvalidConnectionState(state).into())
+            Err(Error::InvalidConnectionState(state))
         }
     }
 
@@ -482,7 +481,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
-            Err(ErrorKind::InvalidConnectionState(state).into())
+            Err(Error::InvalidConnectionState(state))
         }
     }
 
@@ -504,14 +503,12 @@ impl Channel {
         self.connection_close_ok().as_error()?;
         match state {
             ConnectionState::SentProtocolHeader(wait_handle, ..) => {
-                wait_handle.error(ErrorKind::ConnectionRefused.into())
+                wait_handle.error(Error::ConnectionRefused)
             }
             ConnectionState::SentStartOk(wait_handle, _) => {
-                wait_handle.error(ErrorKind::ConnectionRefused.into())
+                wait_handle.error(Error::ConnectionRefused)
             }
-            ConnectionState::SentOpen(wait_handle) => {
-                wait_handle.error(ErrorKind::ConnectionRefused.into())
-            }
+            ConnectionState::SentOpen(wait_handle) => wait_handle.error(Error::ConnectionRefused),
             _ => {}
         }
         Ok(())
@@ -642,7 +639,7 @@ impl Channel {
             }
             _ => {
                 self.set_error()?;
-                Err(ErrorKind::UnexpectedReply.into())
+                Err(Error::UnexpectedReply)
             }
         }
     }

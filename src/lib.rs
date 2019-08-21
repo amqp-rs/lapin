@@ -66,7 +66,7 @@ pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate};
-pub use error::{Error, ErrorKind};
+pub use error::Error;
 pub use queue::Queue;
 
 pub mod confirmation;

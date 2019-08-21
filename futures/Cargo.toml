@@ -28,5 +28,4 @@ log = "^0.4"
 
 [dev-dependencies]
 env_logger = "^0.6"
-failure = "^0.1"
 tokio = "^0.1.8"

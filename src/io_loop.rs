@@ -4,7 +4,7 @@ use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Tok
 use parking_lot::Mutex;
 
 use std::{
-    io::{self, Read, Write},
+    io::{Read, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -13,12 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
-    buffer::Buffer,
-    connection::Connection,
-    connection_status::ConnectionState,
-    error::{Error, ErrorKind},
-};
+use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
 
 const SOCKET: Token = Token(1);
 const DATA: Token = Token(2);
@@ -85,7 +80,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             connection,
             socket,
             status: Status::Initial,
-            poll: Poll::new().map_err(ErrorKind::IOError)?,
+            poll: Poll::new().map_err(Error::IOError)?,
             registration,
             set_readiness,
             hb_handle: None,
@@ -101,11 +96,11 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         inner
             .poll
             .register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         inner
             .poll
             .register(&inner.connection, DATA, Ready::readable(), PollOpt::edge())
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         inner
             .poll
             .register(
@@ -114,7 +109,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 Ready::readable(),
                 PollOpt::edge(),
             )
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         Ok(inner)
     }
 
@@ -140,7 +135,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     send_hartbeat.store(true, Ordering::Relaxed);
                 }
             })
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         self.hb_handle = Some(hb_handle);
         Ok(())
     }
@@ -203,7 +198,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     }
                     Ok(())
                 })
-                .map_err(ErrorKind::IOError)?,
+                .map_err(Error::IOError)?,
         );
         Ok(())
     }
@@ -215,7 +210,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         trace!("io_loop poll");
         self.poll
             .poll(events, self.poll_timeout)
-            .map_err(ErrorKind::IOError)?;
+            .map_err(Error::IOError)?;
         trace!("io_loop poll done");
         for event in events.iter() {
             match event.token() {
@@ -245,21 +240,18 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             }
             if self.wants_to_write() && !self.connection.status().blocked() {
                 if let Err(e) = self.write_to_stream() {
-                    match e.kind() {
-                        ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                            self.can_write = false
+                    if e.wouldblock() {
+                        self.can_write = false
+                    } else {
+                        error!("error writing: {:?}", e);
+                        if let ConnectionState::SentProtocolHeader(wait_handle, ..) =
+                            self.connection.status().state()
+                        {
+                            wait_handle.error(Error::ConnectionRefused);
+                            self.status = Status::Stop;
                         }
-                        _ => {
-                            error!("error writing: {:?}", e);
-                            if let ConnectionState::SentProtocolHeader(wait_handle, ..) =
-                                self.connection.status().state()
-                            {
-                                wait_handle.error(ErrorKind::ConnectionRefused.into());
-                                self.status = Status::Stop;
-                            }
-                            self.connection.set_error()?;
-                            return Err(e);
-                        }
+                        self.connection.set_error()?;
+                        return Err(e);
                     }
                 }
                 self.send_buffer.shift_unless_available(self.frame_size);
@@ -269,15 +261,12 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             }
             if self.should_continue() && self.wants_to_read() {
                 if let Err(e) = self.read_from_stream() {
-                    match e.kind() {
-                        ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                            self.can_read = false
-                        }
-                        _ => {
-                            error!("error reading: {:?}", e);
-                            self.connection.set_error()?;
-                            return Err(e);
-                        }
+                    if e.wouldblock() {
+                        self.can_read = false
+                    } else {
+                        error!("error reading: {:?}", e);
+                        self.connection.set_error()?;
+                        return Err(e);
                     }
                 }
                 self.receive_buffer.shift_unless_available(self.frame_size);
@@ -301,7 +290,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     );
                     self.set_readiness
                         .set_readiness(Ready::readable())
-                        .map_err(ErrorKind::IOError)?;
+                        .map_err(Error::IOError)?;
                 }
                 break;
             }
@@ -329,15 +318,13 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 trace!("wrote {} bytes", sz);
                 self.send_buffer.consume(sz);
             })
-            .map_err(|e| ErrorKind::IOError(e).into())
+            .map_err(|e| Error::IOError(e))
     }
 
     fn read_from_stream(&mut self) -> Result<(), Error> {
         match self.connection.status().state() {
             ConnectionState::Closed => Ok(()),
-            ConnectionState::Error => {
-                Err(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
-            }
+            ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => self
                 .socket
                 .read(&mut self.receive_buffer.space())
@@ -345,7 +332,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
                 })
-                .map_err(|e| ErrorKind::IOError(e).into()),
+                .map_err(|e| Error::IOError(e)),
         }
     }
 
@@ -371,7 +358,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                         e => {
                             error!("error generating frame: {:?}", e);
                             self.connection.set_error()?;
-                            Err(ErrorKind::SerialisationError(e).into())
+                            Err(Error::SerialisationError(e))
                         }
                     }
                 }
@@ -402,7 +389,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 } else {
                     error!("parse error: {:?}", e);
                     self.connection.set_error()?;
-                    Err(ErrorKind::ParsingError(format!("{:?}", e)).into())
+                    Err(Error::ParsingError(format!("{:?}", e)))
                 }
             }
         }

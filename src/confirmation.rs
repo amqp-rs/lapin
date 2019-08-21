@@ -2,7 +2,7 @@ pub use crate::wait::NotifyReady;
 
 use std::fmt;
 
-use crate::{error::Error, wait::Wait};
+use crate::{wait::Wait, Error};
 
 pub struct Confirmation<T, I = ()> {
     kind: ConfirmationKind<T, I>,

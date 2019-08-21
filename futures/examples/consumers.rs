@@ -2,7 +2,6 @@ use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDecla
 use crate::lapin::types::FieldTable;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 use env_logger;
-use failure::{err_msg, Error};
 use futures;
 use futures::{Future, IntoFuture, Stream};
 use lapin_futures as lapin;
@@ -66,18 +65,18 @@ fn main() {
     runtime
         .block_on_all(
             Client::connect(&addr, ConnectionProperties::default())
-                .map_err(Error::from)
+                .map_err(|err| eprintln!("An error occured: {}", err))
                 .and_then(|client| {
                     let _client = client.clone();
                     futures::stream::iter_ok(0..N_CONSUMERS)
                         .for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
                         .into_future()
                         .map(move |_| client)
-                        .map_err(|_| err_msg("Couldn't spawn the consumer task"))
                 })
                 .and_then(|client| {
                     client
                         .create_channel()
+                        .map_err(|err| eprintln!("An error occured: {}", err))
                         .and_then(move |channel| {
                             futures::stream::iter_ok(
                                 (0..N_CONSUMERS).flat_map(|c| (0..N_MESSAGES).map(move |m| (c, m))),
@@ -107,10 +106,9 @@ fn main() {
                                             .map(|_| ())
                                     })
                             })
+                            .map_err(|err| eprintln!("An error occured: {}", err))
                         })
-                        .map_err(Error::from)
-                })
-                .map_err(|err| eprintln!("An error occured: {}", err)),
+                }),
         )
         .expect("runtime exited with failure");
 }

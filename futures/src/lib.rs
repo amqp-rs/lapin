@@ -10,7 +10,6 @@
 //!
 //! ```rust,no_run
 //! use env_logger;
-//! use failure::Error;
 //! use futures::future;
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
@@ -27,10 +26,10 @@
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+//!    Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
-//!       client.create_channel().map_err(Error::from)
+//!       client.create_channel()
 //!     }).and_then(|mut channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
@@ -42,7 +41,7 @@
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
 //!         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
-//!       }).map_err(Error::from)
+//!       })
 //!     })
 //!   ).expect("runtime failure");
 //! }
@@ -52,7 +51,6 @@
 //!
 //! ```rust,no_run
 //! use env_logger;
-//! use failure::Error;
 //! use futures::{future, Future, Stream};
 //! use lapin_futures as lapin;
 //! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
@@ -68,10 +66,10 @@
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
 //!   Runtime::new().unwrap().block_on_all(
-//!    Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+//!    Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
-//!       client.create_channel().map_err(Error::from)
+//!       client.create_channel()
 //!     }).and_then(|mut channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
@@ -92,7 +90,7 @@
 //!           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
 //!           ch.basic_ack(message.delivery_tag, false)
 //!         })
-//!       }).map_err(Error::from)
+//!       })
 //!     })
 //!   ).expect("runtime failure");
 //! }
@@ -100,7 +98,7 @@
 
 pub use lapin::{
     auth, message, options, protocol, tcp, types, uri, BasicProperties, Configuration,
-    ConnectionProperties, ConsumerDelegate, Error, ErrorKind, Queue,
+    ConnectionProperties, ConsumerDelegate, Error, Queue,
 };
 
 pub use channel::Channel;

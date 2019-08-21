@@ -51,7 +51,7 @@ impl Channel {
       {{/each ~}}
       m => {
         error!("the client should not receive this method: {:?}", m);
-        Err(ErrorKind::InvalidMethod(m).into())
+        Err(Error::InvalidMethod(m))
       }
     }
   }
@@ -70,7 +70,7 @@ impl Channel {
     if !self.status.is_connected() {
     {{/if ~}}
     {{/if ~}}
-      return Confirmation::new_error(ErrorKind::NotConnected.into());
+      return Confirmation::new_error(Error::NotConnected);
     }
 
     {{#unless method.ignore_args ~}}
@@ -152,7 +152,7 @@ impl Channel {
     if !self.status.is_connected() {
     {{/if ~}}
     {{/if ~}}
-      return Err(ErrorKind::NotConnected.into());
+      return Err(Error::NotConnected);
     }
 
     match self.connection.next_expected_reply(self.id) {
@@ -172,14 +172,14 @@ impl Channel {
       },
       _ => {
         self.set_error()?;
-        Err(ErrorKind::UnexpectedReply.into())
+        Err(Error::UnexpectedReply)
       },
     }
   }
   {{else}}
   fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
     if !self.status.is_connected() {
-      return Err(ErrorKind::NotConnected.into());
+      return Err(Error::NotConnected);
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }

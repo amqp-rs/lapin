@@ -4,7 +4,6 @@ use crate::lapin::options::{
 use crate::lapin::types::FieldTable;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 use env_logger;
-use failure::Error;
 use futures::Future;
 use lapin_futures as lapin;
 use tokio;
@@ -19,7 +18,6 @@ fn main() {
     runtime
         .block_on_all(
             Client::connect(&addr, ConnectionProperties::default())
-                .map_err(Error::from)
                 .and_then(|client| {
                     client
                         .create_channel()
@@ -65,7 +63,6 @@ fn main() {
                                 BasicProperties::default(),
                             )
                         })
-                        .map_err(Error::from)
                 })
                 .map_err(|err| eprintln!("An error occured: {}", err)),
         )
