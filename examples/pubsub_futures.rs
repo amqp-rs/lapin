@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 use env_logger;
 use futures::{future::FutureExt, stream::StreamExt};
 use lapin::{
