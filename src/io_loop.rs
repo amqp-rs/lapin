@@ -21,9 +21,11 @@ const CONTINUE: Token = Token(3);
 
 const FRAMES_STORAGE: usize = 32;
 
+type ThreadHandle = JoinHandle<Result<(), Error>>;
+
 #[derive(Clone, Debug)]
 pub(crate) struct IoLoopHandle {
-    handle: Arc<Mutex<Option<JoinHandle<Result<(), Error>>>>>,
+    handle: Arc<Mutex<Option<ThreadHandle>>>,
 }
 
 impl Default for IoLoopHandle {
@@ -156,7 +158,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             let heartbeat = self.connection.configuration().heartbeat();
             if heartbeat != 0 {
                 trace!("io_loop: start heartbeat");
-                let heartbeat = Duration::from_secs(heartbeat as u64);
+                let heartbeat = Duration::from_secs(u64::from(heartbeat));
                 self.start_heartbeat(heartbeat)?;
                 self.poll_timeout = Some(heartbeat);
                 trace!("io_loop: heartbeat started");
@@ -318,7 +320,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 trace!("wrote {} bytes", sz);
                 self.send_buffer.consume(sz);
             })
-            .map_err(|e| Error::IOError(e))
+            .map_err(Error::IOError)
     }
 
     fn read_from_stream(&mut self) -> Result<(), Error> {
@@ -332,7 +334,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
                 })
-                .map_err(|e| Error::IOError(e)),
+                .map_err(Error::IOError),
         }
     }
 

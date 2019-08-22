@@ -21,7 +21,7 @@ impl<T, I> Confirmation<T, I> {
         Self::new(wait)
     }
 
-    pub fn as_error(self) -> Result<(), Error> {
+    pub fn into_error(self) -> Result<(), Error> {
         self.try_wait().transpose().map(|_| ())
     }
 

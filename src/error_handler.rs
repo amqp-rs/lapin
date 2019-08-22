@@ -2,9 +2,11 @@ use parking_lot::Mutex;
 
 use std::{fmt, sync::Arc};
 
+type ErrorFn = Box<dyn Fn() + Send + 'static>;
+
 #[derive(Clone)]
 pub(crate) struct ErrorHandler {
-    handler: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
+    handler: Arc<Mutex<Option<ErrorFn>>>,
 }
 
 impl ErrorHandler {

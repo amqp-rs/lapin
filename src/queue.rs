@@ -54,7 +54,7 @@ impl QueueState {
         self.consumers.insert(consumer_tag, consumer);
     }
 
-    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(&mut self, consumer_tag: &S) -> ()
+    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(&mut self, consumer_tag: &S)
     where
         ShortString: Borrow<S>,
     {

@@ -256,7 +256,7 @@ impl Channel {
             class_id,
             method_id,
         )
-        .as_error()?;
+        .into_error()?;
         Err(error)
     }
 
@@ -421,7 +421,7 @@ impl Channel {
                 wait_handle,
                 credentials,
             )
-            .as_error()
+            .into_error()
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
@@ -438,7 +438,7 @@ impl Channel {
         let state = self.connection.status().state();
         if let ConnectionState::SentStartOk(_, credentials) = state {
             self.connection_secure_ok(&credentials.rabbit_cr_demo_answer())
-                .as_error()
+                .into_error()
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
@@ -462,9 +462,9 @@ impl Channel {
                 self.connection.configuration().frame_max(),
                 self.connection.configuration().heartbeat(),
             )
-            .as_error()?;
+            .into_error()?;
             self.connection_open(&self.connection.status().vhost(), wait_handle)
-                .as_error()
+                .into_error()
         } else {
             error!("Invalid state: {:?}", state);
             self.connection.set_error()?;
@@ -500,7 +500,7 @@ impl Channel {
         let state = self.connection.status().state();
         self.connection.set_closing();
         self.connection.drop_pending_frames();
-        self.connection_close_ok().as_error()?;
+        self.connection_close_ok().into_error()?;
         match state {
             ConnectionState::SentProtocolHeader(wait_handle, ..) => {
                 wait_handle.error(Error::ConnectionRefused)
@@ -549,7 +549,7 @@ impl Channel {
         self.channel_flow_ok(ChannelFlowOkOptions {
             active: method.active,
         })
-        .as_error()
+        .into_error()
     }
 
     fn on_channel_flow_ok_received(
@@ -571,7 +571,7 @@ impl Channel {
         } else {
             info!("Channel {} closed: {:?}", self.id, method);
         }
-        self.channel_close_ok().as_error()
+        self.channel_close_ok().into_error()
     }
 
     fn on_channel_close_ok_received(&self) -> Result<(), Error> {
@@ -633,7 +633,7 @@ impl Channel {
 
     fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<(), Error> {
         match self.connection.next_expected_reply(self.id) {
-            Some(Reply::AwaitingBasicGetOk(wait_handle, _)) => {
+            Some(Reply::BasicGetOk(wait_handle, _)) => {
                 wait_handle.finish(None);
                 Ok(())
             }
@@ -663,8 +663,8 @@ impl Channel {
             method.consumer_tag.as_str(),
             Delivery::new(
                 method.delivery_tag,
-                method.exchange.into(),
-                method.routing_key.into(),
+                method.exchange,
+                method.routing_key,
                 method.redelivered,
             ),
         ) {
@@ -681,7 +681,7 @@ impl Channel {
             .deregister_consumer(method.consumer_tag.as_str());
         if !method.nowait {
             self.basic_cancel_ok(method.consumer_tag.as_str())
-                .as_error()
+                .into_error()
         } else {
             Ok(())
         }

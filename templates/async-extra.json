@@ -160,14 +160,16 @@
           "type": "Consumer"
         },
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"]
+          "fields": ["consumer_tag: consumer_tag.into()"],
+          "exhaustive_args": true
         }
       }
     },
     "cancel": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"]
+          "fields": ["consumer_tag: consumer_tag.into()"],
+          "exhaustive_args": true
         }
       }
     },

@@ -89,6 +89,8 @@ impl Frames {
     }
 }
 
+type ExpectedReply = (Reply, Box<dyn Cancellable + Send>);
+
 #[derive(Debug)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
@@ -96,7 +98,7 @@ struct Inner {
     priority_frames: VecDeque<(SendId, AMQPFrame)>,
     frames: VecDeque<(SendId, AMQPFrame)>,
     low_prio_frames: VecDeque<(SendId, AMQPFrame, Option<AMQPFrame>)>,
-    expected_replies: HashMap<u16, VecDeque<(Reply, Box<dyn Cancellable + Send>)>>,
+    expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
     outbox: HashMap<SendId, (u16, WaitHandle<()>)>,
     send_id: IdSequence<SendId>,
 }

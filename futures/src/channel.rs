@@ -185,7 +185,7 @@ impl Channel {
             .inner
             .basic_consume(queue, consumer_tag, options, arguments)
             .into();
-        confirmation.map(|consumer| Consumer(consumer))
+        confirmation.map(Consumer)
     }
 
     pub fn basic_cancel(

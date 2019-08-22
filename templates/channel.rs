@@ -25,12 +25,13 @@ pub mod options {
 use options::*;
 
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum Reply {
   {{#each protocol.classes as |class| ~}}
   {{#each class.methods as |method| ~}}
   {{#if method.c2s ~}}
   {{#if method.synchronous ~}}
-  Awaiting{{camel class.name}}{{camel method.name}}Ok(WaitHandle<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
+  {{camel class.name}}{{camel method.name}}Ok(WaitHandle<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
   {{/if ~}}
   {{/if ~}}
   {{/each ~}}
@@ -111,7 +112,7 @@ impl Channel {
     {{#if method.metadata.carry_headers ~}}
     let send_res = self.send_method_frame_with_body(method, payload, properties);
     {{else}}
-    let send_res = self.send_method_frame(method, {{#if method.synchronous ~}}Some((Reply::Awaiting{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle))){{else}}None{{/if ~}});
+    let send_res = self.send_method_frame(method, {{#if method.synchronous ~}}Some((Reply::{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_wait_handle ~}}_{{/if ~}}wait_handle))){{else}}None{{/if ~}});
     {{/if ~}}
     if let Err(err) = send_res {
       return Confirmation::new_error(err);
@@ -127,7 +128,7 @@ impl Channel {
     {{#if (method_has_flag method "nowait") ~}}
     if nowait {
       {{#if method.metadata.nowait_hook ~}}
-      if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}..Default::default() }) {
+      if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#unless method.metadata.nowait_hook.exhaustive_args ~}}..Default::default(){{/unless ~}} }) {
         return Confirmation::new_error(err);
       }
       {{/if ~}}
@@ -156,9 +157,9 @@ impl Channel {
     }
 
     match self.connection.next_expected_reply(self.id) {
-      Some(Reply::Awaiting{{camel class.name}}{{camel method.name}}(wait_handle{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+      Some(Reply::{{camel class.name}}{{camel method.name}}(wait_handle{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         {{#unless method.metadata.confirmation.type ~}}
-        wait_handle.finish(Default::default());
+        wait_handle.finish(());
         {{/unless ~}}
         {{#if method.arguments ~}}
         self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, wait_handle{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
