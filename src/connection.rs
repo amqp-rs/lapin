@@ -365,9 +365,9 @@ mod tests {
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(consumer_tag.clone());
         queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels.get(channel.id()).map(|c| {
+        if let Some(c) = conn.channels.get(channel.id()) {
             c.register_queue(queue);
-        });
+        }
         // Now test the state machine behaviour
         {
             let deliver_frame = AMQPFrame::Method(

@@ -10,7 +10,6 @@
 //!
 //! ```rust,no_run
 //! use env_logger;
-//! use futures::future;
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
 //! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
@@ -30,7 +29,7 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel()
-//!     }).and_then(|mut channel| {
+//!     }).and_then(|channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
@@ -51,9 +50,9 @@
 //!
 //! ```rust,no_run
 //! use env_logger;
-//! use futures::{future, Future, Stream};
+//! use futures::{Future, Stream};
 //! use lapin_futures as lapin;
-//! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+//! use crate::lapin::{Client, ConnectionProperties};
 //! use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
@@ -70,11 +69,11 @@
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
 //!       client.create_channel()
-//!     }).and_then(|mut channel| {
+//!     }).and_then(|channel| {
 //!       let id = channel.id();
 //!       info!("created channel with id: {}", id);
 //!
-//!       let mut ch = channel.clone();
+//!       let ch = channel.clone();
 //!       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |queue| {
 //!         info!("channel {} declared queue {}", id, "hello");
 //!
