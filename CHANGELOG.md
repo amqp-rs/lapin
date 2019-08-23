@@ -11,6 +11,12 @@
 
 * Add support for `update_secret` for oauth2 authentication module
 
+### 0.26.7 (2019-08-23)
+
+#### Bug Fixes
+
+* Make `Connection::connector` and `IoLoop:run` public
+
 ### 0.26.6 (2019-08-15)
 
 #### Bug Fixes

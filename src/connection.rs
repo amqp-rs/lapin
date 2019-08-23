@@ -156,7 +156,7 @@ impl Connection {
         self.frames.drop_pending();
     }
 
-    fn connector(
+    pub fn connector(
         options: ConnectionProperties,
     ) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static
     {

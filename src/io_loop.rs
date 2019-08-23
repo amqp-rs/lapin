@@ -56,7 +56,7 @@ enum Status {
     Stop,
 }
 
-pub(crate) struct IoLoop<T> {
+pub struct IoLoop<T> {
     connection: Connection,
     socket: T,
     status: Status,
@@ -185,7 +185,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             && !connection_status.errored()
     }
 
-    pub(crate) fn run(mut self) -> Result<(), Error> {
+    pub fn run(mut self) -> Result<(), Error> {
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
