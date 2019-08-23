@@ -57,7 +57,7 @@ enum Status {
   Stop,
 }
 
-pub(crate) struct IoLoop<T> {
+pub struct IoLoop<T> {
   connection:     Connection,
   socket:         T,
   status:         Status,
