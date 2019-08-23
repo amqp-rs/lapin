@@ -9,22 +9,19 @@
 //! ## Publishing a message
 //!
 //! ```rust,no_run
-//! use env_logger;
 //! use futures::future::Future;
 //! use lapin_futures as lapin;
 //! use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 //! use crate::lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::info;
-//! use tokio;
-//! use tokio::runtime::Runtime;
 //!
 //! fn main() {
 //!   env_logger::init();
 //!
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
-//!   Runtime::new().unwrap().block_on_all(
+//!   futures::executor::spawn(
 //!    Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
@@ -42,29 +39,26 @@
 //!         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
 //!       })
 //!     })
-//!   ).expect("runtime failure");
+//!   ).wait_future().expect("runtime failure");
 //! }
 //! ```
 //!
 //! ## Creating a consumer
 //!
 //! ```rust,no_run
-//! use env_logger;
 //! use futures::{Future, Stream};
 //! use lapin_futures as lapin;
 //! use crate::lapin::{Client, ConnectionProperties};
 //! use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 //! use crate::lapin::types::FieldTable;
 //! use log::{debug, info};
-//! use tokio;
-//! use tokio::runtime::Runtime;
 //!
 //! fn main() {
 //!   env_logger::init();
 //!
 //!   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 //!
-//!   Runtime::new().unwrap().block_on_all(
+//!   futures::executor::spawn(
 //!    Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
 //!       // create_channel returns a future that is resolved
 //!       // once the channel is successfully created
@@ -91,7 +85,7 @@
 //!         })
 //!       })
 //!     })
-//!   ).expect("runtime failure");
+//!   ).wait_future().expect("runtime failure");
 //! }
 //! ```
 

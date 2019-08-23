@@ -7,29 +7,24 @@ with tokio, futures-cpupool or any other executor.
 ## Publishing a message
 
 ```rust,no_run
-use env_logger;
-use failure::Error;
-use futures::future;
 use futures::future::Future;
 use lapin_futures as lapin;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
 use crate::lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::info;
-use tokio;
-use tokio::runtime::Runtime;
 
 fn main() {
   env_logger::init();
 
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-  Runtime::new().unwrap().block_on_all(
-   Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+  futures::executor::spawn(
+   Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
       // create_channel returns a future that is resolved
       // once the channel is successfully created
-      client.create_channel().map_err(Error::from)
-    }).and_then(|mut channel| {
+      client.create_channel()
+    }).and_then(|channel| {
       let id = channel.id();
       info!("created channel with id: {}", id);
 
@@ -40,41 +35,37 @@ fn main() {
         info!("channel {} declared queue {}", id, "hello");
 
         channel.basic_publish("", "hello", b"hello from tokio".to_vec(), BasicPublishOptions::default(), BasicProperties::default())
-      }).map_err(Error::from)
+      })
     })
-  ).expect("runtime failure");
+  ).wait_future().expect("runtime failure");
 }
 ```
 
 ## Creating a consumer
 
 ```rust,no_run
-use env_logger;
-use failure::Error;
-use futures::{future, Future, Stream};
+use futures::{Future, Stream};
 use lapin_futures as lapin;
-use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+use crate::lapin::{Client, ConnectionProperties};
 use crate::lapin::options::{BasicConsumeOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use log::{debug, info};
-use tokio;
-use tokio::runtime::Runtime;
 
 fn main() {
   env_logger::init();
 
   let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-  Runtime::new().unwrap().block_on_all(
-   Client::connect(&addr, ConnectionProperties::default()).map_err(Error::from).and_then(|client| {
+  futures::executor::spawn(
+   Client::connect(&addr, ConnectionProperties::default()).and_then(|client| {
       // create_channel returns a future that is resolved
       // once the channel is successfully created
-      client.create_channel().map_err(Error::from)
-    }).and_then(|mut channel| {
+      client.create_channel()
+    }).and_then(|channel| {
       let id = channel.id();
       info!("created channel with id: {}", id);
 
-      let mut ch = channel.clone();
+      let ch = channel.clone();
       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |queue| {
         info!("channel {} declared queue {}", id, "hello");
 
@@ -90,8 +81,8 @@ fn main() {
           info!("decoded message: {:?}", std::str::from_utf8(&message.data).unwrap());
           ch.basic_ack(message.delivery_tag, false)
         })
-      }).map_err(Error::from)
+      })
     })
-  ).expect("runtime failure");
+  ).wait_future().expect("runtime failure");
 }
 ```

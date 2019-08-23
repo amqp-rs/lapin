@@ -1,13 +1,9 @@
 use crate::lapin::options::{BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions};
 use crate::lapin::types::FieldTable;
 use crate::lapin::{BasicProperties, Client, ConnectionProperties};
-use env_logger;
-use futures;
-use futures::{Future, IntoFuture, Stream};
+use futures::{Future, Stream};
 use lapin_futures as lapin;
 use log::info;
-use tokio;
-use tokio::runtime::Runtime;
 
 const N_CONSUMERS: u8 = 8;
 const N_MESSAGES: u8 = 5;
@@ -59,56 +55,58 @@ fn main() {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let runtime = Runtime::new().unwrap();
-    // let runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
 
-    runtime
-        .block_on_all(
-            Client::connect(&addr, ConnectionProperties::default())
-                .map_err(|err| eprintln!("An error occured: {}", err))
-                .and_then(|client| {
+    futures::executor::spawn(
+        Client::connect(&addr, ConnectionProperties::default())
+            .map_err(|err| eprintln!("An error occured: {}", err))
+            .map(|client| {
+                for n in 0..N_CONSUMERS {
                     let _client = client.clone();
-                    futures::stream::iter_ok(0..N_CONSUMERS)
-                        .for_each(move |n| tokio::spawn(create_consumer(&_client, n)))
-                        .into_future()
-                        .map(move |_| client)
-                })
-                .and_then(|client| {
-                    client
-                        .create_channel()
-                        .map_err(|err| eprintln!("An error occured: {}", err))
-                        .and_then(move |channel| {
-                            futures::stream::iter_ok(
-                                (0..N_CONSUMERS).flat_map(|c| (0..N_MESSAGES).map(move |m| (c, m))),
-                            )
-                            .for_each(move |(c, m)| {
-                                let queue = format!("test-queue-{}", c);
-                                let message = format!("message {} for consumer {}", m, c);
-                                let channel = channel.clone();
+                    std::thread::spawn(move || {
+                        futures::executor::spawn(create_consumer(&_client, n))
+                            .wait_future()
+                            .expect("consumer failure")
+                    });
+                }
+                client
+            })
+            .and_then(|client| {
+                client
+                    .create_channel()
+                    .map_err(|err| eprintln!("An error occured: {}", err))
+                    .and_then(move |channel| {
+                        futures::stream::iter_ok(
+                            (0..N_CONSUMERS).flat_map(|c| (0..N_MESSAGES).map(move |m| (c, m))),
+                        )
+                        .for_each(move |(c, m)| {
+                            let queue = format!("test-queue-{}", c);
+                            let message = format!("message {} for consumer {}", m, c);
+                            let channel = channel.clone();
 
-                                info!("will publish {}", message);
+                            info!("will publish {}", message);
 
-                                channel
-                                    .queue_declare(
-                                        &queue,
-                                        QueueDeclareOptions::default(),
-                                        FieldTable::default(),
-                                    )
-                                    .and_then(move |_| {
-                                        channel
-                                            .basic_publish(
-                                                "",
-                                                &queue,
-                                                message.into_bytes(),
-                                                BasicPublishOptions::default(),
-                                                BasicProperties::default(),
-                                            )
-                                            .map(|_| ())
-                                    })
-                            })
-                            .map_err(|err| eprintln!("An error occured: {}", err))
+                            channel
+                                .queue_declare(
+                                    &queue,
+                                    QueueDeclareOptions::default(),
+                                    FieldTable::default(),
+                                )
+                                .and_then(move |_| {
+                                    channel
+                                        .basic_publish(
+                                            "",
+                                            &queue,
+                                            message.into_bytes(),
+                                            BasicPublishOptions::default(),
+                                            BasicProperties::default(),
+                                        )
+                                        .map(|_| ())
+                                })
                         })
-                }),
-        )
-        .expect("runtime exited with failure");
+                        .map_err(|err| eprintln!("An error occured: {}", err))
+                    })
+            }),
+    )
+    .wait_future()
+    .expect("runtime exited with failure");
 }
