@@ -1,7 +1,6 @@
 use amq_protocol::{frame::AMQPFrame, tcp::TcpStream, uri::AMQPUri};
 use log::{debug, error, trace};
 use mio::{Evented, Poll, PollOpt, Ready, Token};
-
 use std::{io, thread::JoinHandle};
 
 use crate::{

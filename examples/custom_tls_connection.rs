@@ -1,5 +1,4 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
-use env_logger;
 use lapin::{
     confirmation::Confirmation, message::Delivery, options::*, types::FieldTable, BasicProperties,
     Connection, ConnectionProperties, ConsumerDelegate, Error,

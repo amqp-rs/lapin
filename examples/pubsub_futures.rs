@@ -1,4 +1,3 @@
-use env_logger;
 use futures::{future::FutureExt, stream::StreamExt};
 use lapin::{
     options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Error,

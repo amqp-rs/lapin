@@ -1,17 +1,13 @@
-use env_logger;
-use lapin;
-
+use lapin::{
+    message::Delivery, options::*, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties, ConsumerDelegate,
+};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
     thread, time,
-};
-
-use crate::lapin::{
-    message::Delivery, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate,
 };
 
 #[derive(Debug)]

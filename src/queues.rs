@@ -1,7 +1,3 @@
-use parking_lot::Mutex;
-
-use std::{collections::HashMap, sync::Arc};
-
 use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
@@ -10,6 +6,8 @@ use crate::{
     wait::WaitHandle,
     BasicProperties,
 };
+use parking_lot::Mutex;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Queues {

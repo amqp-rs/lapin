@@ -1,5 +1,5 @@
+use crate::Error;
 use parking_lot::Mutex;
-
 use std::{
     fmt,
     sync::{
@@ -7,8 +7,6 @@ use std::{
         Arc,
     },
 };
-
-use crate::Error;
 
 pub struct Wait<T> {
     recv: Receiver<Result<T, Error>>,

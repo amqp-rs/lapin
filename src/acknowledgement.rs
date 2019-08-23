@@ -1,14 +1,12 @@
-use parking_lot::Mutex;
-
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
-
 use crate::{
     returned_messages::ReturnedMessages,
     wait::{Wait, WaitHandle},
     Error,
+};
+use parking_lot::Mutex;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
 };
 
 pub type DeliveryTag = u64;

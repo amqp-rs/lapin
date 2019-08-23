@@ -1,8 +1,6 @@
-use amq_protocol::{frame::GenError, protocol::AMQPClass};
-
-use std::{error, fmt, io};
-
 use crate::{channel_status::ChannelState, connection_status::ConnectionState};
+use amq_protocol::{frame::GenError, protocol::AMQPClass};
+use std::{error, fmt, io};
 
 /// The type of error that can be returned in this crate.
 ///

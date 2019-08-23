@@ -1,18 +1,16 @@
-use amq_protocol::frame::AMQPFrame;
-use log::trace;
-use parking_lot::Mutex;
-
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
-
 use crate::{
     channel::Reply,
     channel_status::ChannelState,
     id_sequence::IdSequence,
     wait::{Cancellable, Wait, WaitHandle},
     Error,
+};
+use amq_protocol::frame::AMQPFrame;
+use log::trace;
+use parking_lot::Mutex;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
 };
 
 pub(crate) type SendId = u64;

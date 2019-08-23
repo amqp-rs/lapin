@@ -1,8 +1,8 @@
+use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
 use amq_protocol::frame::{gen_frame, parse_frame, GenError, Offset};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
 use parking_lot::Mutex;
-
 use std::{
     io::{Read, Write},
     sync::{
@@ -12,8 +12,6 @@ use std::{
     thread::{self, Builder as ThreadBuilder, JoinHandle},
     time::{Duration, Instant},
 };
-
-use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
 
 const SOCKET: Token = Token(1);
 const DATA: Token = Token(2);

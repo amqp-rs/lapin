@@ -1,8 +1,6 @@
 pub use crate::wait::NotifyReady;
-
-use std::fmt;
-
 use crate::{wait::Wait, Error};
+use std::fmt;
 
 pub struct Confirmation<T, I = ()> {
     kind: ConfirmationKind<T, I>,

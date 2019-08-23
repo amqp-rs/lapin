@@ -1,8 +1,3 @@
-use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use log::{debug, error, info, trace};
-
-use std::borrow::Borrow;
-
 use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
@@ -22,6 +17,9 @@ use crate::{
     wait::{Cancellable, Wait, WaitHandle},
     BasicProperties, Error,
 };
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use log::{debug, error, info, trace};
+use std::borrow::Borrow;
 
 #[cfg(test)]
 use crate::queue::QueueState;

@@ -1,9 +1,8 @@
-use std::{borrow::Borrow, collections::HashMap, hash::Hash};
-
 use crate::{
     connection_status::ConnectionState, consumer::Consumer, message::BasicGetMessage,
     types::ShortString, wait::WaitHandle, BasicProperties, Error,
 };
+use std::{borrow::Borrow, collections::HashMap, hash::Hash};
 
 #[derive(Clone, Debug)]
 pub struct Queue {

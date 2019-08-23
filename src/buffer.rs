@@ -1,5 +1,4 @@
 use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
-
 use std::{cmp, io};
 
 #[derive(Debug, PartialEq, Clone)]

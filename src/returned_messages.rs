@@ -1,9 +1,7 @@
+use crate::{message::BasicReturnMessage, wait::WaitHandle, BasicProperties};
 use log::error;
 use parking_lot::Mutex;
-
 use std::{collections::VecDeque, sync::Arc};
-
-use crate::{message::BasicReturnMessage, wait::WaitHandle, BasicProperties};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ReturnedMessages {

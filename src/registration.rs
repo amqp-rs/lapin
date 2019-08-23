@@ -1,6 +1,5 @@
 use mio::{self, Evented, Poll, PollOpt, Ready, SetReadiness, Token};
 use parking_lot::Mutex;
-
 use std::{fmt, io, sync::Arc};
 
 #[derive(Clone)]

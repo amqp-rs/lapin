@@ -1,13 +1,11 @@
-use amq_protocol::protocol::AMQPClass;
-use log::debug;
-use parking_lot::Mutex;
-
-use std::{collections::HashMap, sync::Arc};
-
 use crate::{
     connection::Connection, frames::Frames, id_sequence::IdSequence, BasicProperties, Channel,
     ChannelState, Error,
 };
+use amq_protocol::protocol::AMQPClass;
+use log::debug;
+use parking_lot::Mutex;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Channels {

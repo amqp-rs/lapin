@@ -1,8 +1,6 @@
-use parking_lot::RwLock;
-
-use std::sync::Arc;
-
 use crate::types::ShortString;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
 pub struct ChannelStatus {

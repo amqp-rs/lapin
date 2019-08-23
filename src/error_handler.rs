@@ -1,5 +1,4 @@
 use parking_lot::Mutex;
-
 use std::{fmt, sync::Arc};
 
 type ErrorFn = Box<dyn Fn() + Send + 'static>;

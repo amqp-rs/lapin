@@ -1,8 +1,6 @@
-use parking_lot::RwLock;
-
-use std::sync::Arc;
-
 use crate::{auth::Credentials, wait::WaitHandle, Connection, ConnectionProperties};
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
 pub struct ConnectionStatus {

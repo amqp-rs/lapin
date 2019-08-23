@@ -1,11 +1,8 @@
-use env_logger;
-use lapin;
-use log::info;
-
-use crate::lapin::{
+use lapin::{
     message::Delivery, options::*, types::FieldTable, BasicProperties, Channel, Connection,
     ConnectionProperties, ConsumerDelegate,
 };
+use log::info;
 
 #[derive(Clone, Debug)]
 struct Subscriber {
