@@ -165,7 +165,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     (self.status == Status::Initial || connection_status.connected() || connection_status.closing()) && self.status != Status::Stop && !connection_status.errored()
   }
 
-  pub(crate) fn run(mut self) -> Result<(), Error> {
+  pub fn run(mut self) -> Result<(), Error> {
     self.connection.clone().set_io_loop(ThreadBuilder::new().name("io_loop".to_owned()).spawn(move || {
       let mut events = Events::with_capacity(1024);
       while self.should_continue() {

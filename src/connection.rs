@@ -131,7 +131,7 @@ impl Connection {
     self.frames.drop_pending();
   }
 
-  fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
+  pub fn connector(options: ConnectionProperties) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static {
     move |stream, uri| {
       let conn = Connection::default();
       conn.status.set_vhost(&uri.vhost);
