@@ -245,7 +245,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         self.parse()?;
       }
       if !self.wants_to_read() || !self.wants_to_write() || self.status == Status::Stop || self.connection.status().errored() || self.connection.status().blocked() {
-        if self.status != Status::Stop && !self.connection.status().blocked() && (self.wants_to_read() || self.can_parse() || self.has_data) {
+        if self.status != Status::Stop && !self.connection.status().blocked() && (self.wants_to_read() || self.can_parse() || self.wants_to_write()) {
           trace!("io_loop send continue; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
           self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
         }
