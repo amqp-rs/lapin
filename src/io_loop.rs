@@ -278,8 +278,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 || !self.wants_to_write()
                 || self.status == Status::Stop
                 || self.connection.status().errored()
+                || self.connection.status().blocked()
             {
                 if self.status != Status::Stop
+                    && !self.connection.status().blocked()
                     && (self.wants_to_read() || self.can_parse() || self.has_data)
                 {
                     trace!(

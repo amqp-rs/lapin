@@ -191,8 +191,9 @@ impl Connection {
         self.status.block();
     }
 
-    pub(crate) fn do_unblock(&self) {
+    pub(crate) fn do_unblock(&self) -> Result<(), Error> {
         self.status.unblock();
+        self.set_readable()
     }
 
     fn set_readable(&self) -> Result<(), Error> {

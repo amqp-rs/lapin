@@ -524,8 +524,7 @@ impl Channel {
         &self,
         _method: protocol::connection::Unblocked,
     ) -> Result<(), Error> {
-        self.connection.do_unblock();
-        Ok(())
+        self.connection.do_unblock()
     }
 
     fn on_connection_close_ok_received(&self) -> Result<(), Error> {
