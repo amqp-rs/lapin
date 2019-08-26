@@ -11,6 +11,18 @@
 
 * Add support for `update_secret` for oauth2 authentication module
 
+### 0.26.9 (2019-08-26)
+
+#### Bug Fixes
+
+* `IoLoop` fixes under heavy loads
+
+### 0.26.8 (2019-08-26)
+
+#### Bug Fixes
+
+* `IoLoop` fixes under heavy loads
+
 ### 0.26.7 (2019-08-23)
 
 #### Bug Fixes
