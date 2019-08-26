@@ -378,8 +378,7 @@ impl Channel {
   }
 
   fn on_connection_unblocked_received(&self, _method: protocol::connection::Unblocked) -> Result<(), Error> {
-    self.connection.unblock();
-    Ok(())
+    self.connection.unblock()
   }
 
   fn on_connection_close_ok_received(&self) -> Result<(), Error> {
