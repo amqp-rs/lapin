@@ -152,12 +152,16 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     Ok(())
   }
 
-  fn wants_to_write(&self) -> bool {
-    self.can_write && self.has_data
+  fn can_write(&self) -> bool {
+    self.can_write && self.has_data && !self.connection.status().blocked()
   }
 
-  fn wants_to_read(&self) -> bool {
+  fn can_read(&self) -> bool {
     self.can_read
+  }
+
+  fn can_parse(&self) -> bool {
+    self.receive_buffer.available_data() > 0
   }
 
   fn should_continue(&self) -> bool {
@@ -208,7 +212,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       if self.send_heartbeat.load(Ordering::Relaxed) {
         self.heartbeat()?;
       }
-      if self.wants_to_write() && !self.connection.status().blocked() {
+      if self.can_write() {
         if let Err(e) = self.write_to_stream() {
           match e.kind() {
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_write = false,
@@ -228,7 +232,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       if self.connection.status().closed() {
         self.status = Status::Stop;
       }
-      if self.should_continue() && self.wants_to_read() {
+      if self.should_continue() && self.can_read() {
         if let Err(e) = self.read_from_stream() {
           match e.kind() {
             ErrorKind::IOError(e) if e.kind() == io::ErrorKind::WouldBlock => self.can_read = false,
@@ -244,10 +248,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
       if self.can_parse() {
         self.parse()?;
       }
-      if !self.wants_to_read() || !self.wants_to_write() || self.status == Status::Stop || self.connection.status().errored() || self.connection.status().blocked() {
-        if self.status != Status::Stop && !self.connection.status().blocked() && (self.wants_to_read() || self.can_parse() || self.wants_to_write()) {
+      if !self.can_read() || !self.can_write() || self.status == Status::Stop || self.connection.status().errored() {
+        if self.status != Status::Stop && (self.can_read() || self.can_parse() || self.can_write()) {
           trace!("io_loop send continue; can_read={}, can_write={}, has_data={}", self.can_read, self.can_write, self.has_data);
-          self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
+          self.send_continue()?;
         }
         break;
       }
@@ -256,8 +260,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     Ok(())
   }
 
-  fn can_parse(&self) -> bool {
-    self.receive_buffer.available_data() > 0
+  fn send_continue(&mut self) -> Result<(), Error> {
+    self.set_readiness.set_readiness(Ready::readable()).map_err(ErrorKind::IOError)?;
+    Ok(())
   }
 
   fn write_to_stream(&mut self) -> Result<(), Error> {
