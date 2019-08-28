@@ -10,6 +10,7 @@
 #### Features
 
 * Add support for `update_secret` for oauth2 authentication module
+* Add support for TLS "identity" (client certificate)
 
 ### 0.26.9 (2019-08-26)
 

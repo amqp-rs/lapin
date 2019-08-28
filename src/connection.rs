@@ -1,4 +1,4 @@
-use amq_protocol::{frame::AMQPFrame, tcp::TcpStream, uri::AMQPUri};
+use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
 use log::{debug, error, trace};
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use std::{io, thread::JoinHandle};
@@ -14,7 +14,7 @@ use crate::{
     frames::{Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
     registration::Registration,
-    tcp::AMQPUriTcpExt,
+    tcp::{AMQPUriTcpExt, Identity, TcpStream},
     types::ShortUInt,
     wait::{Cancellable, Wait},
     Error,
@@ -78,12 +78,30 @@ impl Evented for Connection {
 impl Connection {
     /// Connect to an AMQP Server
     pub fn connect(uri: &str, options: ConnectionProperties) -> Confirmation<Connection> {
-        Connect::connect(uri, options)
+        Connect::connect(uri, options, None)
+    }
+
+    /// Connect to an AMQP Server
+    pub fn connect_with_identity(
+        uri: &str,
+        options: ConnectionProperties,
+        identity: Identity<'_, '_>,
+    ) -> Confirmation<Connection> {
+        Connect::connect(uri, options, Some(identity))
     }
 
     /// Connect to an AMQP Server
     pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Confirmation<Connection> {
-        Connect::connect(uri, options)
+        Connect::connect(uri, options, None)
+    }
+
+    /// Connect to an AMQP Server
+    pub fn connect_uri_with_identity(
+        uri: AMQPUri,
+        options: ConnectionProperties,
+        identity: Identity<'_, '_>,
+    ) -> Confirmation<Connection> {
+        Connect::connect(uri, options, Some(identity))
     }
 
     pub fn create_channel(&self) -> Confirmation<Channel> {
@@ -307,13 +325,17 @@ impl Connection {
 /// Trait providing a method to connect to an AMQP server
 pub trait Connect {
     /// connect to an AMQP server
-    fn connect(self, options: ConnectionProperties) -> Confirmation<Connection>
+    fn connect(
+        self,
+        options: ConnectionProperties,
+        identity: Option<Identity<'_, '_>>,
+    ) -> Confirmation<Connection>
     where
         Self: Sized,
     {
         match Poll::new().map_err(Error::IOError) {
             Ok(poll) => self
-                .connect_raw(options, Some((poll, crate::io_loop::SOCKET)))
+                .connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
                 .into(),
             Err(err) => Confirmation::new_error(err),
         }
@@ -324,6 +346,7 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
+        identity: Option<Identity<'_, '_>>,
     ) -> Result<Wait<Connection>, Error>;
 }
 
@@ -332,8 +355,9 @@ impl Connect for AMQPUri {
         self,
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
+        identity: Option<Identity<'_, '_>>,
     ) -> Result<Wait<Connection>, Error> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, None)
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Error::IOError)?
     }
 }
@@ -343,8 +367,9 @@ impl Connect for &str {
         self,
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
+        identity: Option<Identity<'_, '_>>,
     ) -> Result<Wait<Connection>, Error> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, None)
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Error::IOError)?
     }
 }
