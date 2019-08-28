@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const SOCKET: Token = Token(1);
+pub(crate) const SOCKET: Token = Token(1);
 const DATA: Token = Token(2);
 const CONTINUE: Token = Token(3);
 
@@ -73,14 +73,23 @@ pub struct IoLoop<T> {
 }
 
 impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
-    pub(crate) fn new(connection: Connection, socket: T) -> Result<Self, Error> {
+    pub(crate) fn new(
+        connection: Connection,
+        socket: T,
+        poll: Option<(Poll, Token)>,
+    ) -> Result<Self, Error> {
+        let (poll, registered) = poll.map(|t| Ok((t.0, true))).unwrap_or_else(|| {
+            Poll::new()
+                .map(|poll| (poll, false))
+                .map_err(Error::IOError)
+        })?;
         let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
         let (registration, set_readiness) = Registration::new2();
         let inner = Self {
             connection,
             socket,
             status: Status::Initial,
-            poll: Poll::new().map_err(Error::IOError)?,
+            poll,
             registration,
             set_readiness,
             hb_handle: None,
@@ -93,10 +102,17 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             send_heartbeat: Arc::new(AtomicBool::new(false)),
             poll_timeout: None,
         };
-        inner
-            .poll
-            .register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
-            .map_err(Error::IOError)?;
+        if registered {
+            inner
+                .poll
+                .reregister(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .map_err(Error::IOError)?;
+        } else {
+            inner
+                .poll
+                .register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .map_err(Error::IOError)?;
+        }
         inner
             .poll
             .register(&inner.connection, DATA, Ready::readable(), PollOpt::edge())

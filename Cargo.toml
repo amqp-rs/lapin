@@ -23,11 +23,11 @@ rustls     = ["amq-protocol/rustls"]
 tokio      = ["amq-protocol/tokio"]
 
 [build-dependencies]
-amq-protocol-codegen = "=3.0.0-beta.1"
+amq-protocol-codegen = "=3.0.0-beta.2"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "=3.0.0-beta.1"
+version = "=3.0.0-beta.2"
 default-features = false
 
 [dependencies.futures]
@@ -43,7 +43,7 @@ parking_lot = '^0.9'
 [dev-dependencies]
 env_logger = "^0.6"
 runtime = "=0.3.0-alpha.7"
-tcp-stream = "^0.6"
+tcp-stream = "^0.7"
 
 [[example]]
 name = "custom_tls_connection"

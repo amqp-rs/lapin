@@ -157,9 +157,9 @@ impl Connection {
 
     pub fn connector(
         options: ConnectionProperties,
-    ) -> impl FnOnce(TcpStream, AMQPUri) -> Result<(Wait<Connection>, IoLoop<TcpStream>), Error> + 'static
-    {
-        move |stream, uri| {
+    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<Wait<Connection>, Error>
+                 + 'static {
+        move |stream, uri, poll| {
             let conn = Connection::default();
             conn.status.set_vhost(&uri.vhost);
             if let Some(frame_max) = uri.query.frame_max {
@@ -178,8 +178,8 @@ impl Connection {
                 uri.authority.userinfo.into(),
                 options,
             ));
-            let io_loop = IoLoop::new(conn.clone(), stream)?;
-            Ok((wait, io_loop))
+            IoLoop::new(conn.clone(), stream, poll)?.run()?;
+            Ok(wait)
         }
     }
 
@@ -311,28 +311,41 @@ pub trait Connect {
     where
         Self: Sized,
     {
-        self.connect_raw(options).into()
+        match Poll::new().map_err(Error::IOError) {
+            Ok(poll) => self
+                .connect_raw(options, Some((poll, crate::io_loop::SOCKET)))
+                .into(),
+            Err(err) => Confirmation::new_error(err),
+        }
     }
 
     /// connect to an AMQP server, for internal use
-    fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error>;
+    fn connect_raw(
+        self,
+        options: ConnectionProperties,
+        poll: Option<(Poll, Token)>,
+    ) -> Result<Wait<Connection>, Error>;
 }
 
 impl Connect for AMQPUri {
-    fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
-        let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options))
-            .map_err(Error::IOError)??;
-        io_loop.run()?;
-        Ok(conn)
+    fn connect_raw(
+        self,
+        options: ConnectionProperties,
+        poll: Option<(Poll, Token)>,
+    ) -> Result<Wait<Connection>, Error> {
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, None)
+            .map_err(Error::IOError)?
     }
 }
 
 impl Connect for &str {
-    fn connect_raw(self, options: ConnectionProperties) -> Result<Wait<Connection>, Error> {
-        let (conn, io_loop) = AMQPUriTcpExt::connect(self, Connection::connector(options))
-            .map_err(Error::IOError)??;
-        io_loop.run()?;
-        Ok(conn)
+    fn connect_raw(
+        self,
+        options: ConnectionProperties,
+        poll: Option<(Poll, Token)>,
+    ) -> Result<Wait<Connection>, Error> {
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, None)
+            .map_err(Error::IOError)?
     }
 }
 

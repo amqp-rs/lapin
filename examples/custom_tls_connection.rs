@@ -18,8 +18,8 @@ impl ConsumerDelegate for Subscriber {
 fn connect() -> Result<Connection, Error> {
     // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let (conn, io_loop) = addr
-        .connect(|stream, uri| {
+    let conn = addr
+        .connect(|stream, uri, poll| {
             let tls_builder = NativeTlsConnector::builder();
             // Perform here your custom tls setup, with tls_builder.identity or whatever else you need
             let mut res = stream.into_native_tls(
@@ -35,11 +35,10 @@ fn connect() -> Result<Connection, Error> {
                 }
             }
             let stream = res.unwrap();
-            Connection::connector(ConnectionProperties::default())(stream, uri)
+            Connection::connector(ConnectionProperties::default())(stream, uri, poll)
         })
-        .map_err(Error::IOError)??;
-    io_loop.run()?;
-    Confirmation::from(Ok(conn)).wait()
+        .map_err(Error::IOError)?;
+    Confirmation::from(conn).wait()
 }
 
 fn main() {
