@@ -42,7 +42,7 @@ parking_lot = '^0.9'
 
 [dev-dependencies]
 env_logger = "^0.6"
-runtime = "=0.3.0-alpha.7"
+async-std = "^0.99"
 tcp-stream = "^0.7"
 
 [[example]]
