@@ -1,6 +1,6 @@
 use crate::{
-    connection::Connection, frames::Frames, id_sequence::IdSequence, BasicProperties, Channel,
-    ChannelState, Error,
+    connection::Connection, executor::Executor, frames::Frames, id_sequence::IdSequence,
+    BasicProperties, Channel, ChannelState, Error,
 };
 use amq_protocol::protocol::AMQPClass;
 use log::debug;
@@ -14,9 +14,9 @@ pub(crate) struct Channels {
 }
 
 impl Channels {
-    pub(crate) fn new(frames: Frames) -> Self {
+    pub(crate) fn new(frames: Frames, executor: Arc<dyn Executor>) -> Self {
         Self {
-            inner: Default::default(),
+            inner: Arc::new(Mutex::new(Inner::new(executor))),
             frames,
         }
     }
@@ -111,13 +111,15 @@ impl Channels {
 struct Inner {
     channels: HashMap<u16, Channel>,
     channel_id: IdSequence<u16>,
+    executor: Arc<dyn Executor>,
 }
 
-impl Default for Inner {
-    fn default() -> Self {
+impl Inner {
+    fn new(executor: Arc<dyn Executor>) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
+            executor,
         }
     }
 }
@@ -125,7 +127,7 @@ impl Default for Inner {
 impl Inner {
     fn create_channel(&mut self, id: u16, connection: Connection) -> Channel {
         debug!("create channel with id {}", id);
-        let channel = Channel::new(id, connection);
+        let channel = Channel::new(id, connection, self.executor.clone());
         self.channels.insert(id, channel.clone());
         channel
     }

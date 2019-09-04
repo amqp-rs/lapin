@@ -1,8 +1,3 @@
-use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
-use log::{debug, error, trace};
-use mio::{Evented, Poll, PollOpt, Ready, Token};
-use std::{io, thread::JoinHandle};
-
 use crate::{
     channel::{Channel, Reply},
     channels::Channels,
@@ -11,6 +6,8 @@ use crate::{
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
     error_handler::ErrorHandler,
+    executor::DefaultExecutor,
+    executor::Executor,
     frames::{Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
     registration::Registration,
@@ -19,6 +16,10 @@ use crate::{
     wait::{Cancellable, Wait},
     Error,
 };
+use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
+use log::{debug, error, trace};
+use mio::{Evented, Poll, PollOpt, Ready, Token};
+use std::{io, sync::Arc, thread::JoinHandle};
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -31,13 +32,13 @@ pub struct Connection {
     error_handler: ErrorHandler,
 }
 
-impl Default for Connection {
-    fn default() -> Self {
+impl Connection {
+    fn new(executor: Arc<dyn Executor>) -> Self {
         let frames = Frames::default();
         let connection = Self {
             configuration: Configuration::default(),
             status: ConnectionStatus::default(),
-            channels: Channels::new(frames.clone()),
+            channels: Channels::new(frames.clone(), executor),
             registration: Registration::default(),
             frames,
             io_loop: IoLoopHandle::default(),
@@ -46,6 +47,12 @@ impl Default for Connection {
 
         connection.channels.create_zero(connection.clone());
         connection
+    }
+}
+
+impl Default for Connection {
+    fn default() -> Self {
+        Self::new(DefaultExecutor::default())
     }
 }
 
@@ -174,11 +181,15 @@ impl Connection {
     }
 
     pub fn connector(
-        options: ConnectionProperties,
+        mut options: ConnectionProperties,
     ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<Wait<Connection>, Error>
                  + 'static {
         move |stream, uri, poll| {
-            let conn = Connection::default();
+            let executor = options
+                .executor
+                .take()
+                .unwrap_or_else(|| DefaultExecutor::new(options.max_executor_threads));
+            let conn = Connection::new(executor);
             conn.status.set_vhost(&uri.vhost);
             if let Some(frame_max) = uri.query.frame_max {
                 conn.configuration.set_frame_max(frame_max);
@@ -410,7 +421,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone());
+        let consumer = Consumer::new(consumer_tag.clone(), DefaultExecutor::default());
         queue.register_consumer(consumer_tag.clone(), consumer);
         if let Some(c) = conn.channels.get(channel.id()) {
             c.register_queue(queue);
@@ -480,7 +491,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone());
+        let consumer = Consumer::new(consumer_tag.clone(), DefaultExecutor::default());
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels.get(channel.id()).map(|c| {
             c.register_queue(queue);

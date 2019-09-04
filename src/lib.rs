@@ -70,6 +70,7 @@ pub use error::Error;
 pub use queue::Queue;
 
 pub mod confirmation;
+pub mod executor;
 pub mod message;
 
 mod acknowledgement;

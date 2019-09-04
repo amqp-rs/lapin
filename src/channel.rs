@@ -6,6 +6,7 @@ use crate::{
     connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
+    executor::Executor,
     frames::Priority,
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -19,7 +20,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
-use std::borrow::Borrow;
+use std::{borrow::Borrow, sync::Arc};
 
 #[cfg(test)]
 use crate::queue::QueueState;
@@ -33,10 +34,15 @@ pub struct Channel {
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
     returned_messages: ReturnedMessages,
+    executor: Arc<dyn Executor>,
 }
 
 impl Channel {
-    pub(crate) fn new(channel_id: u16, connection: Connection) -> Channel {
+    pub(crate) fn new(
+        channel_id: u16,
+        connection: Connection,
+        executor: Arc<dyn Executor>,
+    ) -> Channel {
         let returned_messages = ReturnedMessages::default();
         Channel {
             id: channel_id,
@@ -46,6 +52,7 @@ impl Channel {
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
             returned_messages,
+            executor,
         }
     }
 
@@ -186,7 +193,7 @@ impl Channel {
                     request_id_or_consumer_tag,
                     size,
                     properties,
-                );
+                )?;
             } else {
                 self.returned_messages.set_delivery_properties(properties);
                 if size == 0 {
@@ -216,7 +223,7 @@ impl Channel {
                         remaining_size,
                         payload_size,
                         payload,
-                    );
+                    )?;
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == payload_size {
@@ -648,7 +655,7 @@ impl Channel {
         wait_handle: WaitHandle<Consumer>,
         queue: ShortString,
     ) -> Result<(), Error> {
-        let consumer = Consumer::new(method.consumer_tag.clone());
+        let consumer = Consumer::new(method.consumer_tag.clone(), self.executor.clone());
         self.queues
             .register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
         wait_handle.finish(consumer);

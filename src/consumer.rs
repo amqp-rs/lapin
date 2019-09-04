@@ -1,4 +1,7 @@
-use crate::{message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties, Error};
+use crate::{
+    executor::Executor, message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties,
+    Error,
+};
 use log::trace;
 use parking_lot::{Mutex, MutexGuard};
 use std::{collections::VecDeque, fmt, sync::Arc};
@@ -16,9 +19,9 @@ pub struct Consumer {
 }
 
 impl Consumer {
-    pub(crate) fn new(consumer_tag: ShortString) -> Consumer {
+    pub(crate) fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Consumer {
         Consumer {
-            inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag))),
+            inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, executor))),
         }
     }
 
@@ -31,7 +34,7 @@ impl Consumer {
         for delivery in inner.deliveries.drain(..) {
             delegate.on_new_delivery(delivery);
         }
-        inner.delegate = Some(delegate);
+        inner.delegate = Some(Arc::new(Mutex::new(delegate)));
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
@@ -50,11 +53,12 @@ impl Consumer {
         }
     }
 
-    pub(crate) fn new_delivery_complete(&mut self) {
+    pub(crate) fn new_delivery_complete(&mut self) -> Result<(), Error> {
         let mut inner = self.inner();
         if let Some(delivery) = inner.current_message.take() {
-            inner.new_delivery(delivery);
+            inner.new_delivery(delivery)?;
         }
+        Ok(())
     }
 
     pub(crate) fn drop_prefetched_messages(&self) {
@@ -76,7 +80,8 @@ pub struct ConsumerInner {
     task: Option<Box<dyn NotifyReady + Send>>,
     canceled: bool,
     tag: ShortString,
-    delegate: Option<Box<dyn ConsumerDelegate>>,
+    delegate: Option<Arc<Mutex<Box<dyn ConsumerDelegate>>>>,
+    executor: Arc<dyn Executor>,
     error: Option<Error>,
 }
 
@@ -87,7 +92,7 @@ impl fmt::Debug for ConsumerInner {
 }
 
 impl ConsumerInner {
-    fn new(consumer_tag: ShortString) -> Self {
+    fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
         Self {
             current_message: None,
             deliveries: VecDeque::new(),
@@ -95,6 +100,7 @@ impl ConsumerInner {
             canceled: false,
             tag: consumer_tag,
             delegate: None,
+            executor,
             error: None,
         }
     }
@@ -123,22 +129,25 @@ impl ConsumerInner {
         &self.tag
     }
 
-    fn new_delivery(&mut self, delivery: Delivery) {
+    fn new_delivery(&mut self, delivery: Delivery) -> Result<(), Error> {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
-            delegate.on_new_delivery(delivery);
+            let delegate = delegate.clone();
+            self.executor
+                .execute(Box::new(move || delegate.lock().on_new_delivery(delivery)))?;
         } else {
             self.deliveries.push_back(delivery);
         }
         if let Some(task) = self.task.as_ref() {
             task.notify();
         }
+        Ok(())
     }
 
     fn drop_prefetched_messages(&mut self) {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
-            delegate.drop_prefetched_messages();
+            delegate.lock().drop_prefetched_messages();
         }
         self.deliveries.clear();
     }
@@ -146,7 +155,7 @@ impl ConsumerInner {
     fn cancel(&mut self) {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
-            delegate.on_canceled();
+            delegate.lock().on_canceled();
         }
         self.deliveries.clear();
         self.canceled = true;

@@ -4,7 +4,7 @@ use crate::{
     queue::QueueState,
     types::ShortString,
     wait::WaitHandle,
-    BasicProperties,
+    BasicProperties, Error,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -89,14 +89,14 @@ impl Queues {
         consumer_tag: Option<ShortString>,
         size: u64,
         properties: BasicProperties,
-    ) {
+    ) -> Result<(), Error> {
         if let Some(queue) = self.queues.lock().get_mut(queue) {
             match consumer_tag {
                 Some(consumer_tag) => {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
                         consumer.set_delivery_properties(properties);
                         if size == 0 {
-                            consumer.new_delivery_complete();
+                            consumer.new_delivery_complete()?;
                         }
                     }
                 }
@@ -108,6 +108,7 @@ impl Queues {
                 }
             }
         }
+        Ok(())
     }
 
     pub(crate) fn handle_body_frame(
@@ -117,14 +118,14 @@ impl Queues {
         remaining_size: usize,
         payload_size: usize,
         payload: Vec<u8>,
-    ) {
+    ) -> Result<(), Error> {
         if let Some(queue) = self.queues.lock().get_mut(queue) {
             match consumer_tag {
                 Some(consumer_tag) => {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
                         consumer.receive_delivery_content(payload);
                         if remaining_size == payload_size {
-                            consumer.new_delivery_complete();
+                            consumer.new_delivery_complete()?;
                         }
                     }
                 }
@@ -136,5 +137,6 @@ impl Queues {
                 }
             }
         }
+        Ok(())
     }
 }
