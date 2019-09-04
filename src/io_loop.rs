@@ -1,5 +1,5 @@
 use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
-use amq_protocol::frame::{gen_frame, parse_frame, GenError, Offset, AMQPFrame};
+use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
 use parking_lot::Mutex;
@@ -293,7 +293,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             }
             if self.can_parse() {
                 if let Some(frame) = self.parse()? {
-                    self.handle_frame(frame)?;
+                    self.connection.handle_frame(frame)?;
                 }
             }
             if !self.can_read()
@@ -408,15 +408,6 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     Err(Error::ParsingError(format!("{:?}", e)))
                 }
             }
-        }
-    }
-
-    fn handle_frame(&mut self, frame: AMQPFrame) -> Result<(), Error> {
-        if let Err(e) = self.connection.handle_frame(frame) {
-            self.connection.set_error()?;
-            Err(e)
-        } else {
-            Ok(())
         }
     }
 }

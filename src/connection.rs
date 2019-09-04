@@ -261,11 +261,20 @@ impl Connection {
 
     /// updates the current state with a new received frame
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
+        if let Err(err) = self.do_handle_frame(f) {
+            self.set_error()?;
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn do_handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
         trace!("will handle frame: {:?}", f);
         match f {
             AMQPFrame::ProtocolHeader => {
                 error!("error: the client should not receive a protocol header");
-                self.set_error()?;
+                return Err(Error::InvalidConnectionState(ConnectionState::Connected));
             }
             AMQPFrame::Method(channel_id, method) => {
                 self.channels.receive_method(channel_id, method)?;
@@ -283,7 +292,7 @@ impl Connection {
             AMQPFrame::Body(channel_id, payload) => {
                 self.channels.handle_body_frame(channel_id, payload)?;
             }
-        };
+        }
         Ok(())
     }
 
