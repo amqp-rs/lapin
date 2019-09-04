@@ -1,5 +1,5 @@
 use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
-use amq_protocol::frame::{gen_frame, parse_frame, GenError, Offset};
+use amq_protocol::frame::{gen_frame, parse_frame, GenError, Offset, AMQPFrame};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
 use parking_lot::Mutex;
@@ -292,7 +292,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 self.receive_buffer.shift_unless_available(self.frame_size);
             }
             if self.can_parse() {
-                self.parse()?;
+                if let Some(frame) = self.parse()? {
+                    self.handle_frame(frame)?;
+                }
             }
             if !self.can_read()
                 || !self.can_write()
@@ -389,29 +391,32 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         }
     }
 
-    fn parse(&mut self) -> Result<(), Error> {
+    fn parse(&mut self) -> Result<Option<AMQPFrame>, Error> {
         match parse_frame(self.receive_buffer.data()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.data().offset(i);
                 self.receive_buffer.consume(consumed);
-
-                if let Err(e) = self.connection.handle_frame(f) {
-                    self.connection.set_error()?;
-                    Err(e)
-                } else {
-                    Ok(())
-                }
+                Ok(Some(f))
             }
             Err(e) => {
                 if e.is_incomplete() {
                     self.receive_buffer.shift();
-                    Ok(())
+                    Ok(None)
                 } else {
                     error!("parse error: {:?}", e);
                     self.connection.set_error()?;
                     Err(Error::ParsingError(format!("{:?}", e)))
                 }
             }
+        }
+    }
+
+    fn handle_frame(&mut self, frame: AMQPFrame) -> Result<(), Error> {
+        if let Err(e) = self.connection.handle_frame(frame) {
+            self.connection.set_error()?;
+            Err(e)
+        } else {
+            Ok(())
         }
     }
 }
