@@ -13,7 +13,7 @@ impl ConsumerDelegate for Subscriber {
     fn on_new_delivery(&self, delivery: Delivery) {
         self.channel
             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-            .into_error()
+            .wait()
             .expect("basic_ack");
     }
 }

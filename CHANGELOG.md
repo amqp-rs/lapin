@@ -5,7 +5,7 @@
 * Updated amq-protocol to 3.0.0
 * `Channel::connection_[,un}blocked` is now `Connection::{,un}block`
 * `failure` as been replaced with `std::error::Error` usage
-* `Confirmation::as_error` is now `Confirmation::into_error`
+* `Confirmation::as_error` has been removed
 
 #### Features
 

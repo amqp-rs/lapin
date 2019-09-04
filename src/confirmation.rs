@@ -19,7 +19,8 @@ impl<T, I> Confirmation<T, I> {
         Self::new(wait)
     }
 
-    pub fn into_error(self) -> Result<(), Error> {
+    // FIXME: remove
+    pub(crate) fn into_error(self) -> Result<(), Error> {
         self.try_wait().transpose().map(|_| ())
     }
 
