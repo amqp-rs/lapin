@@ -43,12 +43,8 @@ impl DefaultExecutor {
             threads.push(
                 ThreadBuilder::new()
                     .name(format!("executor {}", id))
-                    .spawn(move || loop {
-                        if let Ok(f) = receiver.recv() {
-                            f();
-                        } else {
-                            return;
-                        }
+                    .spawn(move || for f in receiver {
+                        f();
                     })
                     .map_err(Error::IOError)?,
             );
