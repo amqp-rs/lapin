@@ -31,7 +31,7 @@ version = "=3.0.0-beta.2"
 default-features = false
 
 [dependencies.futures]
-package = "futures-preview"
+package = "futures-core-preview"
 version = "=0.3.0-alpha.18"
 optional = true
 
