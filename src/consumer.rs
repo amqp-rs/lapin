@@ -10,7 +10,6 @@ pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: Delivery);
     fn drop_prefetched_messages(&self) {}
     fn on_canceled(&self) {}
-    fn on_error(&self, _error: Error) {}
 }
 
 #[derive(Clone)]
@@ -61,16 +60,16 @@ impl Consumer {
         Ok(())
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) {
-        self.inner().drop_prefetched_messages();
+    pub(crate) fn drop_prefetched_messages(&self) -> Result<(), Error> {
+        self.inner().drop_prefetched_messages()
     }
 
-    pub(crate) fn cancel(&self) {
-        self.inner().cancel();
+    pub(crate) fn cancel(&self) -> Result<(), Error> {
+        self.inner().cancel()
     }
 
-    pub(crate) fn set_error(&self, error: Error) {
-        self.inner().set_error(error);
+    pub(crate) fn set_error(&self, error: Error) -> Result<(), Error> {
+        self.inner().set_error(error)
     }
 }
 
@@ -144,28 +143,34 @@ impl ConsumerInner {
         Ok(())
     }
 
-    fn drop_prefetched_messages(&mut self) {
+    fn drop_prefetched_messages(&mut self) -> Result<(), Error> {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
-            delegate.lock().drop_prefetched_messages();
+            let delegate = delegate.clone();
+            self.executor
+                .execute(Box::new(move || delegate.lock().drop_prefetched_messages()))?;
         }
         self.deliveries.clear();
+        Ok(())
     }
 
-    fn cancel(&mut self) {
+    fn cancel(&mut self) -> Result<(), Error> {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
-            delegate.lock().on_canceled();
+            let delegate = delegate.clone();
+            self.executor
+                .execute(Box::new(move || delegate.lock().on_canceled()))?;
         }
         self.deliveries.clear();
         self.canceled = true;
         self.task.take();
+        Ok(())
     }
 
-    pub fn set_error(&mut self, error: Error) {
+    pub fn set_error(&mut self, error: Error) -> Result<(), Error> {
         trace!("set_error; consumer_tag={}", self.tag);
         self.error = Some(error);
-        self.cancel();
+        self.cancel()
     }
 }
 

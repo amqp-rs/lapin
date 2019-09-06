@@ -81,21 +81,29 @@ impl Channels {
     }
 
     pub(crate) fn set_closed(&self) -> Result<(), Error> {
-        for (id, channel) in self.inner.lock().channels.drain() {
-            self.frames.clear_expected_replies(id, ChannelState::Closed);
-            channel.set_state(ChannelState::Closed);
-            channel.cancel_consumers();
-        }
-        Ok(())
+        self.inner
+            .lock()
+            .channels
+            .drain()
+            .map(|(id, channel)| {
+                self.frames.clear_expected_replies(id, ChannelState::Closed);
+                channel.set_state(ChannelState::Closed);
+                channel.cancel_consumers()
+            })
+            .fold(Ok(()), Result::and)
     }
 
     pub(crate) fn set_error(&self) -> Result<(), Error> {
-        for (id, channel) in self.inner.lock().channels.drain() {
-            self.frames.clear_expected_replies(id, ChannelState::Error);
-            channel.set_state(ChannelState::Error);
-            channel.error_consumers();
-        }
-        Ok(())
+        self.inner
+            .lock()
+            .channels
+            .drain()
+            .map(|(id, channel)| {
+                self.frames.clear_expected_replies(id, ChannelState::Error);
+                channel.set_state(ChannelState::Error);
+                channel.error_consumers()
+            })
+            .fold(Ok(()), Result::and)
     }
 
     pub(crate) fn flow(&self) -> bool {

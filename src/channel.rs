@@ -62,22 +62,22 @@ impl Channel {
 
     fn set_closed(&self) -> Result<(), Error> {
         self.set_state(ChannelState::Closed);
-        self.cancel_consumers();
-        self.connection.remove_channel(self.id)
+        self.cancel_consumers()
+            .and(self.connection.remove_channel(self.id))
     }
 
     fn set_error(&self) -> Result<(), Error> {
         self.set_state(ChannelState::Error);
-        self.error_consumers();
-        self.connection.remove_channel(self.id)
+        self.error_consumers()
+            .and(self.connection.remove_channel(self.id))
     }
 
-    pub(crate) fn cancel_consumers(&self) {
-        self.queues.cancel_consumers();
+    pub(crate) fn cancel_consumers(&self) -> Result<(), Error> {
+        self.queues.cancel_consumers()
     }
 
-    pub(crate) fn error_consumers(&self) {
-        self.queues.error_consumers();
+    pub(crate) fn error_consumers(&self) -> Result<(), Error> {
+        self.queues.error_consumers()
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -308,22 +308,23 @@ impl Channel {
     }
 
     fn on_basic_recover_async_sent(&self) -> Result<(), Error> {
-        self.queues.drop_prefetched_messages();
-        Ok(())
+        self.queues.drop_prefetched_messages()
     }
 
     fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages();
+            self.queues.drop_prefetched_messages()
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages();
+            self.queues.drop_prefetched_messages()
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
@@ -682,19 +683,18 @@ impl Channel {
 
     fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<(), Error> {
         self.queues
-            .deregister_consumer(method.consumer_tag.as_str());
-        if !method.nowait {
-            self.basic_cancel_ok(method.consumer_tag.as_str())
-                .into_error()
-        } else {
-            Ok(())
-        }
+            .deregister_consumer(method.consumer_tag.as_str())
+            .and(if !method.nowait {
+                self.basic_cancel_ok(method.consumer_tag.as_str())
+                    .into_error()
+            } else {
+                Ok(())
+            })
     }
 
     fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<(), Error> {
         self.queues
-            .deregister_consumer(method.consumer_tag.as_str());
-        Ok(())
+            .deregister_consumer(method.consumer_tag.as_str())
     }
 
     fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<(), Error> {
@@ -773,8 +773,7 @@ impl Channel {
     }
 
     fn on_basic_recover_ok_received(&self) -> Result<(), Error> {
-        self.queues.drop_prefetched_messages();
-        Ok(())
+        self.queues.drop_prefetched_messages()
     }
 
     fn on_confirm_select_ok_received(&self) -> Result<(), Error> {

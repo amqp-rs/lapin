@@ -34,28 +34,36 @@ impl Queues {
         }
     }
 
-    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) {
-        for queue in self.queues.lock().values_mut() {
-            queue.deregister_consumer(consumer_tag);
-        }
+    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<(), Error> {
+        self.queues
+            .lock()
+            .values_mut()
+            .map(|queue| queue.deregister_consumer(consumer_tag))
+            .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) {
-        for queue in self.queues.lock().values_mut() {
-            queue.drop_prefetched_messages();
-        }
+    pub(crate) fn drop_prefetched_messages(&self) -> Result<(), Error> {
+        self.queues
+            .lock()
+            .values_mut()
+            .map(QueueState::drop_prefetched_messages)
+            .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn cancel_consumers(&self) {
-        for queue in self.queues.lock().values_mut() {
-            queue.cancel_consumers();
-        }
+    pub(crate) fn cancel_consumers(&self) -> Result<(), Error> {
+        self.queues
+            .lock()
+            .values_mut()
+            .map(QueueState::cancel_consumers)
+            .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn error_consumers(&self) {
-        for queue in self.queues.lock().values_mut() {
-            queue.error_consumers();
-        }
+    pub(crate) fn error_consumers(&self) -> Result<(), Error> {
+        self.queues
+            .lock()
+            .values_mut()
+            .map(QueueState::error_consumers)
+            .fold(Ok(()), Result::and)
     }
 
     pub(crate) fn start_consumer_delivery(
