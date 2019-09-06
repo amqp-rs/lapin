@@ -1,5 +1,5 @@
-use async_std::task;
-use futures::{future::FutureExt, stream::StreamExt};
+use futures_executor::LocalPool;
+use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
     options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Error,
 };
@@ -9,8 +9,10 @@ fn main() -> Result<(), Error> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+    let mut executor = LocalPool::new();
+    let mut spawner = executor.spawner();
 
-    task::block_on(async {
+    executor.run_until(async {
         let conn = Connection::connect(&addr, ConnectionProperties::default()).await?;
 
         info!("CONNECTED");
@@ -42,7 +44,7 @@ fn main() -> Result<(), Error> {
                 FieldTable::default(),
             )
             .await?;
-        let _consumer = task::spawn(async move {
+        let _consumer = spawner.spawn_local(async move {
             info!("will consume");
             consumer
                 .for_each(move |delivery| {

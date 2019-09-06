@@ -43,7 +43,8 @@ parking_lot = '^0.9'
 
 [dev-dependencies]
 env_logger = "^0.6"
-async-std = "^0.99"
+futures-executor = { version = "^0.3.0-alpha.18", package = "futures-executor-preview" }
+futures-util = { version = "^0.3.0-alpha.18", package = "futures-util-preview" }
 tcp-stream = "^0.7"
 
 [[example]]
