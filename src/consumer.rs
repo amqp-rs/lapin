@@ -167,7 +167,11 @@ impl ConsumerInner {
 
   pub fn set_error(&mut self, error: Error) {
     trace!("set_error; consumer_tag={}", self.tag);
-    self.error = Some(error);
+    if let Some(delegate) = self.delegate.as_ref() {
+      delegate.on_error(error);
+    } else {
+      self.error = Some(error);
+    }
     self.cancel();
   }
 }
