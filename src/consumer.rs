@@ -10,6 +10,7 @@ pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: Delivery);
     fn drop_prefetched_messages(&self) {}
     fn on_canceled(&self) {}
+    fn on_error(&self, _error: Error) {}
 }
 
 #[derive(Clone)]
@@ -169,7 +170,13 @@ impl ConsumerInner {
 
     pub fn set_error(&mut self, error: Error) -> Result<(), Error> {
         trace!("set_error; consumer_tag={}", self.tag);
-        self.error = Some(error);
+        if let Some(delegate) = self.delegate.as_ref() {
+            let delegate = delegate.clone();
+            self.executor
+                .execute(Box::new(move || delegate.lock().on_error(error)))?;
+        } else {
+            self.error = Some(error);
+        }
         self.cancel()
     }
 }

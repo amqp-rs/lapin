@@ -12,6 +12,13 @@
 * Add support for `update_secret` for oauth2 authentication module
 * Add support for TLS "identity" (client certificate)
 
+### 0.26.10 (2019-09-11)
+
+#### Bug Fixes
+
+* Fix error handling during early connection stage
+* Properly forward errors to consumer delegates
+
 ### 0.26.9 (2019-08-26)
 
 #### Bug Fixes
