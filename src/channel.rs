@@ -362,13 +362,13 @@ impl Channel {
     let state = self.connection.status().state();
     self.connection.set_closing();
     self.connection.drop_pending_frames();
-    self.connection_close_ok().as_error()?;
     match state {
       ConnectionState::SentProtocolHeader(wait_handle, ..) => wait_handle.error(ErrorKind::ConnectionRefused.into()),
       ConnectionState::SentStartOk(wait_handle, _)         => wait_handle.error(ErrorKind::ConnectionRefused.into()),
       ConnectionState::SentOpen(wait_handle)               => wait_handle.error(ErrorKind::ConnectionRefused.into()),
       _                                                    => {},
     }
+    self.connection_close_ok().as_error()?;
     Ok(())
   }
 
