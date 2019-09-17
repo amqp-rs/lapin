@@ -1,3 +1,9 @@
+### 0.26.11 (2019-09-17)
+
+#### Bug Fixes
+
+* Update amq-protocol to fix amqps handling
+
 ### 0.26.10 (2019-09-11)
 
 #### Bug Fixes
