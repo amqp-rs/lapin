@@ -12,6 +12,12 @@
 * Add support for `update_secret` for oauth2 authentication module
 * Add support for TLS "identity" (client certificate)
 
+### 0.26.11 (2019-09-17)
+
+#### Bug Fixes
+
+* Update amq-protocol to fix amqps handling
+
 ### 0.26.10 (2019-09-11)
 
 #### Bug Fixes
