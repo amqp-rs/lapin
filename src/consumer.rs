@@ -14,6 +14,20 @@ pub trait ConsumerDelegate: Send + Sync {
     fn on_error(&self, _error: Error) {}
 }
 
+impl<DeliveryHandler: Fn(Result<Option<Delivery>, Error>) + Send + Sync> ConsumerDelegate
+    for DeliveryHandler
+{
+    fn on_new_delivery(&self, delivery: Delivery) {
+        self(Ok(Some(delivery)));
+    }
+    fn on_canceled(&self) {
+        self(Ok(None))
+    }
+    fn on_error(&self, error: Error) {
+        self(Err(error))
+    }
+}
+
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,

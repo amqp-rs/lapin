@@ -1,17 +1,8 @@
 use lapin::{
     message::Delivery, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    ConnectionProperties, Error,
 };
 use log::info;
-
-#[derive(Clone, Debug, PartialEq)]
-struct Subscriber;
-
-impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: Delivery) {
-        info!("received message: {:?}", delivery);
-    }
-}
 
 fn main() {
     std::env::set_var("RUST_LOG", "trace");
@@ -61,6 +52,7 @@ fn main() {
         .expect("queue_declare");
     info!("[{}] state: {:?}", line!(), conn.status().state());
 
+    let chan = channel_b.clone();
     info!("will consume");
     channel_b
         .basic_consume(
@@ -71,7 +63,16 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Box::new(Subscriber));
+        .set_delegate(Box::new(
+            move |delivery: Result<Option<Delivery>, Error>| {
+                info!("received message: {:?}", delivery);
+                if let Ok(Some(delivery)) = delivery {
+                    chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                        .wait()
+                        .expect("basic_ack");
+                }
+            },
+        ));
     info!("[{}] state: {:?}", line!(), conn.status().state());
 
     info!("will publish");
@@ -87,4 +88,7 @@ fn main() {
         .wait()
         .expect("basic_publish");
     info!("[{}] state: {:?}", line!(), conn.status().state());
+
+    std::thread::sleep(std::time::Duration::from_millis(2000));
+    conn.close(200, "OK").wait().expect("connection close");
 }

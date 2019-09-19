@@ -12,6 +12,7 @@
 * Add support for `update_secret` for oauth2 authentication module
 * Add support for TLS "identity" (client certificate)
 * Consumer can now be used as an `Iterator<Item = Delivery>`
+* `Consumer::set_delegate` now accepts a closure parameter
 
 ### 0.26.11 (2019-09-17)
 
