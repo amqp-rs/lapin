@@ -87,6 +87,29 @@ pub struct ConsumerInner {
     error: Option<Error>,
 }
 
+pub struct ConsumerIterator {
+    receiver: Receiver<Delivery>,
+}
+
+impl Iterator for ConsumerIterator {
+    type Item = Delivery;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.receiver.recv().ok()
+    }
+}
+
+impl IntoIterator for Consumer {
+    type Item = Delivery;
+    type IntoIter = ConsumerIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ConsumerIterator {
+            receiver: self.inner().deliveries_out.clone(),
+        }
+    }
+}
+
 impl fmt::Debug for ConsumerInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ConsumerInnder({})", self.tag)
