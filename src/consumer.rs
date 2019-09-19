@@ -2,9 +2,10 @@ use crate::{
     executor::Executor, message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties,
     Error,
 };
+use crossbeam_channel::{Receiver, Sender};
 use log::trace;
 use parking_lot::{Mutex, MutexGuard};
-use std::{collections::VecDeque, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: Delivery);
@@ -31,7 +32,7 @@ impl Consumer {
 
     pub fn set_delegate(&self, delegate: Box<dyn ConsumerDelegate>) {
         let mut inner = self.inner();
-        for delivery in inner.deliveries.drain(..) {
+        while let Some(delivery) = inner.next_delivery() {
             delegate.on_new_delivery(delivery);
         }
         inner.delegate = Some(Arc::new(Mutex::new(delegate)));
@@ -76,7 +77,8 @@ impl Consumer {
 
 pub struct ConsumerInner {
     current_message: Option<Delivery>,
-    deliveries: VecDeque<Delivery>,
+    deliveries_in: Sender<Delivery>,
+    deliveries_out: Receiver<Delivery>,
     task: Option<Box<dyn NotifyReady + Send>>,
     canceled: bool,
     tag: ShortString,
@@ -93,9 +95,11 @@ impl fmt::Debug for ConsumerInner {
 
 impl ConsumerInner {
     fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
+        let (sender, receiver) = crossbeam_channel::unbounded();
         Self {
             current_message: None,
-            deliveries: VecDeque::new(),
+            deliveries_in: sender,
+            deliveries_out: receiver,
             task: None,
             canceled: false,
             tag: consumer_tag,
@@ -106,7 +110,7 @@ impl ConsumerInner {
     }
 
     pub fn next_delivery(&mut self) -> Option<Delivery> {
-        self.deliveries.pop_front()
+        self.deliveries_out.try_recv().ok()
     }
 
     pub fn set_task(&mut self, task: Box<dyn NotifyReady + Send>) {
@@ -136,7 +140,9 @@ impl ConsumerInner {
             self.executor
                 .execute(Box::new(move || delegate.lock().on_new_delivery(delivery)))?;
         } else {
-            self.deliveries.push_back(delivery);
+            self.deliveries_in
+                .send(delivery)
+                .expect("failed to send delivery to consumer");
         }
         if let Some(task) = self.task.as_ref() {
             task.notify();
@@ -151,7 +157,7 @@ impl ConsumerInner {
             self.executor
                 .execute(Box::new(move || delegate.lock().drop_prefetched_messages()))?;
         }
-        self.deliveries.clear();
+        while let Some(_) = self.next_delivery() {}
         Ok(())
     }
 
@@ -162,7 +168,7 @@ impl ConsumerInner {
             self.executor
                 .execute(Box::new(move || delegate.lock().on_canceled()))?;
         }
-        self.deliveries.clear();
+        while let Some(_) = self.next_delivery() {}
         self.canceled = true;
         self.task.take();
         Ok(())
