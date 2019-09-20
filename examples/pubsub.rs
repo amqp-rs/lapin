@@ -1,6 +1,6 @@
 use lapin::{
     message::Delivery, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    ConnectionProperties, ConsumerDelegate, Error,
 };
 use log::info;
 
@@ -10,11 +10,13 @@ struct Subscriber {
 }
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: Delivery) {
-        self.channel
-            .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-            .wait()
-            .expect("basic_ack");
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>) {
+        if let Ok(Some(delivery)) = delivery {
+            self.channel
+                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                .wait()
+                .expect("basic_ack");
+        }
     }
 }
 

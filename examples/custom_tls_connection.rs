@@ -10,7 +10,7 @@ use tcp_stream::{HandshakeError, NativeTlsConnector};
 struct Subscriber;
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: Delivery) {
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>) {
         info!("received message: {:?}", delivery);
     }
 }

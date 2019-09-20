@@ -8,23 +8,15 @@ use parking_lot::{Mutex, MutexGuard};
 use std::{fmt, sync::Arc};
 
 pub trait ConsumerDelegate: Send + Sync {
-    fn on_new_delivery(&self, delivery: Delivery);
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>);
     fn drop_prefetched_messages(&self) {}
-    fn on_canceled(&self) {}
-    fn on_error(&self, _error: Error) {}
 }
 
 impl<DeliveryHandler: Fn(Result<Option<Delivery>, Error>) + Send + Sync> ConsumerDelegate
     for DeliveryHandler
 {
-    fn on_new_delivery(&self, delivery: Delivery) {
-        self(Ok(Some(delivery)));
-    }
-    fn on_canceled(&self) {
-        self(Ok(None))
-    }
-    fn on_error(&self, error: Error) {
-        self(Err(error))
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>) {
+        self(delivery);
     }
 }
 
@@ -47,7 +39,7 @@ impl Consumer {
     pub fn set_delegate(&self, delegate: Box<dyn ConsumerDelegate>) {
         let mut inner = self.inner();
         while let Some(delivery) = inner.next_delivery() {
-            delegate.on_new_delivery(delivery);
+            delegate.on_new_delivery(Ok(Some(delivery)));
         }
         inner.delegate = Some(Arc::new(Mutex::new(delegate)));
     }
@@ -174,8 +166,9 @@ impl ConsumerInner {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor
-                .execute(Box::new(move || delegate.lock().on_new_delivery(delivery)))?;
+            self.executor.execute(Box::new(move || {
+                delegate.lock().on_new_delivery(Ok(Some(delivery)))
+            }))?;
         } else {
             self.deliveries_in
                 .send(delivery)
@@ -203,7 +196,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .execute(Box::new(move || delegate.lock().on_canceled()))?;
+                .execute(Box::new(move || delegate.lock().on_new_delivery(Ok(None))))?;
         }
         while let Some(_) = self.next_delivery() {}
         self.canceled = true;
@@ -215,8 +208,9 @@ impl ConsumerInner {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor
-                .execute(Box::new(move || delegate.lock().on_error(error)))?;
+            self.executor.execute(Box::new(move || {
+                delegate.lock().on_new_delivery(Err(error))
+            }))?;
         } else {
             self.error = Some(error);
         }
