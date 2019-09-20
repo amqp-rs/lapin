@@ -43,9 +43,11 @@ fn main() {
 
     for delivery in consumer {
         info!("received message: {:?}", delivery);
-        channel
-            .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-            .wait()
-            .expect("basic_ack");
+        if let Ok(delivery) = delivery {
+            channel
+                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                .wait()
+                .expect("basic_ack");
+        }
     }
 }

@@ -39,7 +39,7 @@ impl Consumer {
     pub fn set_delegate(&self, delegate: Box<dyn ConsumerDelegate>) {
         let mut inner = self.inner();
         while let Some(delivery) = inner.next_delivery() {
-            delegate.on_new_delivery(Ok(Some(delivery)));
+            delegate.on_new_delivery(delivery);
         }
         inner.delegate = Some(Arc::new(Mutex::new(delegate)));
     }
@@ -83,30 +83,28 @@ impl Consumer {
 
 pub struct ConsumerInner {
     current_message: Option<Delivery>,
-    deliveries_in: Sender<Delivery>,
-    deliveries_out: Receiver<Delivery>,
+    deliveries_in: Sender<Result<Option<Delivery>, Error>>,
+    deliveries_out: Receiver<Result<Option<Delivery>, Error>>,
     task: Option<Box<dyn NotifyReady + Send>>,
-    canceled: bool,
     tag: ShortString,
     delegate: Option<Arc<Mutex<Box<dyn ConsumerDelegate>>>>,
     executor: Arc<dyn Executor>,
-    error: Option<Error>,
 }
 
 pub struct ConsumerIterator {
-    receiver: Receiver<Delivery>,
+    receiver: Receiver<Result<Option<Delivery>, Error>>,
 }
 
 impl Iterator for ConsumerIterator {
-    type Item = Delivery;
+    type Item = Result<Delivery, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.receiver.recv().ok()
+        self.receiver.recv().ok().and_then(Result::transpose)
     }
 }
 
 impl IntoIterator for Consumer {
-    type Item = Delivery;
+    type Item = Result<Delivery, Error>;
     type IntoIter = ConsumerIterator;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -130,15 +128,13 @@ impl ConsumerInner {
             deliveries_in: sender,
             deliveries_out: receiver,
             task: None,
-            canceled: false,
             tag: consumer_tag,
             delegate: None,
             executor,
-            error: None,
         }
     }
 
-    pub fn next_delivery(&mut self) -> Option<Delivery> {
+    pub fn next_delivery(&mut self) -> Option<Result<Option<Delivery>, Error>> {
         self.deliveries_out.try_recv().ok()
     }
 
@@ -148,14 +144,6 @@ impl ConsumerInner {
 
     pub fn has_task(&self) -> bool {
         self.task.is_some()
-    }
-
-    pub fn canceled(&self) -> bool {
-        self.canceled
-    }
-
-    pub fn error(&mut self) -> Option<Error> {
-        self.error.take()
     }
 
     pub fn tag(&self) -> &ShortString {
@@ -171,13 +159,17 @@ impl ConsumerInner {
             }))?;
         } else {
             self.deliveries_in
-                .send(delivery)
+                .send(Ok(Some(delivery)))
                 .expect("failed to send delivery to consumer");
         }
         if let Some(task) = self.task.as_ref() {
             task.notify();
         }
         Ok(())
+    }
+
+    fn drop_deliveries(&mut self) {
+        while let Some(_) = self.next_delivery() {}
     }
 
     fn drop_prefetched_messages(&mut self) -> Result<(), Error> {
@@ -187,7 +179,7 @@ impl ConsumerInner {
             self.executor
                 .execute(Box::new(move || delegate.lock().drop_prefetched_messages()))?;
         }
-        while let Some(_) = self.next_delivery() {}
+        self.drop_deliveries();
         Ok(())
     }
 
@@ -197,9 +189,12 @@ impl ConsumerInner {
             let delegate = delegate.clone();
             self.executor
                 .execute(Box::new(move || delegate.lock().on_new_delivery(Ok(None))))?;
+        } else {
+            self.deliveries_in
+                .send(Ok(None))
+                .expect("failed to send cancel to consumer");
         }
-        while let Some(_) = self.next_delivery() {}
-        self.canceled = true;
+        self.drop_deliveries();
         self.task.take();
         Ok(())
     }
@@ -212,7 +207,9 @@ impl ConsumerInner {
                 delegate.lock().on_new_delivery(Err(error))
             }))?;
         } else {
-            self.error = Some(error);
+            self.deliveries_in
+                .send(Err(error))
+                .expect("failed to send error to consumer");
         }
         self.cancel()
     }
@@ -251,18 +248,20 @@ mod futures {
                 inner.set_task(Box::new(Watcher(cx.waker().clone())));
             }
             if let Some(delivery) = inner.next_delivery() {
-                trace!(
-                    "delivery; consumer_tag={}, delivery_tag={:?}",
-                    inner.tag(),
-                    delivery.delivery_tag
-                );
-                Poll::Ready(Some(Ok(delivery)))
-            } else if inner.canceled() {
-                trace!("consumer canceled; consumer_tag={}", inner.tag());
-                if let Some(error) = inner.error() {
-                    Poll::Ready(Some(Err(error)))
-                } else {
-                    Poll::Ready(None)
+                match delivery {
+                    Ok(Some(delivery)) => {
+                        trace!(
+                            "delivery; consumer_tag={}, delivery_tag={:?}",
+                            inner.tag(),
+                            delivery.delivery_tag
+                        );
+                        Poll::Ready(Some(Ok(delivery)))
+                    }
+                    Ok(None) => {
+                        trace!("consumer canceled; consumer_tag={}", inner.tag());
+                        Poll::Ready(None)
+                    }
+                    Err(error) => Poll::Ready(Some(Err(error))),
                 }
             } else {
                 trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());

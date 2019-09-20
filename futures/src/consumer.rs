@@ -22,18 +22,20 @@ impl Stream for Consumer {
             inner.set_task(Box::new(Watcher::default()));
         }
         if let Some(delivery) = inner.next_delivery() {
-            trace!(
-                "delivery; consumer_tag={}, delivery_tag={:?}",
-                inner.tag(),
-                delivery.delivery_tag
-            );
-            Ok(Async::Ready(Some(delivery)))
-        } else if inner.canceled() {
-            trace!("consumer canceled; consumer_tag={}", inner.tag());
-            if let Some(error) = inner.error() {
-                Err(error)
-            } else {
-                Ok(Async::Ready(None))
+            match delivery {
+                Ok(Some(delivery)) => {
+                    trace!(
+                        "delivery; consumer_tag={}, delivery_tag={:?}",
+                        inner.tag(),
+                        delivery.delivery_tag
+                    );
+                    Ok(Async::Ready(Some(delivery)))
+                }
+                Ok(None) => {
+                    trace!("consumer canceled; consumer_tag={}", inner.tag());
+                    Ok(Async::Ready(None))
+                }
+                Err(error) => Err(error),
             }
         } else {
             trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
