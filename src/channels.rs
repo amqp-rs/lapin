@@ -1,6 +1,6 @@
 use crate::{
     connection::Connection, executor::Executor, frames::Frames, id_sequence::IdSequence,
-    BasicProperties, Channel, ChannelState, Error,
+    BasicProperties, Channel, ChannelState, Error, Result,
 };
 use amq_protocol::protocol::AMQPClass;
 use log::debug;
@@ -21,7 +21,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn create(&self, connection: Connection) -> Result<Channel, Error> {
+    pub(crate) fn create(&self, connection: Connection) -> Result<Channel> {
         self.inner.lock().create(connection)
     }
 
@@ -36,7 +36,7 @@ impl Channels {
         self.inner.lock().channels.get(&id).cloned()
     }
 
-    pub(crate) fn remove(&self, id: u16) -> Result<(), Error> {
+    pub(crate) fn remove(&self, id: u16) -> Result<()> {
         self.frames.clear_expected_replies(id, ChannelState::Closed);
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
@@ -45,7 +45,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<(), Error> {
+    pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<()> {
         if let Some(channel) = self.get(id) {
             channel.receive_method(method)
         } else {
@@ -58,7 +58,7 @@ impl Channels {
         id: u16,
         size: u64,
         properties: BasicProperties,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if let Some(channel) = self.get(id) {
             channel.handle_content_header_frame(size, properties)
         } else {
@@ -66,7 +66,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<(), Error> {
+    pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<()> {
         if let Some(channel) = self.get(id) {
             channel.handle_body_frame(payload)
         } else {
@@ -80,7 +80,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn set_closed(&self) -> Result<(), Error> {
+    pub(crate) fn set_closed(&self) -> Result<()> {
         self.inner
             .lock()
             .channels
@@ -93,7 +93,7 @@ impl Channels {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn set_error(&self) -> Result<(), Error> {
+    pub(crate) fn set_error(&self) -> Result<()> {
         self.inner
             .lock()
             .channels
@@ -140,7 +140,7 @@ impl Inner {
         channel
     }
 
-    fn create(&mut self, connection: Connection) -> Result<Channel, Error> {
+    fn create(&mut self, connection: Connection) -> Result<Channel> {
         debug!("create channel");
         self.channel_id
             .set_max(connection.configuration().channel_max());

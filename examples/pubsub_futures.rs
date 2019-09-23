@@ -1,11 +1,11 @@
 use futures_executor::LocalPool;
 use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Error,
+    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());

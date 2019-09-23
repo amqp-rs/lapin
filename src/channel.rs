@@ -16,7 +16,7 @@ use crate::{
     returned_messages::ReturnedMessages,
     types::*,
     wait::{Cancellable, Wait, WaitHandle},
-    BasicProperties, Error,
+    BasicProperties, Error, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
@@ -60,23 +60,23 @@ impl Channel {
         &self.status
     }
 
-    fn set_closed(&self) -> Result<(), Error> {
+    fn set_closed(&self) -> Result<()> {
         self.set_state(ChannelState::Closed);
         self.cancel_consumers()
             .and(self.connection.remove_channel(self.id))
     }
 
-    fn set_error(&self) -> Result<(), Error> {
+    fn set_error(&self) -> Result<()> {
         self.set_state(ChannelState::Error);
         self.error_consumers()
             .and(self.connection.remove_channel(self.id))
     }
 
-    pub(crate) fn cancel_consumers(&self) -> Result<(), Error> {
+    pub(crate) fn cancel_consumers(&self) -> Result<()> {
         self.queues.cancel_consumers()
     }
 
-    pub(crate) fn error_consumers(&self) -> Result<(), Error> {
+    pub(crate) fn error_consumers(&self) -> Result<()> {
         self.queues.error_consumers()
     }
 
@@ -122,7 +122,7 @@ impl Channel {
         &self,
         method: AMQPClass,
         expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
-    ) -> Result<Wait<()>, Error> {
+    ) -> Result<Wait<()>> {
         self.send_frame(
             Priority::NORMAL,
             AMQPFrame::Method(self.id, method),
@@ -135,7 +135,7 @@ impl Channel {
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
-    ) -> Result<Wait<()>, Error> {
+    ) -> Result<Wait<()>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -165,7 +165,7 @@ impl Channel {
         priority: Priority,
         frame: AMQPFrame,
         expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
-    ) -> Result<Wait<()>, Error> {
+    ) -> Result<Wait<()>> {
         self.connection
             .send_frame(self.id, priority, frame, expected_reply)
     }
@@ -174,7 +174,7 @@ impl Channel {
         &self,
         size: u64,
         properties: BasicProperties,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if let ChannelState::WillReceiveContent(queue_name, request_id_or_consumer_tag) =
             self.status.state()
         {
@@ -206,7 +206,7 @@ impl Channel {
         }
     }
 
-    pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<(), Error> {
+    pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
         let payload_size = payload.len();
 
         if let ChannelState::ReceivingContent(
@@ -249,12 +249,7 @@ impl Channel {
         }
     }
 
-    fn acknowledgement_error(
-        &self,
-        error: Error,
-        class_id: u16,
-        method_id: u16,
-    ) -> Result<(), Error> {
+    fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
         self.do_channel_close(
             AMQPSoftError::PRECONDITIONFAILED.get_id(),
             "precondition failed",
@@ -269,37 +264,37 @@ impl Channel {
         &self,
         wait_handle: WaitHandle<Connection>,
         credentials: Credentials,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.connection
             .set_state(ConnectionState::SentStartOk(wait_handle, credentials));
         Ok(())
     }
 
-    fn on_connection_open_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<(), Error> {
+    fn on_connection_open_sent(&self, wait_handle: WaitHandle<Connection>) -> Result<()> {
         self.connection
             .set_state(ConnectionState::SentOpen(wait_handle));
         Ok(())
     }
 
-    fn on_connection_close_sent(&self) -> Result<(), Error> {
+    fn on_connection_close_sent(&self) -> Result<()> {
         self.connection.set_closing();
         Ok(())
     }
 
-    fn on_connection_close_ok_sent(&self) -> Result<(), Error> {
+    fn on_connection_close_ok_sent(&self) -> Result<()> {
         self.connection.set_closed()
     }
 
-    fn on_channel_close_sent(&self) -> Result<(), Error> {
+    fn on_channel_close_sent(&self) -> Result<()> {
         self.set_state(ChannelState::Closing);
         Ok(())
     }
 
-    fn on_channel_close_ok_sent(&self) -> Result<(), Error> {
+    fn on_channel_close_ok_sent(&self) -> Result<()> {
         self.set_closed()
     }
 
-    fn on_basic_publish_sent(&self) -> Result<(), Error> {
+    fn on_basic_publish_sent(&self) -> Result<()> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
             self.acknowledgements.register_pending(delivery_tag);
@@ -307,11 +302,11 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_recover_async_sent(&self) -> Result<(), Error> {
+    fn on_basic_recover_async_sent(&self) -> Result<()> {
         self.queues.drop_prefetched_messages()
     }
 
-    fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
         if multiple && delivery_tag == 0 {
             self.queues.drop_prefetched_messages()
         } else {
@@ -319,7 +314,7 @@ impl Channel {
         }
     }
 
-    fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
         if multiple && delivery_tag == 0 {
             self.queues.drop_prefetched_messages()
         } else {
@@ -367,10 +362,7 @@ impl Channel {
         }
     }
 
-    fn on_connection_start_received(
-        &self,
-        method: protocol::connection::Start,
-    ) -> Result<(), Error> {
+    fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!("Server sent connection::Start: {:?}", method);
         let state = self.connection.status().state();
         if let ConnectionState::SentProtocolHeader(wait_handle, credentials, mut options) = state {
@@ -435,10 +427,7 @@ impl Channel {
         }
     }
 
-    fn on_connection_secure_received(
-        &self,
-        method: protocol::connection::Secure,
-    ) -> Result<(), Error> {
+    fn on_connection_secure_received(&self, method: protocol::connection::Secure) -> Result<()> {
         trace!("Server sent connection::Secure: {:?}", method);
 
         let state = self.connection.status().state();
@@ -452,7 +441,7 @@ impl Channel {
         }
     }
 
-    fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<(), Error> {
+    fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<()> {
         debug!("Server sent Connection::Tune: {:?}", method);
 
         let state = self.connection.status().state();
@@ -478,7 +467,7 @@ impl Channel {
         }
     }
 
-    fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<(), Error> {
+    fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<()> {
         let state = self.connection.status().state();
         if let ConnectionState::SentOpen(wait_handle) = state {
             self.connection.set_state(ConnectionState::Connected);
@@ -491,10 +480,7 @@ impl Channel {
         }
     }
 
-    fn on_connection_close_received(
-        &self,
-        method: protocol::connection::Close,
-    ) -> Result<(), Error> {
+    fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<()> {
         if let Some(error) = AMQPError::from_id(method.reply_code) {
             error!(
                 "Connection closed on channel {} by {}:{} => {:?} => {}",
@@ -520,10 +506,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_blocked_received(
-        &self,
-        _method: protocol::connection::Blocked,
-    ) -> Result<(), Error> {
+    fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
         self.connection.do_block();
         Ok(())
     }
@@ -531,11 +514,11 @@ impl Channel {
     fn on_connection_unblocked_received(
         &self,
         _method: protocol::connection::Unblocked,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.connection.do_unblock()
     }
 
-    fn on_connection_close_ok_received(&self) -> Result<(), Error> {
+    fn on_connection_close_ok_received(&self) -> Result<()> {
         self.connection.set_closed()
     }
 
@@ -543,13 +526,13 @@ impl Channel {
         &self,
         _method: protocol::channel::OpenOk,
         wait_handle: WaitHandle<Channel>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.status.set_state(ChannelState::Connected);
         wait_handle.finish(self.clone());
         Ok(())
     }
 
-    fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<(), Error> {
+    fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
         self.channel_flow_ok(ChannelFlowOkOptions {
             active: method.active,
@@ -561,13 +544,13 @@ impl Channel {
         &self,
         method: protocol::channel::FlowOk,
         wait_handle: WaitHandle<Boolean>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         // Nothing to do here, the server just confirmed that we paused/resumed the receiving flow
         wait_handle.finish(method.active);
         Ok(())
     }
 
-    fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<(), Error> {
+    fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
         if let Some(error) = AMQPError::from_id(method.reply_code) {
             error!(
                 "Channel {} closed by {}:{} => {:?} => {}",
@@ -579,7 +562,7 @@ impl Channel {
         self.channel_close_ok().into_error()
     }
 
-    fn on_channel_close_ok_received(&self) -> Result<(), Error> {
+    fn on_channel_close_ok_received(&self) -> Result<()> {
         self.set_closed()
     }
 
@@ -588,7 +571,7 @@ impl Channel {
         method: protocol::queue::DeleteOk,
         wait_handle: WaitHandle<LongUInt>,
         queue: ShortString,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.queues.deregister(queue.as_str());
         wait_handle.finish(method.message_count);
         Ok(())
@@ -598,7 +581,7 @@ impl Channel {
         &self,
         method: protocol::queue::PurgeOk,
         wait_handle: WaitHandle<LongUInt>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         wait_handle.finish(method.message_count);
         Ok(())
     }
@@ -607,7 +590,7 @@ impl Channel {
         &self,
         method: protocol::queue::DeclareOk,
         wait_handle: WaitHandle<Queue>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
         wait_handle.finish(queue.clone());
         self.queues.register(queue.into());
@@ -619,7 +602,7 @@ impl Channel {
         method: protocol::basic::GetOk,
         wait_handle: WaitHandle<Option<BasicGetMessage>>,
         queue: ShortString,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.queues.start_basic_get_delivery(
             queue.as_str(),
             BasicGetMessage::new(
@@ -636,7 +619,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<(), Error> {
+    fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<()> {
         match self.connection.next_expected_reply(self.id) {
             Some(Reply::BasicGetOk(wait_handle, _)) => {
                 wait_handle.finish(None);
@@ -655,7 +638,7 @@ impl Channel {
         method: protocol::basic::ConsumeOk,
         wait_handle: WaitHandle<Consumer>,
         queue: ShortString,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let consumer = Consumer::new(method.consumer_tag.clone(), self.executor.clone());
         self.queues
             .register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
@@ -663,7 +646,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<(), Error> {
+    fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         if let Some(queue_name) = self.queues.start_consumer_delivery(
             method.consumer_tag.as_str(),
             Delivery::new(
@@ -681,7 +664,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<(), Error> {
+    fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<()> {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
             .and(if !method.nowait {
@@ -692,12 +675,12 @@ impl Channel {
             })
     }
 
-    fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<(), Error> {
+    fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<()> {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
     }
 
-    fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<(), Error> {
+    fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<()> {
         if self.status.confirm() {
             if method.multiple {
                 if method.delivery_tag > 0 {
@@ -728,7 +711,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_nack_received(&self, method: protocol::basic::Nack) -> Result<(), Error> {
+    fn on_basic_nack_received(&self, method: protocol::basic::Nack) -> Result<()> {
         if self.status.confirm() {
             if method.multiple {
                 if method.delivery_tag > 0 {
@@ -759,7 +742,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<(), Error> {
+    fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<()> {
         self.returned_messages
             .start_new_delivery(BasicReturnMessage::new(
                 method.exchange,
@@ -772,16 +755,16 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_recover_ok_received(&self) -> Result<(), Error> {
+    fn on_basic_recover_ok_received(&self) -> Result<()> {
         self.queues.drop_prefetched_messages()
     }
 
-    fn on_confirm_select_ok_received(&self) -> Result<(), Error> {
+    fn on_confirm_select_ok_received(&self) -> Result<()> {
         self.status.set_confirm();
         Ok(())
     }
 
-    fn on_access_request_ok_received(&self, _: protocol::access::RequestOk) -> Result<(), Error> {
+    fn on_access_request_ok_received(&self, _: protocol::access::RequestOk) -> Result<()> {
         Ok(())
     }
 }

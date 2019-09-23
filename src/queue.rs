@@ -1,6 +1,6 @@
 use crate::{
     connection_status::ConnectionState, consumer::Consumer, message::BasicGetMessage,
-    types::ShortString, wait::WaitHandle, BasicProperties, Error,
+    types::ShortString, wait::WaitHandle, BasicProperties, Error, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, hash::Hash};
 
@@ -56,7 +56,7 @@ impl QueueState {
     pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(
         &mut self,
         consumer_tag: &S,
-    ) -> Result<(), Error>
+    ) -> Result<()>
     where
         ShortString: Borrow<S>,
     {
@@ -76,14 +76,14 @@ impl QueueState {
         self.consumers.get_mut(consumer_tag.borrow())
     }
 
-    pub(crate) fn cancel_consumers(&mut self) -> Result<(), Error> {
+    pub(crate) fn cancel_consumers(&mut self) -> Result<()> {
         self.consumers
             .drain()
             .map(|(_, consumer)| consumer.cancel())
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn error_consumers(&mut self) -> Result<(), Error> {
+    pub(crate) fn error_consumers(&mut self) -> Result<()> {
         self.consumers
             .drain()
             .map(|(_, consumer)| {
@@ -96,7 +96,7 @@ impl QueueState {
         self.name.clone()
     }
 
-    pub(crate) fn drop_prefetched_messages(&mut self) -> Result<(), Error> {
+    pub(crate) fn drop_prefetched_messages(&mut self) -> Result<()> {
         self.consumers
             .values()
             .map(Consumer::drop_prefetched_messages)

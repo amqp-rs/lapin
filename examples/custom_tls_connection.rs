@@ -1,7 +1,7 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
 use lapin::{
     confirmation::Confirmation, message::Delivery, options::*, types::FieldTable, BasicProperties,
-    Connection, ConnectionProperties, ConsumerDelegate, Error,
+    Connection, ConnectionProperties, ConsumerDelegate, Error, Result,
 };
 use log::info;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
@@ -10,12 +10,12 @@ use tcp_stream::{HandshakeError, NativeTlsConnector};
 struct Subscriber;
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>) {
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>) {
         info!("received message: {:?}", delivery);
     }
 }
 
-fn connect() -> Result<Connection, Error> {
+fn connect() -> Result<Connection> {
     // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
     let conn = addr

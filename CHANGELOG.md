@@ -6,7 +6,7 @@
 * `Channel::connection_[,un}blocked` is now `Connection::{,un}block`
 * `failure` as been replaced with `std::error::Error` usage
 * `Confirmation::as_error` has been removed
-* Consumers API has been cleaned up, everything is now a `Result<Option<Delivery>, Error>`
+* Consumers API has been cleaned up, everything is now a `Result<Option<Delivery>>`
 
 #### Features
 
@@ -14,6 +14,7 @@
 * Add support for TLS "identity" (client certificate)
 * Consumer can now be used as an `Iterator<Item = Delivery>`
 * `Consumer::set_delegate` now accepts a closure parameter
+* Add `lapin::Result`
 
 ### 0.26.11 (2019-09-17)
 

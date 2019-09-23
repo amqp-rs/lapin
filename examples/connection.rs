@@ -1,6 +1,6 @@
 use lapin::{
     message::Delivery, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Error,
+    ConnectionProperties, Result,
 };
 use log::info;
 
@@ -63,16 +63,14 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Box::new(
-            move |delivery: Result<Option<Delivery>, Error>| {
-                info!("received message: {:?}", delivery);
-                if let Ok(Some(delivery)) = delivery {
-                    chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                        .wait()
-                        .expect("basic_ack");
-                }
-            },
-        ));
+        .set_delegate(Box::new(move |delivery: Result<Option<Delivery>>| {
+            info!("received message: {:?}", delivery);
+            if let Ok(Some(delivery)) = delivery {
+                chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .wait()
+                    .expect("basic_ack");
+            }
+        }));
     info!("[{}] state: {:?}", line!(), conn.status().state());
 
     info!("will publish");

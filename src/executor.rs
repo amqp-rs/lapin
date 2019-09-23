@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use std::{
@@ -7,7 +7,7 @@ use std::{
 };
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<(), Error>;
+    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()>;
 }
 
 #[derive(Clone, Debug)]
@@ -35,7 +35,7 @@ impl DefaultExecutor {
 }
 
 impl DefaultExecutor {
-    pub(crate) fn maybe_spawn_thread(&self) -> Result<(), Error> {
+    pub(crate) fn maybe_spawn_thread(&self) -> Result<()> {
         let mut threads = self.threads.lock();
         let id = threads.len() + 1;
         if id <= self.max_threads {
@@ -56,7 +56,7 @@ impl DefaultExecutor {
 }
 
 impl Executor for DefaultExecutor {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<(), Error> {
+    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
         self.maybe_spawn_thread()?;
         self.sender.send(f).expect("executor failed");
         Ok(())

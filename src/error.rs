@@ -2,6 +2,9 @@ use crate::{channel_status::ChannelState, connection_status::ConnectionState};
 use amq_protocol::{frame::GenError, protocol::AMQPClass};
 use std::{error, fmt, io};
 
+/// A std Result with a lapin::Error error type
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// The type of error that can be returned in this crate.
 ///
 /// Even though we expose the complete enumeration of possible error variants, it is not

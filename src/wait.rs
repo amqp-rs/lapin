@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{Error, Result};
 use parking_lot::Mutex;
 use std::{
     fmt,
@@ -9,14 +9,14 @@ use std::{
 };
 
 pub struct Wait<T> {
-    recv: Receiver<Result<T, Error>>,
-    send: SyncSender<Result<T, Error>>,
+    recv: Receiver<Result<T>>,
+    send: SyncSender<Result<T>>,
     task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
 #[derive(Clone)]
 pub struct WaitHandle<T> {
-    send: SyncSender<Result<T, Error>>,
+    send: SyncSender<Result<T>>,
     task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
@@ -53,11 +53,11 @@ impl<T> Wait<T> {
         }
     }
 
-    pub(crate) fn try_wait(&self) -> Option<Result<T, Error>> {
+    pub(crate) fn try_wait(&self) -> Option<Result<T>> {
         self.recv.try_recv().ok()
     }
 
-    pub(crate) fn wait(&self) -> Result<T, Error> {
+    pub(crate) fn wait(&self) -> Result<T> {
         self.recv.recv().unwrap()
     }
 

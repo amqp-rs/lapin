@@ -1,5 +1,5 @@
 pub use crate::wait::NotifyReady;
-use crate::{wait::Wait, Error};
+use crate::{wait::Wait, Error, Result};
 use std::fmt;
 
 pub struct Confirmation<T, I = ()> {
@@ -20,7 +20,7 @@ impl<T, I> Confirmation<T, I> {
     }
 
     // FIXME: remove
-    pub(crate) fn into_error(self) -> Result<(), Error> {
+    pub(crate) fn into_error(self) -> Result<()> {
         self.try_wait().transpose().map(|_| ())
     }
 
@@ -38,14 +38,14 @@ impl<T, I> Confirmation<T, I> {
         }
     }
 
-    pub fn try_wait(&self) -> Option<Result<T, Error>> {
+    pub fn try_wait(&self) -> Option<Result<T>> {
         match &self.kind {
             ConfirmationKind::Wait(wait) => wait.try_wait(),
             ConfirmationKind::Map(wait, f) => wait.try_wait().map(|res| res.map(f)),
         }
     }
 
-    pub fn wait(self) -> Result<T, Error> {
+    pub fn wait(self) -> Result<T> {
         match self.kind {
             ConfirmationKind::Wait(wait) => wait.wait(),
             ConfirmationKind::Map(wait, f) => wait.wait().map(f),
@@ -66,8 +66,8 @@ enum ConfirmationKind<T, I> {
     Map(Box<Confirmation<I>>, Box<dyn Fn(I) -> T + Send + 'static>),
 }
 
-impl<T> From<Result<Wait<T>, Error>> for Confirmation<T> {
-    fn from(res: Result<Wait<T>, Error>) -> Self {
+impl<T> From<Result<Wait<T>>> for Confirmation<T> {
+    fn from(res: Result<Wait<T>>) -> Self {
         match res {
             Ok(wait) => Confirmation::new(wait),
             Err(err) => Confirmation::new_error(err),
@@ -92,7 +92,7 @@ pub(crate) mod futures {
     };
 
     impl<T, I> Future for Confirmation<T, I> {
-        type Output = Result<T, Error>;
+        type Output = Result<T>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             if !self.has_subscriber() {

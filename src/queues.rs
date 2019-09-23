@@ -4,7 +4,7 @@ use crate::{
     queue::QueueState,
     types::ShortString,
     wait::WaitHandle,
-    BasicProperties, Error,
+    BasicProperties, Result,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -34,7 +34,7 @@ impl Queues {
         }
     }
 
-    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<(), Error> {
+    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
         self.queues
             .lock()
             .values_mut()
@@ -42,7 +42,7 @@ impl Queues {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) -> Result<(), Error> {
+    pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
         self.queues
             .lock()
             .values_mut()
@@ -50,7 +50,7 @@ impl Queues {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn cancel_consumers(&self) -> Result<(), Error> {
+    pub(crate) fn cancel_consumers(&self) -> Result<()> {
         self.queues
             .lock()
             .values_mut()
@@ -58,7 +58,7 @@ impl Queues {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn error_consumers(&self) -> Result<(), Error> {
+    pub(crate) fn error_consumers(&self) -> Result<()> {
         self.queues
             .lock()
             .values_mut()
@@ -97,7 +97,7 @@ impl Queues {
         consumer_tag: Option<ShortString>,
         size: u64,
         properties: BasicProperties,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if let Some(queue) = self.queues.lock().get_mut(queue) {
             match consumer_tag {
                 Some(consumer_tag) => {
@@ -126,7 +126,7 @@ impl Queues {
         remaining_size: usize,
         payload_size: usize,
         payload: Vec<u8>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if let Some(queue) = self.queues.lock().get_mut(queue) {
             match consumer_tag {
                 Some(consumer_tag) => {

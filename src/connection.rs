@@ -14,7 +14,7 @@ use crate::{
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     types::ShortUInt,
     wait::{Cancellable, Wait},
-    Error,
+    Error, Result,
 };
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
 use log::{debug, error, trace};
@@ -121,14 +121,14 @@ impl Connection {
         }
     }
 
-    pub(crate) fn remove_channel(&self, channel_id: u16) -> Result<(), Error> {
+    pub(crate) fn remove_channel(&self, channel_id: u16) -> Result<()> {
         self.channels.remove(channel_id)
     }
 
     /// Block current thread while the connection is still active.
     /// This is useful when you only have a consumer and nothing else keeping your application
     /// "alive".
-    pub fn run(&self) -> Result<(), Error> {
+    pub fn run(&self) -> Result<()> {
         self.io_loop.wait()
     }
 
@@ -172,7 +172,7 @@ impl Connection {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
-    pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<(), Error>>) {
+    pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<()>>) {
         self.io_loop.register(io_loop);
     }
 
@@ -182,8 +182,8 @@ impl Connection {
 
     pub fn connector(
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<Wait<Connection>, Error>
-                 + 'static {
+    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<Wait<Connection>> + 'static
+    {
         move |stream, uri, poll| {
             let executor = options
                 .executor
@@ -220,12 +220,12 @@ impl Connection {
         self.status.block();
     }
 
-    pub(crate) fn do_unblock(&self) -> Result<(), Error> {
+    pub(crate) fn do_unblock(&self) -> Result<()> {
         self.status.unblock();
         self.set_readable()
     }
 
-    fn set_readable(&self) -> Result<(), Error> {
+    fn set_readable(&self) -> Result<()> {
         trace!("connection set readable");
         self.registration
             .set_readiness(Ready::readable())
@@ -239,7 +239,7 @@ impl Connection {
         priority: Priority,
         frame: AMQPFrame,
         expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
-    ) -> Result<Wait<()>, Error> {
+    ) -> Result<Wait<()>> {
         trace!("connection send_frame; channel_id={}", channel_id);
         let wait = self
             .frames
@@ -252,7 +252,7 @@ impl Connection {
         &self,
         channel_id: u16,
         frames: Vec<(AMQPFrame, Option<AMQPFrame>)>,
-    ) -> Result<Wait<()>, Error> {
+    ) -> Result<Wait<()>> {
         trace!("connection send_frames; channel_id={}", channel_id);
         let wait = self.frames.push_frames(channel_id, frames);
         self.set_readable()?;
@@ -271,7 +271,7 @@ impl Connection {
     }
 
     /// updates the current state with a new received frame
-    pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
+    pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
         if let Err(err) = self.do_handle_frame(f) {
             self.set_error()?;
             Err(err)
@@ -280,7 +280,7 @@ impl Connection {
         }
     }
 
-    fn do_handle_frame(&self, f: AMQPFrame) -> Result<(), Error> {
+    fn do_handle_frame(&self, f: AMQPFrame) -> Result<()> {
         trace!("will handle frame: {:?}", f);
         match f {
             AMQPFrame::ProtocolHeader => {
@@ -307,13 +307,13 @@ impl Connection {
         Ok(())
     }
 
-    pub(crate) fn send_heartbeat(&self) -> Result<(), Error> {
+    pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.set_readable()?;
         self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?;
         Ok(())
     }
 
-    pub(crate) fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<(), Error> {
+    pub(crate) fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<()> {
         self.set_readable()?;
         self.frames.retry(send_id, frame);
         Ok(())
@@ -328,12 +328,12 @@ impl Connection {
         self.channels.set_closing();
     }
 
-    pub(crate) fn set_closed(&self) -> Result<(), Error> {
+    pub(crate) fn set_closed(&self) -> Result<()> {
         self.set_state(ConnectionState::Closed);
         self.channels.set_closed()
     }
 
-    pub(crate) fn set_error(&self) -> Result<(), Error> {
+    pub(crate) fn set_error(&self) -> Result<()> {
         error!("Connection error");
         self.set_state(ConnectionState::Error);
         self.channels.set_error()?;
@@ -367,7 +367,7 @@ pub trait Connect {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>, Error>;
+    ) -> Result<Wait<Connection>>;
 }
 
 impl Connect for AMQPUri {
@@ -376,7 +376,7 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>, Error> {
+    ) -> Result<Wait<Connection>> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Error::IOError)?
     }
@@ -388,7 +388,7 @@ impl Connect for &str {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>, Error> {
+    ) -> Result<Wait<Connection>> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Error::IOError)?
     }

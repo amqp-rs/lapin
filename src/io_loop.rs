@@ -1,4 +1,6 @@
-use crate::{buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error};
+use crate::{
+    buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error, Result,
+};
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
 use log::{error, trace};
 use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
@@ -19,7 +21,7 @@ const CONTINUE: Token = Token(3);
 
 const FRAMES_STORAGE: usize = 32;
 
-type ThreadHandle = JoinHandle<Result<(), Error>>;
+type ThreadHandle = JoinHandle<Result<()>>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct IoLoopHandle {
@@ -35,11 +37,11 @@ impl Default for IoLoopHandle {
 }
 
 impl IoLoopHandle {
-    pub(crate) fn register(&self, handle: JoinHandle<Result<(), Error>>) {
+    pub(crate) fn register(&self, handle: JoinHandle<Result<()>>) {
         *self.handle.lock() = Some(handle);
     }
 
-    pub(crate) fn wait(&self) -> Result<(), Error> {
+    pub(crate) fn wait(&self) -> Result<()> {
         if let Some(handle) = self.handle.lock().take() {
             handle.join().expect("io loop")?
         }
@@ -77,7 +79,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         connection: Connection,
         socket: T,
         poll: Option<(Poll, Token)>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let (poll, registered) = poll.map(|t| Ok((t.0, true))).unwrap_or_else(|| {
             Poll::new()
                 .map(|poll| (poll, false))
@@ -129,7 +131,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(inner)
     }
 
-    fn start_heartbeat(&mut self, interval: Duration) -> Result<(), Error> {
+    fn start_heartbeat(&mut self, interval: Duration) -> Result<()> {
         let connection = self.connection.clone();
         let send_hartbeat = self.send_heartbeat.clone();
         let hb_handle = ThreadBuilder::new()
@@ -156,14 +158,14 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
-    fn heartbeat(&mut self) -> Result<(), Error> {
+    fn heartbeat(&mut self) -> Result<()> {
         trace!("send heartbeat");
         self.connection.send_heartbeat()?;
         self.send_heartbeat.store(false, Ordering::Relaxed);
         Ok(())
     }
 
-    fn ensure_setup(&mut self) -> Result<(), Error> {
+    fn ensure_setup(&mut self) -> Result<()> {
         if self.status != Status::Setup && self.connection.status().connected() {
             let frame_max = self.connection.configuration().frame_max() as usize;
             self.frame_size = std::cmp::max(self.frame_size, frame_max);
@@ -203,7 +205,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             && !connection_status.errored()
     }
 
-    pub fn run(mut self) -> Result<(), Error> {
+    pub fn run(mut self) -> Result<()> {
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
@@ -223,7 +225,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
-    fn do_run(&mut self, events: &mut Events) -> Result<(), Error> {
+    fn do_run(&mut self, events: &mut Events) -> Result<()> {
         // First, update our internal state
         trace!("io_loop run");
         self.ensure_setup()?;
@@ -325,13 +327,13 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
-    fn send_continue(&mut self) -> Result<(), Error> {
+    fn send_continue(&mut self) -> Result<()> {
         self.set_readiness
             .set_readiness(Ready::readable())
             .map_err(Error::IOError)
     }
 
-    fn write_to_stream(&mut self) -> Result<(), Error> {
+    fn write_to_stream(&mut self) -> Result<()> {
         self.serialize()?;
 
         self.socket
@@ -343,7 +345,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             .map_err(Error::IOError)
     }
 
-    fn read_from_stream(&mut self) -> Result<(), Error> {
+    fn read_from_stream(&mut self) -> Result<()> {
         match self.connection.status().state() {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
@@ -358,7 +360,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         }
     }
 
-    fn serialize(&mut self) -> Result<(), Error> {
+    fn serialize(&mut self) -> Result<()> {
         if let Some((send_id, next_msg)) = self.connection.next_frame() {
             trace!("will write to buffer: {:?}", next_msg);
             let checkpoint = self.send_buffer.checkpoint();
@@ -391,7 +393,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         }
     }
 
-    fn parse(&mut self) -> Result<Option<AMQPFrame>, Error> {
+    fn parse(&mut self) -> Result<Option<AMQPFrame>> {
         match parse_frame(self.receive_buffer.data()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.data().offset(i);

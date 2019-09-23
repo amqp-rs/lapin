@@ -39,7 +39,7 @@ pub(crate) enum Reply {
 }
 
 impl Channel {
-  pub(crate) fn receive_method(&self, method: AMQPClass) -> Result<(), Error> {
+  pub(crate) fn receive_method(&self, method: AMQPClass) -> Result<()> {
     match method {
       {{#each protocol.classes as |class| ~}}
       {{#each class.methods as |method| ~}}
@@ -143,7 +143,7 @@ impl Channel {
 
   {{#if method.s2c ~}}
   {{#if method.is_reply ~}}
-  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if method.arguments ~}}method{{else}}_{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if method.arguments ~}}method{{else}}_{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -178,7 +178,7 @@ impl Channel {
     }
   }
   {{else}}
-  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<(), Error> {
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
     if !self.status.is_connected() {
       return Err(Error::NotConnected);
     }

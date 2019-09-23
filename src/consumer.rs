@@ -1,6 +1,6 @@
 use crate::{
     executor::Executor, message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties,
-    Error,
+    Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
@@ -8,14 +8,14 @@ use parking_lot::{Mutex, MutexGuard};
 use std::{fmt, sync::Arc};
 
 pub trait ConsumerDelegate: Send + Sync {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>);
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>);
     fn drop_prefetched_messages(&self) {}
 }
 
-impl<DeliveryHandler: Fn(Result<Option<Delivery>, Error>) + Send + Sync> ConsumerDelegate
+impl<DeliveryHandler: Fn(Result<Option<Delivery>>) + Send + Sync> ConsumerDelegate
     for DeliveryHandler
 {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>, Error>) {
+    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>) {
         self(delivery);
     }
 }
@@ -60,7 +60,7 @@ impl Consumer {
         }
     }
 
-    pub(crate) fn new_delivery_complete(&mut self) -> Result<(), Error> {
+    pub(crate) fn new_delivery_complete(&mut self) -> Result<()> {
         let mut inner = self.inner();
         if let Some(delivery) = inner.current_message.take() {
             inner.new_delivery(delivery)?;
@@ -68,23 +68,23 @@ impl Consumer {
         Ok(())
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) -> Result<(), Error> {
+    pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
         self.inner().drop_prefetched_messages()
     }
 
-    pub(crate) fn cancel(&self) -> Result<(), Error> {
+    pub(crate) fn cancel(&self) -> Result<()> {
         self.inner().cancel()
     }
 
-    pub(crate) fn set_error(&self, error: Error) -> Result<(), Error> {
+    pub(crate) fn set_error(&self, error: Error) -> Result<()> {
         self.inner().set_error(error)
     }
 }
 
 pub struct ConsumerInner {
     current_message: Option<Delivery>,
-    deliveries_in: Sender<Result<Option<Delivery>, Error>>,
-    deliveries_out: Receiver<Result<Option<Delivery>, Error>>,
+    deliveries_in: Sender<Result<Option<Delivery>>>,
+    deliveries_out: Receiver<Result<Option<Delivery>>>,
     task: Option<Box<dyn NotifyReady + Send>>,
     tag: ShortString,
     delegate: Option<Arc<Mutex<Box<dyn ConsumerDelegate>>>>,
@@ -92,11 +92,11 @@ pub struct ConsumerInner {
 }
 
 pub struct ConsumerIterator {
-    receiver: Receiver<Result<Option<Delivery>, Error>>,
+    receiver: Receiver<Result<Option<Delivery>>>,
 }
 
 impl Iterator for ConsumerIterator {
-    type Item = Result<Delivery, Error>;
+    type Item = Result<Delivery>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.receiver.recv().ok().and_then(Result::transpose)
@@ -104,7 +104,7 @@ impl Iterator for ConsumerIterator {
 }
 
 impl IntoIterator for Consumer {
-    type Item = Result<Delivery, Error>;
+    type Item = Result<Delivery>;
     type IntoIter = ConsumerIterator;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -134,7 +134,7 @@ impl ConsumerInner {
         }
     }
 
-    pub fn next_delivery(&mut self) -> Option<Result<Option<Delivery>, Error>> {
+    pub fn next_delivery(&mut self) -> Option<Result<Option<Delivery>>> {
         self.deliveries_out.try_recv().ok()
     }
 
@@ -150,7 +150,7 @@ impl ConsumerInner {
         &self.tag
     }
 
-    fn new_delivery(&mut self, delivery: Delivery) -> Result<(), Error> {
+    fn new_delivery(&mut self, delivery: Delivery) -> Result<()> {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -172,7 +172,7 @@ impl ConsumerInner {
         while let Some(_) = self.next_delivery() {}
     }
 
-    fn drop_prefetched_messages(&mut self) -> Result<(), Error> {
+    fn drop_prefetched_messages(&mut self) -> Result<()> {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -183,7 +183,7 @@ impl ConsumerInner {
         Ok(())
     }
 
-    fn cancel(&mut self) -> Result<(), Error> {
+    fn cancel(&mut self) -> Result<()> {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -199,7 +199,7 @@ impl ConsumerInner {
         Ok(())
     }
 
-    pub fn set_error(&mut self, error: Error) -> Result<(), Error> {
+    pub fn set_error(&mut self, error: Error) -> Result<()> {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -235,7 +235,7 @@ mod futures {
     use crate::confirmation::futures::Watcher;
 
     impl Stream for Consumer {
-        type Item = Result<Delivery, Error>;
+        type Item = Result<Delivery>;
 
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             trace!("consumer poll; polling transport");

@@ -1,7 +1,7 @@
 use crate::{
     returned_messages::ReturnedMessages,
     wait::{Wait, WaitHandle},
-    Error,
+    Error, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -31,11 +31,11 @@ impl Acknowledgements {
         self.inner.lock().last.take()
     }
 
-    pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<()> {
         self.inner.lock().ack(delivery_tag)
     }
 
-    pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> Result<()> {
         self.inner.lock().nack(delivery_tag)
     }
 
@@ -53,7 +53,7 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
         let mut inner = self.inner.lock();
         for tag in inner.list_pending_before(delivery_tag) {
             inner.ack(tag)?;
@@ -61,7 +61,7 @@ impl Acknowledgements {
         Ok(())
     }
 
-    pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
         let mut inner = self.inner.lock();
         for tag in inner.list_pending_before(delivery_tag) {
             inner.nack(tag)?;
@@ -92,7 +92,7 @@ impl Inner {
         self.last = Some(wait);
     }
 
-    fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<(), Error> {
+    fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
         if let Some(delivery_wait) = self.pending.remove(&delivery_tag) {
             if success {
                 delivery_wait.finish(());
@@ -105,12 +105,12 @@ impl Inner {
         }
     }
 
-    fn ack(&mut self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    fn ack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
         self.drop_pending(delivery_tag, true)?;
         Ok(())
     }
 
-    fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<(), Error> {
+    fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
         self.drop_pending(delivery_tag, false)?;
         Ok(())
     }
