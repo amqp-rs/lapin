@@ -6,7 +6,7 @@
 * `Channel::connection_[,un}blocked` is now `Connection::{,un}block`
 * `failure` as been replaced with `std::error::Error` usage
 * `Confirmation::as_error` has been removed
-* Consumers API has been cleaned up, everything is now a `Result<Option<Delivery>>`
+* Consumers API has been cleaned up, everything is now a `DeliveryResult`
 
 #### Features
 

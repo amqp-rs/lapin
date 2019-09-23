@@ -1,6 +1,6 @@
 use lapin::{
-    message::Delivery, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate, Result,
+    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties, ConsumerDelegate,
 };
 use std::{
     sync::{
@@ -16,7 +16,7 @@ struct Subscriber {
 }
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>) {
+    fn on_new_delivery(&self, delivery: DeliveryResult) {
         println!("received message: {:?}", delivery);
 
         let delivery = delivery.unwrap().unwrap();

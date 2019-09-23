@@ -1,5 +1,5 @@
 use crate::{
-    executor::Executor, message::Delivery, types::ShortString, wait::NotifyReady, BasicProperties,
+    executor::Executor, message::{Delivery, DeliveryResult}, types::ShortString, wait::NotifyReady, BasicProperties,
     Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -8,14 +8,14 @@ use parking_lot::{Mutex, MutexGuard};
 use std::{fmt, sync::Arc};
 
 pub trait ConsumerDelegate: Send + Sync {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>);
+    fn on_new_delivery(&self, delivery: DeliveryResult);
     fn drop_prefetched_messages(&self) {}
 }
 
-impl<DeliveryHandler: Fn(Result<Option<Delivery>>) + Send + Sync> ConsumerDelegate
+impl<DeliveryHandler: Fn(DeliveryResult) + Send + Sync> ConsumerDelegate
     for DeliveryHandler
 {
-    fn on_new_delivery(&self, delivery: Result<Option<Delivery>>) {
+    fn on_new_delivery(&self, delivery: DeliveryResult) {
         self(delivery);
     }
 }
@@ -83,8 +83,8 @@ impl Consumer {
 
 pub struct ConsumerInner {
     current_message: Option<Delivery>,
-    deliveries_in: Sender<Result<Option<Delivery>>>,
-    deliveries_out: Receiver<Result<Option<Delivery>>>,
+    deliveries_in: Sender<DeliveryResult>,
+    deliveries_out: Receiver<DeliveryResult>,
     task: Option<Box<dyn NotifyReady + Send>>,
     tag: ShortString,
     delegate: Option<Arc<Mutex<Box<dyn ConsumerDelegate>>>>,
@@ -92,7 +92,7 @@ pub struct ConsumerInner {
 }
 
 pub struct ConsumerIterator {
-    receiver: Receiver<Result<Option<Delivery>>>,
+    receiver: Receiver<DeliveryResult>,
 }
 
 impl Iterator for ConsumerIterator {
@@ -134,7 +134,7 @@ impl ConsumerInner {
         }
     }
 
-    pub fn next_delivery(&mut self) -> Option<Result<Option<Delivery>>> {
+    pub fn next_delivery(&mut self) -> Option<DeliveryResult> {
         self.deliveries_out.try_recv().ok()
     }
 
