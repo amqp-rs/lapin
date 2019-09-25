@@ -1,6 +1,9 @@
 use crate::{
-    executor::Executor, message::{Delivery, DeliveryResult}, types::ShortString, wait::NotifyReady, BasicProperties,
-    Error, Result,
+    executor::Executor,
+    message::{Delivery, DeliveryResult},
+    types::ShortString,
+    wait::NotifyReady,
+    BasicProperties, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
@@ -12,9 +15,7 @@ pub trait ConsumerDelegate: Send + Sync {
     fn drop_prefetched_messages(&self) {}
 }
 
-impl<DeliveryHandler: Fn(DeliveryResult) + Send + Sync> ConsumerDelegate
-    for DeliveryHandler
-{
+impl<DeliveryHandler: Fn(DeliveryResult) + Send + Sync> ConsumerDelegate for DeliveryHandler {
     fn on_new_delivery(&self, delivery: DeliveryResult) {
         self(delivery);
     }

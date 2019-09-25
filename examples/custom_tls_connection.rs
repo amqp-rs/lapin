@@ -1,7 +1,7 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
 use lapin::{
-    confirmation::Confirmation, message::DeliveryResult, options::*, types::FieldTable, BasicProperties,
-    Connection, ConnectionProperties, ConsumerDelegate, Error, Result
+    confirmation::Confirmation, message::DeliveryResult, options::*, types::FieldTable,
+    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Error, Result,
 };
 use log::info;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
