@@ -159,9 +159,11 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn heartbeat(&mut self) -> Result<()> {
-        trace!("send heartbeat");
-        self.connection.send_heartbeat()?;
-        self.send_heartbeat.store(false, Ordering::Relaxed);
+        if self.send_heartbeat.load(Ordering::Relaxed) {
+            trace!("send heartbeat");
+            self.connection.send_heartbeat()?;
+            self.send_heartbeat.store(false, Ordering::Relaxed);
+        }
         Ok(())
     }
 
@@ -205,14 +207,14 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             && !connection_status.errored()
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn start(mut self) -> Result<()> {
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
                 .spawn(move || {
                     let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
-                        self.do_run(&mut events)?;
+                        self.run(&mut events)?;
                     }
                     if let Some(hb_handle) = self.hb_handle.take() {
                         hb_handle.thread().unpark();
@@ -225,10 +227,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
-    fn do_run(&mut self, events: &mut Events) -> Result<()> {
-        // First, update our internal state
-        trace!("io_loop run");
-        self.ensure_setup()?;
+    fn poll(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop poll");
         self.poll
             .poll(events, self.poll_timeout)
@@ -248,8 +247,17 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 _ => {}
             }
         }
+        Ok(())
+    }
 
-        // Then, actually run an iteration of the event loop
+    fn run(&mut self, events: &mut Events) -> Result<()> {
+        trace!("io_loop run");
+        self.ensure_setup()?;
+        self.poll(events)?;
+        self.do_run()
+    }
+
+    fn do_run(&mut self) -> Result<()> {
         trace!(
             "io_loop do_run; can_read={}, can_write={}, has_data={}",
             self.can_read,
@@ -257,63 +265,18 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             self.has_data
         );
         loop {
-            if self.send_heartbeat.load(Ordering::Relaxed) {
-                self.heartbeat()?;
-            }
-            if self.can_write() {
-                if let Err(e) = self.write_to_stream() {
-                    if e.wouldblock() {
-                        self.can_write = false
-                    } else {
-                        error!("error writing: {:?}", e);
-                        if let ConnectionState::SentProtocolHeader(wait_handle, ..) =
-                            self.connection.status().state()
-                        {
-                            wait_handle.error(Error::ConnectionRefused);
-                            self.status = Status::Stop;
-                        }
-                        self.connection.set_error()?;
-                        return Err(e);
-                    }
-                }
-                self.send_buffer.shift_unless_available(self.frame_size);
-            }
+            self.heartbeat()?;
+            self.write()?;
             if self.connection.status().closed() {
                 self.status = Status::Stop;
             }
-            if self.should_continue() && self.can_read() {
-                if let Err(e) = self.read_from_stream() {
-                    if e.wouldblock() {
-                        self.can_read = false
-                    } else {
-                        error!("error reading: {:?}", e);
-                        self.connection.set_error()?;
-                        return Err(e);
-                    }
-                }
-                self.receive_buffer.shift_unless_available(self.frame_size);
+            if self.should_continue() {
+                self.read()?;
             }
-            if self.can_parse() {
-                if let Some(frame) = self.parse()? {
-                    self.connection.handle_frame(frame)?;
-                }
-            }
-            if !self.can_read()
-                || !self.can_write()
-                || self.status == Status::Stop
-                || self.connection.status().errored()
+            self.parse()?;
+            if self.stop_looping()
             {
-                if self.status != Status::Stop
-                    && (self.can_read() || self.can_parse() || self.can_write())
-                {
-                    trace!(
-                        "io_loop send continue; can_read={}, can_write={}, has_data={}",
-                        self.can_read,
-                        self.can_write,
-                        self.has_data
-                    );
-                    self.send_continue()?;
-                }
+                self.maybe_continue()?;
                 break;
             }
         }
@@ -324,6 +287,66 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             self.has_data,
             self.status
         );
+        Ok(())
+    }
+
+    fn stop_looping(&self) -> bool {
+        !self.can_read()
+            || !self.can_write()
+            || self.status == Status::Stop
+            || self.connection.status().errored()
+    }
+
+    fn maybe_continue(&mut self) -> Result<()> {
+        if self.status != Status::Stop
+            && (self.can_read() || self.can_parse() || self.can_write())
+            {
+                trace!(
+                    "io_loop send continue; can_read={}, can_write={}, has_data={}",
+                    self.can_read,
+                    self.can_write,
+                    self.has_data
+                );
+                self.send_continue()?;
+            }
+        Ok(())
+    }
+
+    fn write(&mut self) -> Result<()> {
+        if self.can_write() {
+            if let Err(e) = self.write_to_stream() {
+                if e.wouldblock() {
+                    self.can_write = false
+                } else {
+                    error!("error writing: {:?}", e);
+                    if let ConnectionState::SentProtocolHeader(wait_handle, ..) =
+                        self.connection.status().state()
+                        {
+                            wait_handle.error(Error::ConnectionRefused);
+                            self.status = Status::Stop;
+                        }
+                    self.connection.set_error()?;
+                    return Err(e);
+                }
+            }
+            self.send_buffer.shift_unless_available(self.frame_size);
+        }
+        Ok(())
+    }
+
+    fn read(&mut self) -> Result<()> {
+        if self.can_read() {
+            if let Err(e) = self.read_from_stream() {
+                if e.wouldblock() {
+                    self.can_read = false
+                } else {
+                    error!("error reading: {:?}", e);
+                    self.connection.set_error()?;
+                    return Err(e);
+                }
+            }
+            self.receive_buffer.shift_unless_available(self.frame_size);
+        }
         Ok(())
     }
 
@@ -393,7 +416,16 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         }
     }
 
-    fn parse(&mut self) -> Result<Option<AMQPFrame>> {
+    fn parse(&mut self) -> Result<()> {
+        if self.can_parse() {
+            if let Some(frame) = self.do_parse()? {
+                self.connection.handle_frame(frame)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn do_parse(&mut self) -> Result<Option<AMQPFrame>> {
         match parse_frame(self.receive_buffer.data()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.data().offset(i);

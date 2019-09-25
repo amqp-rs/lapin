@@ -7,6 +7,7 @@
 * `failure` as been replaced with `std::error::Error` usage
 * `Confirmation::as_error` has been removed
 * Consumers API has been cleaned up, everything is now a `DeliveryResult`
+* `IoLoop::run` is now `IoLoop::start`
 
 #### Features
 
