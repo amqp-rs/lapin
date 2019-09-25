@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "0.27.0-beta.7"
+version = "0.27.0"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -23,11 +23,11 @@ rustls     = ["amq-protocol/rustls"]
 tokio      = ["amq-protocol/tokio"]
 
 [build-dependencies]
-amq-protocol-codegen = "=3.0.0-beta.2"
+amq-protocol-codegen = "^3.0"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "=3.0.0-beta.2"
+version = "^3.0"
 default-features = false
 
 [dependencies.futures]
@@ -42,7 +42,7 @@ mio = "^0.6"
 parking_lot = '^0.9'
 
 [dev-dependencies]
-env_logger = "^0.6"
+env_logger = "^0.7"
 futures-executor = { version = "^0.3.0-alpha.18", package = "futures-executor-preview" }
 futures-util = { version = "^0.3.0-alpha.18", package = "futures-util-preview" }
 tcp-stream = "^0.7"
