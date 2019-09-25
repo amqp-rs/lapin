@@ -24,6 +24,14 @@ impl ConnectionStatus {
         self.inner.write().vhost = vhost.into();
     }
 
+    pub fn username(&self) -> String {
+        self.inner.read().username.clone()
+    }
+
+    pub(crate) fn set_username(&self, username: &str) {
+        self.inner.write().username = username.into();
+    }
+
     pub(crate) fn block(&self) {
         self.inner.write().blocked = true;
     }
@@ -93,6 +101,7 @@ impl PartialEq for ConnectionState {
 struct Inner {
     state: ConnectionState,
     vhost: String,
+    username: String,
     blocked: bool,
 }
 
@@ -101,6 +110,7 @@ impl Default for Inner {
         Self {
             state: ConnectionState::default(),
             vhost: "/".into(),
+            username: "guest".into(),
             blocked: false,
         }
     }

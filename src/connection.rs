@@ -32,24 +32,6 @@ pub struct Connection {
     error_handler: ErrorHandler,
 }
 
-impl Connection {
-    fn new(executor: Arc<dyn Executor>) -> Self {
-        let frames = Frames::default();
-        let connection = Self {
-            configuration: Configuration::default(),
-            status: ConnectionStatus::default(),
-            channels: Channels::new(frames.clone(), executor),
-            registration: Registration::default(),
-            frames,
-            io_loop: IoLoopHandle::default(),
-            error_handler: ErrorHandler::default(),
-        };
-
-        connection.channels.create_zero(connection.clone());
-        connection
-    }
-}
-
 impl Default for Connection {
     fn default() -> Self {
         Self::new(DefaultExecutor::default())
@@ -83,6 +65,22 @@ impl Evented for Connection {
 }
 
 impl Connection {
+    fn new(executor: Arc<dyn Executor>) -> Self {
+        let frames = Frames::default();
+        let connection = Self {
+            configuration: Configuration::default(),
+            status: ConnectionStatus::default(),
+            channels: Channels::new(frames.clone(), executor),
+            registration: Registration::default(),
+            frames,
+            io_loop: IoLoopHandle::default(),
+            error_handler: ErrorHandler::default(),
+        };
+
+        connection.channels.create_zero(connection.clone());
+        connection
+    }
+
     /// Connect to an AMQP Server
     pub fn connect(uri: &str, options: ConnectionProperties) -> Confirmation<Connection> {
         Connect::connect(uri, options, None)
@@ -191,6 +189,7 @@ impl Connection {
                 .unwrap_or_else(|| DefaultExecutor::new(options.max_executor_threads));
             let conn = Connection::new(executor);
             conn.status.set_vhost(&uri.vhost);
+            conn.status.set_username(&uri.authority.userinfo.username);
             if let Some(frame_max) = uri.query.frame_max {
                 conn.configuration.set_frame_max(frame_max);
             }
