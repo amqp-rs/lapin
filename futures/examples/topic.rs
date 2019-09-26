@@ -2,7 +2,7 @@ use crate::lapin::options::{
     BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
 };
 use crate::lapin::types::FieldTable;
-use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+use crate::lapin::{BasicProperties, Client, ConnectionProperties, ExchangeKind};
 use futures::Future;
 use lapin_futures as lapin;
 
@@ -21,7 +21,7 @@ fn main() {
                             .clone()
                             .exchange_declare(
                                 "hello_topic",
-                                "topic",
+                                ExchangeKind::Topic,
                                 ExchangeDeclareOptions::default(),
                                 FieldTable::default(),
                             )

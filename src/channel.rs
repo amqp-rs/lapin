@@ -16,7 +16,7 @@ use crate::{
     returned_messages::ReturnedMessages,
     types::*,
     wait::{Cancellable, Wait, WaitHandle},
-    BasicProperties, Error, Result,
+    BasicProperties, Error, ExchangeKind, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
@@ -100,6 +100,16 @@ impl Channel {
         arguments: FieldTable,
     ) -> Confirmation<Consumer> {
         self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments)
+    }
+
+    pub fn exchange_declare(
+        &self,
+        exchange: &str,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) -> Confirmation<()> {
+        self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
     pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>> {

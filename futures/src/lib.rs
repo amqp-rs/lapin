@@ -91,7 +91,7 @@
 
 pub use lapin::{
     auth, message, options, protocol, tcp, types, uri, BasicProperties, Configuration,
-    ConnectionProperties, ConsumerDelegate, Error, Queue, Result,
+    ConnectionProperties, ConsumerDelegate, Error, ExchangeKind, Queue, Result,
 };
 
 pub use channel::Channel;

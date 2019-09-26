@@ -4,7 +4,7 @@ use crate::lapin::options::{
     QueueDeclareOptions,
 };
 use crate::lapin::types::FieldTable;
-use crate::lapin::{BasicProperties, Client, ConnectionProperties};
+use crate::lapin::{BasicProperties, Client, ConnectionProperties, ExchangeKind};
 use futures::{Future, Stream};
 use lapin_futures as lapin;
 use log::{debug, info};
@@ -23,7 +23,7 @@ fn main() {
                 channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
                     info!("channel {} declared queue {}", id, "hello");
 
-                    channel.exchange_declare("hello_exchange", "direct", ExchangeDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
+                    channel.exchange_declare("hello_exchange", ExchangeKind::Direct, ExchangeDeclareOptions::default(), FieldTable::default()).and_then(move |_| {
                         channel.queue_bind("hello", "hello_exchange", "hello_2", QueueBindOptions::default(), FieldTable::default()).and_then(move |_| {
                             channel.basic_publish(
                                 "hello_exchange",

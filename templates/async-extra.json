@@ -145,6 +145,13 @@
       }
     }
   },
+  "exchange": {
+    "declare": {
+      "metadata": {
+        "require_wrapper": true
+      }
+    }
+  },
   "basic": {
     "consume": {
       "metadata": {

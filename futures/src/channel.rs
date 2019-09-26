@@ -1,11 +1,10 @@
 use futures::Future;
 use lapin::{Channel as InnerChannel, Connection};
-
 use crate::{
     message::{BasicGetMessage, BasicReturnMessage},
     options::*,
     types::{Boolean, FieldTable, LongUInt, ShortUInt},
-    BasicProperties, ConfirmationFuture, Consumer, Error, Queue,
+    BasicProperties, ConfirmationFuture, Consumer, Error, ExchangeKind, Queue,
 };
 
 /// `Channel` provides methods to act on a channel, such as managing queues
@@ -42,7 +41,7 @@ impl Channel {
     pub fn exchange_declare(
         &self,
         name: &str,
-        exchange_type: &str,
+        exchange_type: ExchangeKind,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> ConfirmationFuture<()> {

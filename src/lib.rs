@@ -67,6 +67,7 @@ pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate};
 pub use error::{Error, Result};
+pub use exchange::ExchangeKind;
 pub use queue::Queue;
 
 pub mod confirmation;
@@ -85,6 +86,7 @@ mod connection_status;
 mod consumer;
 mod error;
 mod error_handler;
+mod exchange;
 mod frames;
 mod id_sequence;
 mod io_loop;

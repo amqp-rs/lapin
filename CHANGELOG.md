@@ -1,3 +1,13 @@
+### 0.28.0 (2019-09-25)
+
+#### Features
+
+* Warn on unused `Confirmation`
+
+#### Breaking changes
+
+* `Channel::exchange_declare` now takes an `ExchangeKind` parameter instead of an `&str`
+
 ### 0.27.0 (2019-09-25)
 
 #### Breaking changes
