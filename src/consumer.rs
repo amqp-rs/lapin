@@ -42,7 +42,7 @@ impl Consumer {
         while let Some(delivery) = inner.next_delivery() {
             delegate.on_new_delivery(delivery);
         }
-        inner.delegate = Some(Arc::new(Mutex::new(delegate)));
+        inner.delegate = Some(Arc::new(delegate));
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
@@ -88,7 +88,7 @@ pub struct ConsumerInner {
     deliveries_out: Receiver<DeliveryResult>,
     task: Option<Box<dyn NotifyReady + Send>>,
     tag: ShortString,
-    delegate: Option<Arc<Mutex<Box<dyn ConsumerDelegate>>>>,
+    delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
     executor: Arc<dyn Executor>,
 }
 
@@ -156,7 +156,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.execute(Box::new(move || {
-                delegate.lock().on_new_delivery(Ok(Some(delivery)))
+                delegate.on_new_delivery(Ok(Some(delivery)))
             }))?;
         } else {
             self.deliveries_in
@@ -178,7 +178,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .execute(Box::new(move || delegate.lock().drop_prefetched_messages()))?;
+                .execute(Box::new(move || delegate.drop_prefetched_messages()))?;
         }
         self.drop_deliveries();
         Ok(())
@@ -189,7 +189,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .execute(Box::new(move || delegate.lock().on_new_delivery(Ok(None))))?;
+                .execute(Box::new(move || delegate.on_new_delivery(Ok(None))))?;
         } else {
             self.deliveries_in
                 .send(Ok(None))
@@ -205,7 +205,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.execute(Box::new(move || {
-                delegate.lock().on_new_delivery(Err(error))
+                delegate.on_new_delivery(Err(error))
             }))?;
         } else {
             self.deliveries_in
