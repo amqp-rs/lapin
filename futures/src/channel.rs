@@ -1,12 +1,11 @@
-use futures::Future;
-use lapin::{Channel as InnerChannel, Connection};
-
 use crate::{
     message::{BasicGetMessage, BasicReturnMessage},
     options::*,
     types::{Boolean, FieldTable, LongUInt, ShortUInt},
     BasicProperties, ConfirmationFuture, Consumer, Error, Queue,
 };
+use futures::Future;
+use lapin::{Channel as InnerChannel, Connection};
 
 /// `Channel` provides methods to act on a channel, such as managing queues
 #[derive(Clone)]

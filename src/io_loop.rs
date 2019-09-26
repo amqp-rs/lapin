@@ -274,8 +274,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 self.read()?;
             }
             self.parse()?;
-            if self.stop_looping()
-            {
+            if self.stop_looping() {
                 self.maybe_continue()?;
                 break;
             }
@@ -297,18 +296,20 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             || self.connection.status().errored()
     }
 
+    fn has_pending_operations(&self) -> bool {
+        self.status != Status::Stop && (self.can_read() || self.can_parse() || self.can_write())
+    }
+
     fn maybe_continue(&mut self) -> Result<()> {
-        if self.status != Status::Stop
-            && (self.can_read() || self.can_parse() || self.can_write())
-            {
-                trace!(
-                    "io_loop send continue; can_read={}, can_write={}, has_data={}",
-                    self.can_read,
-                    self.can_write,
-                    self.has_data
-                );
-                self.send_continue()?;
-            }
+        if self.has_pending_operations() {
+            trace!(
+                "io_loop send continue; can_read={}, can_write={}, has_data={}",
+                self.can_read,
+                self.can_write,
+                self.has_data
+            );
+            self.send_continue()?;
+        }
         Ok(())
     }
 
@@ -321,10 +322,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     error!("error writing: {:?}", e);
                     if let ConnectionState::SentProtocolHeader(wait_handle, ..) =
                         self.connection.status().state()
-                        {
-                            wait_handle.error(Error::ConnectionRefused);
-                            self.status = Status::Stop;
-                        }
+                    {
+                        wait_handle.error(Error::ConnectionRefused);
+                        self.status = Status::Stop;
+                    }
                     self.connection.set_error()?;
                     return Err(e);
                 }
