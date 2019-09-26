@@ -1,3 +1,10 @@
+### 0.27.1 (2019-09-26)
+
+#### Bug Fixes
+
+* Warn on unused `Confirmation`
+* Avoid Mutex around consumer delegate to enable proper multithreading
+
 ### 0.27.0 (2019-09-25)
 
 #### Breaking changes
