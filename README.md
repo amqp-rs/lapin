@@ -15,7 +15,7 @@ lapin is available on [crates.io](https://crates.io/crates/lapin) and can be inc
 
 ```toml
 [dependencies]
-lapin = "^0.27.1"
+lapin = "^0.28"
 ```
 
 Then include it in your code like this:
@@ -85,7 +85,7 @@ lapin-futures is available on [crates.io](https://crates.io/crates/lapin-futures
 
 ```toml
 [dependencies]
-lapin-futures = "^0.27.1"
+lapin-futures = "^0.28"
 ```
 
 Then include it in your code like this:
