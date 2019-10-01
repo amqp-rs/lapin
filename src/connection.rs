@@ -8,12 +8,12 @@ use crate::{
     error_handler::ErrorHandler,
     executor::DefaultExecutor,
     executor::Executor,
-    frames::{Frames, Priority, SendId},
+    frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
     registration::Registration,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     types::ShortUInt,
-    wait::{Cancellable, Wait},
+    wait::Wait,
     Error, Result,
 };
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
@@ -237,7 +237,7 @@ impl Connection {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
+        expected_reply: Option<ExpectedReply>,
     ) -> Result<Wait<()>> {
         trace!("connection send_frame; channel_id={}", channel_id);
         let wait = self

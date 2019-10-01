@@ -7,7 +7,7 @@ use crate::{
     connection_status::ConnectionState,
     consumer::Consumer,
     executor::Executor,
-    frames::Priority,
+    frames::{ExpectedReply, Priority},
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
@@ -15,7 +15,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    wait::{Cancellable, Wait, WaitHandle},
+    wait::{Wait, WaitHandle},
     BasicProperties, Error, ExchangeKind, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
@@ -131,7 +131,7 @@ impl Channel {
     pub(crate) fn send_method_frame(
         &self,
         method: AMQPClass,
-        expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
+        expected_reply: Option<ExpectedReply>,
     ) -> Result<Wait<()>> {
         self.send_frame(
             Priority::NORMAL,
@@ -174,7 +174,7 @@ impl Channel {
         &self,
         priority: Priority,
         frame: AMQPFrame,
-        expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
+        expected_reply: Option<ExpectedReply>,
     ) -> Result<Wait<()>> {
         self.connection
             .send_frame(self.id, priority, frame, expected_reply)

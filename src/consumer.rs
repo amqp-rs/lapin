@@ -204,9 +204,8 @@ impl ConsumerInner {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.execute(Box::new(move || {
-                delegate.on_new_delivery(Err(error))
-            }))?;
+            self.executor
+                .execute(Box::new(move || delegate.on_new_delivery(Err(error))))?;
         } else {
             self.deliveries_in
                 .send(Err(error))

@@ -13,6 +13,8 @@ use std::{
     sync::Arc,
 };
 
+pub(crate) type ExpectedReply = (Reply, Box<dyn Cancellable + Send>);
+
 pub(crate) type SendId = u64;
 
 #[derive(Clone, Debug)]
@@ -38,7 +40,7 @@ impl Frames {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
+        expected_reply: Option<ExpectedReply>,
     ) -> Wait<()> {
         self.inner
             .lock()
@@ -87,8 +89,6 @@ impl Frames {
     }
 }
 
-type ExpectedReply = (Reply, Box<dyn Cancellable + Send>);
-
 #[derive(Debug)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
@@ -121,7 +121,7 @@ impl Inner {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        expected_reply: Option<(Reply, Box<dyn Cancellable + Send>)>,
+        expected_reply: Option<ExpectedReply>,
     ) -> Wait<()> {
         let send_id = if let Priority::CRITICAL = priority {
             0
@@ -232,10 +232,7 @@ impl Inner {
         }
     }
 
-    fn cancel_expected_replies(
-        replies: VecDeque<(Reply, Box<dyn Cancellable + Send>)>,
-        channel_state: ChannelState,
-    ) {
+    fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, channel_state: ChannelState) {
         for (_, cancel) in replies {
             cancel.cancel(Error::InvalidChannelState(channel_state.clone()));
         }
