@@ -1,4 +1,5 @@
 use crate::types::ShortString;
+use log::trace;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_confirm(&self) {
-        self.inner.write().confirm = true
+        self.inner.write().confirm = true;
         trace!("Publisher confirms activated");
     }
 
