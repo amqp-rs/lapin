@@ -114,9 +114,11 @@ impl Channel {
 
     pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>> {
         if let Some(wait) = self.acknowledgements.get_last_pending() {
+            trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
             Confirmation::new(wait).map(Box::new(move |_| returned_messages.drain()))
         } else {
+            trace!("No confirms to wait for");
             let (wait, wait_handle) = Wait::new();
             wait_handle.finish(Vec::default());
             Confirmation::new(wait)
@@ -308,6 +310,7 @@ impl Channel {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
             self.acknowledgements.register_pending(delivery_tag);
+            trace!("Marked delivery {} as pending confirmation", delivery_tag);
         }
         Ok(())
     }
@@ -691,6 +694,7 @@ impl Channel {
     }
 
     fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<()> {
+        trace!("Got confirmation for {}", method.delivery_tag);
         if self.status.confirm() {
             if method.multiple {
                 if method.delivery_tag > 0 {
