@@ -193,7 +193,7 @@
             "type": "BasicProperties"
           }
         ],
-        "end_hook": true
+        "start_hook": true
       }
     },
     "get": {

@@ -261,6 +261,14 @@ impl Channel {
         }
     }
 
+    fn before_basic_publish(&self) {
+        if self.status.confirm() {
+            let delivery_tag = self.delivery_tag.next();
+            self.acknowledgements.register_pending(delivery_tag);
+            trace!("Marked delivery {} as pending confirmation", delivery_tag);
+        }
+    }
+
     fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
         self.do_channel_close(
             AMQPSoftError::PRECONDITIONFAILED.get_id(),
@@ -304,15 +312,6 @@ impl Channel {
 
     fn on_channel_close_ok_sent(&self) -> Result<()> {
         self.set_closed()
-    }
-
-    fn on_basic_publish_sent(&self) -> Result<()> {
-        if self.status.confirm() {
-            let delivery_tag = self.delivery_tag.next();
-            self.acknowledgements.register_pending(delivery_tag);
-            trace!("Marked delivery {} as pending confirmation", delivery_tag);
-        }
-        Ok(())
     }
 
     fn on_basic_recover_async_sent(&self) -> Result<()> {

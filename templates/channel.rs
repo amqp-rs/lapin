@@ -74,6 +74,10 @@ impl Channel {
       return Confirmation::new_error(Error::NotConnected);
     }
 
+    {{#if method.metadata.start_hook ~}}
+    self.before_{{snake class.name false}}_{{snake method.name false}}({{#each method.metadata.start_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+    {{/if ~}}
+
     {{#unless method.ignore_args ~}}
     {{#each_argument method.arguments as |argument| ~}}
     {{#unless argument_is_value ~}}
