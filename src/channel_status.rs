@@ -32,6 +32,7 @@ impl ChannelStatus {
 
     pub(crate) fn set_confirm(&self) {
         self.inner.write().confirm = true
+        trace!("Publisher confirms activated");
     }
 
     pub fn state(&self) -> ChannelState {
