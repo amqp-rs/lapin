@@ -12,7 +12,7 @@
 //!
 //! use crate::lapin::{
 //!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
-//!   message::Delivery,
+//!   message::DeliveryResult,
 //!   options::*,
 //!   types::FieldTable,
 //! };
@@ -23,8 +23,10 @@
 //! }
 //!
 //! impl ConsumerDelegate for Subscriber {
-//!   fn on_new_delivery(&self, delivery: Delivery) {
-//!     self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).wait().expect("basic_ack");
+//!   fn on_new_delivery(&self, delivery: DeliveryResult) {
+//!     if let Some(delivery) = delivery.unwrap() {
+//!       self.channel.basic_ack(delivery.delivery_tag, BasicAckOptions::default()).wait().expect("basic_ack");
+//!     }
 //!   }
 //! }
 //!
