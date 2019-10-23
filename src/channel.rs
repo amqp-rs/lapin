@@ -693,7 +693,8 @@ impl Channel {
     }
 
     fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<()> {
-        trace!("Got confirmation for {}", method.delivery_tag);
+        trace!("Got positive confirmation for {}", method.delivery_tag);
+        trace!("Channel status is {:?}", self.status);
         if self.status.confirm() {
             if method.multiple {
                 if method.delivery_tag > 0 {
@@ -725,6 +726,8 @@ impl Channel {
     }
 
     fn on_basic_nack_received(&self, method: protocol::basic::Nack) -> Result<()> {
+        trace!("Got negative confirmation for {}", method.delivery_tag);
+        trace!("Channel status is {:?}", self.status);
         if self.status.confirm() {
             if method.multiple {
                 if method.delivery_tag > 0 {
@@ -774,6 +777,7 @@ impl Channel {
 
     fn on_confirm_select_ok_received(&self) -> Result<()> {
         self.status.set_confirm();
+        trace!("Channel status is now {:?}", self.status);
         Ok(())
     }
 
