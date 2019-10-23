@@ -228,6 +228,7 @@ impl Connection {
         trace!("connection set readable");
         self.registration
             .set_readiness(Ready::readable())
+            .map_err(Arc::new)
             .map_err(Error::IOError)?;
         Ok(())
     }
@@ -352,7 +353,7 @@ pub trait Connect {
     where
         Self: Sized,
     {
-        match Poll::new().map_err(Error::IOError) {
+        match Poll::new().map_err(Arc::new).map_err(Error::IOError) {
             Ok(poll) => self
                 .connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
                 .into(),
@@ -377,6 +378,7 @@ impl Connect for AMQPUri {
         identity: Option<Identity<'_, '_>>,
     ) -> Result<Wait<Connection>> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
+            .map_err(Arc::new)
             .map_err(Error::IOError)?
     }
 }
@@ -389,6 +391,7 @@ impl Connect for &str {
         identity: Option<Identity<'_, '_>>,
     ) -> Result<Wait<Connection>> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
+            .map_err(Arc::new)
             .map_err(Error::IOError)?
     }
 }

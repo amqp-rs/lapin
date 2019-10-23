@@ -48,6 +48,7 @@ impl DefaultExecutor {
                             f();
                         }
                     })
+                    .map_err(Arc::new)
                     .map_err(Error::IOError)?,
             );
         }

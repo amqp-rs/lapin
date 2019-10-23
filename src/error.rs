@@ -1,6 +1,6 @@
 use crate::{channel_status::ChannelState, connection_status::ConnectionState};
 use amq_protocol::{frame::GenError, protocol::AMQPClass};
-use std::{error, fmt, io};
+use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
 pub type Result<T> = std::result::Result<T, Error>;
@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error {
     InvalidMethod(AMQPClass),
     InvalidChannel(u16),
@@ -21,8 +21,8 @@ pub enum Error {
     InvalidChannelState(ChannelState),
     InvalidConnectionState(ConnectionState),
     ParsingError(String),
-    SerialisationError(GenError),
-    IOError(io::Error),
+    SerialisationError(Arc<GenError>),
+    IOError(Arc<io::Error>),
     /// A hack to prevent developers from exhaustively match on the enum's variants
     ///
     /// The purpose of this variant is to let the `Error` enumeration grow more variants
@@ -75,8 +75,8 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Error::SerialisationError(e) => Some(e),
-            Error::IOError(e) => Some(e),
+            Error::SerialisationError(e) => Some(&**e),
+            Error::IOError(e) => Some(&**e),
             _ => None,
         }
     }

@@ -4,6 +4,7 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Error, Result,
 };
 use log::info;
+use std::sync::Arc;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,6 +38,7 @@ fn connect() -> Result<Connection> {
             let stream = res.unwrap();
             Connection::connector(ConnectionProperties::default())(stream, uri, poll)
         })
+        .map_err(Arc::new)
         .map_err(Error::IOError)?;
     Confirmation::from(conn).wait()
 }

@@ -83,6 +83,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         let (poll, registered) = poll.map(|t| Ok((t.0, true))).unwrap_or_else(|| {
             Poll::new()
                 .map(|poll| (poll, false))
+                .map_err(Arc::new)
                 .map_err(Error::IOError)
         })?;
         let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
@@ -108,16 +109,19 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
             inner
                 .poll
                 .reregister(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .map_err(Arc::new)
                 .map_err(Error::IOError)?;
         } else {
             inner
                 .poll
                 .register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .map_err(Arc::new)
                 .map_err(Error::IOError)?;
         }
         inner
             .poll
             .register(&inner.connection, DATA, Ready::readable(), PollOpt::edge())
+            .map_err(Arc::new)
             .map_err(Error::IOError)?;
         inner
             .poll
@@ -127,6 +131,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 Ready::readable(),
                 PollOpt::edge(),
             )
+            .map_err(Arc::new)
             .map_err(Error::IOError)?;
         Ok(inner)
     }
@@ -153,6 +158,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     send_hartbeat.store(true, Ordering::Relaxed);
                 }
             })
+            .map_err(Arc::new)
             .map_err(Error::IOError)?;
         self.hb_handle = Some(hb_handle);
         Ok(())
@@ -222,6 +228,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     }
                     Ok(())
                 })
+                .map_err(Arc::new)
                 .map_err(Error::IOError)?,
         );
         Ok(())
@@ -231,6 +238,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         trace!("io_loop poll");
         self.poll
             .poll(events, self.poll_timeout)
+            .map_err(Arc::new)
             .map_err(Error::IOError)?;
         trace!("io_loop poll done");
         for event in events.iter() {
@@ -354,6 +362,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     fn send_continue(&mut self) -> Result<()> {
         self.set_readiness
             .set_readiness(Ready::readable())
+            .map_err(Arc::new)
             .map_err(Error::IOError)
     }
 
@@ -366,6 +375,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 trace!("wrote {} bytes", sz);
                 self.send_buffer.consume(sz);
             })
+            .map_err(Arc::new)
             .map_err(Error::IOError)
     }
 
@@ -380,6 +390,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
                 })
+                .map_err(Arc::new)
                 .map_err(Error::IOError),
         }
     }
@@ -406,7 +417,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                         e => {
                             error!("error generating frame: {:?}", e);
                             self.connection.set_error()?;
-                            Err(Error::SerialisationError(e))
+                            Err(Error::SerialisationError(Arc::new(e)))
                         }
                     }
                 }
