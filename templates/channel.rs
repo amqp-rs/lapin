@@ -162,18 +162,19 @@ impl Channel {
 
     match self.connection.next_expected_reply(self.id) {
       Some(Reply::{{camel class.name}}{{camel method.name}}(wait_handle{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+        {{#if method.arguments ~}}
+        let res = self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, wait_handle{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}});
+        {{else}}
+        {{#if method.metadata.received_hook ~}}
+        let res = self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+        {{else}}
+        let res = Ok(());
+        {{/if ~}}
+        {{/if ~}}
         {{#unless method.metadata.confirmation.type ~}}
         wait_handle.finish(());
         {{/unless ~}}
-        {{#if method.arguments ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, wait_handle{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
-        {{else}}
-        {{#if method.metadata.received_hook ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})
-        {{else}}
-        Ok(())
-        {{/if ~}}
-        {{/if ~}}
+        res
       },
       _ => {
         self.set_error()?;
