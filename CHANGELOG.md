@@ -1,3 +1,9 @@
+### 0.28.1 (20191023)
+
+#### Bug Fixes
+
+* Fix some race conditions in the publisher confirms implementation
+
 ### 0.28.0 (20190927)
 
 #### Breaking changes
