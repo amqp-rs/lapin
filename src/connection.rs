@@ -2,7 +2,6 @@ use crate::{
     channel::{Channel, Reply},
     channels::Channels,
     configuration::Configuration,
-    confirmation::Confirmation,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
     error_handler::ErrorHandler,
@@ -10,16 +9,18 @@ use crate::{
     executor::Executor,
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
+    pinky_swear::PinkySwear,
     registration::Registration,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     types::ShortUInt,
-    wait::Wait,
     Error, Result,
 };
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
 use log::{debug, error, trace};
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use std::{io, sync::Arc, thread::JoinHandle};
+
+pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -82,7 +83,7 @@ impl Connection {
     }
 
     /// Connect to an AMQP Server
-    pub fn connect(uri: &str, options: ConnectionProperties) -> Confirmation<Connection> {
+    pub fn connect(uri: &str, options: ConnectionProperties) -> ConnectionPromise {
         Connect::connect(uri, options, None)
     }
 
@@ -91,12 +92,12 @@ impl Connection {
         uri: &str,
         options: ConnectionProperties,
         identity: Identity<'_, '_>,
-    ) -> Confirmation<Connection> {
+    ) -> ConnectionPromise {
         Connect::connect(uri, options, Some(identity))
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Confirmation<Connection> {
+    pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> ConnectionPromise {
         Connect::connect(uri, options, None)
     }
 
@@ -105,17 +106,19 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
         identity: Identity<'_, '_>,
-    ) -> Confirmation<Connection> {
+    ) -> ConnectionPromise {
         Connect::connect(uri, options, Some(identity))
     }
 
-    pub fn create_channel(&self) -> Confirmation<Channel> {
+    pub fn create_channel(&self) -> PinkySwear<Result<Channel>> {
         if !self.status.connected() {
-            return Confirmation::new_error(Error::InvalidConnectionState(self.status.state()));
+            return PinkySwear::new_with_data(Err(Error::InvalidConnectionState(
+                self.status.state(),
+            )));
         }
         match self.channels.create(self.clone()) {
             Ok(channel) => channel.channel_open(),
-            Err(error) => Confirmation::new_error(error),
+            Err(error) => PinkySwear::new_with_data(Err(error)),
         }
     }
 
@@ -150,23 +153,23 @@ impl Connection {
         self.channels.get(0).expect("channel 0")
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
+    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
         self.channel0()
             .connection_close(reply_code, reply_text, 0, 0)
     }
 
     /// Block all consumers and publishers on this connection
-    pub fn block(&self, reason: &str) -> Confirmation<()> {
+    pub fn block(&self, reason: &str) -> PinkySwear<Result<()>> {
         self.channel0().connection_blocked(reason)
     }
 
     /// Unblock all consumers and publishers on this connection
-    pub fn unblock(&self) -> Confirmation<()> {
+    pub fn unblock(&self) -> PinkySwear<Result<()>> {
         self.channel0().connection_unblocked()
     }
 
     /// Update the secret used by some authentication module such as oauth2
-    pub fn update_secret(&self, new_secret: &str, reason: &str) -> Confirmation<()> {
+    pub fn update_secret(&self, new_secret: &str, reason: &str) -> PinkySwear<Result<()>> {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
@@ -180,7 +183,7 @@ impl Connection {
 
     pub fn connector(
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<Wait<Connection>> + 'static
+    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<ConnectionPromise> + 'static
     {
         move |stream, uri, poll| {
             let executor = options
@@ -199,15 +202,16 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
-            let (wait, wait_handle) = Wait::new();
+            let header_promise =
+                conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)?;
+            let (promise, pinky) = PinkySwear::after(header_promise);
             conn.set_state(ConnectionState::SentProtocolHeader(
-                wait_handle,
+                pinky,
                 uri.authority.userinfo.into(),
                 options,
             ));
             IoLoop::new(conn.clone(), stream, poll)?.start()?;
-            Ok(wait)
+            Ok(promise)
         }
     }
 
@@ -239,24 +243,26 @@ impl Connection {
         priority: Priority,
         frame: AMQPFrame,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<Wait<()>> {
+    ) -> Result<PinkySwear<Result<()>>> {
         trace!("connection send_frame; channel_id={}", channel_id);
-        let wait = self
+        let promise = self
             .frames
             .push(channel_id, priority, frame, expected_reply);
         self.set_readable()?;
-        Ok(wait)
+        // XXX: check
+        Ok(promise)
     }
 
     pub(crate) fn send_frames(
         &self,
         channel_id: u16,
         frames: Vec<(AMQPFrame, Option<AMQPFrame>)>,
-    ) -> Result<Wait<()>> {
+    ) -> Result<PinkySwear<Result<()>>> {
         trace!("connection send_frames; channel_id={}", channel_id);
-        let wait = self.frames.push_frames(channel_id, frames);
+        let promise = self.frames.push_frames(channel_id, frames);
         self.set_readable()?;
-        Ok(wait)
+        // XXX: check
+        Ok(promise)
     }
 
     pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
@@ -309,7 +315,10 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.set_readable()?;
-        self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?;
+        self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?
+            .try_wait()
+            .transpose()
+            .map(|_| ())?;
         Ok(())
     }
 
@@ -349,16 +358,17 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         identity: Option<Identity<'_, '_>>,
-    ) -> Confirmation<Connection>
+    ) -> ConnectionPromise
     where
         Self: Sized,
     {
-        match Poll::new().map_err(Arc::new).map_err(Error::IOError) {
-            Ok(poll) => self
-                .connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
-                .into(),
-            Err(err) => Confirmation::new_error(err),
-        }
+        Poll::new()
+            .map_err(Arc::new)
+            .map_err(Error::IOError)
+            .and_then(|poll| {
+                self.connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
+            })
+            .unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)))
     }
 
     /// connect to an AMQP server, for internal use
@@ -367,7 +377,7 @@ pub trait Connect {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>>;
+    ) -> Result<ConnectionPromise>;
 }
 
 impl Connect for AMQPUri {
@@ -376,7 +386,7 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>> {
+    ) -> Result<ConnectionPromise> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Arc::new)
             .map_err(Error::IOError)?
@@ -389,7 +399,7 @@ impl Connect for &str {
         options: ConnectionProperties,
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<Wait<Connection>> {
+    ) -> Result<ConnectionPromise> {
         AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
             .map_err(Arc::new)
             .map_err(Error::IOError)?

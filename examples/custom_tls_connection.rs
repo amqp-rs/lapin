@@ -1,7 +1,7 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
 use lapin::{
-    confirmation::Confirmation, message::DeliveryResult, options::*, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Error, Result,
+    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties, ConsumerDelegate, Error, Result,
 };
 use log::info;
 use std::sync::Arc;
@@ -18,8 +18,8 @@ impl ConsumerDelegate for Subscriber {
 
 fn connect() -> Result<Connection> {
     // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
-    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let conn = addr
+    std::env::var("AMQP_ADDR")
+        .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
         .connect(|stream, uri, poll| {
             let tls_builder = NativeTlsConnector::builder();
             // Perform here your custom tls setup, with tls_builder.identity or whatever else you need
@@ -39,8 +39,8 @@ fn connect() -> Result<Connection> {
             Connection::connector(ConnectionProperties::default())(stream, uri, poll)
         })
         .map_err(Arc::new)
-        .map_err(Error::IOError)?;
-    Confirmation::from(conn).wait()
+        .map_err(Error::IOError)??
+        .wait()
 }
 
 fn main() {

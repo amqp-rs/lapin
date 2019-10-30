@@ -1,9 +1,12 @@
 use futures::{task, Async, Future, Poll};
-use lapin::confirmation::{Confirmation, NotifyReady};
+use lapin::{
+    pinky_swear::{NotifyReady, PinkySwear},
+    Result,
+};
 
 use crate::Error;
 
-pub struct ConfirmationFuture<T, I = ()>(Confirmation<T, I>);
+pub struct ConfirmationFuture<T, I = ()>(PinkySwear<Result<T>, I>);
 
 pub(crate) struct Watcher(task::Task);
 
@@ -19,7 +22,7 @@ impl NotifyReady for Watcher {
     }
 }
 
-impl<T, I> Future for ConfirmationFuture<T, I> {
+impl<T: Send + 'static, I: 'static> Future for ConfirmationFuture<T, I> {
     type Item = T;
     type Error = Error;
 
@@ -35,8 +38,8 @@ impl<T, I> Future for ConfirmationFuture<T, I> {
     }
 }
 
-impl<T, I> From<Confirmation<T, I>> for ConfirmationFuture<T, I> {
-    fn from(confirmation: Confirmation<T, I>) -> Self {
-        Self(confirmation)
+impl<T, I> From<PinkySwear<Result<T>, I>> for ConfirmationFuture<T, I> {
+    fn from(promise: PinkySwear<Result<T>, I>) -> Self {
+        Self(promise)
     }
 }

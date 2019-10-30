@@ -2,7 +2,7 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage},
     options::*,
     types::{Boolean, FieldTable, LongUInt, ShortUInt},
-    BasicProperties, ConfirmationFuture, Consumer, Error, ExchangeKind, Queue,
+    BasicProperties, ConfirmationFuture, Consumer, Error, ExchangeKind, Queue, Result,
 };
 use futures::Future;
 use lapin::{Channel as InnerChannel, Connection};
@@ -292,7 +292,7 @@ impl Channel {
 
     /// When publishers confirm is enabled, wait for pending confirmations and return the nacked
     /// messages
-    pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>> {
+    pub fn wait_for_confirms(&self) -> ConfirmationFuture<Vec<BasicReturnMessage>, Result<()>> {
         self.inner.wait_for_confirms().into()
     }
 }

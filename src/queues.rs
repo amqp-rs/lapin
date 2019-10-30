@@ -1,9 +1,9 @@
 use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
+    pinky_swear::Pinky,
     queue::QueueState,
     types::ShortString,
-    wait::WaitHandle,
     BasicProperties, Result,
 };
 use parking_lot::Mutex;
@@ -84,10 +84,10 @@ impl Queues {
         &self,
         queue: &str,
         message: BasicGetMessage,
-        wait_handle: WaitHandle<Option<BasicGetMessage>>,
+        pinky: Pinky<Result<Option<BasicGetMessage>>>,
     ) {
         if let Some(queue) = self.queues.lock().get_mut(queue) {
-            queue.start_new_delivery(message, wait_handle);
+            queue.start_new_delivery(message, pinky);
         }
     }
 

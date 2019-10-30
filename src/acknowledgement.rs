@@ -1,6 +1,6 @@
 use crate::{
+    pinky_swear::{Pinky, PinkySwear},
     returned_messages::ReturnedMessages,
-    wait::{Wait, WaitHandle},
     Error, Result,
 };
 use parking_lot::Mutex;
@@ -27,7 +27,7 @@ impl Acknowledgements {
         self.inner.lock().register_pending(delivery_tag);
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<Wait<()>> {
+    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Result<()>>> {
         self.inner.lock().last.take()
     }
 
@@ -41,15 +41,15 @@ impl Acknowledgements {
 
     pub(crate) fn ack_all_pending(&self) {
         let mut inner = self.inner.lock();
-        for wait in inner.drain_pending() {
-            wait.finish(());
+        for pinky in inner.drain_pending() {
+            pinky.swear(Ok(()));
         }
     }
 
     pub(crate) fn nack_all_pending(&self) {
         let mut inner = self.inner.lock();
-        for wait in inner.drain_pending() {
-            wait.finish(());
+        for pinky in inner.drain_pending() {
+            pinky.swear(Ok(()));
         }
     }
 
@@ -72,8 +72,8 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<Wait<()>>,
-    pending: HashMap<DeliveryTag, WaitHandle<()>>,
+    last: Option<PinkySwear<Result<()>>>,
+    pending: HashMap<DeliveryTag, Pinky<Result<()>>>,
     returned_messages: ReturnedMessages,
 }
 
@@ -87,17 +87,17 @@ impl Inner {
     }
 
     fn register_pending(&mut self, delivery_tag: DeliveryTag) {
-        let (wait, wait_handle) = Wait::new();
-        self.pending.insert(delivery_tag, wait_handle);
-        self.last = Some(wait);
+        let (promise, pinky) = PinkySwear::new();
+        self.pending.insert(delivery_tag, pinky);
+        self.last = Some(promise);
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
-        if let Some(delivery_wait) = self.pending.remove(&delivery_tag) {
+        if let Some(pinky) = self.pending.remove(&delivery_tag) {
             if success {
-                delivery_wait.finish(());
+                pinky.swear(Ok(()));
             } else {
-                self.returned_messages.register_waiter(delivery_wait);
+                self.returned_messages.register_pinky(pinky);
             }
             Ok(())
         } else {
@@ -115,7 +115,7 @@ impl Inner {
         Ok(())
     }
 
-    fn drain_pending(&mut self) -> Vec<WaitHandle<()>> {
+    fn drain_pending(&mut self) -> Vec<Pinky<Result<()>>> {
         self.pending.drain().map(|tup| tup.1).collect()
     }
 

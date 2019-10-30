@@ -4,8 +4,8 @@
       "metadata": {
         "extra_args": [
           {
-            "name": "wait_handle",
-            "type": "WaitHandle<Connection>"
+            "name": "pinky",
+            "type": "Pinky<Result<Connection>, Result<()>>"
           },
           {
             "name": "credentials",
@@ -13,22 +13,22 @@
           }
         ],
         "end_hook": {
-          "params": ["wait_handle", "credentials"]
+          "params": ["pinky", "credentials"]
         }
       }
     },
     "open": {
       "metadata": {
         "internal": true,
-        "bypass_wait_handle": true,
+        "bypass_pinky": true,
         "extra_args": [
           {
-            "name": "wait_handle",
-            "type": "WaitHandle<Connection>"
+            "name": "pinky",
+            "type": "Pinky<Result<Connection>, Result<()>>"
           }
         ],
         "end_hook": {
-          "params": ["wait_handle"]
+          "params": ["pinky"]
         }
       }
     },

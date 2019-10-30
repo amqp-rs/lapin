@@ -88,11 +88,12 @@ pub use amq_protocol::{
     protocol::{self, BasicProperties},
     tcp, types, uri,
 };
+pub use pinky_swear;
 
 pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use configuration::Configuration;
-pub use connection::{Connect, Connection};
+pub use connection::{Connect, Connection, ConnectionPromise};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
@@ -100,7 +101,6 @@ pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
 
-pub mod confirmation;
 pub mod executor;
 pub mod message;
 
@@ -124,4 +124,3 @@ mod queue;
 mod queues;
 mod registration;
 mod returned_messages;
-mod wait;

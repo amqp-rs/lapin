@@ -1,4 +1,4 @@
-use crate::{auth::Credentials, wait::WaitHandle, Connection, ConnectionProperties};
+use crate::{auth::Credentials, pinky_swear::Pinky, Connection, ConnectionProperties, Result};
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -64,9 +64,13 @@ impl ConnectionStatus {
 #[derive(Clone, Debug)]
 pub enum ConnectionState {
     Initial,
-    SentProtocolHeader(WaitHandle<Connection>, Credentials, ConnectionProperties),
-    SentStartOk(WaitHandle<Connection>, Credentials),
-    SentOpen(WaitHandle<Connection>),
+    SentProtocolHeader(
+        Pinky<Result<Connection>, Result<()>>,
+        Credentials,
+        ConnectionProperties,
+    ),
+    SentStartOk(Pinky<Result<Connection>, Result<()>>, Credentials),
+    SentOpen(Pinky<Result<Connection>, Result<()>>),
     Connected,
     Closing,
     Closed,

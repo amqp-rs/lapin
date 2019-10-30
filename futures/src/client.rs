@@ -1,5 +1,5 @@
 use futures::{Future, Poll};
-use lapin::{confirmation::Confirmation, Connect as LapinConnect, Connection};
+use lapin::{Connect as LapinConnect, Connection, ConnectionPromise, Result};
 
 use crate::{
     tcp::Identity, uri::AMQPUri, Channel, ConfirmationFuture, ConnectionProperties, Error,
@@ -66,7 +66,7 @@ impl Client {
     }
 }
 
-pub struct ClientFuture(ConfirmationFuture<Connection>);
+pub struct ClientFuture(ConfirmationFuture<Connection, Result<()>>);
 
 impl Future for ClientFuture {
     type Item = Client;
@@ -77,9 +77,9 @@ impl Future for ClientFuture {
     }
 }
 
-impl From<Confirmation<Connection>> for ClientFuture {
-    fn from(confirmation: Confirmation<Connection>) -> Self {
-        Self(confirmation.into())
+impl From<ConnectionPromise> for ClientFuture {
+    fn from(promise: ConnectionPromise) -> Self {
+        Self(promise.into())
     }
 }
 

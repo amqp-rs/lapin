@@ -1,8 +1,8 @@
 use crate::{
     executor::Executor,
     message::{Delivery, DeliveryResult},
+    pinky_swear::NotifyReady,
     types::ShortString,
-    wait::NotifyReady,
     BasicProperties, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -229,8 +229,6 @@ mod futures {
         task::{Context, Poll},
     };
 
-    use crate::confirmation::futures::Watcher;
-
     impl Stream for Consumer {
         type Item = Result<Delivery>;
 
@@ -242,7 +240,7 @@ mod futures {
                 inner.tag()
             );
             if !inner.has_task() {
-                inner.set_task(Box::new(Watcher(cx.waker().clone())));
+                inner.set_task(Box::new(cx.waker().clone()));
             }
             if let Some(delivery) = inner.next_delivery() {
                 match delivery {
