@@ -1,3 +1,9 @@
+### 0.28.2 (2019-11-07)
+
+#### Features
+
+* Update dependencies
+
 ### 0.28.1 (20191023)
 
 #### Bug Fixes
@@ -9,6 +15,12 @@
 #### Breaking changes
 
 * `Channel::exchange_declare` now takes an `ExchangeKind` parameter instead of an `&str`
+
+### 0.27.2 (2019-11-07)
+
+#### Features
+
+* Update dependencies
 
 ### 0.27.1 (2019-09-26)
 
