@@ -226,7 +226,7 @@ impl fmt::Debug for Consumer {
 mod futures {
     use super::*;
 
-    use ::futures::stream::Stream;
+    use ::futures_core::stream::Stream;
 
     use std::{
         pin::Pin,
