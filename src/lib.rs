@@ -67,7 +67,7 @@ pub use configuration::Configuration;
 pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
-pub use consumer::{Consumer, ConsumerDelegate};
+pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
 pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
