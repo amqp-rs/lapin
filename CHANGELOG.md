@@ -1,3 +1,9 @@
+### 0.28.3 (2019-11-21)
+
+#### Features
+
+* Export ConsumerIterator
+
 ### 0.28.2 (2019-11-07)
 
 #### Features
