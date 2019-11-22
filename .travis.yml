@@ -1,6 +1,6 @@
-language: rust
-
+dist: trusty
 sudo: required
+language: rust
 
 addons:
     apt:
