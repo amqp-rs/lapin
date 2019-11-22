@@ -10,9 +10,9 @@ addons:
 cache: cargo
 
 rust:
-#    - 1.36.0
-#    - stable
-#    - beta
+    - 1.39.0
+    - stable
+    - beta
     - nightly
 
 services: rabbitmq
