@@ -81,3 +81,42 @@ impl error::Error for Error {
         }
     }
 }
+
+#[cfg(test)]
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        use Error::*;
+
+        match (self, other) {
+            (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
+            (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
+            (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
+            (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {
+                left_inner == right_inner
+            }
+            (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
+                left_inner == right_inner
+            }
+
+            (ConnectionRefused, ConnectionRefused) => true,
+            (NotConnected, NotConnected) => true,
+            (UnexpectedReply, UnexpectedReply) => true,
+            (PreconditionFailed, PreconditionFailed) => true,
+            (ChannelLimitReached, ChannelLimitReached) => true,
+
+            (SerialisationError(_), SerialisationError(_)) => {
+                panic!("Unable to compare lapin::Error::SerialisationError");
+            }
+
+            (IOError(_), IOError(_)) => {
+                panic!("Unable to compare lapin::Error::IOError");
+            }
+
+            (__Nonexhaustive, __Nonexhaustive) => {
+                panic!("lapin::Error::__Nonexhaustive: should not be compared");
+            }
+
+            _ => false,
+        }
+    }
+}
