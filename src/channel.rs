@@ -191,13 +191,13 @@ impl Channel {
             self.status.state()
         {
             if size > 0 {
-                self.status.set_state(ChannelState::ReceivingContent(
+                self.set_state(ChannelState::ReceivingContent(
                     queue_name.clone(),
                     request_id_or_consumer_tag.clone(),
                     size as usize,
                 ));
             } else {
-                self.status.set_state(ChannelState::Connected);
+                self.set_state(ChannelState::Connected);
             }
             if let Some(queue_name) = queue_name {
                 self.queues.handle_content_header_frame(
@@ -243,9 +243,9 @@ impl Channel {
                     }
                 }
                 if remaining_size == payload_size {
-                    self.status.set_state(ChannelState::Connected);
+                    self.set_state(ChannelState::Connected);
                 } else {
-                    self.status.set_state(ChannelState::ReceivingContent(
+                    self.set_state(ChannelState::ReceivingContent(
                         queue_name,
                         request_id_or_consumer_tag,
                         remaining_size - payload_size,
@@ -538,7 +538,7 @@ impl Channel {
         _method: protocol::channel::OpenOk,
         wait_handle: WaitHandle<Channel>,
     ) -> Result<()> {
-        self.status.set_state(ChannelState::Connected);
+        self.set_state(ChannelState::Connected);
         wait_handle.finish(self.clone());
         Ok(())
     }
@@ -570,6 +570,7 @@ impl Channel {
         } else {
             info!("Channel {} closed: {:?}", self.id, method);
         }
+        self.set_state(ChannelState::Closing);
         self.channel_close_ok().into_error()
     }
 
@@ -625,8 +626,7 @@ impl Channel {
             ),
             wait_handle,
         );
-        self.status
-            .set_state(ChannelState::WillReceiveContent(Some(queue), None));
+        self.set_state(ChannelState::WillReceiveContent(Some(queue), None));
         Ok(())
     }
 
@@ -667,7 +667,7 @@ impl Channel {
                 method.redelivered,
             ),
         ) {
-            self.status.set_state(ChannelState::WillReceiveContent(
+            self.set_state(ChannelState::WillReceiveContent(
                 Some(queue_name),
                 Some(method.consumer_tag),
             ));
@@ -761,8 +761,7 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.status
-            .set_state(ChannelState::WillReceiveContent(None, None));
+        self.set_state(ChannelState::WillReceiveContent(None, None));
         Ok(())
     }
 
