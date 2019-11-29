@@ -186,6 +186,7 @@ impl ConsumerInner {
 
     fn cancel(&mut self) -> Result<()> {
         trace!("cancel; consumer_tag={}", self.tag);
+        self.drop_deliveries();
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
@@ -195,8 +196,9 @@ impl ConsumerInner {
                 .send(Ok(None))
                 .expect("failed to send cancel to consumer");
         }
-        self.drop_deliveries();
-        self.task.take();
+        if let Some(ref task) = self.task {
+            task.notify();
+        }
         Ok(())
     }
 
@@ -211,7 +213,10 @@ impl ConsumerInner {
                 .send(Err(error))
                 .expect("failed to send error to consumer");
         }
-        self.cancel()
+        if let Some(ref task) = self.task {
+            task.notify();
+        }
+        Ok(())
     }
 }
 
@@ -268,5 +273,57 @@ mod futures {
                 Poll::Pending
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "futures"))]
+mod futures_tests {
+    use super::*;
+    use crate::executor::DefaultExecutor;
+
+    use std::task::{Context, Poll};
+
+    use futures_test::task::new_count_waker;
+    use futures_util::stream::StreamExt;
+
+    #[test]
+    fn stream_on_cancel() {
+        let (waker, awoken_count) = new_count_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let mut consumer = Consumer::new(
+            ShortString::from("test-consumer"),
+            DefaultExecutor::default(),
+        );
+
+        assert_eq!(awoken_count.get(), 0);
+        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
+
+        consumer.cancel().unwrap();
+
+        assert_eq!(awoken_count.get(), 1);
+        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Ready(None));
+    }
+
+    #[test]
+    fn stream_on_error() {
+        let (waker, awoken_count) = new_count_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let mut consumer = Consumer::new(
+            ShortString::from("test-consumer"),
+            DefaultExecutor::default(),
+        );
+
+        assert_eq!(awoken_count.get(), 0);
+        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
+
+        consumer.set_error(Error::ConnectionRefused).unwrap();
+
+        assert_eq!(awoken_count.get(), 1);
+        assert_eq!(
+            consumer.poll_next_unpin(&mut cx),
+            Poll::Ready(Some(Err(Error::ConnectionRefused)))
+        );
     }
 }

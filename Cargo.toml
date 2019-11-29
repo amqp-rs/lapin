@@ -44,6 +44,7 @@ parking_lot = '^0.9'
 env_logger = "^0.7"
 futures-executor = "^0.3"
 futures-util = "^0.3"
+futures-test = "^0.3"
 tcp-stream = "^0.8"
 
 [[example]]
