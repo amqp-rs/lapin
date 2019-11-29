@@ -1,86 +1,68 @@
+<div align="center">
+<img src="logo.jpg" width="30%"></img>
+
+[![API Docs](https://docs.rs/lapin/badge.svg)](https://docs.rs/lapin)
 [![Build Status](https://travis-ci.org/sozu-proxy/lapin.svg?branch=master)](https://travis-ci.org/sozu-proxy/lapin)
+[![Downloads](https://img.shields.io/crates/d/lapin.svg)](https://crates.io/crates/lapin)
 [![Coverage Status](https://coveralls.io/repos/github/sozu-proxy/lapin/badge.svg?branch=master)](https://coveralls.io/github/sozu-proxy/lapin?branch=master)
-[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Dependency Status](https://deps.rs/repo/github/sozu-proxy/lapin/status.svg)](https://deps.rs/repo/github/sozu-proxy/lapin)
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-# lapin, a Rust AMQP client library
+ <strong>
+   A Rust AMQP client library.
+ </strong>
 
-![](logo.jpg)
+</div>
 
-[![Crates.io Version](https://img.shields.io/crates/v/lapin.svg)](https://crates.io/crates/lapin)
+<br />
 
-This project follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ.
-
-lapin is available on [crates.io](https://crates.io/crates/lapin) and can be included in your Cargo enabled project like this:
-
-```toml
-[dependencies]
-lapin = "^0.28"
-```
-
-Then include it in your code like this:
-
-```rust
-use lapin;
-```
+This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf), targetting especially RabbitMQ.
 
 ## Example
 
+> **Note**: To use async/await, enable the `futures` feature in your Cargo.toml.
+
 ```rust
 use lapin::{
-    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    options::*, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties
 };
+use futures::{future::FutureExt, stream::StreamExt};
 use log::info;
+use anyhow::Result;
 
-#[derive(Clone, Debug)]
-struct Subscriber {
-    channel: Channel,
-}
-
-impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        if let Ok(Some(delivery)) = delivery {
-            self.channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                .wait()
-                .expect("basic_ack");
-        }
-    }
-}
-
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+
     let conn = Connection::connect(&addr, ConnectionProperties::default())
-        .wait()
-        .expect("connection error");
+	.await
+	.expect("Couldn't connect to RabbitMQ.");
 
     info!("CONNECTED");
 
-    let channel_a = conn.create_channel().wait().expect("create_channel");
-    let channel_b = conn.create_channel().wait().expect("create_channel");
+    let channel_a = conn.create_channel().await?;
+    let channel_b = conn.create_channel().await?;
 
     channel_a
         .queue_declare(
-            "hello",
+            "my_first_queue",
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
-        .wait()
-        .expect("queue_declare");
+        .await?;
+
     let queue = channel_b
         .queue_declare(
-            "hello",
+            "my_second_queue",
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
-        .wait()
-        .expect("queue_declare");
+        .await?;
 
-    info!("will consume");
-    channel_b
+    let consumer = channel_b
         .clone()
         .basic_consume(
             &queue,
@@ -88,9 +70,20 @@ fn main() {
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
-        .wait()
-        .expect("basic_consume")
-        .set_delegate(Box::new(Subscriber { channel: channel_b }));
+        .await?;
+
+    tokio::spawn(async move {
+        info!("Consuming from Channel B...");
+
+        consumer
+            .for_each(move |delivery| {
+                let delivery = delivery.expect("Couldn't receive delivery from RabbitMQ.");
+                channel_b
+                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .map(|_| ())
+            })
+            .await
+    });
 
     let payload = b"Hello world!";
 
@@ -98,35 +91,12 @@ fn main() {
         channel_a
             .basic_publish(
                 "",
-                "hello",
+                "my_first_queue",
                 BasicPublishOptions::default(),
                 payload.to_vec(),
                 BasicProperties::default(),
             )
-            .wait()
-            .expect("basic_publish");
+            .await?;
     }
 }
-
 ```
-
-## lapin-futures
-
-[![Crates.io Version](https://img.shields.io/crates/v/lapin-futures.svg)](https://crates.io/crates/lapin-futures)
-
-a library with a futures-0.1 based API, that you can use with executors such as tokio or futures-cpupool.
-
-lapin-futures is available on [crates.io](https://crates.io/crates/lapin-futures) and can be included in your Cargo enabled project like this:
-
-```toml
-[dependencies]
-lapin-futures = "^0.28"
-```
-
-Then include it in your code like this:
-
-```rust
-use lapin_futures;
-```
-
-
