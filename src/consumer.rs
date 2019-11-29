@@ -191,7 +191,7 @@ impl ConsumerInner {
                 .send(Ok(None))
                 .expect("failed to send cancel to consumer");
         }
-        if let Some(ref task) = self.task {
+        if let Some(ref task) = self.task.take() {
             task.notify();
         }
         Ok(())
@@ -208,10 +208,7 @@ impl ConsumerInner {
                 .send(Err(error))
                 .expect("failed to send error to consumer");
         }
-        if let Some(ref task) = self.task {
-            task.notify();
-        }
-        Ok(())
+        self.cancel()
     }
 }
 
