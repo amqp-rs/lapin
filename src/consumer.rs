@@ -169,10 +169,6 @@ impl ConsumerInner {
         Ok(())
     }
 
-    fn drop_deliveries(&mut self) {
-        while let Some(_) = self.next_delivery() {}
-    }
-
     fn drop_prefetched_messages(&mut self) -> Result<()> {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
@@ -180,13 +176,12 @@ impl ConsumerInner {
             self.executor
                 .execute(Box::new(move || delegate.drop_prefetched_messages()))?;
         }
-        self.drop_deliveries();
+        while let Some(_) = self.next_delivery() {}
         Ok(())
     }
 
     fn cancel(&mut self) -> Result<()> {
         trace!("cancel; consumer_tag={}", self.tag);
-        self.drop_deliveries();
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
