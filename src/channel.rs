@@ -597,6 +597,12 @@ impl Channel {
         Ok(())
     }
 
+    pub fn queue_register(&self, name: ShortString) -> Queue {
+        let queue = Queue::new(name, 0, 0);
+        self.queues.register(queue.clone().into());
+        queue
+    }
+
     fn on_queue_declare_ok_received(
         &self,
         method: protocol::queue::DeclareOk,
