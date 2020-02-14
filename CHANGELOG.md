@@ -1,3 +1,9 @@
+### 0.28.4 (2019-12-03)
+
+#### Bug Fixes
+
+* Fix some error handling in consumers
+
 ### 0.28.3 (2019-11-21)
 
 #### Features
