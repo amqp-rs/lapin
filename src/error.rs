@@ -1,5 +1,5 @@
 use crate::{channel_status::ChannelState, connection_status::ConnectionState};
-use amq_protocol::{frame::GenError, protocol::AMQPClass};
+use amq_protocol::{frame::GenError, protocol::{AMQPClass, AMQPError}};
 use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
@@ -18,9 +18,11 @@ pub enum Error {
     UnexpectedReply,
     PreconditionFailed,
     ChannelLimitReached,
+    InvalidBodyReceived,
     InvalidChannelState(ChannelState),
     InvalidConnectionState(ConnectionState),
     ParsingError(String),
+    ProtocolError(AMQPError, String),
     SerialisationError(Arc<GenError>),
     IOError(Arc<io::Error>),
     /// A hack to prevent developers from exhaustively match on the enum's variants
@@ -57,11 +59,13 @@ impl fmt::Display for Error {
                 f,
                 "The maximum number of channels for this connection has been reached"
             ),
+            Error::InvalidBodyReceived => write!(f, "invalid body received"),
             Error::InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
             Error::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
             }
             Error::ParsingError(e) => write!(f, "Failed to parse: {}", e),
+            Error::ProtocolError(e, msg) => write!(f, "Protocol error: {:?} - {}", e, msg),
             Error::SerialisationError(e) => write!(f, "Failed to serialise: {:?}", e),
             Error::IOError(e) => write!(f, "IO error: {:?}", e),
             Error::__Nonexhaustive => write!(

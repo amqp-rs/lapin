@@ -177,7 +177,7 @@ impl Channel {
         res
       },
       _ => {
-        self.set_error()?;
+        self.set_error(Error::UnexpectedReply)?;
         Err(Error::UnexpectedReply)
       },
     }

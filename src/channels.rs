@@ -36,8 +36,8 @@ impl Channels {
         self.inner.lock().channels.get(&id).cloned()
     }
 
-    pub(crate) fn remove(&self, id: u16) -> Result<()> {
-        self.frames.clear_expected_replies(id, ChannelState::Closed);
+    pub(crate) fn remove(&self, id: u16, error: Error) -> Result<()> {
+        self.frames.clear_expected_replies(id, ChannelState::Closed, error);
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
         } else {
@@ -80,26 +80,26 @@ impl Channels {
         }
     }
 
-    pub(crate) fn set_closed(&self) -> Result<()> {
+    pub(crate) fn set_closed(&self, error: Error) -> Result<()> {
         self.inner
             .lock()
             .channels
             .drain()
             .map(|(id, channel)| {
-                self.frames.clear_expected_replies(id, ChannelState::Closed);
+                self.frames.clear_expected_replies(id, ChannelState::Closed, error.clone());
                 channel.set_state(ChannelState::Closed);
                 channel.cancel_consumers()
             })
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn set_error(&self) -> Result<()> {
+    pub(crate) fn set_error(&self, error: Error) -> Result<()> {
         self.inner
             .lock()
             .channels
             .drain()
             .map(|(id, channel)| {
-                self.frames.clear_expected_replies(id, ChannelState::Error);
+                self.frames.clear_expected_replies(id, ChannelState::Error, error.clone());
                 channel.set_state(ChannelState::Error);
                 channel.error_consumers()
             })

@@ -59,16 +59,16 @@ impl Channel {
         &self.status
     }
 
-    fn set_closed(&self) -> Result<()> {
+    fn set_closed(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Closed);
         self.cancel_consumers()
-            .and(self.connection.remove_channel(self.id))
+            .and(self.connection.remove_channel(self.id, error))
     }
 
-    fn set_error(&self) -> Result<()> {
+    fn set_error(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Error);
         self.error_consumers()
-            .and(self.connection.remove_channel(self.id))
+            .and(self.connection.remove_channel(self.id, error))
     }
 
     pub(crate) fn cancel_consumers(&self) -> Result<()> {
@@ -211,7 +211,7 @@ impl Channel {
             }
             Ok(())
         } else {
-            self.set_error()
+            self.set_error(Error::InvalidChannelState(self.status.state()))
         }
     }
 
@@ -251,10 +251,10 @@ impl Channel {
                 Ok(())
             } else {
                 error!("body frame too large");
-                self.set_error()
+                self.set_error(Error::InvalidBodyReceived)
             }
         } else {
-            self.set_error()
+            self.set_error(Error::InvalidChannelState(self.status.state()))
         }
     }
 
@@ -307,8 +307,8 @@ impl Channel {
         Ok(())
     }
 
-    fn on_channel_close_ok_sent(&self) -> Result<()> {
-        self.set_closed()
+    fn on_channel_close_ok_sent(&self, error: Error) -> Result<()> {
+        self.set_closed(error)
     }
 
     fn on_basic_recover_async_sent(&self) -> Result<()> {
@@ -571,20 +571,22 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        if let Some(error) = AMQPError::from_id(method.reply_code) {
+        let error = if let Some(error) = AMQPError::from_id(method.reply_code) {
             error!(
                 "Channel {} closed by {}:{} => {:?} => {}",
                 self.id, method.class_id, method.method_id, error, method.reply_text
             );
+            Error::ProtocolError(error, method.reply_text.to_string())
         } else {
             info!("Channel {} closed: {:?}", self.id, method);
-        }
+            Error::InvalidChannelState(ChannelState::Closing)
+        };
         self.set_state(ChannelState::Closing);
-        self.channel_close_ok().try_wait().transpose().map(|_| ())
+        self.channel_close_ok(error).try_wait().transpose().map(|_| ())
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
-        self.set_closed()
+        self.set_closed(Error::InvalidChannelState(ChannelState::Closed))
     }
 
     fn on_queue_delete_ok_received(
@@ -646,7 +648,7 @@ impl Channel {
                 Ok(())
             }
             _ => {
-                self.set_error()?;
+                self.set_error(Error::UnexpectedReply)?;
                 Err(Error::UnexpectedReply)
             }
         }

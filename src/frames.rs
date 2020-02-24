@@ -92,10 +92,10 @@ impl Frames {
         self.inner.lock().drop_pending();
     }
 
-    pub(crate) fn clear_expected_replies(&self, channel_id: u16, channel_state: ChannelState) {
+    pub(crate) fn clear_expected_replies(&self, channel_id: u16, channel_state: ChannelState, error: Error) {
         self.inner
             .lock()
-            .clear_expected_replies(channel_id, channel_state);
+            .clear_expected_replies(channel_id, channel_state, error);
     }
 }
 
@@ -216,14 +216,14 @@ impl Inner {
         self.frames.clear();
         self.low_prio_frames.clear();
         for (_, replies) in self.expected_replies.drain() {
-            Self::cancel_expected_replies(replies, ChannelState::Closed);
+            Self::cancel_expected_replies(replies, Error::InvalidChannelState(ChannelState::Closed));
         }
         for (_, (_, pinky, _)) in self.outbox.drain() {
             pinky.swear(Ok(()));
         }
     }
 
-    fn clear_expected_replies(&mut self, channel_id: u16, channel_state: ChannelState) {
+    fn clear_expected_replies(&mut self, channel_id: u16, channel_state: ChannelState, error: Error) {
         let mut outbox = HashMap::default();
 
         for (send_id, (chan_id, pinky, expects_reply)) in self.outbox.drain() {
@@ -237,13 +237,13 @@ impl Inner {
         self.outbox = outbox;
 
         if let Some(replies) = self.expected_replies.remove(&channel_id) {
-            Self::cancel_expected_replies(replies, channel_state);
+            Self::cancel_expected_replies(replies, error);
         }
     }
 
-    fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, channel_state: ChannelState) {
+    fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
         for ExpectedReply(_, cancel) in replies {
-            cancel.cancel(Error::InvalidChannelState(channel_state.clone()));
+            cancel.cancel(error.clone());
         }
     }
 }
