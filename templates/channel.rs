@@ -5,7 +5,7 @@ pub mod options {
   {{#each class.methods as |method| ~}}
   {{#unless method.ignore_args ~}}
   {{#each_argument method.arguments as |argument| ~}}
-  {{#unless argument_is_value ~}}
+  {{#unless @argument_is_value ~}}
   {{#unless argument.ignore_flags ~}}
   #[derive(Clone, Debug, Default, PartialEq)]
   pub struct {{camel class.name}}{{camel method.name}}Options {
@@ -61,7 +61,7 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> PinkySwear<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>> {
+  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> PinkySwear<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -80,7 +80,7 @@ impl Channel {
 
     {{#unless method.ignore_args ~}}
     {{#each_argument method.arguments as |argument| ~}}
-    {{#unless argument_is_value ~}}
+    {{#unless @argument_is_value ~}}
     {{#unless argument.ignore_flags ~}}
     let {{camel class.name}}{{camel method.name}}Options {
       {{#each argument.flags as |flag| ~}}
@@ -94,7 +94,7 @@ impl Channel {
 
     let method = AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}} (protocol::{{snake class.name}}::{{camel method.name}} {
       {{#each_argument method.arguments as |argument| ~}}
-      {{#if argument_is_value ~}}
+      {{#if @argument_is_value ~}}
       {{#unless argument.force_default ~}}
       {{snake argument.name}}: {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}.into(){{/if ~}},
       {{/unless ~}}

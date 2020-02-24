@@ -23,11 +23,11 @@ openssl    = ["amq-protocol/openssl"]
 rustls     = ["amq-protocol/rustls"]
 
 [build-dependencies]
-amq-protocol-codegen = "^3.1"
+amq-protocol-codegen = "^4.0"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "^3.1"
+version = "^4.0"
 default-features = false
 
 [dependencies.futures-core]
@@ -46,7 +46,7 @@ env_logger = "^0.7"
 futures-executor = "^0.3"
 futures-util = "^0.3"
 futures-test = "^0.3"
-tcp-stream = "^0.8"
+tcp-stream = "^0.9"
 
 [[example]]
 name = "custom_tls_connection"
