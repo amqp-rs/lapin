@@ -1,3 +1,9 @@
+### 0.29.1 (2020-02-24)
+
+#### Bug Fixes
+
+* Ensure we properly write everything when we need to split contents
+
 ### 0.29.0 (2020-02-24)
 
 #### Breaking changes
