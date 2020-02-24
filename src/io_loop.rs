@@ -369,14 +369,18 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     fn write_to_stream(&mut self) -> Result<()> {
         self.serialize()?;
 
-        self.socket
+        let sz = self.socket
             .write(&self.send_buffer.data())
-            .map(|sz| {
-                trace!("wrote {} bytes", sz);
-                self.send_buffer.consume(sz);
-            })
             .map_err(Arc::new)
-            .map_err(Error::IOError)
+            .map_err(Error::IOError)?;
+
+        trace!("wrote {} bytes", sz);
+        self.send_buffer.consume(sz);
+        if self.send_buffer.available_data() > 0 {
+            // We didn't write all the data yet
+            self.connection.set_readable()?;
+        }
+        Ok(())
     }
 
     fn read_from_stream(&mut self) -> Result<()> {

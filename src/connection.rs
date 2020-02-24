@@ -228,7 +228,7 @@ impl Connection {
         self.set_readable()
     }
 
-    fn set_readable(&self) -> Result<()> {
+    pub(crate) fn set_readable(&self) -> Result<()> {
         trace!("connection set readable");
         self.registration
             .set_readiness(Ready::readable())
