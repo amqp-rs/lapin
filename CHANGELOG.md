@@ -1,3 +1,18 @@
+### 0.29.0 (2020-02-24)
+
+#### Breaking changes
+
+* Switch the return types to `pinky-swear` (the API remains mostly the same)
+
+#### Features
+
+* Error is now Clonable
+
+#### Bug Fixes
+
+* Better error handling and bubbling in lots of cases
+* Properly handle soft errors
+
 ### 0.28.4 (2019-12-03)
 
 #### Bug Fixes
