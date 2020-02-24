@@ -582,7 +582,10 @@ impl Channel {
             Error::InvalidChannelState(ChannelState::Closing)
         };
         self.set_state(ChannelState::Closing);
-        self.channel_close_ok(error).try_wait().transpose().map(|_| ())
+        self.channel_close_ok(error)
+            .try_wait()
+            .transpose()
+            .map(|_| ())
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {

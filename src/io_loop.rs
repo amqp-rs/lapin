@@ -369,7 +369,8 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     fn write_to_stream(&mut self) -> Result<()> {
         self.serialize()?;
 
-        let sz = self.socket
+        let sz = self
+            .socket
             .write(&self.send_buffer.data())
             .map_err(Arc::new)
             .map_err(Error::IOError)?;

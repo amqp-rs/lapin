@@ -339,13 +339,15 @@ impl Connection {
 
     pub(crate) fn set_closed(&self) -> Result<()> {
         self.set_state(ConnectionState::Closed);
-        self.channels.set_closed(Error::InvalidConnectionState(ConnectionState::Closed))
+        self.channels
+            .set_closed(Error::InvalidConnectionState(ConnectionState::Closed))
     }
 
     pub(crate) fn set_error(&self) -> Result<()> {
         error!("Connection error");
         self.set_state(ConnectionState::Error);
-        self.channels.set_error(Error::InvalidConnectionState(ConnectionState::Error))?;
+        self.channels
+            .set_error(Error::InvalidConnectionState(ConnectionState::Error))?;
         self.error_handler.on_error();
         Ok(())
     }

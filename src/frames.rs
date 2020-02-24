@@ -92,7 +92,12 @@ impl Frames {
         self.inner.lock().drop_pending();
     }
 
-    pub(crate) fn clear_expected_replies(&self, channel_id: u16, channel_state: ChannelState, error: Error) {
+    pub(crate) fn clear_expected_replies(
+        &self,
+        channel_id: u16,
+        channel_state: ChannelState,
+        error: Error,
+    ) {
         self.inner
             .lock()
             .clear_expected_replies(channel_id, channel_state, error);
@@ -143,7 +148,8 @@ impl Inner {
             Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
         }
         let (promise, pinky) = PinkySwear::new();
-        self.outbox.insert(send_id, (channel_id, pinky, expected_reply.is_some()));
+        self.outbox
+            .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
         if let Some(reply) = expected_reply {
             trace!(
                 "channel {} state is now waiting for {:?}",
@@ -216,14 +222,22 @@ impl Inner {
         self.frames.clear();
         self.low_prio_frames.clear();
         for (_, replies) in self.expected_replies.drain() {
-            Self::cancel_expected_replies(replies, Error::InvalidChannelState(ChannelState::Closed));
+            Self::cancel_expected_replies(
+                replies,
+                Error::InvalidChannelState(ChannelState::Closed),
+            );
         }
         for (_, (_, pinky, _)) in self.outbox.drain() {
             pinky.swear(Ok(()));
         }
     }
 
-    fn clear_expected_replies(&mut self, channel_id: u16, channel_state: ChannelState, error: Error) {
+    fn clear_expected_replies(
+        &mut self,
+        channel_id: u16,
+        channel_state: ChannelState,
+        error: Error,
+    ) {
         let mut outbox = HashMap::default();
 
         for (send_id, (chan_id, pinky, expects_reply)) in self.outbox.drain() {
