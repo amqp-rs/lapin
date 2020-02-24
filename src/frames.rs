@@ -83,7 +83,7 @@ impl Frames {
     }
 
     pub(crate) fn mark_sent(&self, send_id: SendId) {
-        if let Some((_, pinky)) = self.inner.lock().outbox.remove(&send_id) {
+        if let Some((_, pinky, _)) = self.inner.lock().outbox.remove(&send_id) {
             pinky.swear(Ok(()));
         }
     }
@@ -107,7 +107,7 @@ struct Inner {
     frames: VecDeque<(SendId, AMQPFrame)>,
     low_prio_frames: VecDeque<(SendId, AMQPFrame, Option<AMQPFrame>)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
-    outbox: HashMap<SendId, (u16, Pinky<Result<()>>)>,
+    outbox: HashMap<SendId, (u16, Pinky<Result<()>>, bool)>,
     send_id: IdSequence<SendId>,
 }
 
@@ -143,7 +143,7 @@ impl Inner {
             Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
         }
         let (promise, pinky) = PinkySwear::new();
-        self.outbox.insert(send_id, (channel_id, pinky));
+        self.outbox.insert(send_id, (channel_id, pinky, expected_reply.is_some()));
         if let Some(reply) = expected_reply {
             trace!(
                 "channel {} state is now waiting for {:?}",
@@ -173,7 +173,7 @@ impl Inner {
             let send_id = self.send_id.next();
             self.low_prio_frames
                 .push_back((send_id, last_frame.0, last_frame.1));
-            self.outbox.insert(send_id, (channel_id, pinky));
+            self.outbox.insert(send_id, (channel_id, pinky, false));
         } else {
             pinky.swear(Ok(()));
         }
@@ -218,7 +218,7 @@ impl Inner {
         for (_, replies) in self.expected_replies.drain() {
             Self::cancel_expected_replies(replies, ChannelState::Closed);
         }
-        for (_, (_, pinky)) in self.outbox.drain() {
+        for (_, (_, pinky, _)) in self.outbox.drain() {
             pinky.swear(Ok(()));
         }
     }
@@ -226,11 +226,11 @@ impl Inner {
     fn clear_expected_replies(&mut self, channel_id: u16, channel_state: ChannelState) {
         let mut outbox = HashMap::default();
 
-        for (send_id, (chan_id, pinky)) in self.outbox.drain() {
-            if chan_id == channel_id {
+        for (send_id, (chan_id, pinky, expects_reply)) in self.outbox.drain() {
+            if chan_id == channel_id && expects_reply {
                 pinky.swear(Err(Error::InvalidChannelState(channel_state.clone())))
             } else {
-                outbox.insert(send_id, (chan_id, pinky));
+                outbox.insert(send_id, (chan_id, pinky, expects_reply));
             }
         }
 
