@@ -2,7 +2,7 @@ use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
     pinky_swear::Pinky,
-    queue::QueueState,
+    queue::{Queue, QueueState},
     types::ShortString,
     BasicProperties, Error, Result,
 };
@@ -23,15 +23,21 @@ impl Queues {
         self.queues.lock().remove(queue);
     }
 
+    fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(&self, queue: &str, f: F) -> Result<()> {
+        // FIXME: drop into(), which trait is used by the entry API?
+        f(self.queues.lock().entry(queue.into()).or_insert_with(|| Queue::new(queue.into(), 0, 0).into()))
+    }
+
     pub(crate) fn register_consumer(
         &self,
         queue: &str,
         consumer_tag: ShortString,
         consumer: Consumer,
     ) {
-        if let Some(queue) = self.queues.lock().get_mut(queue) {
+        self.with_queue(queue, |queue| {
             queue.register_consumer(consumer_tag, consumer);
-        }
+            Ok(())
+        }).expect("register_consumer cannot fail");
     }
 
     pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
@@ -86,9 +92,10 @@ impl Queues {
         message: BasicGetMessage,
         pinky: Pinky<Result<Option<BasicGetMessage>>>,
     ) {
-        if let Some(queue) = self.queues.lock().get_mut(queue) {
+        self.with_queue(queue, |queue| {
             queue.start_new_delivery(message, pinky);
-        }
+            Ok(())
+        }).expect("start_basic_get_delivery cannot fail");
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -98,7 +105,7 @@ impl Queues {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        if let Some(queue) = self.queues.lock().get_mut(queue) {
+        self.with_queue(queue, |queue| {
             match consumer_tag {
                 Some(consumer_tag) => {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
@@ -115,8 +122,8 @@ impl Queues {
                     }
                 }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
     pub(crate) fn handle_body_frame(
@@ -127,7 +134,7 @@ impl Queues {
         payload_size: usize,
         payload: Vec<u8>,
     ) -> Result<()> {
-        if let Some(queue) = self.queues.lock().get_mut(queue) {
+        self.with_queue(queue, |queue| {
             match consumer_tag {
                 Some(consumer_tag) => {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
@@ -144,7 +151,7 @@ impl Queues {
                     }
                 }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 }
