@@ -249,7 +249,6 @@ impl Connection {
             .frames
             .push(channel_id, priority, frame, expected_reply);
         self.set_readable()?;
-        // XXX: check
         Ok(promise)
     }
 
@@ -261,7 +260,6 @@ impl Connection {
         trace!("connection send_frames; channel_id={}", channel_id);
         let promise = self.frames.push_frames(channel_id, frames);
         self.set_readable()?;
-        // XXX: check
         Ok(promise)
     }
 
