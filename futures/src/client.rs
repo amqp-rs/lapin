@@ -61,7 +61,7 @@ impl Client {
     }
 
     /// Register an error handler which will be called when connection reaches an Error state
-    pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
+    pub fn on_error<E: Fn(Error) + Send + 'static>(&self, handler: Box<E>) {
         self.conn.on_error(handler);
     }
 }
