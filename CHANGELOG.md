@@ -1,3 +1,14 @@
+### 0.30.0 (2020-02-25)
+
+#### Breaking changes
+
+* Error enum has been cleaned up
+* ErrorHandler now takes the Error as a param
+
+#### Bug Fixes
+
+* Better error handling and forwarding
+
 ### 0.29.2 (2020-02-25)
 
 #### Bug Fixes
