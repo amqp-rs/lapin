@@ -377,7 +377,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
 
         trace!("wrote {} bytes", sz);
         self.send_buffer.consume(sz);
-        if self.send_buffer.available_data() > 0 {
+        if sz > 0 && self.send_buffer.available_data() > 0 {
             // We didn't write all the data yet
             self.connection.set_readable()?;
         }
