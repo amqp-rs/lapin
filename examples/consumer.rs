@@ -28,11 +28,12 @@ fn main() {
         .wait()
         .expect("queue_declare");
     info!("[{}] state: {:?}", line!(), conn.status().state());
+    info!("declared queue {:?}", queue);
 
     info!("will consume");
     let consumer = channel
         .basic_consume(
-            &queue,
+            "hello",
             "my_consumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),

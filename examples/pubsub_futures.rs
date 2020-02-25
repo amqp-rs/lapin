@@ -20,14 +20,7 @@ fn main() -> Result<()> {
         let channel_a = conn.create_channel().await?;
         let channel_b = conn.create_channel().await?;
 
-        channel_a
-            .queue_declare(
-                "hello",
-                QueueDeclareOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
-        let queue = channel_b
+        let queue = channel_a
             .queue_declare(
                 "hello",
                 QueueDeclareOptions::default(),
@@ -35,10 +28,12 @@ fn main() -> Result<()> {
             )
             .await?;
 
+        info!("Declared queue {:?}", queue);
+
         let consumer = channel_b
             .clone()
             .basic_consume(
-                &queue,
+                "hello",
                 "my_consumer",
                 BasicConsumeOptions::default(),
                 FieldTable::default(),

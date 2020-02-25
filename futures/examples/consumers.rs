@@ -11,25 +11,25 @@ const N_MESSAGES: u8 = 5;
 fn create_consumer(client: &Client, n: u8) -> impl Future<Item = (), Error = ()> + Send + 'static {
     info!("will create consumer {}", n);
 
-    let queue = format!("test-queue-{}", n);
+    let queue_name = format!("test-queue-{}", n);
 
     client
         .create_channel()
         .and_then(move |channel| {
-            info!("creating queue {}", queue);
+            info!("creating queue {}", queue_name);
             channel
                 .queue_declare(
-                    &queue,
+                    &queue_name,
                     QueueDeclareOptions::default(),
                     FieldTable::default(),
                 )
                 .map(move |queue| (channel, queue))
         })
         .and_then(move |(channel, queue)| {
-            info!("creating consumer {}", n);
+            info!("creating consumer {} on queue {:?}", n, queue);
             channel
                 .basic_consume(
-                    &queue,
+                    queue.name().as_str(),
                     "",
                     BasicConsumeOptions::default(),
                     FieldTable::default(),

@@ -2,6 +2,7 @@ use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, ConsumerDelegate,
 };
+use log::info;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -60,21 +61,12 @@ fn connection() {
     println!("[{}] declared queue: {:?}", line!(), queue);
 
     //purge the hello queue in case it already exists with contents in it
-    channel_a
+    let queue = channel_a
         .queue_purge("hello-async", QueuePurgeOptions::default())
         .wait()
         .expect("queue_purge");
     println!("[{}] state: {:?}", line!(), conn.status().state());
-
-    let queue = channel_b
-        .queue_declare(
-            "hello-async",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("queue_declare");
-    println!("[{}] state: {:?}", line!(), conn.status().state());
+    info!("Declared queue {:?}", queue);
 
     println!("will consume");
     let hello_world = Arc::new(AtomicBool::new(false));
@@ -83,7 +75,7 @@ fn connection() {
     };
     channel_b
         .basic_consume(
-            &queue,
+            "hello-async",
             "my_consumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),

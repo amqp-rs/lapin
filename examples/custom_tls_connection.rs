@@ -78,20 +78,10 @@ fn main() {
         .expect("confirm_select");
     info!("[{}] state: {:?}", line!(), conn.status().state());
 
-    let queue = channel_b
-        .queue_declare(
-            "hello",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("queue_declare");
-    info!("[{}] state: {:?}", line!(), conn.status().state());
-
     info!("will consume");
     channel_b
         .basic_consume(
-            &queue,
+            "hello",
             "my_consumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),

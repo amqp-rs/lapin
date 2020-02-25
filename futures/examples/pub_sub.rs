@@ -60,9 +60,9 @@ fn main() {
                             FieldTable::default(),
                         )
                         .and_then(move |queue| {
-                            info!("subscriber channel {} declared queue {}", id, "hello");
+                            info!("subscriber channel {} declared queue {:?}", id, queue);
                             sub_channel.basic_consume(
-                                &queue,
+                                "hello",
                                 "my_consumer",
                                 BasicConsumeOptions::default(),
                                 FieldTable::default(),

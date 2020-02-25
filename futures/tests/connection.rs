@@ -64,10 +64,10 @@ fn connection() {
                                 .map(move |queue| (channel, queue))
                         })
                         .and_then(move |(channel, queue)| {
-                            info!("channel {} declared queue {}", id, "hello");
+                            info!("channel {} declared queue {:?}", id, queue);
 
                             channel.basic_consume(
-                                &queue,
+                                "hello",
                                 "my_consumer",
                                 BasicConsumeOptions::default(),
                                 FieldTable::default(),

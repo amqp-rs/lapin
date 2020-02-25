@@ -1,3 +1,13 @@
+### 0.31.0 (2020-02-??)
+
+#### Bug Fixes
+
+* Receiving consumer or basic get deliveries on queue we didn't declare now works properly
+
+#### Breaking changes
+
+* `Channel::basic_consume` now takes an `&str` instead of a `&Queue` as its first parameter
+
 ### 0.30.1 (2020-02-25)
 
 #### Features

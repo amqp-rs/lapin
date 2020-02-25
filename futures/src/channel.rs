@@ -175,7 +175,7 @@ impl Channel {
     /// the usual combinators
     pub fn basic_consume(
         &self,
-        queue: &Queue,
+        queue: &str,
         consumer_tag: &str,
         options: BasicConsumeOptions,
         arguments: FieldTable,

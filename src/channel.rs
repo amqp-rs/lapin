@@ -19,7 +19,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
-use std::{borrow::Borrow, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(test)]
 use crate::queue::QueueState;
@@ -89,16 +89,6 @@ impl Channel {
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
         self.do_channel_close(reply_code, reply_text, 0, 0)
-    }
-
-    pub fn basic_consume(
-        &self,
-        queue: &Queue,
-        consumer_tag: &str,
-        options: BasicConsumeOptions,
-        arguments: FieldTable,
-    ) -> PinkySwear<Result<Consumer>> {
-        self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments)
     }
 
     pub fn exchange_declare(

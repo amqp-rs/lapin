@@ -58,7 +58,7 @@ fn main() {
     let channel_a = conn.create_channel().wait().expect("create_channel");
     let channel_b = conn.create_channel().wait().expect("create_channel");
 
-    channel_a
+    let queue = channel_a
         .queue_declare(
             "hello",
             QueueDeclareOptions::default(),
@@ -66,20 +66,13 @@ fn main() {
         )
         .wait()
         .expect("queue_declare");
-    let queue = channel_b
-        .queue_declare(
-            "hello",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("queue_declare");
+    info!("Declared queue {:?}", queue);
 
     info!("will consume");
     channel_b
         .clone()
         .basic_consume(
-            &queue,
+            "hello",
             "my_consumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),

@@ -69,12 +69,12 @@
 //!
 //!       let ch = channel.clone();
 //!       channel.queue_declare("hello", QueueDeclareOptions::default(), FieldTable::default()).and_then(move |queue| {
-//!         info!("channel {} declared queue {}", id, "hello");
+//!         info!("channel {} declared queue {:?}", id, queue);
 //!
 //!         // basic_consume returns a future of a message
 //!         // stream. Any time a message arrives for this consumer,
 //!         // the for_each method would be called
-//!         channel.basic_consume(&queue, "my_consumer", BasicConsumeOptions::default(), FieldTable::default())
+//!         channel.basic_consume("hello", "my_consumer", BasicConsumeOptions::default(), FieldTable::default())
 //!       }).and_then(|stream| {
 //!         info!("got consumer stream");
 //!

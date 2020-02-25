@@ -163,7 +163,6 @@
   "basic": {
     "consume": {
       "metadata": {
-        "require_wrapper": true,
         "state": [
           {
             "name": "queue",
