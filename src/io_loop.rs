@@ -334,7 +334,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                         pinky.swear(Err(Error::ConnectionRefused));
                         self.status = Status::Stop;
                     }
-                    self.connection.set_error()?;
+                    self.connection.set_error(e.clone())?;
                     return Err(e);
                 }
             }
@@ -350,7 +350,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     self.can_read = false
                 } else {
                     error!("error reading: {:?}", e);
-                    self.connection.set_error()?;
+                    self.connection.set_error(e.clone())?;
                     return Err(e);
                 }
             }
@@ -421,8 +421,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
-                            self.connection.set_error()?;
-                            Err(Error::SerialisationError(Arc::new(e)))
+                            let error = Error::SerialisationError(Arc::new(e));
+                            self.connection.set_error(error.clone())?;
+                            Err(error)
                         }
                     }
                 }
@@ -455,8 +456,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     Ok(None)
                 } else {
                     error!("parse error: {:?}", e);
-                    self.connection.set_error()?;
-                    Err(Error::ParsingError(format!("{:?}", e)))
+                    let error = Error::ParsingError(format!("{:?}", e));
+                    self.connection.set_error(error.clone())?;
+                    Err(error)
                 }
             }
         }

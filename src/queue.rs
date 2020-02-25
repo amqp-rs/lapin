@@ -1,6 +1,6 @@
 use crate::{
-    connection_status::ConnectionState, consumer::Consumer, message::BasicGetMessage,
-    pinky_swear::Pinky, types::ShortString, BasicProperties, Error, Result,
+    consumer::Consumer, message::BasicGetMessage, pinky_swear::Pinky, types::ShortString,
+    BasicProperties, Error, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, hash::Hash};
 
@@ -86,9 +86,7 @@ impl QueueState {
     pub(crate) fn error_consumers(&mut self, error: Error) -> Result<()> {
         self.consumers
             .drain()
-            .map(|(_, consumer)| {
-                consumer.set_error(error.clone())
-            })
+            .map(|(_, consumer)| consumer.set_error(error.clone()))
             .fold(Ok(()), Result::and)
     }
 

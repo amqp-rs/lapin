@@ -4,7 +4,7 @@ use crate::{
     pinky_swear::Pinky,
     queue::QueueState,
     types::ShortString,
-    BasicProperties, Result,
+    BasicProperties, Error, Result,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -58,11 +58,11 @@ impl Queues {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn error_consumers(&self) -> Result<()> {
+    pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
         self.queues
             .lock()
             .values_mut()
-            .map(QueueState::error_consumers)
+            .map(|queue| queue.error_consumers(error.clone()))
             .fold(Ok(()), Result::and)
     }
 

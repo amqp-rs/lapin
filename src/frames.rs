@@ -1,6 +1,5 @@
 use crate::{
     channel::Reply,
-    channel_status::ChannelState,
     id_sequence::IdSequence,
     pinky_swear::{Cancellable, Pinky, PinkySwear},
     Error, Result,
@@ -88,19 +87,12 @@ impl Frames {
         }
     }
 
-    pub(crate) fn drop_pending(&self) {
-        self.inner.lock().drop_pending();
+    pub(crate) fn drop_pending(&self, error: Error) {
+        self.inner.lock().drop_pending(error);
     }
 
-    pub(crate) fn clear_expected_replies(
-        &self,
-        channel_id: u16,
-        channel_state: ChannelState,
-        error: Error,
-    ) {
-        self.inner
-            .lock()
-            .clear_expected_replies(channel_id, channel_state, error);
+    pub(crate) fn clear_expected_replies(&self, channel_id: u16, error: Error) {
+        self.inner.lock().clear_expected_replies(channel_id, error);
     }
 }
 
@@ -216,33 +208,25 @@ impl Inner {
         }
     }
 
-    fn drop_pending(&mut self) {
+    fn drop_pending(&mut self, error: Error) {
         self.header_frames.clear();
         self.priority_frames.clear();
         self.frames.clear();
         self.low_prio_frames.clear();
         for (_, replies) in self.expected_replies.drain() {
-            Self::cancel_expected_replies(
-                replies,
-                Error::InvalidChannelState(ChannelState::Closed),
-            );
+            Self::cancel_expected_replies(replies, error.clone());
         }
         for (_, (_, pinky, _)) in self.outbox.drain() {
             pinky.swear(Ok(()));
         }
     }
 
-    fn clear_expected_replies(
-        &mut self,
-        channel_id: u16,
-        channel_state: ChannelState,
-        error: Error,
-    ) {
+    fn clear_expected_replies(&mut self, channel_id: u16, error: Error) {
         let mut outbox = HashMap::default();
 
         for (send_id, (chan_id, pinky, expects_reply)) in self.outbox.drain() {
             if chan_id == channel_id && expects_reply {
-                pinky.swear(Err(Error::InvalidChannelState(channel_state.clone())))
+                pinky.swear(Err(error.clone()))
             } else {
                 outbox.insert(send_id, (chan_id, pinky, expects_reply));
             }

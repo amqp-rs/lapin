@@ -133,7 +133,7 @@ impl Connection {
         self.io_loop.wait()
     }
 
-    pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
+    pub fn on_error<E: Fn(Error) + Send + 'static>(&self, handler: Box<E>) {
         self.error_handler.set_handler(handler);
     }
 
@@ -177,8 +177,8 @@ impl Connection {
         self.io_loop.register(io_loop);
     }
 
-    pub(crate) fn drop_pending_frames(&self) {
-        self.frames.drop_pending();
+    pub(crate) fn drop_pending_frames(&self, error: Error) {
+        self.frames.drop_pending(error);
     }
 
     pub fn connector(
@@ -279,7 +279,7 @@ impl Connection {
     /// updates the current state with a new received frame
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
         if let Err(err) = self.do_handle_frame(f) {
-            self.set_error()?;
+            self.set_error(err.clone())?;
             Err(err)
         } else {
             Ok(())
@@ -338,19 +338,16 @@ impl Connection {
         self.channels.set_closing();
     }
 
-    pub(crate) fn set_closed(&self) -> Result<()> {
+    pub(crate) fn set_closed(&self, error: Error) -> Result<()> {
         self.set_state(ConnectionState::Closed);
-        self.channels
-            .set_closed(Error::InvalidConnectionState(ConnectionState::Closed))
+        self.channels.set_closed(error)
     }
 
-    pub(crate) fn set_error(&self) -> Result<()> {
+    pub(crate) fn set_error(&self, error: Error) -> Result<()> {
         error!("Connection error");
         self.set_state(ConnectionState::Error);
-        self.channels
-            .set_error(Error::InvalidConnectionState(ConnectionState::Error))?;
-        self.error_handler.on_error();
-        Ok(())
+        self.error_handler.on_error(error.clone());
+        self.channels.set_error(error)
     }
 }
 

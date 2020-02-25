@@ -37,8 +37,7 @@ impl Channels {
     }
 
     pub(crate) fn remove(&self, id: u16, error: Error) -> Result<()> {
-        self.frames
-            .clear_expected_replies(id, ChannelState::Closed, error);
+        self.frames.clear_expected_replies(id, error);
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
         } else {
@@ -87,8 +86,7 @@ impl Channels {
             .channels
             .drain()
             .map(|(id, channel)| {
-                self.frames
-                    .clear_expected_replies(id, ChannelState::Closed, error.clone());
+                self.frames.clear_expected_replies(id, error.clone());
                 channel.set_state(ChannelState::Closed);
                 channel.cancel_consumers()
             })
@@ -101,10 +99,9 @@ impl Channels {
             .channels
             .drain()
             .map(|(id, channel)| {
-                self.frames
-                    .clear_expected_replies(id, ChannelState::Error, error.clone());
+                self.frames.clear_expected_replies(id, error.clone());
                 channel.set_state(ChannelState::Error);
-                channel.error_consumers()
+                channel.error_consumers(error.clone())
             })
             .fold(Ok(()), Result::and)
     }

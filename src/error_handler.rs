@@ -1,7 +1,8 @@
+use crate::Error;
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 
-type ErrorFn = Box<dyn Fn() + Send + 'static>;
+type ErrorFn = Box<dyn Fn(Error) + Send + 'static>;
 
 #[derive(Clone)]
 pub(crate) struct ErrorHandler {
@@ -9,13 +10,13 @@ pub(crate) struct ErrorHandler {
 }
 
 impl ErrorHandler {
-    pub(crate) fn set_handler<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
+    pub(crate) fn set_handler<E: Fn(Error) + Send + 'static>(&self, handler: Box<E>) {
         *self.handler.lock() = Some(handler);
     }
 
-    pub(crate) fn on_error(&self) {
+    pub(crate) fn on_error(&self, error: Error) {
         if let Some(handler) = self.handler.lock().as_ref() {
-            handler()
+            handler(error)
         }
     }
 }

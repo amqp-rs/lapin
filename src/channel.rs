@@ -67,7 +67,7 @@ impl Channel {
 
     fn set_error(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Error);
-        self.error_consumers()
+        self.error_consumers(error.clone())
             .and(self.connection.remove_channel(self.id, error))
     }
 
@@ -75,8 +75,8 @@ impl Channel {
         self.queues.cancel_consumers()
     }
 
-    pub(crate) fn error_consumers(&self) -> Result<()> {
-        self.queues.error_consumers()
+    pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
+        self.queues.error_consumers(error)
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -299,7 +299,9 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self) -> Result<()> {
-        self.connection.set_closed()
+        self.connection.set_closed(Error::InvalidConnectionState(
+            self.connection.status().state(),
+        ))
     }
 
     fn on_channel_close_sent(&self) -> Result<()> {
@@ -433,8 +435,9 @@ impl Channel {
             .map(|_| ())
         } else {
             error!("Invalid state: {:?}", state);
-            self.connection.set_error()?;
-            Err(Error::InvalidConnectionState(state))
+            let error = Error::InvalidConnectionState(state);
+            self.connection.set_error(error.clone())?;
+            Err(error)
         }
     }
 
@@ -449,8 +452,9 @@ impl Channel {
                 .map(|_| ())
         } else {
             error!("Invalid state: {:?}", state);
-            self.connection.set_error()?;
-            Err(Error::InvalidConnectionState(state))
+            let error = Error::InvalidConnectionState(state);
+            self.connection.set_error(error.clone())?;
+            Err(error)
         }
     }
 
@@ -479,8 +483,9 @@ impl Channel {
                 .map(|_| ())
         } else {
             error!("Invalid state: {:?}", state);
-            self.connection.set_error()?;
-            Err(Error::InvalidConnectionState(state))
+            let error = Error::InvalidConnectionState(state);
+            self.connection.set_error(error.clone())?;
+            Err(error)
         }
     }
 
@@ -492,8 +497,9 @@ impl Channel {
             Ok(())
         } else {
             error!("Invalid state: {:?}", state);
-            self.connection.set_error()?;
-            Err(Error::InvalidConnectionState(state))
+            let error = Error::InvalidConnectionState(state);
+            self.connection.set_error(error.clone())?;
+            Err(error)
         }
     }
 
@@ -508,7 +514,8 @@ impl Channel {
         }
         let state = self.connection.status().state();
         self.connection.set_closing();
-        self.connection.drop_pending_frames();
+        self.connection
+            .drop_pending_frames(Error::InvalidConnectionState(ConnectionState::Closed));
         match state {
             ConnectionState::SentProtocolHeader(pinky, ..) => {
                 pinky.swear(Err(Error::ConnectionRefused))
@@ -537,7 +544,8 @@ impl Channel {
     }
 
     fn on_connection_close_ok_received(&self) -> Result<()> {
-        self.connection.set_closed()
+        self.connection
+            .set_closed(Error::InvalidConnectionState(ConnectionState::Closed))
     }
 
     fn on_channel_open_ok_received(
