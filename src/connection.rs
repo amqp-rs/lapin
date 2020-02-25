@@ -210,7 +210,7 @@ impl Connection {
                 uri.authority.userinfo.into(),
                 options,
             ));
-            IoLoop::new(conn.clone(), stream, poll)?.start()?;
+            IoLoop::new(conn, stream, poll)?.start()?;
             Ok(promise)
         }
     }

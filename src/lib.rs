@@ -7,15 +7,13 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use env_logger;
-//! use log::info;
-//!
 //! use crate::lapin::{
 //!   BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
 //!   message::DeliveryResult,
 //!   options::*,
 //!   types::FieldTable,
 //! };
+//! use log::info;
 //!
 //! #[derive(Clone,Debug)]
 //! struct Subscriber {
