@@ -1,3 +1,9 @@
+### 0.30.1 (2020-02-25)
+
+#### Features
+
+* New rustls-native-certs feature
+
 ### 0.30.0 (2020-02-25)
 
 #### Breaking changes

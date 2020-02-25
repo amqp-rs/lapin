@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.30.0"
+version = "0.30.1"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/sozu-proxy/lapin"
@@ -12,13 +12,14 @@ categories = ["database"]
 license = "MIT"
 
 [features]
-default    = ["native-tls"]
-native-tls = ["lapin/native-tls"]
-openssl    = ["lapin/openssl"]
-rustls     = ["lapin/rustls"]
+default             = ["native-tls"]
+native-tls          = ["lapin/native-tls"]
+openssl             = ["lapin/openssl"]
+rustls              = ["lapin/rustls"]
+rustls-native-certs = ["lapin/rustls-native-certs"]
 
 [dependencies.lapin]
-version = "^0.30"
+version = "^0.30.1"
 default-features = false
 path = ".."
 
