@@ -24,7 +24,6 @@ impl Queues {
     }
 
     fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(&self, queue: &str, f: F) -> Result<()> {
-        // FIXME: drop into(), which trait is used by the entry API?
         f(self.queues.lock().entry(queue.into()).or_insert_with(|| Queue::new(queue.into(), 0, 0).into()))
     }
 
