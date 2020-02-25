@@ -83,11 +83,11 @@ impl QueueState {
             .fold(Ok(()), Result::and)
     }
 
-    pub(crate) fn error_consumers(&mut self) -> Result<()> {
+    pub(crate) fn error_consumers(&mut self, error: Error) -> Result<()> {
         self.consumers
             .drain()
             .map(|(_, consumer)| {
-                consumer.set_error(Error::InvalidConnectionState(ConnectionState::Error))
+                consumer.set_error(error.clone())
             })
             .fold(Ok(()), Result::and)
     }

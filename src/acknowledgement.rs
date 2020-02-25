@@ -101,18 +101,16 @@ impl Inner {
             }
             Ok(())
         } else {
-            Err(Error::PreconditionFailed)
+            Err(Error::InvalidAck)
         }
     }
 
     fn ack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.drop_pending(delivery_tag, true)?;
-        Ok(())
+        self.drop_pending(delivery_tag, true)
     }
 
     fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.drop_pending(delivery_tag, false)?;
-        Ok(())
+        self.drop_pending(delivery_tag, false)
     }
 
     fn drain_pending(&mut self) -> Vec<Pinky<Result<()>>> {

@@ -14,20 +14,23 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Clone, Debug)]
 pub enum Error {
-    InvalidMethod(AMQPClass),
-    InvalidChannel(u16),
+    ChannelsLimitReached,
     ConnectionRefused,
-    NotConnected,
-    UnexpectedReply,
-    PreconditionFailed,
-    ChannelLimitReached,
+    InvalidAck,
     InvalidBodyReceived,
+    UnexpectedReply,
+
+    InvalidChannel(u16),
     InvalidChannelState(ChannelState),
     InvalidConnectionState(ConnectionState),
+    InvalidMethod(AMQPClass),
+
+    IOError(Arc<io::Error>),
+    SerialisationError(Arc<GenError>),
+
     ParsingError(String),
     ProtocolError(AMQPError, String),
-    SerialisationError(Arc<GenError>),
-    IOError(Arc<io::Error>),
+
     /// A hack to prevent developers from exhaustively match on the enum's variants
     ///
     /// The purpose of this variant is to let the `Error` enumeration grow more variants
@@ -52,25 +55,28 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
-            Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
-            Error::ConnectionRefused => write!(f, "connection refused"),
-            Error::NotConnected => write!(f, "not connected"),
-            Error::UnexpectedReply => write!(f, "unexpected reply"),
-            Error::PreconditionFailed => write!(f, "precondition failed"),
-            Error::ChannelLimitReached => write!(
+            Error::ChannelsLimitReached => write!(
                 f,
-                "The maximum number of channels for this connection has been reached"
+                "the maximum number of channels for this connection has been reached"
             ),
+            Error::ConnectionRefused => write!(f, "connection refused"),
+            Error::InvalidAck => write!(f, "invalid acknowledgement"),
             Error::InvalidBodyReceived => write!(f, "invalid body received"),
+            Error::UnexpectedReply => write!(f, "unexpected reply"),
+
+            Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
             Error::InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
             Error::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
             }
-            Error::ParsingError(e) => write!(f, "Failed to parse: {}", e),
-            Error::ProtocolError(e, msg) => write!(f, "Protocol error: {:?} - {}", e, msg),
-            Error::SerialisationError(e) => write!(f, "Failed to serialise: {:?}", e),
-            Error::IOError(e) => write!(f, "IO error: {:?}", e),
+            Error::InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
+
+            Error::IOError(e) => write!(f, "IO error: {}", e),
+            Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
+
+            Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
+            Error::ProtocolError(e, msg) => write!(f, "protocol error: {:?} - {}", e, msg),
+
             Error::__Nonexhaustive => write!(
                 f,
                 "lapin::Error::__Nonexhaustive: this should not be printed"
@@ -82,8 +88,8 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Error::SerialisationError(e) => Some(&**e),
             Error::IOError(e) => Some(&**e),
+            Error::SerialisationError(e) => Some(&**e),
             _ => None,
         }
     }
@@ -92,39 +98,37 @@ impl error::Error for Error {
 #[cfg(test)]
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
+        use log::error;
         use Error::*;
 
         match (self, other) {
-            (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
+            (ChannelsLimitReached, ChannelsLimitReached) => true,
+            (ConnectionRefused, ConnectionRefused) => true,
+            (InvalidAck, InvalidAck) => true,
+            (InvalidBodyReceived, InvalidBodyReceived) => true,
+            (UnexpectedReply, UnexpectedReply) => true,
+
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
-            (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
-            (ProtocolError(left_inner, left_msg), ProtocolError(right_inner, right_msg)) => {
-                left_inner == right_inner && left_msg == right_msg
-            }
             (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {
                 left_inner == right_inner
             }
             (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
                 left_inner == right_inner
             }
-
-            (ConnectionRefused, ConnectionRefused) => true,
-            (NotConnected, NotConnected) => true,
-            (UnexpectedReply, UnexpectedReply) => true,
-            (PreconditionFailed, PreconditionFailed) => true,
-            (ChannelLimitReached, ChannelLimitReached) => true,
-            (InvalidBodyReceived, InvalidBodyReceived) => true,
+            (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
 
             (SerialisationError(_), SerialisationError(_)) => {
-                panic!("Unable to compare lapin::Error::SerialisationError");
+                error!("Unable to compare lapin::Error::SerialisationError");
+                false
             }
-
             (IOError(_), IOError(_)) => {
-                panic!("Unable to compare lapin::Error::IOError");
+                error!("Unable to compare lapin::Error::IOError");
+                false
             }
 
-            (__Nonexhaustive, __Nonexhaustive) => {
-                panic!("lapin::Error::__Nonexhaustive: should not be compared");
+            (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
+            (ProtocolError(left_inner, left_msg), ProtocolError(right_inner, right_msg)) => {
+                left_inner == right_inner && left_msg == right_msg
             }
 
             _ => false,

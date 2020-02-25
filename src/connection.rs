@@ -291,6 +291,7 @@ impl Connection {
         match f {
             AMQPFrame::ProtocolHeader => {
                 error!("error: the client should not receive a protocol header");
+                // FIXME: new error?
                 return Err(Error::InvalidConnectionState(ConnectionState::Connected));
             }
             AMQPFrame::Method(channel_id, method) => {

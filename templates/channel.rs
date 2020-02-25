@@ -71,7 +71,7 @@ impl Channel {
     if !self.status.is_connected() {
     {{/if ~}}
     {{/if ~}}
-      return PinkySwear::new_with_data(Err(Error::NotConnected));
+      return PinkySwear::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
     }
 
     {{#if method.metadata.start_hook ~}}
@@ -157,7 +157,7 @@ impl Channel {
     if !self.status.is_connected() {
     {{/if ~}}
     {{/if ~}}
-      return Err(Error::NotConnected);
+      return Err(Error::InvalidChannelState(self.status.state()));
     }
 
     match self.connection.next_expected_reply(self.id) {
@@ -185,7 +185,7 @@ impl Channel {
   {{else}}
   fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
     if !self.status.is_connected() {
-      return Err(Error::NotConnected);
+      return Err(Error::InvalidChannelState(self.status.state()));
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }

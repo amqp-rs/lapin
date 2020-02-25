@@ -159,6 +159,6 @@ impl Inner {
             }
             id = self.channel_id.next();
         }
-        Err(Error::ChannelLimitReached)
+        Err(Error::ChannelsLimitReached)
     }
 }
