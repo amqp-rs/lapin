@@ -98,6 +98,9 @@ impl PartialEq for Error {
             (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
+            (ProtocolError(left_inner, left_msg), ProtocolError(right_inner, right_msg)) => {
+                left_inner == right_inner && left_msg == right_msg
+            }
             (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {
                 left_inner == right_inner
             }
@@ -110,6 +113,7 @@ impl PartialEq for Error {
             (UnexpectedReply, UnexpectedReply) => true,
             (PreconditionFailed, PreconditionFailed) => true,
             (ChannelLimitReached, ChannelLimitReached) => true,
+            (InvalidBodyReceived, InvalidBodyReceived) => true,
 
             (SerialisationError(_), SerialisationError(_)) => {
                 panic!("Unable to compare lapin::Error::SerialisationError");
