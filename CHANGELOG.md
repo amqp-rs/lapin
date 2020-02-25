@@ -8,6 +8,10 @@
 
 * `Channel::basic_consume` now takes an `&str` instead of a `&Queue` as its first parameter
 
+#### Features
+
+* `impl From<_> for AMQPValue`
+
 ### 0.30.1 (2020-02-25)
 
 #### Features
