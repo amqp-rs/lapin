@@ -18,6 +18,7 @@ pub enum Error {
     ConnectionRefused,
     InvalidAck,
     InvalidBodyReceived,
+    InvalidFrameReceived,
     UnexpectedReply,
 
     InvalidChannel(u16),
@@ -62,6 +63,7 @@ impl fmt::Display for Error {
             Error::ConnectionRefused => write!(f, "connection refused"),
             Error::InvalidAck => write!(f, "invalid acknowledgement"),
             Error::InvalidBodyReceived => write!(f, "invalid body received"),
+            Error::InvalidFrameReceived => write!(f, "invalid frame received"),
             Error::UnexpectedReply => write!(f, "unexpected reply"),
 
             Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
@@ -106,6 +108,7 @@ impl PartialEq for Error {
             (ConnectionRefused, ConnectionRefused) => true,
             (InvalidAck, InvalidAck) => true,
             (InvalidBodyReceived, InvalidBodyReceived) => true,
+            (InvalidFrameReceived, InvalidFrameReceived) => true,
             (UnexpectedReply, UnexpectedReply) => true,
 
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
