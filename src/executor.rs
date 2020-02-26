@@ -29,7 +29,7 @@ impl DefaultExecutor {
         })
     }
 
-    pub(crate) fn default() -> Arc<Self> {
+    pub fn default() -> Arc<Self> {
         Self::new(1)
     }
 }
