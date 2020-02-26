@@ -23,8 +23,16 @@ impl Queues {
         self.queues.lock().remove(queue);
     }
 
-    fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(&self, queue: &str, f: F) -> Result<()> {
-        f(self.queues.lock().entry(queue.into()).or_insert_with(|| Queue::new(queue.into(), 0, 0).into()))
+    fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(
+        &self,
+        queue: &str,
+        f: F,
+    ) -> Result<()> {
+        f(self
+            .queues
+            .lock()
+            .entry(queue.into())
+            .or_insert_with(|| Queue::new(queue.into(), 0, 0).into()))
     }
 
     pub(crate) fn register_consumer(
@@ -36,7 +44,8 @@ impl Queues {
         self.with_queue(queue, |queue| {
             queue.register_consumer(consumer_tag, consumer);
             Ok(())
-        }).expect("register_consumer cannot fail");
+        })
+        .expect("register_consumer cannot fail");
     }
 
     pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
@@ -94,7 +103,8 @@ impl Queues {
         self.with_queue(queue, |queue| {
             queue.start_new_delivery(message, pinky);
             Ok(())
-        }).expect("start_basic_get_delivery cannot fail");
+        })
+        .expect("start_basic_get_delivery cannot fail");
     }
 
     pub(crate) fn handle_content_header_frame(
