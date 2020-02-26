@@ -202,8 +202,9 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            let header_promise =
-                conn.send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None).unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)));
+            let header_promise = conn
+                .send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)
+                .unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)));
             let (promise, pinky) = PinkySwear::after(header_promise);
             conn.set_state(ConnectionState::SentProtocolHeader(
                 pinky,
