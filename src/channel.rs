@@ -494,24 +494,23 @@ impl Channel {
     }
 
     fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<()> {
-        if let Some(error) = AMQPError::from_id(method.reply_code) {
+        let error = if let Some(error) = AMQPError::from_id(method.reply_code) {
             error!(
                 "Connection closed on channel {} by {}:{} => {:?} => {}",
                 self.id, method.class_id, method.method_id, error, method.reply_text
             );
+            Error::ProtocolError(error, method.reply_text.to_string())
         } else {
             info!("Connection closed on channel {}: {:?}", self.id, method);
-        }
+            Error::InvalidConnectionState(ConnectionState::Closed)
+        };
         let state = self.connection.status().state();
         self.connection.set_closing();
-        self.connection
-            .drop_pending_frames(Error::InvalidConnectionState(ConnectionState::Closed));
+        self.connection.drop_pending_frames(error.clone());
         match state {
-            ConnectionState::SentProtocolHeader(pinky, ..) => {
-                pinky.swear(Err(Error::ConnectionRefused))
-            }
-            ConnectionState::SentStartOk(pinky, _) => pinky.swear(Err(Error::ConnectionRefused)),
-            ConnectionState::SentOpen(pinky) => pinky.swear(Err(Error::ConnectionRefused)),
+            ConnectionState::SentProtocolHeader(pinky, ..) => pinky.swear(Err(error)),
+            ConnectionState::SentStartOk(pinky, _) => pinky.swear(Err(error)),
+            ConnectionState::SentOpen(pinky) => pinky.swear(Err(error)),
             _ => {}
         }
         self.connection_close_ok()
