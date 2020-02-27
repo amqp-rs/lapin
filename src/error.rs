@@ -15,7 +15,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Debug)]
 pub enum Error {
     ChannelsLimitReached,
-    ConnectionRefused,
     InvalidAck,
     InvalidBodyReceived,
     InvalidFrameReceived,
@@ -60,7 +59,6 @@ impl fmt::Display for Error {
                 f,
                 "the maximum number of channels for this connection has been reached"
             ),
-            Error::ConnectionRefused => write!(f, "connection refused"),
             Error::InvalidAck => write!(f, "invalid acknowledgement"),
             Error::InvalidBodyReceived => write!(f, "invalid body received"),
             Error::InvalidFrameReceived => write!(f, "invalid frame received"),
@@ -105,7 +103,6 @@ impl PartialEq for Error {
 
         match (self, other) {
             (ChannelsLimitReached, ChannelsLimitReached) => true,
-            (ConnectionRefused, ConnectionRefused) => true,
             (InvalidAck, InvalidAck) => true,
             (InvalidBodyReceived, InvalidBodyReceived) => true,
             (InvalidFrameReceived, InvalidFrameReceived) => true,

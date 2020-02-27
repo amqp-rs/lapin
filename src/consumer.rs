@@ -308,12 +308,12 @@ mod futures_tests {
         assert_eq!(awoken_count.get(), 0);
         assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
 
-        consumer.set_error(Error::ConnectionRefused).unwrap();
+        consumer.set_error(Error::InvalidFrameReceived).unwrap();
 
         assert_eq!(awoken_count.get(), 1);
         assert_eq!(
             consumer.poll_next_unpin(&mut cx),
-            Poll::Ready(Some(Err(Error::ConnectionRefused)))
+            Poll::Ready(Some(Err(Error::InvalidFrameReceived)))
         );
     }
 }
