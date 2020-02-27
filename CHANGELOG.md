@@ -1,3 +1,17 @@
+### 0.32.0 (2020-02-27)
+
+#### Bug Fixes
+
+* Properly handle critical error when reading from socket on first connection
+
+#### Breaking changes
+
+* `Error::ConnectionRefused` is replaced by the proper underlying ProtocolError or IOError
+
+#### Features
+
+* `DefaultExecutor::default()` is now public
+
 ### 0.31.0 (2020-02-25)
 
 #### Bug Fixes
