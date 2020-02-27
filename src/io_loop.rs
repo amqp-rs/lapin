@@ -321,6 +321,15 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
+    fn critical_error(&mut self, error: Error) -> Result<()> {
+        if let ConnectionState::SentProtocolHeader(pinky, ..) = self.connection.status().state() {
+            pinky.swear(Err(error.clone()));
+            self.status = Status::Stop;
+        }
+        self.connection.set_error(error.clone())?;
+        Err(error)
+    }
+
     fn write(&mut self) -> Result<()> {
         if self.can_write() {
             if let Err(e) = self.write_to_stream() {
@@ -328,14 +337,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     self.can_write = false
                 } else {
                     error!("error writing: {:?}", e);
-                    if let ConnectionState::SentProtocolHeader(pinky, ..) =
-                        self.connection.status().state()
-                    {
-                        pinky.swear(Err(Error::ConnectionRefused));
-                        self.status = Status::Stop;
-                    }
-                    self.connection.set_error(e.clone())?;
-                    return Err(e);
+                    self.critical_error(e)?;
                 }
             }
             self.send_buffer.shift_unless_available(self.frame_size);
@@ -350,8 +352,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                     self.can_read = false
                 } else {
                     error!("error reading: {:?}", e);
-                    self.connection.set_error(e.clone())?;
-                    return Err(e);
+                    self.critical_error(e)?;
                 }
             }
             self.receive_buffer.shift_unless_available(self.frame_size);
