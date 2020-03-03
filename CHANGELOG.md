@@ -5,6 +5,12 @@
 * Some more Error reworks
 * Port to amq-protocol 5.0 and mio 0.7
 
+### 0.32.1 (2020-03-03)
+
+#### Bug Fixes
+
+* Fix Channel and Connection status in some cases
+
 ### 0.32.0 (2020-02-27)
 
 #### Bug Fixes
