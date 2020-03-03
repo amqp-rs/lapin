@@ -10,15 +10,15 @@ use crate::{
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::{IoLoop, IoLoopHandle},
     pinky_swear::PinkySwear,
-    registration::Registration,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     types::ShortUInt,
+    waker::Waker,
     Error, Result,
 };
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
 use log::{debug, error, trace};
-use mio::{Evented, Poll, PollOpt, Ready, Token};
-use std::{io, sync::Arc, thread::JoinHandle};
+use mio::{Poll, Token, Waker as MioWaker};
+use std::{sync::Arc, thread::JoinHandle};
 
 pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
 
@@ -27,7 +27,7 @@ pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
     channels: Channels,
-    registration: Registration,
+    waker: Waker,
     frames: Frames,
     io_loop: IoLoopHandle,
     error_handler: ErrorHandler,
@@ -39,32 +39,6 @@ impl Default for Connection {
     }
 }
 
-impl Evented for Connection {
-    fn register(
-        &self,
-        poll: &Poll,
-        token: Token,
-        interest: Ready,
-        opts: PollOpt,
-    ) -> io::Result<()> {
-        self.registration.register(poll, token, interest, opts)
-    }
-
-    fn reregister(
-        &self,
-        poll: &Poll,
-        token: Token,
-        interest: Ready,
-        opts: PollOpt,
-    ) -> io::Result<()> {
-        self.registration.reregister(poll, token, interest, opts)
-    }
-
-    fn deregister(&self, poll: &Poll) -> io::Result<()> {
-        self.registration.deregister(poll)
-    }
-}
-
 impl Connection {
     fn new(executor: Arc<dyn Executor>) -> Self {
         let frames = Frames::default();
@@ -72,7 +46,7 @@ impl Connection {
             configuration: Configuration::default(),
             status: ConnectionStatus::default(),
             channels: Channels::new(frames.clone(), executor),
-            registration: Registration::default(),
+            waker: Waker::default(),
             frames,
             io_loop: IoLoopHandle::default(),
             error_handler: ErrorHandler::default(),
@@ -173,8 +147,16 @@ impl Connection {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
-    pub(crate) fn set_io_loop(&self, io_loop: JoinHandle<Result<()>>) {
+    pub(crate) fn set_io_loop(
+        &mut self,
+        io_loop: JoinHandle<Result<()>>,
+        waker: MioWaker,
+    ) -> Result<()> {
         self.io_loop.register(io_loop);
+        self.waker
+            .set_waker(waker)
+            .map_err(Arc::new)
+            .map_err(Error::IOError)
     }
 
     pub(crate) fn drop_pending_frames(&self, error: Error) {
@@ -226,16 +208,12 @@ impl Connection {
 
     pub(crate) fn do_unblock(&self) -> Result<()> {
         self.status.unblock();
-        self.set_readable()
+        self.wake()
     }
 
-    pub(crate) fn set_readable(&self) -> Result<()> {
-        trace!("connection set readable");
-        self.registration
-            .set_readiness(Ready::readable())
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
-        Ok(())
+    pub(crate) fn wake(&self) -> Result<()> {
+        trace!("connection wake");
+        self.waker.wake().map_err(Arc::new).map_err(Error::IOError)
     }
 
     pub(crate) fn send_frame(
@@ -249,7 +227,7 @@ impl Connection {
         let promise = self
             .frames
             .push(channel_id, priority, frame, expected_reply);
-        self.set_readable()?;
+        self.wake()?;
         Ok(promise)
     }
 
@@ -260,7 +238,7 @@ impl Connection {
     ) -> Result<PinkySwear<Result<()>>> {
         trace!("connection send_frames; channel_id={}", channel_id);
         let promise = self.frames.push_frames(channel_id, frames);
-        self.set_readable()?;
+        self.wake()?;
         Ok(promise)
     }
 
@@ -313,7 +291,7 @@ impl Connection {
     }
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
-        self.set_readable()?;
+        self.wake()?;
         self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?
             .try_wait()
             .transpose()
@@ -322,7 +300,7 @@ impl Connection {
     }
 
     pub(crate) fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<()> {
-        self.set_readable()?;
+        self.wake()?;
         self.frames.retry(send_id, frame);
         Ok(())
     }

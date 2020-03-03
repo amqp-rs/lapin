@@ -19,7 +19,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
-use std::sync::Arc;
+use std::{convert::TryFrom, sync::Arc};
 
 #[cfg(test)]
 use crate::queue::QueueState;
@@ -494,16 +494,19 @@ impl Channel {
     }
 
     fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<()> {
-        let error = if let Some(error) = AMQPError::from_id(method.reply_code) {
-            error!(
-                "Connection closed on channel {} by {}:{} => {:?} => {}",
-                self.id, method.class_id, method.method_id, error, method.reply_text
-            );
-            Error::ProtocolError(error, method.reply_text.to_string())
-        } else {
-            info!("Connection closed on channel {}: {:?}", self.id, method);
-            Error::InvalidConnectionState(ConnectionState::Closed)
-        };
+        let error = AMQPError::try_from(method.clone())
+            .map(|error| {
+                error!(
+                    "Connection closed on channel {} by {}:{} => {:?} => {}",
+                    self.id, method.class_id, method.method_id, error, method.reply_text
+                );
+                Error::ProtocolError(error)
+            })
+            .unwrap_or_else(|error| {
+                error!("{}", error);
+                info!("Connection closed on channel {}: {:?}", self.id, method);
+                Error::InvalidConnectionState(ConnectionState::Closed)
+            });
         let state = self.connection.status().state();
         self.connection.set_closing();
         self.connection.drop_pending_frames(error.clone());
@@ -568,16 +571,19 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = if let Some(error) = AMQPError::from_id(method.reply_code) {
-            error!(
-                "Channel {} closed by {}:{} => {:?} => {}",
-                self.id, method.class_id, method.method_id, error, method.reply_text
-            );
-            Error::ProtocolError(error, method.reply_text.to_string())
-        } else {
-            info!("Channel {} closed: {:?}", self.id, method);
-            Error::InvalidChannelState(ChannelState::Closing)
-        };
+        let error = AMQPError::try_from(method.clone())
+            .map(|error| {
+                error!(
+                    "Channel closed on channel {} by {}:{} => {:?} => {}",
+                    self.id, method.class_id, method.method_id, error, method.reply_text
+                );
+                Error::ProtocolError(error)
+            })
+            .unwrap_or_else(|error| {
+                error!("{}", error);
+                info!("Channel closed on channel {}: {:?}", self.id, method);
+                Error::InvalidChannelState(ChannelState::Closing)
+            });
         self.set_state(ChannelState::Closing);
         self.channel_close_ok(error)
             .try_wait()

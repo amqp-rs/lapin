@@ -3,7 +3,7 @@ use crate::{
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
 use log::{error, trace};
-use mio::{Evented, Events, Poll, PollOpt, Ready, Registration, SetReadiness, Token};
+use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use parking_lot::Mutex;
 use std::{
     io::{Read, Write},
@@ -61,8 +61,7 @@ pub struct IoLoop<T> {
     socket: T,
     status: Status,
     poll: Poll,
-    registration: Registration,
-    set_readiness: SetReadiness,
+    waker: Waker,
     hb_handle: Option<JoinHandle<()>>,
     frame_size: usize,
     receive_buffer: Buffer,
@@ -74,7 +73,7 @@ pub struct IoLoop<T> {
     poll_timeout: Option<Duration>,
 }
 
-impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
+impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     pub(crate) fn new(
         connection: Connection,
         socket: T,
@@ -87,14 +86,15 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 .map_err(Error::IOError)
         })?;
         let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
-        let (registration, set_readiness) = Registration::new2();
-        let inner = Self {
+        let waker = Waker::new(poll.registry(), CONTINUE)
+            .map_err(Arc::new)
+            .map_err(Error::IOError)?;
+        let mut inner = Self {
             connection,
             socket,
             status: Status::Initial,
             poll,
-            registration,
-            set_readiness,
+            waker,
             hb_handle: None,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
@@ -108,31 +108,26 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         if registered {
             inner
                 .poll
-                .reregister(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .registry()
+                .reregister(
+                    &mut inner.socket,
+                    SOCKET,
+                    Interest::READABLE | Interest::WRITABLE,
+                )
                 .map_err(Arc::new)
                 .map_err(Error::IOError)?;
         } else {
             inner
                 .poll
-                .register(&inner.socket, SOCKET, Ready::all(), PollOpt::edge())
+                .registry()
+                .register(
+                    &mut inner.socket,
+                    SOCKET,
+                    Interest::READABLE | Interest::WRITABLE,
+                )
                 .map_err(Arc::new)
                 .map_err(Error::IOError)?;
         }
-        inner
-            .poll
-            .register(&inner.connection, DATA, Ready::readable(), PollOpt::edge())
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
-        inner
-            .poll
-            .register(
-                &inner.registration,
-                CONTINUE,
-                Ready::readable(),
-                PollOpt::edge(),
-            )
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
         Ok(inner)
     }
 
@@ -214,6 +209,9 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     pub fn start(mut self) -> Result<()> {
+        let waker = Waker::new(self.poll.registry(), DATA)
+            .map_err(Arc::new)
+            .map_err(Error::IOError)?;
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
@@ -230,8 +228,8 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
                 })
                 .map_err(Arc::new)
                 .map_err(Error::IOError)?,
-        );
-        Ok(())
+            waker,
+        )
     }
 
     fn poll(&mut self, events: &mut Events) -> Result<()> {
@@ -244,10 +242,10 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         for event in events.iter() {
             match event.token() {
                 SOCKET => {
-                    if event.readiness().is_readable() {
+                    if event.is_readable() {
                         self.can_read = true;
                     }
-                    if event.readiness().is_writable() {
+                    if event.is_writable() {
                         self.can_write = true;
                     }
                 }
@@ -361,10 +359,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn send_continue(&mut self) -> Result<()> {
-        self.set_readiness
-            .set_readiness(Ready::readable())
-            .map_err(Arc::new)
-            .map_err(Error::IOError)
+        self.waker.wake().map_err(Arc::new).map_err(Error::IOError)
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
@@ -380,7 +375,7 @@ impl<T: Evented + Read + Write + Send + 'static> IoLoop<T> {
         self.send_buffer.consume(sz);
         if sz > 0 && self.send_buffer.available_data() > 0 {
             // We didn't write all the data yet
-            self.connection.set_readable()?;
+            self.send_continue()?;
         }
         Ok(())
     }

@@ -26,10 +26,10 @@ pub enum Error {
     InvalidMethod(AMQPClass),
 
     IOError(Arc<io::Error>),
+    ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
 
     ParsingError(String),
-    ProtocolError(AMQPError, String),
 
     /// A hack to prevent developers from exhaustively match on the enum's variants
     ///
@@ -72,10 +72,10 @@ impl fmt::Display for Error {
             Error::InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
 
             Error::IOError(e) => write!(f, "IO error: {}", e),
+            Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
             Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
 
             Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
-            Error::ProtocolError(e, msg) => write!(f, "protocol error: {:?} - {}", e, msg),
 
             Error::__Nonexhaustive => write!(
                 f,
@@ -89,6 +89,7 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Error::IOError(e) => Some(&**e),
+            Error::ProtocolError(e) => Some(&*e),
             Error::SerialisationError(e) => Some(&**e),
             _ => None,
         }
@@ -121,15 +122,13 @@ impl PartialEq for Error {
                 error!("Unable to compare lapin::Error::SerialisationError");
                 false
             }
+            (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
             (IOError(_), IOError(_)) => {
                 error!("Unable to compare lapin::Error::IOError");
                 false
             }
 
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
-            (ProtocolError(left_inner, left_msg), ProtocolError(right_inner, right_msg)) => {
-                left_inner == right_inner && left_msg == right_msg
-            }
 
             _ => false,
         }

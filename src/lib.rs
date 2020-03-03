@@ -92,5 +92,5 @@ mod id_sequence;
 mod io_loop;
 mod queue;
 mod queues;
-mod registration;
 mod returned_messages;
+mod waker;
