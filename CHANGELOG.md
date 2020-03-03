@@ -1,3 +1,10 @@
+### 0.33.0 (2020-??-??)
+
+#### Breaking changes
+
+* Some more Error reworks
+* Port to amq-protocol 5.0 and mio 0.7
+
 ### 0.32.0 (2020-02-27)
 
 #### Bug Fixes

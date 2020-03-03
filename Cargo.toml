@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "0.32.0"
+version = "0.33.0-beta.1"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -25,11 +25,11 @@ rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 
 [build-dependencies]
-amq-protocol-codegen = "=5.0.0-beta.2"
+amq-protocol-codegen = "=5.0.0-beta.3"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "=5.0.0-beta.2"
+version = "=5.0.0-beta.3"
 default-features = false
 
 [dependencies.futures-core]
