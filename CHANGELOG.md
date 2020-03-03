@@ -1,3 +1,9 @@
+### 0.32.1 (2020-03-03)
+
+#### Bug Fixes
+
+* Fix Channel and Connection status in some cases
+
 ### 0.32.0 (2020-02-27)
 
 #### Bug Fixes

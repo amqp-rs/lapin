@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.32.0"
+version = "0.32.1"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/sozu-proxy/lapin"
