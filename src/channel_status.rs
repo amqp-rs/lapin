@@ -1,20 +1,20 @@
 use crate::types::ShortString;
 use log::trace;
-use parking_lot::RwLock;
+use parking_lot::Mutex;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
 pub struct ChannelStatus {
-    inner: Arc<RwLock<Inner>>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl ChannelStatus {
     pub fn is_initializing(&self) -> bool {
-        self.inner.read().state == ChannelState::Initial
+        self.inner.lock().state == ChannelState::Initial
     }
 
     pub fn is_closing(&self) -> bool {
-        self.inner.read().state == ChannelState::Closing
+        self.inner.lock().state == ChannelState::Closing
     }
 
     pub fn is_connected(&self) -> bool {
@@ -24,32 +24,32 @@ impl ChannelStatus {
             ChannelState::Closed,
             ChannelState::Error,
         ]
-        .contains(&self.inner.read().state)
+        .contains(&self.inner.lock().state)
     }
 
     pub fn confirm(&self) -> bool {
-        self.inner.read().confirm
+        self.inner.lock().confirm
     }
 
     pub(crate) fn set_confirm(&self) {
-        self.inner.write().confirm = true;
+        self.inner.lock().confirm = true;
         trace!("Publisher confirms activated");
     }
 
     pub fn state(&self) -> ChannelState {
-        self.inner.read().state.clone()
+        self.inner.lock().state.clone()
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
-        self.inner.write().state = state
+        self.inner.lock().state = state
     }
 
     pub(crate) fn set_send_flow(&self, flow: bool) {
-        self.inner.write().send_flow = flow;
+        self.inner.lock().send_flow = flow;
     }
 
     pub(crate) fn flow(&self) -> bool {
-        self.inner.read().send_flow
+        self.inner.lock().send_flow
     }
 }
 

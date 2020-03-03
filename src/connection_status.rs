@@ -1,63 +1,63 @@
 use crate::{auth::Credentials, pinky_swear::Pinky, Connection, ConnectionProperties, Result};
-use parking_lot::RwLock;
+use parking_lot::Mutex;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
 pub struct ConnectionStatus {
-    inner: Arc<RwLock<Inner>>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl ConnectionStatus {
     pub fn state(&self) -> ConnectionState {
-        self.inner.read().state.clone()
+        self.inner.lock().state.clone()
     }
 
     pub(crate) fn set_state(&self, state: ConnectionState) {
-        self.inner.write().state = state
+        self.inner.lock().state = state
     }
 
     pub fn vhost(&self) -> String {
-        self.inner.read().vhost.clone()
+        self.inner.lock().vhost.clone()
     }
 
     pub(crate) fn set_vhost(&self, vhost: &str) {
-        self.inner.write().vhost = vhost.into();
+        self.inner.lock().vhost = vhost.into();
     }
 
     pub fn username(&self) -> String {
-        self.inner.read().username.clone()
+        self.inner.lock().username.clone()
     }
 
     pub(crate) fn set_username(&self, username: &str) {
-        self.inner.write().username = username.into();
+        self.inner.lock().username = username.into();
     }
 
     pub(crate) fn block(&self) {
-        self.inner.write().blocked = true;
+        self.inner.lock().blocked = true;
     }
 
     pub(crate) fn unblock(&self) {
-        self.inner.write().blocked = false;
+        self.inner.lock().blocked = false;
     }
 
     pub fn blocked(&self) -> bool {
-        self.inner.read().blocked
+        self.inner.lock().blocked
     }
 
     pub fn connected(&self) -> bool {
-        self.inner.read().state == ConnectionState::Connected
+        self.inner.lock().state == ConnectionState::Connected
     }
 
     pub fn closing(&self) -> bool {
-        self.inner.read().state == ConnectionState::Closing
+        self.inner.lock().state == ConnectionState::Closing
     }
 
     pub fn closed(&self) -> bool {
-        self.inner.read().state == ConnectionState::Closed
+        self.inner.lock().state == ConnectionState::Closed
     }
 
     pub fn errored(&self) -> bool {
-        self.inner.read().state == ConnectionState::Error
+        self.inner.lock().state == ConnectionState::Error
     }
 }
 
