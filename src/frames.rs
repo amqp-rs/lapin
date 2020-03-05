@@ -169,8 +169,7 @@ impl Inner {
         }
         if let Some(last_frame) = last_frame {
             let send_id = self.send_id.next();
-            self.low_prio_frames
-                .push_back((send_id, last_frame));
+            self.low_prio_frames.push_back((send_id, last_frame));
             self.outbox.insert(send_id, (channel_id, pinky, false));
         } else {
             pinky.swear(Ok(()));
