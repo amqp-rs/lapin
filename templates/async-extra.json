@@ -79,7 +79,7 @@
     "close": {
       "metadata": {
         "require_wrapper": true,
-        "end_hook": true
+        "start_hook": true
       }
     },
     "close-ok": {

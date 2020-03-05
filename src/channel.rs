@@ -294,9 +294,8 @@ impl Channel {
         ))
     }
 
-    fn on_channel_close_sent(&self) -> Result<()> {
+    fn before_channel_close(&self) {
         self.set_state(ChannelState::Closing);
-        Ok(())
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) -> Result<()> {

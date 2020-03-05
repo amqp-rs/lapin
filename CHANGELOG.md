@@ -5,6 +5,12 @@
 * Some more Error reworks
 * Port to amq-protocol 5.0 and mio 0.7
 
+### 0.32.2 (2020-03-05)
+
+#### Bug Fixes
+
+* Fix race condition in `Channel::close`
+
 ### 0.32.1 (2020-03-03)
 
 #### Bug Fixes
