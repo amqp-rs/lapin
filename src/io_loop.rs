@@ -452,7 +452,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     Ok(None)
                 } else {
                     error!("parse error: {:?}", e);
-                    let error = Error::ParsingError(format!("{:?}", e));
+                    let error = Error::ParsingError(e);
                     self.connection.set_error(error.clone())?;
                     Err(error)
                 }

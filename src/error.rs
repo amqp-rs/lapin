@@ -1,6 +1,6 @@
 use crate::{channel_status::ChannelState, connection_status::ConnectionState};
 use amq_protocol::{
-    frame::GenError,
+    frame::{GenError, ParserError},
     protocol::{AMQPClass, AMQPError},
 };
 use std::{error, fmt, io, sync::Arc};
@@ -26,10 +26,9 @@ pub enum Error {
     InvalidMethod(AMQPClass),
 
     IOError(Arc<io::Error>),
+    ParsingError(ParserError),
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
-
-    ParsingError(String),
 
     /// A hack to prevent developers from exhaustively match on the enum's variants
     ///
@@ -72,10 +71,9 @@ impl fmt::Display for Error {
             Error::InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
 
             Error::IOError(e) => write!(f, "IO error: {}", e),
+            Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
             Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
             Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
-
-            Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
 
             Error::__Nonexhaustive => write!(
                 f,
@@ -89,6 +87,7 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Error::IOError(e) => Some(&**e),
+            Error::ParsingError(e) => Some(&*e),
             Error::ProtocolError(e) => Some(&*e),
             Error::SerialisationError(e) => Some(&**e),
             _ => None,
@@ -122,13 +121,12 @@ impl PartialEq for Error {
                 error!("Unable to compare lapin::Error::SerialisationError");
                 false
             }
+            (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
             (IOError(_), IOError(_)) => {
                 error!("Unable to compare lapin::Error::IOError");
                 false
             }
-
-            (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
 
             _ => false,
         }
