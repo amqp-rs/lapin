@@ -153,10 +153,7 @@ impl Connection {
         waker: MioWaker,
     ) -> Result<()> {
         self.io_loop.register(io_loop);
-        self.waker
-            .set_waker(waker)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)
+        self.waker.set_waker(waker)
     }
 
     pub(crate) fn drop_pending_frames(&self, error: Error) {
@@ -213,7 +210,7 @@ impl Connection {
 
     pub(crate) fn wake(&self) -> Result<()> {
         trace!("connection wake");
-        self.waker.wake().map_err(Arc::new).map_err(Error::IOError)
+        self.waker.wake()
     }
 
     pub(crate) fn send_frame(
@@ -339,8 +336,7 @@ pub trait Connect {
         Self: Sized,
     {
         Poll::new()
-            .map_err(Arc::new)
-            .map_err(Error::IOError)
+            .map_err(Error::from)
             .and_then(|poll| {
                 self.connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
             })
@@ -363,9 +359,7 @@ impl Connect for AMQPUri {
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
     ) -> Result<ConnectionPromise> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)?
     }
 }
 
@@ -376,9 +370,7 @@ impl Connect for &str {
         poll: Option<(Poll, Token)>,
         identity: Option<Identity<'_, '_>>,
     ) -> Result<ConnectionPromise> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?
+        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)?
     }
 }
 

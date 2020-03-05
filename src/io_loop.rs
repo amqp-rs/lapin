@@ -79,16 +79,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         socket: T,
         poll: Option<(Poll, Token)>,
     ) -> Result<Self> {
-        let (poll, registered) = poll.map(|t| Ok((t.0, true))).unwrap_or_else(|| {
-            Poll::new()
-                .map(|poll| (poll, false))
-                .map_err(Arc::new)
-                .map_err(Error::IOError)
-        })?;
+        let (poll, registered) = poll
+            .map(|t| Ok((t.0, true)))
+            .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
         let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
-        let waker = Waker::new(poll.registry(), CONTINUE)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
+        let waker = Waker::new(poll.registry(), CONTINUE)?;
         let mut inner = Self {
             connection,
             socket,
@@ -106,27 +101,17 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             poll_timeout: None,
         };
         if registered {
-            inner
-                .poll
-                .registry()
-                .reregister(
-                    &mut inner.socket,
-                    SOCKET,
-                    Interest::READABLE | Interest::WRITABLE,
-                )
-                .map_err(Arc::new)
-                .map_err(Error::IOError)?;
+            inner.poll.registry().reregister(
+                &mut inner.socket,
+                SOCKET,
+                Interest::READABLE | Interest::WRITABLE,
+            )?;
         } else {
-            inner
-                .poll
-                .registry()
-                .register(
-                    &mut inner.socket,
-                    SOCKET,
-                    Interest::READABLE | Interest::WRITABLE,
-                )
-                .map_err(Arc::new)
-                .map_err(Error::IOError)?;
+            inner.poll.registry().register(
+                &mut inner.socket,
+                SOCKET,
+                Interest::READABLE | Interest::WRITABLE,
+            )?;
         }
         Ok(inner)
     }
@@ -152,9 +137,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
                     send_hartbeat.store(true, Ordering::Relaxed);
                 }
-            })
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
+            })?;
         self.hb_handle = Some(hb_handle);
         Ok(())
     }
@@ -209,9 +192,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     pub fn start(mut self) -> Result<()> {
-        let waker = Waker::new(self.poll.registry(), DATA)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
+        let waker = Waker::new(self.poll.registry(), DATA)?;
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
@@ -225,19 +206,14 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         hb_handle.join().expect("heartbeat loop failed");
                     }
                     Ok(())
-                })
-                .map_err(Arc::new)
-                .map_err(Error::IOError)?,
+                })?,
             waker,
         )
     }
 
     fn poll(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop poll");
-        self.poll
-            .poll(events, self.poll_timeout)
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
+        self.poll.poll(events, self.poll_timeout)?;
         trace!("io_loop poll done");
         for event in events.iter() {
             match event.token() {
@@ -359,17 +335,14 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn send_continue(&mut self) -> Result<()> {
-        self.waker.wake().map_err(Arc::new).map_err(Error::IOError)
+        self.waker.wake()?;
+        Ok(())
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
         self.serialize()?;
 
-        let sz = self
-            .socket
-            .write(&self.send_buffer.data())
-            .map_err(Arc::new)
-            .map_err(Error::IOError)?;
+        let sz = self.socket.write(&self.send_buffer.data())?;
 
         trace!("wrote {} bytes", sz);
         self.send_buffer.consume(sz);
@@ -384,15 +357,15 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         match self.connection.status().state() {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
-            _ => self
-                .socket
-                .read(&mut self.receive_buffer.space())
-                .map(|sz| {
-                    trace!("read {} bytes", sz);
-                    self.receive_buffer.fill(sz);
-                })
-                .map_err(Arc::new)
-                .map_err(Error::IOError),
+            _ => {
+                self.socket
+                    .read(&mut self.receive_buffer.space())
+                    .map(|sz| {
+                        trace!("read {} bytes", sz);
+                        self.receive_buffer.fill(sz);
+                    })?;
+                Ok(())
+            }
         }
     }
 

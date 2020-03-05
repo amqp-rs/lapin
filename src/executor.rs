@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Result;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use std::{
@@ -47,9 +47,7 @@ impl DefaultExecutor {
                         for f in receiver {
                             f();
                         }
-                    })
-                    .map_err(Arc::new)
-                    .map_err(Error::IOError)?,
+                    })?,
             );
         }
         Ok(())

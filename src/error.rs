@@ -95,6 +95,12 @@ impl error::Error for Error {
     }
 }
 
+impl From<io::Error> for Error {
+    fn from(other: io::Error) -> Self {
+        Error::IOError(Arc::new(other))
+    }
+}
+
 #[cfg(test)]
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {

@@ -1,6 +1,7 @@
+use crate::Result;
 use mio::Waker as MioWaker;
 use parking_lot::RwLock;
-use std::{fmt, io, sync::Arc};
+use std::{fmt, sync::Arc};
 
 #[derive(Clone, Default)]
 pub(crate) struct Waker {
@@ -8,14 +9,14 @@ pub(crate) struct Waker {
 }
 
 impl Waker {
-    pub(crate) fn wake(&self) -> io::Result<()> {
+    pub(crate) fn wake(&self) -> Result<()> {
         if let Some(waker) = self.inner.read().as_ref() {
             waker.wake()?;
         }
         Ok(())
     }
 
-    pub(crate) fn set_waker(&self, waker: MioWaker) -> io::Result<()> {
+    pub(crate) fn set_waker(&self, waker: MioWaker) -> Result<()> {
         *self.inner.write() = Some(waker);
         self.wake()
     }

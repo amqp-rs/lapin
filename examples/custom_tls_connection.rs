@@ -1,10 +1,9 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate, Error, Result,
+    ConnectionProperties, ConsumerDelegate, Result,
 };
 use log::info;
-use std::sync::Arc;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,9 +36,7 @@ fn connect() -> Result<Connection> {
             }
             let stream = res.unwrap();
             Connection::connector(ConnectionProperties::default())(stream, uri, poll)
-        })
-        .map_err(Arc::new)
-        .map_err(Error::IOError)??
+        })??
         .wait()
 }
 
