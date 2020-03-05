@@ -59,7 +59,7 @@ impl Frames {
     pub(crate) fn push_frames(
         &self,
         channel_id: u16,
-        frames: Vec<(AMQPFrame, Option<AMQPFrame>)>,
+        frames: Vec<AMQPFrame>,
     ) -> PinkySwear<Result<()>> {
         self.inner.lock().push_frames(channel_id, frames)
     }
@@ -102,7 +102,7 @@ struct Inner {
     header_frames: VecDeque<(SendId, AMQPFrame)>,
     priority_frames: VecDeque<(SendId, AMQPFrame)>,
     frames: VecDeque<(SendId, AMQPFrame)>,
-    low_prio_frames: VecDeque<(SendId, AMQPFrame, Option<AMQPFrame>)>,
+    low_prio_frames: VecDeque<(SendId, AMQPFrame)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
     outbox: HashMap<SendId, (u16, Pinky<Result<()>>, bool)>,
     send_id: IdSequence<SendId>,
@@ -159,18 +159,18 @@ impl Inner {
     fn push_frames(
         &mut self,
         channel_id: u16,
-        mut frames: Vec<(AMQPFrame, Option<AMQPFrame>)>,
+        mut frames: Vec<AMQPFrame>,
     ) -> PinkySwear<Result<()>> {
         let (promise, pinky) = PinkySwear::new();
         let last_frame = frames.pop();
 
         for frame in frames {
-            self.low_prio_frames.push_back((0, frame.0, frame.1));
+            self.low_prio_frames.push_back((0, frame));
         }
         if let Some(last_frame) = last_frame {
             let send_id = self.send_id.next();
             self.low_prio_frames
-                .push_back((send_id, last_frame.0, last_frame.1));
+                .push_back((send_id, last_frame));
             self.outbox.insert(send_id, (channel_id, pinky, false));
         } else {
             pinky.swear(Ok(()));
@@ -189,12 +189,13 @@ impl Inner {
             return Some(frame);
         }
         if flow {
-            if let Some(mut frame) = self.low_prio_frames.pop_front() {
-                if let Some(next_frame) = frame.2 {
-                    self.header_frames.push_back((frame.0, next_frame));
-                    frame.0 = 0;
+            if let Some(frame) = self.low_prio_frames.pop_front() {
+                if let Some((_, AMQPFrame::Header(..))) = self.low_prio_frames.front() {
+                    if let Some(next_frame) = self.low_prio_frames.pop_front() {
+                        self.header_frames.push_back(next_frame);
+                    }
                 }
-                return Some((frame.0, frame.1));
+                return Some(frame);
             }
         }
         None

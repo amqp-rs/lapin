@@ -234,7 +234,7 @@ impl Connection {
     pub(crate) fn send_frames(
         &self,
         channel_id: u16,
-        frames: Vec<(AMQPFrame, Option<AMQPFrame>)>,
+        frames: Vec<AMQPFrame>,
     ) -> Result<PinkySwear<Result<()>>> {
         trace!("connection send_frames; channel_id={}", channel_id);
         let promise = self.frames.push_frames(channel_id, frames);
