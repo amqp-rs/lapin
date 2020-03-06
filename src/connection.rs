@@ -296,9 +296,9 @@ impl Connection {
         Ok(())
     }
 
-    pub(crate) fn requeue_frame(&self, send_id: SendId, frame: AMQPFrame) -> Result<()> {
+    pub(crate) fn requeue_frame(&self, frame: (SendId, AMQPFrame)) -> Result<()> {
         self.wake()?;
-        self.frames.retry(send_id, frame);
+        self.frames.retry(frame);
         Ok(())
     }
 

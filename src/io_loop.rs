@@ -384,7 +384,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
-                            self.connection.requeue_frame(send_id, next_msg)?;
+                            self.connection.requeue_frame((send_id, next_msg))?;
                             self.send_buffer.shift();
                             Ok(())
                         }

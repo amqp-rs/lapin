@@ -64,8 +64,8 @@ impl Frames {
         self.inner.lock().push_frames(channel_id, frames)
     }
 
-    pub(crate) fn retry(&self, send_id: SendId, frame: AMQPFrame) {
-        self.inner.lock().retry(send_id, frame);
+    pub(crate) fn retry(&self, frame: (SendId, AMQPFrame)) {
+        self.inner.lock().retry(frame);
     }
 
     pub(crate) fn pop(&self, flow: bool) -> Option<(SendId, AMQPFrame)> {
@@ -189,7 +189,17 @@ impl Inner {
         }
         if flow {
             if let Some(frame) = self.low_prio_frames.pop_front() {
-                if let Some((_, AMQPFrame::Header(..))) = self.low_prio_frames.front() {
+                // If the next frame is a header, that means we're a basic.publish
+                // Header frame needs to follow directly the basic.publish frame or
+                // the AMQP server will close the connection.
+                // Push the header into header_frames which is there to handle just that.
+                if self
+                    .low_prio_frames
+                    .front()
+                    .map(|(_, frame)| frame.is_header())
+                    .unwrap_or(false)
+                {
+                    // Yes, this will always be Some(), but let's keep our unwrap() count low
                     if let Some(next_frame) = self.low_prio_frames.pop_front() {
                         self.header_frames.push_back(next_frame);
                     }
@@ -200,11 +210,11 @@ impl Inner {
         None
     }
 
-    fn retry(&mut self, send_id: SendId, frame: AMQPFrame) {
-        if let AMQPFrame::Header(..) = &frame {
-            self.header_frames.push_front((send_id, frame));
+    fn retry(&mut self, frame: (SendId, AMQPFrame)) {
+        if frame.1.is_header() {
+            self.header_frames.push_front(frame);
         } else {
-            self.priority_frames.push_back((send_id, frame));
+            self.priority_frames.push_back(frame);
         }
     }
 
