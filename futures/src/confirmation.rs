@@ -27,6 +27,7 @@ impl<T: Send + 'static, I: 'static> Future for ConfirmationFuture<T, I> {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.drop_subscribers();
         self.0.subscribe(Box::new(Watcher::default()));
         Ok(if let Some(res) = self.0.try_wait() {
             Async::Ready(res?)

@@ -5,6 +5,18 @@
 * Some more Error reworks
 * Port to amq-protocol 5.0 and mio 0.7
 
+### 0.32.5 (2020-03-09)
+
+#### Bug Fixes
+
+* Prevent lapin-futures from eating memory when eagerly polled
+
+### 0.32.4 (2020-03-09)
+
+#### Bug Fixes
+
+* Followup to 0.32.3 for consumers in lapin-futures
+
 ### 0.32.3 (2020-03-09)
 
 #### Bug Fixes
