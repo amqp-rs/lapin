@@ -86,6 +86,7 @@ pub struct ConsumerInner {
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
+    // FIXME: drop Box once we nuke lapin-futures
     task: Option<Box<dyn NotifyReady + Send>>,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
@@ -141,10 +142,6 @@ impl ConsumerInner {
 
     pub fn set_task(&mut self, task: Box<dyn NotifyReady + Send>) {
         self.task = Some(task);
-    }
-
-    pub fn has_task(&self) -> bool {
-        self.task.is_some()
     }
 
     pub fn tag(&self) -> &ShortString {
