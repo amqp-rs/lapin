@@ -24,6 +24,7 @@ default-features = false
 path = ".."
 
 [dependencies]
+pinky-swear = "^1.1"
 futures = "^0.1"
 log = "^0.4"
 
