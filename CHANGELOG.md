@@ -1,3 +1,9 @@
+### 0.32.5 (2020-03-09)
+
+#### Bug Fixes
+
+* Prevent lapin-futures from eating memory when eagerly polled
+
 ### 0.32.4 (2020-03-09)
 
 #### Bug Fixes
