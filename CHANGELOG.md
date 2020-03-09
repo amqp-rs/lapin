@@ -5,6 +5,12 @@
 * Some more Error reworks
 * Port to amq-protocol 5.0 and mio 0.7
 
+### 0.32.3 (2020-03-09)
+
+#### Bug Fixes
+
+* Fix waking up context when a future gets sent to another one
+
 ### 0.32.2 (2020-03-05)
 
 #### Bug Fixes

@@ -239,9 +239,7 @@ mod futures {
                 "consumer poll; acquired inner lock, consumer_tag={}",
                 inner.tag()
             );
-            if !inner.has_task() {
-                inner.set_task(Box::new(cx.waker().clone()));
-            }
+            inner.set_task(Box::new(cx.waker().clone()));
             if let Some(delivery) = inner.next_delivery() {
                 match delivery {
                     Ok(Some(delivery)) => {
