@@ -18,9 +18,7 @@ impl Stream for Consumer {
             "consumer poll; acquired inner lock, consumer_tag={}",
             inner.tag()
         );
-        if !inner.has_task() {
-            inner.set_task(Box::new(Watcher::default()));
-        }
+        inner.set_task(Box::new(Watcher::default()));
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
                 Ok(Some(delivery)) => {
