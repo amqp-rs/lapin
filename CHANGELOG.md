@@ -1,3 +1,9 @@
+### 0.32.4 (2020-03-09)
+
+#### Bug Fixes
+
+* Followup to 0.32.3 for consumers in lapin-futures
+
 ### 0.32.3 (2020-03-09)
 
 #### Bug Fixes
