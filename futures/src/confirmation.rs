@@ -6,6 +6,7 @@ use lapin::{
 
 use crate::Error;
 
+#[deprecated(note = "use lapin instead")]
 pub struct ConfirmationFuture<T, I = ()>(PinkySwear<Result<T>, I>);
 
 pub(crate) struct Watcher(task::Task);

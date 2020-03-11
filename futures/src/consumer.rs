@@ -5,6 +5,7 @@ use log::trace;
 use crate::{confirmation::Watcher, message::Delivery, Error};
 
 #[derive(Clone, Debug)]
+#[deprecated(note = "use lapin instead")]
 pub struct Consumer(pub(crate) ConsumerInner);
 
 impl Stream for Consumer {

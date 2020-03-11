@@ -89,14 +89,19 @@
 //! }
 //! ```
 
+#[deprecated(note = "use lapin instead")]
 pub use lapin::{
     auth, message, options, protocol, tcp, types, uri, BasicProperties, Configuration,
     ConnectionProperties, ConsumerDelegate, Error, ExchangeKind, Queue, Result,
 };
 
+#[deprecated(note = "use lapin instead")]
 pub use channel::Channel;
+#[deprecated(note = "use lapin instead")]
 pub use client::{Client, ClientFuture, Connect};
+#[deprecated(note = "use lapin instead")]
 pub use confirmation::ConfirmationFuture;
+#[deprecated(note = "use lapin instead")]
 pub use consumer::Consumer;
 
 mod channel;
