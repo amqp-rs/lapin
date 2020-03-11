@@ -5,23 +5,28 @@ use std::sync::Arc;
 use crate::types::ShortString;
 
 #[derive(Clone, Debug, Default)]
+#[deprecated(note = "use lapin instead")]
 pub struct ChannelStatus {
   inner: Arc<RwLock<Inner>>,
 }
 
 impl ChannelStatus {
+  #[deprecated(note = "use lapin instead")]
   pub fn is_initializing(&self) -> bool {
     self.inner.read().state == ChannelState::Initial
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn is_closing(&self) -> bool {
     self.inner.read().state == ChannelState::Closing
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn is_connected(&self) -> bool {
     !&[ChannelState::Initial, ChannelState::Closing, ChannelState::Closed, ChannelState::Error].contains(&self.inner.read().state)
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn confirm(&self) -> bool {
     self.inner.read().confirm
   }
@@ -30,6 +35,7 @@ impl ChannelStatus {
     self.inner.write().confirm = true
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn state(&self) -> ChannelState {
     self.inner.read().state.clone()
   }
@@ -48,6 +54,7 @@ impl ChannelStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[deprecated(note = "use lapin instead")]
 pub enum ChannelState {
     Initial,
     Connected,

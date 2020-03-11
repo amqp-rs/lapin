@@ -13,6 +13,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+#[deprecated(note = "use lapin instead")]
 pub struct Queue {
   name:           ShortString,
   message_count:  u32,
@@ -20,14 +21,17 @@ pub struct Queue {
 }
 
 impl Queue {
+  #[deprecated(note = "use lapin instead")]
   pub fn name(&self) -> &ShortString {
     &self.name
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn message_count(&self) -> u32 {
     self.message_count
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn consumer_count(&self) -> u32 {
     self.consumer_count
   }

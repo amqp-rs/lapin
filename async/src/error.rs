@@ -16,6 +16,7 @@ use crate::connection_status::ConnectionState;
 /// threads, and that you'll be able to use the downcasting feature of the
 /// `failure::Error` type.
 #[derive(Debug)]
+#[deprecated(note = "use lapin instead")]
 pub struct Error {
   inner: Context<ErrorKind>,
 }
@@ -25,6 +26,7 @@ pub struct Error {
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Debug, Fail)]
+#[deprecated(note = "use lapin instead")]
 pub enum ErrorKind {
   #[fail(display = "invalid protocol method: {:?}", _0)]
   InvalidMethod(AMQPClass),
@@ -64,6 +66,7 @@ pub enum ErrorKind {
 
 impl Error {
   /// Return the underlying `ErrorKind`
+  #[deprecated(note = "use lapin instead")]
   pub fn kind(&self) -> &ErrorKind {
     self.inner.get_context()
   }

@@ -59,6 +59,7 @@ impl Consumer {
   }
 }
 
+#[deprecated(note = "use lapin instead")]
 pub trait ConsumerSubscriber: Debug + Send + Sync {
   fn new_delivery(&self, delivery: Delivery);
   fn drop_prefetched_messages(&self);

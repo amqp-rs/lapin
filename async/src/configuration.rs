@@ -3,11 +3,13 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
+#[deprecated(note = "use lapin instead")]
 pub struct Configuration {
   inner: Arc<RwLock<Inner>>,
 }
 
 impl Configuration {
+  #[deprecated(note = "use lapin instead")]
   pub fn channel_max(&self) -> u16 {
     self.inner.read().channel_max
   }
@@ -16,6 +18,7 @@ impl Configuration {
     self.inner.write().channel_max = channel_max;
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn frame_max(&self) -> u32 {
     self.inner.read().frame_max
   }
@@ -24,6 +27,7 @@ impl Configuration {
     self.inner.write().frame_max = frame_max;
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn heartbeat(&self) -> u16 {
     self.inner.read().heartbeat
   }

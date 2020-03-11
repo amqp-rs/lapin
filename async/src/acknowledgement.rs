@@ -11,6 +11,7 @@ use crate::{
   wait::{Wait, WaitHandle},
 };
 
+#[deprecated(note = "use lapin instead")]
 pub type DeliveryTag = u64;
 
 #[derive(Debug, Clone)]

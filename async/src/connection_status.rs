@@ -9,11 +9,13 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Default)]
+#[deprecated(note = "use lapin instead")]
 pub struct ConnectionStatus {
   inner: Arc<RwLock<Inner>>,
 }
 
 impl ConnectionStatus {
+  #[deprecated(note = "use lapin instead")]
   pub fn state(&self) -> ConnectionState {
     self.inner.read().state.clone()
   }
@@ -22,6 +24,7 @@ impl ConnectionStatus {
     self.inner.write().state = state
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn vhost(&self) -> String {
     self.inner.read().vhost.clone()
   }
@@ -38,24 +41,29 @@ impl ConnectionStatus {
     self.inner.write().blocked = true;
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn blocked(&self) -> bool {
     self.inner.read().blocked
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn connected(&self) -> bool {
     self.inner.read().state == ConnectionState::Connected
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn closed(&self) -> bool {
     self.inner.read().state == ConnectionState::Closed
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn errored(&self) -> bool {
     self.inner.read().state == ConnectionState::Error
   }
 }
 
 #[derive(Clone, Debug)]
+#[deprecated(note = "use lapin instead")]
 pub enum ConnectionState {
   Initial,
   SentProtocolHeader(WaitHandle<Connection>, Credentials, ConnectionProperties),

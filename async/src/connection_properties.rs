@@ -4,9 +4,13 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
+#[deprecated(note = "use lapin instead")]
 pub struct ConnectionProperties {
+  #[deprecated(note = "use lapin instead")]
   pub mechanism:         SASLMechanism,
+  #[deprecated(note = "use lapin instead")]
   pub locale:            String,
+  #[deprecated(note = "use lapin instead")]
   pub client_properties: FieldTable,
 }
 

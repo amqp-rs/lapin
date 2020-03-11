@@ -48,6 +48,7 @@ impl ReturnedMessages {
 }
 
 #[derive(Debug, Default)]
+#[deprecated(note = "use lapin instead")]
 pub struct Inner {
   current_message: Option<BasicReturnMessage>,
   messages:        Vec<BasicReturnMessage>,

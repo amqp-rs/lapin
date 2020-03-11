@@ -29,6 +29,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+#[deprecated(note = "use lapin instead")]
 pub struct Connection {
   configuration: Configuration,
   status:        ConnectionStatus,
@@ -72,15 +73,18 @@ impl Evented for Connection {
 
 impl Connection {
   /// Connect to an AMQP Server
+  #[deprecated(note = "use lapin instead")]
   pub fn connect(uri: &str, options: ConnectionProperties) -> Confirmation<Connection> {
     Connect::connect(uri, options)
   }
 
   /// Connect to an AMQP Server
+  #[deprecated(note = "use lapin instead")]
   pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Confirmation<Connection> {
     Connect::connect(uri, options)
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn create_channel(&self) -> Confirmation<Channel> {
     if !self.status.connected() {
       return Confirmation::new_error(ErrorKind::InvalidConnectionState(self.status.state()).into());
@@ -94,18 +98,22 @@ impl Connection {
   /// Block current thread while the connection is still active.
   /// This is useful when you only have a consumer and nothing else keeping your application
   /// "alive".
+  #[deprecated(note = "use lapin instead")]
   pub fn run(&self) -> Result<(), Error> {
     self.io_loop.wait()
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn on_error<E: Fn() + Send + 'static>(&self, handler: Box<E>) {
     self.error_handler.set_handler(handler);
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn configuration(&self) -> &Configuration {
     &self.configuration
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn status(&self) -> &ConnectionStatus {
     &self.status
   }
@@ -114,6 +122,7 @@ impl Connection {
     self.channels.flow()
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
     self.channels.get(0).expect("channel 0").connection_close(reply_code, reply_text, 0, 0)
   }
@@ -248,6 +257,7 @@ impl Connection {
 }
 
 /// Trait providing a method to connect to an AMQP server
+#[deprecated(note = "use lapin instead")]
 pub trait Connect {
   /// connect to an AMQP server
   fn connect(self, options: ConnectionProperties) -> Confirmation<Connection> where Self: Sized {

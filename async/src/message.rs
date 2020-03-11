@@ -4,12 +4,19 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
+#[deprecated(note = "use lapin instead")]
 pub struct Delivery {
+  #[deprecated(note = "use lapin instead")]
   pub delivery_tag: LongLongUInt,
+  #[deprecated(note = "use lapin instead")]
   pub exchange:     ShortString,
+  #[deprecated(note = "use lapin instead")]
   pub routing_key:  ShortString,
+  #[deprecated(note = "use lapin instead")]
   pub redelivered:  bool,
+  #[deprecated(note = "use lapin instead")]
   pub properties:   BasicProperties,
+  #[deprecated(note = "use lapin instead")]
   pub data:         Vec<u8>,
 }
 
@@ -31,8 +38,11 @@ impl Delivery {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[deprecated(note = "use lapin instead")]
 pub struct BasicGetMessage {
+  #[deprecated(note = "use lapin instead")]
   pub delivery:      Delivery,
+  #[deprecated(note = "use lapin instead")]
   pub message_count: LongUInt,
 }
 
@@ -46,9 +56,13 @@ impl BasicGetMessage {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[deprecated(note = "use lapin instead")]
 pub struct BasicReturnMessage {
+  #[deprecated(note = "use lapin instead")]
   pub delivery:   Delivery,
+  #[deprecated(note = "use lapin instead")]
   pub reply_code: ShortUInt,
+  #[deprecated(note = "use lapin instead")]
   pub reply_text: ShortString,
 }
 

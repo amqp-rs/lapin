@@ -28,6 +28,7 @@ use crate::{
 use crate::queue::QueueState;
 
 #[derive(Clone, Debug)]
+#[deprecated(note = "use lapin instead")]
 pub struct Channel {
   id:                u16,
   connection:        Connection,
@@ -52,6 +53,7 @@ impl Channel {
     }
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn status(&self) -> &ChannelStatus {
     &self.status
   }
@@ -74,18 +76,22 @@ impl Channel {
     self.status.set_state(state);
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn id(&self) -> u16 {
     self.id
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Confirmation<()> {
     self.do_channel_close(reply_code, reply_text, 0, 0)
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn basic_consume(&self, queue: &Queue, consumer_tag: &str, options: BasicConsumeOptions, arguments: FieldTable, subscriber: Box<dyn ConsumerSubscriber>) -> Confirmation<ShortString> {
     self.do_basic_consume(queue.borrow(), consumer_tag, options, arguments, subscriber)
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn wait_for_confirms(&self) -> Confirmation<Vec<BasicReturnMessage>> {
     if let Some(wait) = self.acknowledgements.get_last_pending() {
       let returned_messages = self.returned_messages.clone();

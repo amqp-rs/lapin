@@ -10,6 +10,7 @@ use std::{
 
 use crate::error::Error;
 
+#[deprecated(note = "use lapin instead")]
 pub struct Wait<T> {
   recv: Receiver<Result<T, Error>>,
   send: SyncSender<Result<T, Error>>,
@@ -17,11 +18,13 @@ pub struct Wait<T> {
 }
 
 #[derive(Clone)]
+#[deprecated(note = "use lapin instead")]
 pub struct WaitHandle<T> {
   send: SyncSender<Result<T, Error>>,
   task: Arc<Mutex<Option<Box<dyn NotifyReady + Send>>>>,
 }
 
+#[deprecated(note = "use lapin instead")]
 pub trait NotifyReady {
   fn notify(&self);
 }

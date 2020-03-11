@@ -1,3 +1,4 @@
+#[deprecated(note = "use lapin instead")]
 pub use crate::wait::NotifyReady;
 
 use std::fmt;
@@ -7,6 +8,7 @@ use crate:: {
   wait::Wait,
 };
 
+#[deprecated(note = "use lapin instead")]
 pub struct Confirmation<T, I=()> {
   kind: ConfirmationKind<T, I>,
 }
@@ -22,10 +24,12 @@ impl<T, I> Confirmation<T, I> {
     Self::new(wait)
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn as_error(self) -> Result<(), Error> {
     self.try_wait().transpose().map(|_| ())
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn subscribe(&self, task: Box<dyn NotifyReady + Send>) {
     match &self.kind {
       ConfirmationKind::Wait(wait)   => wait.subscribe(task),
@@ -33,6 +37,7 @@ impl<T, I> Confirmation<T, I> {
     }
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn has_subscriber(&self) -> bool {
     match &self.kind {
       ConfirmationKind::Wait(wait)   => wait.has_subscriber(),
@@ -40,6 +45,7 @@ impl<T, I> Confirmation<T, I> {
     }
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn try_wait(&self) -> Option<Result<T, Error>> {
     match &self.kind {
       ConfirmationKind::Wait(wait)   => wait.try_wait(),
@@ -47,6 +53,7 @@ impl<T, I> Confirmation<T, I> {
     }
   }
 
+  #[deprecated(note = "use lapin instead")]
   pub fn wait(self) -> Result<T, Error> {
     match self.kind {
       ConfirmationKind::Wait(wait)   => wait.wait(),

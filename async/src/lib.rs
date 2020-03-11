@@ -63,22 +63,34 @@
 //! }
 //! ```
 
+#[deprecated(note = "use lapin instead")]
 pub use amq_protocol::{
   protocol::{self, BasicProperties},
   auth, tcp, types, uri,
 };
 
+#[deprecated(note = "use lapin instead")]
 pub use channel::{Channel, options};
+#[deprecated(note = "use lapin instead")]
 pub use channel_status::{ChannelState, ChannelStatus};
+#[deprecated(note = "use lapin instead")]
 pub use configuration::Configuration;
+#[deprecated(note = "use lapin instead")]
 pub use connection::{Connect, Connection};
+#[deprecated(note = "use lapin instead")]
 pub use connection_properties::ConnectionProperties;
+#[deprecated(note = "use lapin instead")]
 pub use connection_status::{ConnectionState, ConnectionStatus};
+#[deprecated(note = "use lapin instead")]
 pub use consumer::ConsumerSubscriber;
+#[deprecated(note = "use lapin instead")]
 pub use error::{Error, ErrorKind};
+#[deprecated(note = "use lapin instead")]
 pub use queue::Queue;
 
+#[deprecated(note = "use lapin instead")]
 pub mod confirmation;
+#[deprecated(note = "use lapin instead")]
 pub mod message;
 
 mod acknowledgement;
