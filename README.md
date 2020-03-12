@@ -20,7 +20,6 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 
 ## Feature switches
 
-* `futures`: enable std::future::Future and async/await compatibility
 * `native-tls` (*default*): enable amqps support through native-tls
 * `openssl`: enable amqps support through openssl (preferred over native-tls when set)
 * `rustls`: enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
@@ -28,8 +27,6 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
 
 ## Example
-
-> **Note**: To use async/await, enable the `futures` feature in your Cargo.toml.
 
 ```rust
 use lapin::{

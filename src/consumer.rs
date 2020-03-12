@@ -5,9 +5,10 @@ use crate::{
     BasicProperties, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
+use futures_core::stream::Stream;
 use log::trace;
 use parking_lot::{Mutex, MutexGuard};
-use std::{fmt, sync::Arc, task::Waker};
+use std::{fmt, pin::Pin, sync::Arc, task::{Context, Poll, Waker}};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult);
@@ -209,53 +210,41 @@ impl fmt::Debug for Consumer {
     }
 }
 
-#[cfg(feature = "futures")]
-mod futures {
-    use super::*;
+impl Stream for Consumer {
+    type Item = Result<Delivery>;
 
-    use ::futures_core::stream::Stream;
-
-    use std::{
-        pin::Pin,
-        task::{Context, Poll},
-    };
-
-    impl Stream for Consumer {
-        type Item = Result<Delivery>;
-
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            trace!("consumer poll; polling transport");
-            let mut inner = self.inner();
-            trace!(
-                "consumer poll; acquired inner lock, consumer_tag={}",
-                inner.tag()
-            );
-            inner.task = Some(cx.waker().clone());
-            if let Some(delivery) = inner.next_delivery() {
-                match delivery {
-                    Ok(Some(delivery)) => {
-                        trace!(
-                            "delivery; consumer_tag={}, delivery_tag={:?}",
-                            inner.tag(),
-                            delivery.delivery_tag
-                        );
-                        Poll::Ready(Some(Ok(delivery)))
-                    }
-                    Ok(None) => {
-                        trace!("consumer canceled; consumer_tag={}", inner.tag());
-                        Poll::Ready(None)
-                    }
-                    Err(error) => Poll::Ready(Some(Err(error))),
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        trace!("consumer poll; polling transport");
+        let mut inner = self.inner();
+        trace!(
+            "consumer poll; acquired inner lock, consumer_tag={}",
+            inner.tag()
+        );
+        inner.task = Some(cx.waker().clone());
+        if let Some(delivery) = inner.next_delivery() {
+            match delivery {
+                Ok(Some(delivery)) => {
+                    trace!(
+                        "delivery; consumer_tag={}, delivery_tag={:?}",
+                        inner.tag(),
+                        delivery.delivery_tag
+                    );
+                    Poll::Ready(Some(Ok(delivery)))
                 }
-            } else {
-                trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
-                Poll::Pending
+                Ok(None) => {
+                    trace!("consumer canceled; consumer_tag={}", inner.tag());
+                    Poll::Ready(None)
+                }
+                Err(error) => Poll::Ready(Some(Err(error))),
             }
+        } else {
+            trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
+            Poll::Pending
         }
     }
 }
 
-#[cfg(all(test, feature = "futures"))]
+#[cfg(test)]
 mod futures_tests {
     use super::*;
     use crate::executor::DefaultExecutor;
