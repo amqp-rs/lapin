@@ -1,1 +1,0 @@
-DEPRECATED - use lapin instead

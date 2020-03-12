@@ -12,9 +12,6 @@ categories = ["database"]
 license = "MIT"
 build = "build.rs"
 
-[workspace]
-members = [".", "futures/"]
-
 [features]
 default                   = ["native-tls"]
 futures                   = ["futures-core"]
