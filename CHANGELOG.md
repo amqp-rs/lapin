@@ -1,9 +1,10 @@
-### 0.33.0 (2020-??-??)
+### 0.33.0 (2020-03-12)
 
 #### Breaking changes
 
 * Some more Error reworks
 * Port to amq-protocol 5.0 and mio 0.7
+* Deprecate lapin-futures
 
 ### 0.32.5 (2020-03-09)
 

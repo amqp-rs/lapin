@@ -1,6 +1,6 @@
 [package]
 name = "lapin-futures"
-version = "0.33.0-beta.3"
+version = "0.33.0"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 repository = "https://github.com/sozu-proxy/lapin"
@@ -20,7 +20,7 @@ rustls-native-certs       = ["lapin/rustls-native-certs"]
 rustls-webpki-roots-certs = ["lapin/rustls-webpki-roots-certs"]
 
 [dependencies.lapin]
-version = "=0.33.0-beta.3"
+version = "^0.33.0"
 default-features = false
 path = ".."
 
