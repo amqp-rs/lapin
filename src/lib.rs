@@ -4,6 +4,15 @@
 //!
 //! This project follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ.
 //!
+//! ## Feature switches
+//!
+//! * `futures`: enable std::future::Future and async/await compatibility
+//! * `native-tls` (*default*): enable amqps support through native-tls
+//! * `openssl`: enable amqps support through openssl (preferred over native-tls when set)
+//! * `rustls`: enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
+//! * `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
+//! * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
+//!
 //! ## Example
 //!
 //! ```rust,no_run
