@@ -1,14 +1,13 @@
 use crate::{
     executor::Executor,
     message::{Delivery, DeliveryResult},
-    pinky_swear::NotifyReady,
     types::ShortString,
     BasicProperties, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
 use parking_lot::{Mutex, MutexGuard};
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, task::Waker};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult);
@@ -86,8 +85,7 @@ pub struct ConsumerInner {
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
-    // FIXME: drop Box once we nuke lapin-futures
-    task: Option<Box<dyn NotifyReady + Send>>,
+    task: Option<Waker>,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
     executor: Arc<dyn Executor>,
@@ -140,10 +138,6 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    pub fn set_task(&mut self, task: Box<dyn NotifyReady + Send>) {
-        self.task = Some(task);
-    }
-
     pub fn tag(&self) -> &ShortString {
         &self.tag
     }
@@ -161,7 +155,7 @@ impl ConsumerInner {
                 .expect("failed to send delivery to consumer");
         }
         if let Some(task) = self.task.as_ref() {
-            task.notify();
+            task.wake_by_ref();
         }
         Ok(())
     }
@@ -188,8 +182,8 @@ impl ConsumerInner {
                 .send(Ok(None))
                 .expect("failed to send cancel to consumer");
         }
-        if let Some(ref task) = self.task.take() {
-            task.notify();
+        if let Some(task) = self.task.take() {
+            task.wake();
         }
         Ok(())
     }
@@ -236,7 +230,7 @@ mod futures {
                 "consumer poll; acquired inner lock, consumer_tag={}",
                 inner.tag()
             );
-            inner.set_task(Box::new(cx.waker().clone()));
+            inner.task = Some(cx.waker().clone());
             if let Some(delivery) = inner.next_delivery() {
                 match delivery {
                     Ok(Some(delivery)) => {
