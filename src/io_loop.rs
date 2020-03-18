@@ -16,8 +16,7 @@ use std::{
 };
 
 pub(crate) const SOCKET: Token = Token(1);
-const DATA: Token = Token(2);
-const CONTINUE: Token = Token(3);
+const WAKER: Token = Token(2);
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -61,14 +60,13 @@ pub struct IoLoop<T> {
     socket: T,
     status: Status,
     poll: Poll,
-    waker: Waker,
+    waker: Arc<Waker>,
     hb_handle: Option<JoinHandle<()>>,
     frame_size: usize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
     can_write: bool,
     can_read: bool,
-    has_data: bool,
     send_heartbeat: Arc<AtomicBool>,
     poll_timeout: Option<Duration>,
 }
@@ -83,7 +81,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             .map(|t| Ok((t.0, true)))
             .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
         let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
-        let waker = Waker::new(poll.registry(), CONTINUE)?;
+        let waker = Arc::new(Waker::new(poll.registry(), WAKER)?);
         let mut inner = Self {
             connection,
             socket,
@@ -96,7 +94,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             can_write: false,
             can_read: false,
-            has_data: false,
             send_heartbeat: Arc::new(AtomicBool::new(false)),
             poll_timeout: None,
         };
@@ -171,7 +168,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn can_write(&self) -> bool {
-        self.can_write && self.has_data && !self.connection.status().blocked()
+        self.can_write
+            && self.connection.has_pending_frames()
+            && !self.connection.status().blocked()
     }
 
     fn can_read(&self) -> bool {
@@ -192,7 +191,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     pub fn start(mut self) -> Result<()> {
-        let waker = Waker::new(self.poll.registry(), DATA)?;
+        let waker = self.waker.clone();
         self.connection.clone().set_io_loop(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
@@ -225,7 +224,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         self.can_write = true;
                     }
                 }
-                DATA => self.has_data = true,
                 _ => {}
             }
         }
@@ -244,7 +242,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             "io_loop do_run; can_read={}, can_write={}, has_data={}",
             self.can_read,
             self.can_write,
-            self.has_data
+            self.connection.has_pending_frames()
         );
         loop {
             self.heartbeat()?;
@@ -265,7 +263,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             "io_loop do_run done; can_read={}, can_write={}, has_data={}, status={:?}",
             self.can_read,
             self.can_write,
-            self.has_data,
+            self.connection.has_pending_frames(),
             self.status
         );
         Ok(())
@@ -288,7 +286,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 "io_loop send continue; can_read={}, can_write={}, has_data={}",
                 self.can_read,
                 self.can_write,
-                self.has_data
+                self.connection.has_pending_frames()
             );
             self.send_continue()?;
         }
@@ -398,7 +396,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 }
             }
         } else {
-            self.has_data = false;
             Ok(())
         }
     }
