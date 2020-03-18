@@ -87,6 +87,10 @@ impl Frames {
         }
     }
 
+    pub(crate) fn has_pending(&self) -> bool {
+        self.inner.lock().has_pending()
+    }
+
     pub(crate) fn drop_pending(&self, error: Error) {
         self.inner.lock().drop_pending(error);
     }
@@ -216,6 +220,13 @@ impl Inner {
         } else {
             self.priority_frames.push_back(frame);
         }
+    }
+
+    fn has_pending(&self) -> bool {
+        !(self.header_frames.is_empty()
+            && self.priority_frames.is_empty()
+            && self.frames.is_empty()
+            && self.low_prio_frames.is_empty())
     }
 
     fn drop_pending(&mut self, error: Error) {

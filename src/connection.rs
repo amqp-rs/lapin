@@ -150,10 +150,14 @@ impl Connection {
     pub(crate) fn set_io_loop(
         &mut self,
         io_loop: JoinHandle<Result<()>>,
-        waker: MioWaker,
+        waker: Arc<MioWaker>,
     ) -> Result<()> {
         self.io_loop.register(io_loop);
         self.waker.set_waker(waker)
+    }
+
+    pub(crate) fn has_pending_frames(&self) -> bool {
+        self.frames.has_pending()
     }
 
     pub(crate) fn drop_pending_frames(&self, error: Error) {
