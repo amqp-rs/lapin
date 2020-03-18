@@ -8,7 +8,12 @@ use crossbeam_channel::{Receiver, Sender};
 use futures_core::stream::Stream;
 use log::trace;
 use parking_lot::{Mutex, MutexGuard};
-use std::{fmt, pin::Pin, sync::Arc, task::{Context, Poll, Waker}};
+use std::{
+    fmt,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll, Waker},
+};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult);
