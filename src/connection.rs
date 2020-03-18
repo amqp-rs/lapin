@@ -342,9 +342,7 @@ pub trait Connect {
     {
         Poll::new()
             .map_err(Error::from)
-            .and_then(|poll| {
-                self.connect_raw(options, Some((poll, crate::io_loop::SOCKET)), identity)
-            })
+            .and_then(|poll| self.connect_raw(options, Some(poll), identity))
             .unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)))
     }
 
@@ -352,7 +350,7 @@ pub trait Connect {
     fn connect_raw(
         self,
         options: ConnectionProperties,
-        poll: Option<(Poll, Token)>,
+        poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
     ) -> Result<ConnectionPromise>;
 }
@@ -361,10 +359,15 @@ impl Connect for AMQPUri {
     fn connect_raw(
         self,
         options: ConnectionProperties,
-        poll: Option<(Poll, Token)>,
+        poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
     ) -> Result<ConnectionPromise> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)?
+        AMQPUriTcpExt::connect_full(
+            self,
+            Connection::connector(options),
+            poll.map(|poll| (poll, crate::io_loop::SOCKET)),
+            identity,
+        )?
     }
 }
 
@@ -372,10 +375,15 @@ impl Connect for &str {
     fn connect_raw(
         self,
         options: ConnectionProperties,
-        poll: Option<(Poll, Token)>,
+        poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
     ) -> Result<ConnectionPromise> {
-        AMQPUriTcpExt::connect_full(self, Connection::connector(options), poll, identity)?
+        AMQPUriTcpExt::connect_full(
+            self,
+            Connection::connector(options),
+            poll.map(|poll| (poll, crate::io_loop::SOCKET)),
+            identity,
+        )?
     }
 }
 
