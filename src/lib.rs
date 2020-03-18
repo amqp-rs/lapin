@@ -101,4 +101,5 @@ mod io_loop;
 mod queue;
 mod queues;
 mod returned_messages;
+mod thread;
 mod waker;

@@ -4,7 +4,6 @@ use crate::{
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
 use log::{error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
-use parking_lot::Mutex;
 use std::{
     io::{Read, Write},
     sync::{
@@ -19,34 +18,6 @@ pub(crate) const SOCKET: Token = Token(1);
 const WAKER: Token = Token(2);
 
 const FRAMES_STORAGE: usize = 32;
-
-type ThreadHandle = JoinHandle<Result<()>>;
-
-#[derive(Clone, Debug)]
-pub(crate) struct IoLoopHandle {
-    handle: Arc<Mutex<Option<ThreadHandle>>>,
-}
-
-impl Default for IoLoopHandle {
-    fn default() -> Self {
-        Self {
-            handle: Arc::new(Mutex::new(None)),
-        }
-    }
-}
-
-impl IoLoopHandle {
-    pub(crate) fn register(&self, handle: JoinHandle<Result<()>>) {
-        *self.handle.lock() = Some(handle);
-    }
-
-    pub(crate) fn wait(&self) -> Result<()> {
-        if let Some(handle) = self.handle.lock().take() {
-            handle.join().expect("io loop")?
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, PartialEq)]
 enum Status {

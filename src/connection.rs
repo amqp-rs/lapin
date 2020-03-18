@@ -8,9 +8,10 @@ use crate::{
     executor::DefaultExecutor,
     executor::Executor,
     frames::{ExpectedReply, Frames, Priority, SendId},
-    io_loop::{IoLoop, IoLoopHandle},
+    io_loop::IoLoop,
     pinky_swear::PinkySwear,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
+    thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
     waker::Waker,
     Error, Result,
@@ -18,7 +19,7 @@ use crate::{
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
 use log::{debug, error, trace};
 use mio::{Poll, Token, Waker as MioWaker};
-use std::{sync::Arc, thread::JoinHandle};
+use std::sync::Arc;
 
 pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
 
@@ -29,7 +30,7 @@ pub struct Connection {
     channels: Channels,
     waker: Waker,
     frames: Frames,
-    io_loop: IoLoopHandle,
+    io_loop: ThreadHandle,
     error_handler: ErrorHandler,
 }
 
@@ -48,7 +49,7 @@ impl Connection {
             channels: Channels::new(frames.clone(), executor),
             waker: Waker::default(),
             frames,
-            io_loop: IoLoopHandle::default(),
+            io_loop: ThreadHandle::default(),
             error_handler: ErrorHandler::default(),
         };
 
@@ -104,7 +105,7 @@ impl Connection {
     /// This is useful when you only have a consumer and nothing else keeping your application
     /// "alive".
     pub fn run(&self) -> Result<()> {
-        self.io_loop.wait()
+        self.io_loop.wait("io loop")
     }
 
     pub fn on_error<E: Fn(Error) + Send + 'static>(&self, handler: Box<E>) {
@@ -149,10 +150,10 @@ impl Connection {
 
     pub(crate) fn set_io_loop(
         &mut self,
-        io_loop: JoinHandle<Result<()>>,
+        io_loop_handle: JoinHandle,
         waker: Arc<MioWaker>,
     ) -> Result<()> {
-        self.io_loop.register(io_loop);
+        self.io_loop.register(io_loop_handle);
         self.waker.set_waker(waker)
     }
 
