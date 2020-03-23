@@ -294,11 +294,9 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
+        // We can wait as CRITICAL frames are immediately considered sent
         self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?
-            .try_wait()
-            .transpose()
-            .map(|_| ())?;
-        Ok(())
+            .wait()
     }
 
     pub(crate) fn requeue_frame(&self, frame: (SendId, AMQPFrame)) -> Result<()> {
