@@ -1,3 +1,15 @@
+### 0.33.2 (2020-03-23)
+
+#### Bug Fixes
+
+* Fix nom dependency
+
+### 0.33.1 (2020-03-18)
+
+#### Bug Fixes
+
+* Fix hang on macos
+
 ### 0.33.0 (2020-03-12)
 
 #### Breaking changes
