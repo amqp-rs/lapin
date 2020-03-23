@@ -28,8 +28,8 @@ pub(crate) type SendId = u64;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Priority {
-    NORMAL,
     CRITICAL,
+    NORMAL,
 }
 
 impl Default for Priority {
@@ -134,18 +134,20 @@ impl Inner {
         frame: AMQPFrame,
         expected_reply: Option<ExpectedReply>,
     ) -> PinkySwear<Result<()>> {
-        let send_id = if let Priority::CRITICAL = priority {
-            0
-        } else {
-            self.send_id.next()
+        let promise = match priority {
+            Priority::CRITICAL => {
+                self.priority_frames.push_front((0, frame));
+                PinkySwear::new_with_data(Ok(()))
+            }
+            Priority::NORMAL => {
+                let (promise, pinky) = PinkySwear::new();
+                let send_id = self.send_id.next();
+                self.frames.push_back((send_id, frame));
+                self.outbox
+                    .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
+                promise
+            }
         };
-        match priority {
-            Priority::NORMAL => self.frames.push_back((send_id, frame)),
-            Priority::CRITICAL => self.priority_frames.push_front((send_id, frame)),
-        }
-        let (promise, pinky) = PinkySwear::new();
-        self.outbox
-            .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
         if let Some(reply) = expected_reply {
             trace!(
                 "channel {} state is now waiting for {:?}",
