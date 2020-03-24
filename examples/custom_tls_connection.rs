@@ -1,4 +1,5 @@
 use amq_protocol::tcp::AMQPUriTcpExt;
+use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, ConsumerDelegate, Result,
@@ -15,7 +16,7 @@ impl ConsumerDelegate for Subscriber {
     }
 }
 
-fn connect() -> Result<Connection> {
+async fn connect() -> Result<Connection> {
     // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
     std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
@@ -37,7 +38,7 @@ fn connect() -> Result<Connection> {
             let stream = res.unwrap();
             Connection::connector(ConnectionProperties::default())(stream, uri, poll)
         })??
-        .wait()
+        .await
 }
 
 fn main() {
@@ -45,60 +46,62 @@ fn main() {
 
     env_logger::init();
 
-    let conn = connect().expect("connection error");
+    let mut executor = LocalPool::new();
 
-    info!("CONNECTED");
+    executor.run_until(async {
+        let conn = connect().await.expect("connection error");
 
-    //now connected
+        info!("CONNECTED");
 
-    //send channel
-    let channel_a = conn.create_channel().wait().expect("create_channel");
-    //receive channel
-    let channel_b = conn.create_channel().wait().expect("create_channel");
-    info!("[{}] state: {:?}", line!(), conn.status().state());
+        //send channel
+        let channel_a = conn.create_channel().await.expect("create_channel");
+        //receive channel
+        let channel_b = conn.create_channel().await.expect("create_channel");
+        info!("[{}] state: {:?}", line!(), conn.status().state());
 
-    //create the hello queue
-    let queue = channel_a
-        .queue_declare(
-            "hello",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("queue_declare");
-    info!("[{}] state: {:?}", line!(), conn.status().state());
-    info!("[{}] declared queue: {:?}", line!(), queue);
+        //create the hello queue
+        let queue = channel_a
+            .queue_declare(
+                "hello",
+                QueueDeclareOptions::default(),
+                FieldTable::default(),
+            )
+            .await
+            .expect("queue_declare");
+        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!("[{}] declared queue: {:?}", line!(), queue);
 
-    channel_a
-        .confirm_select(ConfirmSelectOptions::default())
-        .wait()
-        .expect("confirm_select");
-    info!("[{}] state: {:?}", line!(), conn.status().state());
+        channel_a
+            .confirm_select(ConfirmSelectOptions::default())
+            .await
+            .expect("confirm_select");
+        info!("[{}] state: {:?}", line!(), conn.status().state());
 
-    info!("will consume");
-    channel_b
-        .basic_consume(
-            "hello",
-            "my_consumer",
-            BasicConsumeOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("basic_consume")
-        .set_delegate(Box::new(Subscriber));
-    info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!("will consume");
+        channel_b
+            .basic_consume(
+                "hello",
+                "my_consumer",
+                BasicConsumeOptions::default(),
+                FieldTable::default(),
+            )
+            .await
+            .expect("basic_consume")
+            .set_delegate(Box::new(Subscriber));
+        info!("[{}] state: {:?}", line!(), conn.status().state());
 
-    info!("will publish");
-    let payload = b"Hello world!";
-    channel_a
-        .basic_publish(
-            "",
-            "hello",
-            BasicPublishOptions::default(),
-            payload.to_vec(),
-            BasicProperties::default(),
-        )
-        .wait()
-        .expect("basic_publish");
-    info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!("will publish");
+        let payload = b"Hello world!";
+        channel_a
+            .basic_publish(
+                "",
+                "hello",
+                BasicPublishOptions::default(),
+                payload.to_vec(),
+                BasicProperties::default(),
+            )
+            .await
+            .expect("basic_publish");
+        info!("[{}] state: {:?}", line!(), conn.status().state());
+    })
 }

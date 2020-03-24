@@ -29,77 +29,72 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 ## Example
 
 ```rust
+use futures_executor::LocalPool;
+use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
-    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
 
-#[derive(Clone, Debug)]
-struct Subscriber {
-    channel: Channel,
-}
-
-impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        if let Ok(Some(delivery)) = delivery {
-            self.channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                .wait()
-                .expect("basic_ack");
-        }
-    }
-}
-
-fn main() {
+fn main() -> Result<()> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let conn = Connection::connect(&addr, ConnectionProperties::default())
-        .wait()
-        .expect("connection error");
+    let mut executor = LocalPool::new();
+    let spawner = executor.spawner();
 
-    info!("CONNECTED");
+    executor.run_until(async {
+        let conn = Connection::connect(&addr, ConnectionProperties::default()).await?;
 
-    let channel_a = conn.create_channel().wait().expect("create_channel");
-    let channel_b = conn.create_channel().wait().expect("create_channel");
+        info!("CONNECTED");
 
-    let queue = channel_a
-        .queue_declare(
-            "hello",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("queue_declare");
-    info!("Declared queue {:?}", queue);
+        let channel_a = conn.create_channel().await?;
+        let channel_b = conn.create_channel().await?;
 
-    info!("will consume");
-    channel_b
-        .clone()
-        .basic_consume(
-            "hello",
-            "my_consumer",
-            BasicConsumeOptions::default(),
-            FieldTable::default(),
-        )
-        .wait()
-        .expect("basic_consume")
-        .set_delegate(Box::new(Subscriber { channel: channel_b }));
-
-    let payload = b"Hello world!";
-
-    loop {
-        channel_a
-            .basic_publish(
-                "",
+        let queue = channel_a
+            .queue_declare(
                 "hello",
-                BasicPublishOptions::default(),
-                payload.to_vec(),
-                BasicProperties::default(),
+                QueueDeclareOptions::default(),
+                FieldTable::default(),
             )
-            .wait()
-            .expect("basic_publish");
-    }
+            .await?;
+
+        info!("Declared queue {:?}", queue);
+
+        let consumer = channel_b
+            .clone()
+            .basic_consume(
+                "hello",
+                "my_consumer",
+                BasicConsumeOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+        let _consumer = spawner.spawn_local(async move {
+            info!("will consume");
+            consumer
+                .for_each(move |delivery| {
+                    let delivery = delivery.expect("error caught in in consumer");
+                    channel_b
+                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                        .map(|_| ())
+                })
+                .await
+        });
+
+        let payload = b"Hello world!";
+
+        loop {
+            channel_a
+                .basic_publish(
+                    "",
+                    "hello",
+                    BasicPublishOptions::default(),
+                    payload.to_vec(),
+                    BasicProperties::default(),
+                )
+                .await?;
+        }
+    })
 }
 ```
