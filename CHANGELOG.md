@@ -1,3 +1,15 @@
+### 0.34.0 (2020-03-24)
+
+#### Breaking changes
+
+* The `Connect` trait has been simplified
+* The `futures` feature doesn't exist anymore (always enabled)
+* The `lapin-futures` (0.1 futures compat) has been dropped
+
+#### Misc
+
+* Examples ported to async/await
+
 ### 0.33.2 (2020-03-23)
 
 #### Bug Fixes
