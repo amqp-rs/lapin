@@ -1,6 +1,6 @@
 use crate::{
     pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
-    publisher_confirm::Confirmation,
+    publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
     Error, Result,
 };
@@ -24,11 +24,11 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) -> PinkySwear<Confirmation> {
+    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) -> PublisherConfirm {
         self.inner.lock().register_pending(delivery_tag)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Confirmation>> {
+    pub(crate) fn get_last_pending(&self) -> Option<PublisherConfirm> {
         self.inner.lock().last.take()
     }
 
@@ -67,7 +67,7 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<PinkySwear<Confirmation>>,
+    last: Option<PublisherConfirm>,
     pending: HashMap<DeliveryTag, (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>,
     returned_messages: ReturnedMessages,
 }
@@ -81,11 +81,11 @@ impl Inner {
         }
     }
 
-    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PinkySwear<Confirmation> {
+    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PublisherConfirm {
         let (promise, pinky) = PinkySwear::new();
         let broadcaster = PinkyBroadcaster::new(promise);
-        let promise = broadcaster.subscribe();
-        self.last = Some(broadcaster.subscribe());
+        let promise = broadcaster.subscribe().into();
+        self.last = Some(broadcaster.subscribe().into());
         self.pending.insert(delivery_tag, (pinky, broadcaster));
         promise
     }

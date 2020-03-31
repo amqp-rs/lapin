@@ -11,7 +11,7 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     pinky_swear::{Pinky, PinkySwear},
     protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
-    publisher_confirm::Confirmation,
+    publisher_confirm::{Confirmation, PublisherConfirm},
     queue::Queue,
     queues::Queues,
     returned_messages::ReturnedMessages,
@@ -136,8 +136,8 @@ impl Channel {
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
-        publisher_confirms_result: Option<PinkySwear<Confirmation>>,
-    ) -> Result<PinkySwear<Result<PinkySwear<Confirmation>>, Result<()>>> {
+        publisher_confirms_result: Option<PublisherConfirm>,
+    ) -> Result<PinkySwear<Result<PublisherConfirm>, Result<()>>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -170,7 +170,7 @@ impl Channel {
                     publisher_confirms_result
                         .lock()
                         .take()
-                        .unwrap_or_else(|| PinkySwear::new_with_data(Confirmation::NotRequested))
+                        .unwrap_or_else(|| PublisherConfirm::not_requested())
                 })
             })))
     }
@@ -264,7 +264,7 @@ impl Channel {
         }
     }
 
-    fn before_basic_publish(&self) -> Option<PinkySwear<Confirmation>> {
+    fn before_basic_publish(&self) -> Option<PublisherConfirm> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
             Some(self.acknowledgements.register_pending(delivery_tag))
