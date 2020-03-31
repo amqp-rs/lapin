@@ -37,7 +37,13 @@ impl ReturnedMessages {
         self.inner.lock().messages.drain(..).collect()
     }
 
-    pub(crate) fn register_pinky(&self, pinky: (Pinky<Result<PublisherConfirm>>, PinkyBroadcaster<Result<PublisherConfirm>>)) {
+    pub(crate) fn register_pinky(
+        &self,
+        pinky: (
+            Pinky<Result<PublisherConfirm>>,
+            PinkyBroadcaster<Result<PublisherConfirm>>,
+        ),
+    ) {
         self.inner.lock().pinkies.push_back(pinky);
     }
 }
@@ -46,7 +52,10 @@ impl ReturnedMessages {
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    pinkies: VecDeque<(Pinky<Result<PublisherConfirm>>, PinkyBroadcaster<Result<PublisherConfirm>>)>,
+    pinkies: VecDeque<(
+        Pinky<Result<PublisherConfirm>>,
+        PinkyBroadcaster<Result<PublisherConfirm>>,
+    )>,
 }
 
 impl Inner {

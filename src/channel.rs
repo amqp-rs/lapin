@@ -102,7 +102,9 @@ impl Channel {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
-    pub fn wait_for_confirms(&self) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Result<PublisherConfirm>> {
+    pub fn wait_for_confirms(
+        &self,
+    ) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Result<PublisherConfirm>> {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
