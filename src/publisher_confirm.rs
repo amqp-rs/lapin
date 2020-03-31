@@ -7,10 +7,9 @@ use std::{
     task::{Context, Poll},
 };
 
-// FIXME: If dropped without data ready, register in ReturnedMessages
 #[derive(Debug)]
 pub struct PublisherConfirm {
-    inner: PinkySwear<Confirmation>,
+    inner: Option<PinkySwear<Confirmation>>,
     returned_messages: ReturnedMessages,
     used: bool,
 }
@@ -28,7 +27,7 @@ impl PublisherConfirm {
         returned_messages: ReturnedMessages,
     ) -> Self {
         Self {
-            inner,
+            inner: Some(inner),
             returned_messages,
             used: false,
         }
@@ -36,21 +35,21 @@ impl PublisherConfirm {
 
     pub(crate) fn not_requested(returned_messages: ReturnedMessages) -> Self {
         Self {
-            inner: PinkySwear::new_with_data(Confirmation::NotRequested),
+            inner: Some(PinkySwear::new_with_data(Confirmation::NotRequested)),
             returned_messages,
             used: false,
         }
     }
 
     pub fn try_wait(&mut self) -> Option<Confirmation> {
-        let confirmation = self.inner.try_wait()?;
+        let confirmation = self.inner.as_ref().expect("inner should only be None after Drop").try_wait()?;
         self.used = true;
         Some(confirmation)
     }
 
     pub fn wait(&mut self) -> Confirmation {
         self.used = true;
-        self.inner.wait()
+        self.inner.as_ref().expect("inner should only be None after Drop").wait()
     }
 }
 
@@ -60,6 +59,15 @@ impl Future for PublisherConfirm {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut();
         this.used = true;
-        Pin::new(&mut this.inner).poll(cx)
+        Pin::new(&mut this.inner.as_mut().expect("inner should only be None ater Drop")).poll(cx)
+    }
+}
+
+impl Drop for PublisherConfirm {
+    fn drop(&mut self) {
+        if !self.used {
+            let promise = PublisherConfirm::new(self.inner.take().expect("inner should only be None after Drop"), self.returned_messages.clone());
+            self.returned_messages.register_dropped_confirm(promise);
+        }
     }
 }
