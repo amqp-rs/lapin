@@ -42,14 +42,21 @@ impl PublisherConfirm {
     }
 
     pub fn try_wait(&mut self) -> Option<Confirmation> {
-        let confirmation = self.inner.as_ref().expect("inner should only be None after Drop").try_wait()?;
+        let confirmation = self
+            .inner
+            .as_ref()
+            .expect("inner should only be None after Drop")
+            .try_wait()?;
         self.used = true;
         Some(confirmation)
     }
 
     pub fn wait(&mut self) -> Confirmation {
         self.used = true;
-        self.inner.as_ref().expect("inner should only be None after Drop").wait()
+        self.inner
+            .as_ref()
+            .expect("inner should only be None after Drop")
+            .wait()
     }
 }
 
@@ -58,7 +65,13 @@ impl Future for PublisherConfirm {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut();
-        let res = Pin::new(&mut this.inner.as_mut().expect("inner should only be None ater Drop")).poll(cx);
+        let res = Pin::new(
+            &mut this
+                .inner
+                .as_mut()
+                .expect("inner should only be None ater Drop"),
+        )
+        .poll(cx);
         if res.is_ready() {
             this.used = true;
         }
