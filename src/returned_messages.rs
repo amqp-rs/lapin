@@ -1,7 +1,7 @@
 use crate::{
     message::BasicReturnMessage,
     pinky_swear::{Pinky, PinkyBroadcaster},
-    BasicProperties, PublisherConfirm, Result,
+    BasicProperties, PublisherConfirm,
 };
 use log::error;
 use parking_lot::Mutex;
@@ -39,10 +39,7 @@ impl ReturnedMessages {
 
     pub(crate) fn register_pinky(
         &self,
-        pinky: (
-            Pinky<Result<PublisherConfirm>>,
-            PinkyBroadcaster<Result<PublisherConfirm>>,
-        ),
+        pinky: (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>),
     ) {
         self.inner.lock().pinkies.push_back(pinky);
     }
@@ -52,10 +49,7 @@ impl ReturnedMessages {
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    pinkies: VecDeque<(
-        Pinky<Result<PublisherConfirm>>,
-        PinkyBroadcaster<Result<PublisherConfirm>>,
-    )>,
+    pinkies: VecDeque<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>,
 }
 
 impl Inner {
@@ -64,7 +58,7 @@ impl Inner {
             error!("Server returned us a message: {:?}", message);
             self.messages.push(message);
             if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() {
-                pinky.swear(Ok(PublisherConfirm::Nack));
+                pinky.swear(PublisherConfirm::Nack);
             }
         }
     }

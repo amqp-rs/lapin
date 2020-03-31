@@ -26,11 +26,11 @@ impl Acknowledgements {
     pub(crate) fn register_pending(
         &self,
         delivery_tag: DeliveryTag,
-    ) -> PinkySwear<Result<PublisherConfirm>> {
+    ) -> PinkySwear<PublisherConfirm> {
         self.inner.lock().register_pending(delivery_tag)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Result<PublisherConfirm>>> {
+    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<PublisherConfirm>> {
         self.inner.lock().last.take()
     }
 
@@ -45,14 +45,14 @@ impl Acknowledgements {
     pub(crate) fn ack_all_pending(&self) {
         let mut inner = self.inner.lock();
         for (pinky, _broadcaster) in inner.drain_pending() {
-            pinky.swear(Ok(PublisherConfirm::Ack));
+            pinky.swear(PublisherConfirm::Ack);
         }
     }
 
     pub(crate) fn nack_all_pending(&self) {
         let mut inner = self.inner.lock();
         for (pinky, _broadcaster) in inner.drain_pending() {
-            pinky.swear(Ok(PublisherConfirm::Nack));
+            pinky.swear(PublisherConfirm::Nack);
         }
     }
 
@@ -75,14 +75,8 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<PinkySwear<Result<PublisherConfirm>>>,
-    pending: HashMap<
-        DeliveryTag,
-        (
-            Pinky<Result<PublisherConfirm>>,
-            PinkyBroadcaster<Result<PublisherConfirm>>,
-        ),
-    >,
+    last: Option<PinkySwear<PublisherConfirm>>,
+    pending: HashMap<DeliveryTag, (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -95,10 +89,7 @@ impl Inner {
         }
     }
 
-    fn register_pending(
-        &mut self,
-        delivery_tag: DeliveryTag,
-    ) -> PinkySwear<Result<PublisherConfirm>> {
+    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PinkySwear<PublisherConfirm> {
         let (promise, pinky) = PinkySwear::new();
         let broadcaster = PinkyBroadcaster::new(promise);
         let promise = broadcaster.subscribe();
@@ -110,7 +101,7 @@ impl Inner {
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
         if let Some((pinky, broadcaster)) = self.pending.remove(&delivery_tag) {
             if success {
-                pinky.swear(Ok(PublisherConfirm::Ack));
+                pinky.swear(PublisherConfirm::Ack);
             } else {
                 self.returned_messages.register_pinky((pinky, broadcaster));
             }
@@ -130,10 +121,7 @@ impl Inner {
 
     fn drain_pending(
         &mut self,
-    ) -> Vec<(
-        Pinky<Result<PublisherConfirm>>,
-        PinkyBroadcaster<Result<PublisherConfirm>>,
-    )> {
+    ) -> Vec<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)> {
         self.pending.drain().map(|tup| tup.1).collect()
     }
 

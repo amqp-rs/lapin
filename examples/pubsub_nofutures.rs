@@ -1,6 +1,6 @@
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    ConnectionProperties, ConsumerDelegate, PublisherConfirm,
 };
 use log::info;
 
@@ -60,7 +60,7 @@ fn main() {
     let payload = b"Hello world!";
 
     loop {
-        channel_a
+        let confirm = channel_a
             .basic_publish(
                 "",
                 "hello",
@@ -70,7 +70,7 @@ fn main() {
             )
             .wait()
             .expect("basic_publish")
-            .wait()
-            .expect("publisher_confirm");
+            .wait();
+        assert_eq!(confirm, PublisherConfirm::NotRequested);
     }
 }

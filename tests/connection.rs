@@ -1,6 +1,6 @@
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate,
+    ConnectionProperties, ConsumerDelegate, PublisherConfirm,
 };
 use log::info;
 use std::{
@@ -87,7 +87,7 @@ fn connection() {
 
     println!("will publish");
     let payload = b"Hello world!";
-    channel_a
+    let confirm = channel_a
         .basic_publish(
             "",
             "hello-async",
@@ -97,8 +97,8 @@ fn connection() {
         )
         .wait()
         .expect("basic_publish")
-        .wait()
-        .expect("publisher_confirm");
+        .wait();
+    assert_eq!(confirm, PublisherConfirm::NotRequested);
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     thread::sleep(time::Duration::from_millis(100));

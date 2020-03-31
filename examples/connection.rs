@@ -1,7 +1,7 @@
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties,
+    ConnectionProperties, PublisherConfirm,
 };
 use log::info;
 
@@ -68,7 +68,7 @@ fn main() {
 
         info!("will publish");
         let payload = b"Hello world!";
-        channel_a
+        let confirm = channel_a
             .basic_publish(
                 "",
                 "hello",
@@ -78,8 +78,8 @@ fn main() {
             )
             .await
             .expect("basic_publish")
-            .await
-            .expect("publisher_confirm");
+            .await;
+        assert_eq!(confirm, PublisherConfirm::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         std::thread::sleep(std::time::Duration::from_millis(2000));
