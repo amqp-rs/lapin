@@ -1,7 +1,7 @@
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Confirmation,
+    ConnectionProperties, publisher_confirm::Confirmation,
 };
 use log::info;
 

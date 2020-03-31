@@ -1,7 +1,7 @@
 use crate::{
     pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
     returned_messages::ReturnedMessages,
-    Error, Confirmation, Result,
+    Error, publisher_confirm::Confirmation, Result,
 };
 use parking_lot::Mutex;
 use std::{

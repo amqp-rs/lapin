@@ -15,7 +15,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, Error, ExchangeKind, Confirmation, Result,
+    BasicProperties, Error, ExchangeKind, publisher_confirm::Confirmation, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};

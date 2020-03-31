@@ -1,6 +1,6 @@
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate, Confirmation,
+    ConnectionProperties, ConsumerDelegate, publisher_confirm::Confirmation,
 };
 use log::info;
 
