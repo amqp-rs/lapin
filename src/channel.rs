@@ -161,7 +161,12 @@ impl Channel {
         // tweak to make rustc happy
         let publisher_confirms_result = Arc::new(Mutex::new(publisher_confirms_result));
 
-        Ok(self.connection.send_frames(self.id, frames)?.traverse(Box::new(move |res| res.map(|()| publisher_confirms_result.lock().take()))))
+        Ok(self
+            .connection
+            .send_frames(self.id, frames)?
+            .traverse(Box::new(move |res| {
+                res.map(|()| publisher_confirms_result.lock().take())
+            })))
     }
 
     pub(crate) fn send_frame(

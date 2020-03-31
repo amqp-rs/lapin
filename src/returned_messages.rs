@@ -1,4 +1,8 @@
-use crate::{message::BasicReturnMessage, pinky_swear::{Pinky, PinkyBroadcaster}, BasicProperties, Result};
+use crate::{
+    message::BasicReturnMessage,
+    pinky_swear::{Pinky, PinkyBroadcaster},
+    BasicProperties, Result,
+};
 use log::error;
 use parking_lot::Mutex;
 use std::{collections::VecDeque, sync::Arc};
