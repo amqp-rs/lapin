@@ -101,7 +101,9 @@ fn main() {
                 BasicProperties::default(),
             )
             .await
-            .expect("basic_publish");
+            .expect("basic_publish")
+            .await
+            .expect("publisher_confirm");
         info!("[{}] state: {:?}", line!(), conn.status().state());
     })
 }

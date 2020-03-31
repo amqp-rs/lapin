@@ -96,7 +96,9 @@ fn connection() {
             BasicProperties::default(),
         )
         .wait()
-        .expect("basic_publish");
+        .expect("basic_publish")
+        .wait()
+        .expect("publisher_confirm");
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     thread::sleep(time::Duration::from_millis(100));

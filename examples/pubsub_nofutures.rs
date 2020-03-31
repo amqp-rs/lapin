@@ -69,6 +69,8 @@ fn main() {
                 BasicProperties::default(),
             )
             .wait()
-            .expect("basic_publish");
+            .expect("basic_publish")
+            .wait()
+            .expect("publisher_confirm");
     }
 }

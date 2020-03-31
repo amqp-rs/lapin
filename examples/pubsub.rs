@@ -62,7 +62,7 @@ fn main() -> Result<()> {
                     payload.to_vec(),
                     BasicProperties::default(),
                 )
-                .await?;
+                .await?.await?;
         }
     })
 }

@@ -2,4 +2,5 @@
 pub enum PublisherConfirm {
     Ack,
     Nack,
+    NotRequested,
 }

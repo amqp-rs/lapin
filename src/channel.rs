@@ -138,7 +138,7 @@ impl Channel {
         payload: Vec<u8>,
         properties: BasicProperties,
         publisher_confirms_result: Option<PinkySwear<Result<PublisherConfirm>>>,
-    ) -> Result<PinkySwear<Result<Option<PinkySwear<Result<PublisherConfirm>>>>, Result<()>>> {
+    ) -> Result<PinkySwear<Result<PinkySwear<Result<PublisherConfirm>>>, Result<()>>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -167,7 +167,7 @@ impl Channel {
             .connection
             .send_frames(self.id, frames)?
             .traverse(Box::new(move |res| {
-                res.map(|()| publisher_confirms_result.lock().take())
+                res.map(|()| publisher_confirms_result.lock().take().unwrap_or_else(|| PinkySwear::new_with_data(Ok(PublisherConfirm::NotRequested))))
             })))
     }
 

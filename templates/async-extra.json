@@ -201,7 +201,7 @@
           }
         ],
         "confirmation": {
-          "type": "Option<PinkySwear<Result<PublisherConfirm>>>"
+          "type": "PinkySwear<Result<PublisherConfirm>>"
         },
         "start_hook": {
             "returns": "Option<PinkySwear<Result<PublisherConfirm>>>"
