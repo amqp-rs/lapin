@@ -1,5 +1,7 @@
 use crate::{
-    message::BasicReturnMessage, pinky_swear::PinkyBroadcaster, publisher_confirm::Confirmation,
+    message::BasicReturnMessage,
+    pinky_swear::PinkyBroadcaster,
+    publisher_confirm::{Confirmation, PublisherConfirm},
     BasicProperties,
 };
 use log::error;
@@ -33,26 +35,30 @@ impl ReturnedMessages {
     }
 
     pub(crate) fn drain(&self) -> Vec<BasicReturnMessage> {
-        self.inner.lock().messages.drain(..).collect()
+        self.inner.lock().drain()
     }
 
     pub(crate) fn register_pinky(&self, pinky: PinkyBroadcaster<Confirmation>) {
         self.inner.lock().register_pinky(pinky);
+    }
+
+    pub(crate) fn register_dropped_confirm(&self, promise: PublisherConfirm) {
+        self.inner.lock().dropped_confirms.push(promise);
     }
 }
 
 #[derive(Debug, Default)]
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
-    new_messages: VecDeque<BasicReturnMessage>,
-    messages: Vec<BasicReturnMessage>,
+    messages: VecDeque<BasicReturnMessage>,
+    dropped_confirms: Vec<PublisherConfirm>,
     pinkies: VecDeque<PinkyBroadcaster<Confirmation>>,
 }
 
 impl Inner {
     fn register_pinky(&mut self, pinky: PinkyBroadcaster<Confirmation>) {
-        if let Some(message) = self.new_messages.pop_front() {
-            self.forward_message(pinky, message);
+        if let Some(message) = self.messages.pop_front() {
+            pinky.swear(Confirmation::Nack(message));
         } else {
             self.pinkies.push_back(pinky);
         }
@@ -62,19 +68,28 @@ impl Inner {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
             if let Some(pinky) = self.pinkies.pop_front() {
-                self.forward_message(pinky, message);
+                pinky.swear(Confirmation::Nack(message));
             } else {
-                self.new_messages.push_back(message);
+                self.messages.push_back(message);
             }
         }
     }
 
-    fn forward_message(
-        &mut self,
-        pinky: PinkyBroadcaster<Confirmation>,
-        message: BasicReturnMessage,
-    ) {
-        self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
-        pinky.swear(Confirmation::Nack(message));
+    fn drain(&mut self) -> Vec<BasicReturnMessage> {
+        let mut messages = Vec::default();
+        for mut promise in self
+            .dropped_confirms
+            .drain(..)
+            .collect::<Vec<PublisherConfirm>>()
+        {
+            if let Some(confirmation) = promise.try_wait() {
+                if let Confirmation::Nack(message) = confirmation {
+                    messages.push(message);
+                }
+            } else {
+                self.dropped_confirms.push(promise);
+            }
+        }
+        messages
     }
 }

@@ -160,17 +160,20 @@ impl Channel {
         );
 
         // tweak to make rustc happy
-        let publisher_confirms_result = Arc::new(Mutex::new(publisher_confirms_result));
+        let data = Arc::new(Mutex::new((
+            publisher_confirms_result,
+            self.returned_messages.clone(),
+        )));
 
         Ok(self
             .connection
             .send_frames(self.id, frames)?
             .traverse(Box::new(move |res| {
                 res.map(|()| {
-                    publisher_confirms_result
-                        .lock()
+                    let mut data = data.lock();
+                    data.0
                         .take()
-                        .unwrap_or_else(|| PublisherConfirm::not_requested())
+                        .unwrap_or_else(|| PublisherConfirm::not_requested(data.1.clone()))
                 })
             })))
     }
