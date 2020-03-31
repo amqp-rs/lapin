@@ -66,8 +66,9 @@ impl Future for PublisherConfirm {
 impl Drop for PublisherConfirm {
     fn drop(&mut self) {
         if !self.used {
-            let promise = PublisherConfirm::new(self.inner.take().expect("inner should only be None after Drop"), self.returned_messages.clone());
-            self.returned_messages.register_dropped_confirm(promise);
+            if let Some(promise) = self.inner.take() {
+                self.returned_messages.register_dropped_confirm(promise);
+            }
         }
     }
 }

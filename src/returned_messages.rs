@@ -1,7 +1,7 @@
 use crate::{
     message::BasicReturnMessage,
-    pinky_swear::PinkyBroadcaster,
-    publisher_confirm::{Confirmation, PublisherConfirm},
+    pinky_swear::{PinkyBroadcaster, PinkySwear},
+    publisher_confirm::Confirmation,
     BasicProperties,
 };
 use log::error;
@@ -42,7 +42,7 @@ impl ReturnedMessages {
         self.inner.lock().register_pinky(pinky);
     }
 
-    pub(crate) fn register_dropped_confirm(&self, promise: PublisherConfirm) {
+    pub(crate) fn register_dropped_confirm(&self, promise: PinkySwear<Confirmation>) {
         self.inner.lock().dropped_confirms.push(promise);
     }
 }
@@ -51,7 +51,7 @@ impl ReturnedMessages {
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     messages: VecDeque<BasicReturnMessage>,
-    dropped_confirms: Vec<PublisherConfirm>,
+    dropped_confirms: Vec<PinkySwear<Confirmation>>,
     pinkies: VecDeque<PinkyBroadcaster<Confirmation>>,
 }
 
@@ -77,10 +77,10 @@ impl Inner {
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
         let mut messages = Vec::default();
-        for mut promise in self
+        for promise in self
             .dropped_confirms
             .drain(..)
-            .collect::<Vec<PublisherConfirm>>()
+            .collect::<Vec<PinkySwear<Confirmation>>>()
         {
             if let Some(confirmation) = promise.try_wait() {
                 if let Confirmation::Nack(message) = confirmation {
