@@ -11,11 +11,12 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     pinky_swear::{Pinky, PinkySwear},
     protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
+    publisher_confirm::Confirmation,
     queue::Queue,
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, Error, ExchangeKind, publisher_confirm::Confirmation, Result,
+    BasicProperties, Error, ExchangeKind, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
@@ -102,9 +103,7 @@ impl Channel {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
-    pub fn wait_for_confirms(
-        &self,
-    ) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Confirmation> {
+    pub fn wait_for_confirms(&self) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Confirmation> {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
@@ -168,9 +167,10 @@ impl Channel {
             .send_frames(self.id, frames)?
             .traverse(Box::new(move |res| {
                 res.map(|()| {
-                    publisher_confirms_result.lock().take().unwrap_or_else(|| {
-                        PinkySwear::new_with_data(Confirmation::NotRequested)
-                    })
+                    publisher_confirms_result
+                        .lock()
+                        .take()
+                        .unwrap_or_else(|| PinkySwear::new_with_data(Confirmation::NotRequested))
                 })
             })))
     }

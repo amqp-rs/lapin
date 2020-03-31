@@ -1,7 +1,8 @@
 use crate::{
     message::BasicReturnMessage,
     pinky_swear::{Pinky, PinkyBroadcaster},
-    BasicProperties, publisher_confirm::Confirmation,
+    publisher_confirm::Confirmation,
+    BasicProperties,
 };
 use log::error;
 use parking_lot::Mutex;

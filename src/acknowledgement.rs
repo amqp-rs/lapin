@@ -1,7 +1,8 @@
 use crate::{
     pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
+    publisher_confirm::Confirmation,
     returned_messages::ReturnedMessages,
-    Error, publisher_confirm::Confirmation, Result,
+    Error, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -23,10 +24,7 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn register_pending(
-        &self,
-        delivery_tag: DeliveryTag,
-    ) -> PinkySwear<Confirmation> {
+    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) -> PinkySwear<Confirmation> {
         self.inner.lock().register_pending(delivery_tag)
     }
 
@@ -92,7 +90,12 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, pinky: Pinky<Confirmation>, broadcaster: PinkyBroadcaster<Confirmation>) {
+    fn complete_pending(
+        &mut self,
+        success: bool,
+        pinky: Pinky<Confirmation>,
+        broadcaster: PinkyBroadcaster<Confirmation>,
+    ) {
         if success {
             pinky.swear(Confirmation::Ack);
         } else {
@@ -101,7 +104,12 @@ impl Inner {
     }
 
     fn drop_all(&mut self, success: bool) {
-        for (pinky, broadcaster) in self.pending.drain().map(|tup| tup.1).collect::<Vec<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>>() {
+        for (pinky, broadcaster) in self
+            .pending
+            .drain()
+            .map(|tup| tup.1)
+            .collect::<Vec<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>>()
+        {
             self.complete_pending(success, pinky, broadcaster);
         }
     }

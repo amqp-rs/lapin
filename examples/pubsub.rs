@@ -1,8 +1,8 @@
 use futures_executor::LocalPool;
 use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties,
-    publisher_confirm::Confirmation, Result,
+    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties, Result,
 };
 use log::info;
 
