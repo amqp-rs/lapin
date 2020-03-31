@@ -56,9 +56,9 @@ impl Inner {
     fn new_delivery_complete(&mut self) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            self.messages.push(message);
-            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() {
-                pinky.swear(PublisherConfirm::Nack);
+            self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
+            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() { // FIXME: swear when we already got the message
+                pinky.swear(PublisherConfirm::Nack(message));
             }
         }
     }

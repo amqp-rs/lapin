@@ -43,17 +43,11 @@ impl Acknowledgements {
     }
 
     pub(crate) fn ack_all_pending(&self) {
-        let mut inner = self.inner.lock();
-        for (pinky, _broadcaster) in inner.drain_pending() {
-            pinky.swear(PublisherConfirm::Ack);
-        }
+        self.inner.lock().drop_all(true);
     }
 
     pub(crate) fn nack_all_pending(&self) {
-        let mut inner = self.inner.lock();
-        for (pinky, _broadcaster) in inner.drain_pending() {
-            pinky.swear(PublisherConfirm::Nack);
-        }
+        self.inner.lock().drop_all(false);
     }
 
     pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
@@ -98,13 +92,23 @@ impl Inner {
         promise
     }
 
+    fn complete_pending(&mut self, success: bool, pinky: Pinky<PublisherConfirm>, broadcaster: PinkyBroadcaster<PublisherConfirm>) {
+        if success {
+            pinky.swear(PublisherConfirm::Ack);
+        } else {
+            self.returned_messages.register_pinky((pinky, broadcaster));
+        }
+    }
+
+    fn drop_all(&mut self, success: bool) {
+        for (pinky, broadcaster) in self.pending.drain().map(|tup| tup.1).collect::<Vec<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>>() {
+            self.complete_pending(success, pinky, broadcaster);
+        }
+    }
+
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
         if let Some((pinky, broadcaster)) = self.pending.remove(&delivery_tag) {
-            if success {
-                pinky.swear(PublisherConfirm::Ack);
-            } else {
-                self.returned_messages.register_pinky((pinky, broadcaster));
-            }
+            self.complete_pending(success, pinky, broadcaster);
             Ok(())
         } else {
             Err(Error::InvalidAck)
@@ -117,12 +121,6 @@ impl Inner {
 
     fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
         self.drop_pending(delivery_tag, false)
-    }
-
-    fn drain_pending(
-        &mut self,
-    ) -> Vec<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)> {
-        self.pending.drain().map(|tup| tup.1).collect()
     }
 
     fn list_pending_before(&mut self, delivery_tag: DeliveryTag) -> HashSet<DeliveryTag> {
