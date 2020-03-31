@@ -58,8 +58,11 @@ impl Future for PublisherConfirm {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut();
-        this.used = true;
-        Pin::new(&mut this.inner.as_mut().expect("inner should only be None ater Drop")).poll(cx)
+        let res = Pin::new(&mut this.inner.as_mut().expect("inner should only be None ater Drop")).poll(cx);
+        if res.is_ready() {
+            this.used = true;
+        }
+        res
     }
 }
 
