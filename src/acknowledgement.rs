@@ -1,5 +1,5 @@
 use crate::{
-    pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
+    pinky_swear::PinkyBroadcaster,
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
     Error, Result,
@@ -68,7 +68,7 @@ impl Acknowledgements {
 #[derive(Debug)]
 struct Inner {
     last: Option<PublisherConfirm>,
-    pending: HashMap<DeliveryTag, (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>,
+    pending: HashMap<DeliveryTag, PinkyBroadcaster<Confirmation>>,
     returned_messages: ReturnedMessages,
 }
 
@@ -82,41 +82,35 @@ impl Inner {
     }
 
     fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PublisherConfirm {
-        let (promise, pinky) = PinkySwear::new();
-        let broadcaster = PinkyBroadcaster::new(promise);
+        let broadcaster = PinkyBroadcaster::default();
         let promise = broadcaster.subscribe().into();
         self.last = Some(broadcaster.subscribe().into());
-        self.pending.insert(delivery_tag, (pinky, broadcaster));
+        self.pending.insert(delivery_tag, broadcaster);
         promise
     }
 
-    fn complete_pending(
-        &mut self,
-        success: bool,
-        pinky: Pinky<Confirmation>,
-        broadcaster: PinkyBroadcaster<Confirmation>,
-    ) {
+    fn complete_pending(&mut self, success: bool, pinky: PinkyBroadcaster<Confirmation>) {
         if success {
             pinky.swear(Confirmation::Ack);
         } else {
-            self.returned_messages.register_pinky((pinky, broadcaster));
+            self.returned_messages.register_pinky(pinky);
         }
     }
 
     fn drop_all(&mut self, success: bool) {
-        for (pinky, broadcaster) in self
+        for pinky in self
             .pending
             .drain()
             .map(|tup| tup.1)
-            .collect::<Vec<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>>()
+            .collect::<Vec<PinkyBroadcaster<Confirmation>>>()
         {
-            self.complete_pending(success, pinky, broadcaster);
+            self.complete_pending(success, pinky);
         }
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
-        if let Some((pinky, broadcaster)) = self.pending.remove(&delivery_tag) {
-            self.complete_pending(success, pinky, broadcaster);
+        if let Some(pinky) = self.pending.remove(&delivery_tag) {
+            self.complete_pending(success, pinky);
             Ok(())
         } else {
             Err(Error::InvalidAck)

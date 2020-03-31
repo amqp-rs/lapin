@@ -37,7 +37,7 @@ crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
 parking_lot = '^0.10'
-pinky-swear = "^1.4"
+pinky-swear = "^1.6"
 
 [dev-dependencies]
 env_logger = "^0.7"

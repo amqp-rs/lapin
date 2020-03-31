@@ -1,7 +1,5 @@
 use crate::{
-    message::BasicReturnMessage,
-    pinky_swear::{Pinky, PinkyBroadcaster},
-    publisher_confirm::Confirmation,
+    message::BasicReturnMessage, pinky_swear::PinkyBroadcaster, publisher_confirm::Confirmation,
     BasicProperties,
 };
 use log::error;
@@ -38,10 +36,7 @@ impl ReturnedMessages {
         self.inner.lock().messages.drain(..).collect()
     }
 
-    pub(crate) fn register_pinky(
-        &self,
-        pinky: (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>),
-    ) {
+    pub(crate) fn register_pinky(&self, pinky: PinkyBroadcaster<Confirmation>) {
         self.inner.lock().register_pinky(pinky);
     }
 }
@@ -51,13 +46,13 @@ pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     new_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    pinkies: VecDeque<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>,
+    pinkies: VecDeque<PinkyBroadcaster<Confirmation>>,
 }
 
 impl Inner {
-    fn register_pinky(&mut self, pinky: (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)) {
+    fn register_pinky(&mut self, pinky: PinkyBroadcaster<Confirmation>) {
         if let Some(message) = self.new_messages.pop_front() {
-            self.forward_message(pinky.0, message);
+            self.forward_message(pinky, message);
         } else {
             self.pinkies.push_back(pinky);
         }
@@ -66,7 +61,7 @@ impl Inner {
     fn new_delivery_complete(&mut self) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() {
+            if let Some(pinky) = self.pinkies.pop_front() {
                 self.forward_message(pinky, message);
             } else {
                 self.new_messages.push_back(message);
@@ -74,7 +69,11 @@ impl Inner {
         }
     }
 
-    fn forward_message(&mut self, pinky: Pinky<Confirmation>, message: BasicReturnMessage) {
+    fn forward_message(
+        &mut self,
+        pinky: PinkyBroadcaster<Confirmation>,
+        message: BasicReturnMessage,
+    ) {
         self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
         pinky.swear(Confirmation::Nack(message));
     }

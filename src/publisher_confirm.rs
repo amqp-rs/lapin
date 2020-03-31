@@ -1,7 +1,4 @@
-use crate::{
-    message::BasicReturnMessage,
-    pinky_swear::PinkySwear,
-};
+use crate::{message::BasicReturnMessage, pinky_swear::PinkySwear};
 use std::{
     future::Future,
     pin::Pin,
