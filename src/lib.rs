@@ -101,6 +101,7 @@ pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
 pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
+pub use publisher_confirm::PublisherConfirm;
 pub use queue::Queue;
 
 pub mod executor;
@@ -122,6 +123,7 @@ mod exchange;
 mod frames;
 mod id_sequence;
 mod io_loop;
+mod publisher_confirm;
 mod queue;
 mod queues;
 mod returned_messages;

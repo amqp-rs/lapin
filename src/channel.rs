@@ -15,7 +15,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, Error, ExchangeKind, Result,
+    BasicProperties, Error, ExchangeKind, PublisherConfirm, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
@@ -102,7 +102,7 @@ impl Channel {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
-    pub fn wait_for_confirms(&self) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Result<()>> {
+    pub fn wait_for_confirms(&self) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Result<PublisherConfirm>> {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
@@ -135,8 +135,8 @@ impl Channel {
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
-        publisher_confirms_result: Option<PinkySwear<Result<()>>>,
-    ) -> Result<PinkySwear<Result<Option<PinkySwear<Result<()>>>>, Result<()>>> {
+        publisher_confirms_result: Option<PinkySwear<Result<PublisherConfirm>>>,
+    ) -> Result<PinkySwear<Result<Option<PinkySwear<Result<PublisherConfirm>>>>, Result<()>>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -258,7 +258,7 @@ impl Channel {
         }
     }
 
-    fn before_basic_publish(&self) -> Option<PinkySwear<Result<()>>> {
+    fn before_basic_publish(&self) -> Option<PinkySwear<Result<PublisherConfirm>>> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
             Some(self.acknowledgements.register_pending(delivery_tag))
