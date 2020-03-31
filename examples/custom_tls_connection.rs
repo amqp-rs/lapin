@@ -2,7 +2,7 @@ use amq_protocol::tcp::AMQPUriTcpExt;
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate, PublisherConfirm, Result,
+    ConnectionProperties, ConsumerDelegate, Confirmation, Result,
 };
 use log::info;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
@@ -103,7 +103,7 @@ fn main() {
             .await
             .expect("basic_publish")
             .await;
-        assert_eq!(confirm, PublisherConfirm::NotRequested);
+        assert_eq!(confirm, Confirmation::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
     })
 }

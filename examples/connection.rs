@@ -1,7 +1,7 @@
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, PublisherConfirm,
+    ConnectionProperties, Confirmation,
 };
 use log::info;
 
@@ -79,7 +79,7 @@ fn main() {
             .await
             .expect("basic_publish")
             .await;
-        assert_eq!(confirm, PublisherConfirm::NotRequested);
+        assert_eq!(confirm, Confirmation::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         std::thread::sleep(std::time::Duration::from_millis(2000));

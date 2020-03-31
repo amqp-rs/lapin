@@ -1,7 +1,7 @@
 use crate::{
     pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
     returned_messages::ReturnedMessages,
-    Error, PublisherConfirm, Result,
+    Error, Confirmation, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -26,11 +26,11 @@ impl Acknowledgements {
     pub(crate) fn register_pending(
         &self,
         delivery_tag: DeliveryTag,
-    ) -> PinkySwear<PublisherConfirm> {
+    ) -> PinkySwear<Confirmation> {
         self.inner.lock().register_pending(delivery_tag)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<PublisherConfirm>> {
+    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Confirmation>> {
         self.inner.lock().last.take()
     }
 
@@ -69,8 +69,8 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<PinkySwear<PublisherConfirm>>,
-    pending: HashMap<DeliveryTag, (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>,
+    last: Option<PinkySwear<Confirmation>>,
+    pending: HashMap<DeliveryTag, (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -83,7 +83,7 @@ impl Inner {
         }
     }
 
-    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PinkySwear<PublisherConfirm> {
+    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PinkySwear<Confirmation> {
         let (promise, pinky) = PinkySwear::new();
         let broadcaster = PinkyBroadcaster::new(promise);
         let promise = broadcaster.subscribe();
@@ -92,16 +92,16 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, pinky: Pinky<PublisherConfirm>, broadcaster: PinkyBroadcaster<PublisherConfirm>) {
+    fn complete_pending(&mut self, success: bool, pinky: Pinky<Confirmation>, broadcaster: PinkyBroadcaster<Confirmation>) {
         if success {
-            pinky.swear(PublisherConfirm::Ack);
+            pinky.swear(Confirmation::Ack);
         } else {
             self.returned_messages.register_pinky((pinky, broadcaster));
         }
     }
 
     fn drop_all(&mut self, success: bool) {
-        for (pinky, broadcaster) in self.pending.drain().map(|tup| tup.1).collect::<Vec<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>>() {
+        for (pinky, broadcaster) in self.pending.drain().map(|tup| tup.1).collect::<Vec<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>>() {
             self.complete_pending(success, pinky, broadcaster);
         }
     }

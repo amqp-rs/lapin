@@ -1,6 +1,6 @@
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate, PublisherConfirm,
+    ConnectionProperties, ConsumerDelegate, Confirmation,
 };
 use log::info;
 
@@ -71,6 +71,6 @@ fn main() {
             .wait()
             .expect("basic_publish")
             .wait();
-        assert_eq!(confirm, PublisherConfirm::NotRequested);
+        assert_eq!(confirm, Confirmation::NotRequested);
     }
 }

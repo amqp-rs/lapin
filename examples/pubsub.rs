@@ -2,7 +2,7 @@ use futures_executor::LocalPool;
 use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
     options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties,
-    PublisherConfirm, Result,
+    Confirmation, Result,
 };
 use log::info;
 
@@ -65,7 +65,7 @@ fn main() -> Result<()> {
                 )
                 .await?
                 .await;
-            assert_eq!(confirm, PublisherConfirm::NotRequested);
+            assert_eq!(confirm, Confirmation::NotRequested);
         }
     })
 }

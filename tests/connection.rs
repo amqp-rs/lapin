@@ -1,6 +1,6 @@
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, ConsumerDelegate, PublisherConfirm,
+    ConnectionProperties, ConsumerDelegate, Confirmation,
 };
 use log::info;
 use std::{
@@ -98,7 +98,7 @@ fn connection() {
         .wait()
         .expect("basic_publish")
         .wait();
-    assert_eq!(confirm, PublisherConfirm::NotRequested);
+    assert_eq!(confirm, Confirmation::NotRequested);
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     thread::sleep(time::Duration::from_millis(100));

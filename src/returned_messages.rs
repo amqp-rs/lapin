@@ -1,7 +1,7 @@
 use crate::{
     message::BasicReturnMessage,
     pinky_swear::{Pinky, PinkyBroadcaster},
-    BasicProperties, PublisherConfirm,
+    BasicProperties, Confirmation,
 };
 use log::error;
 use parking_lot::Mutex;
@@ -39,7 +39,7 @@ impl ReturnedMessages {
 
     pub(crate) fn register_pinky(
         &self,
-        pinky: (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>),
+        pinky: (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>),
     ) {
         self.inner.lock().register_pinky(pinky);
     }
@@ -50,11 +50,11 @@ pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     new_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    pinkies: VecDeque<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>,
+    pinkies: VecDeque<(Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)>,
 }
 
 impl Inner {
-    fn register_pinky(&mut self, pinky: (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)) {
+    fn register_pinky(&mut self, pinky: (Pinky<Confirmation>, PinkyBroadcaster<Confirmation>)) {
         if let Some(message) = self.new_messages.pop_front() {
             self.forward_message(pinky.0, message);
         } else {
@@ -73,8 +73,8 @@ impl Inner {
         }
     }
 
-    fn forward_message(&mut self, pinky: Pinky<PublisherConfirm>, message: BasicReturnMessage) {
+    fn forward_message(&mut self, pinky: Pinky<Confirmation>, message: BasicReturnMessage) {
         self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
-        pinky.swear(PublisherConfirm::Nack(message));
+        pinky.swear(Confirmation::Nack(message));
     }
 }

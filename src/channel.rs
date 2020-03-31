@@ -15,7 +15,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, Error, ExchangeKind, PublisherConfirm, Result,
+    BasicProperties, Error, ExchangeKind, Confirmation, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
@@ -104,7 +104,7 @@ impl Channel {
 
     pub fn wait_for_confirms(
         &self,
-    ) -> PinkySwear<Result<Vec<BasicReturnMessage>>, PublisherConfirm> {
+    ) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Confirmation> {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
@@ -137,8 +137,8 @@ impl Channel {
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
-        publisher_confirms_result: Option<PinkySwear<PublisherConfirm>>,
-    ) -> Result<PinkySwear<Result<PinkySwear<PublisherConfirm>>, Result<()>>> {
+        publisher_confirms_result: Option<PinkySwear<Confirmation>>,
+    ) -> Result<PinkySwear<Result<PinkySwear<Confirmation>>, Result<()>>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -169,7 +169,7 @@ impl Channel {
             .traverse(Box::new(move |res| {
                 res.map(|()| {
                     publisher_confirms_result.lock().take().unwrap_or_else(|| {
-                        PinkySwear::new_with_data(PublisherConfirm::NotRequested)
+                        PinkySwear::new_with_data(Confirmation::NotRequested)
                     })
                 })
             })))
@@ -264,7 +264,7 @@ impl Channel {
         }
     }
 
-    fn before_basic_publish(&self) -> Option<PinkySwear<PublisherConfirm>> {
+    fn before_basic_publish(&self) -> Option<PinkySwear<Confirmation>> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
             Some(self.acknowledgements.register_pending(delivery_tag))
