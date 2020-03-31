@@ -41,25 +41,40 @@ impl ReturnedMessages {
         &self,
         pinky: (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>),
     ) {
-        self.inner.lock().pinkies.push_back(pinky);
+        self.inner.lock().register_pinky(pinky);
     }
 }
 
 #[derive(Debug, Default)]
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
+    new_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
     pinkies: VecDeque<(Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)>,
 }
 
 impl Inner {
+    fn register_pinky(&mut self, pinky: (Pinky<PublisherConfirm>, PinkyBroadcaster<PublisherConfirm>)) {
+        if let Some(message) = self.new_messages.pop_front() {
+            self.forward_message(pinky.0, message);
+        } else {
+            self.pinkies.push_back(pinky);
+        }
+    }
+
     fn new_delivery_complete(&mut self) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
-            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() { // FIXME: swear when we already got the message
-                pinky.swear(PublisherConfirm::Nack(message));
+            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() {
+                self.forward_message(pinky, message);
+            } else {
+                self.new_messages.push_back(message);
             }
         }
+    }
+
+    fn forward_message(&mut self, pinky: Pinky<PublisherConfirm>, message: BasicReturnMessage) {
+        self.messages.push(message.clone()); // FIXME: drop message if the Nack is consumed?
+        pinky.swear(PublisherConfirm::Nack(message));
     }
 }
