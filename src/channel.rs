@@ -19,6 +19,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, trace};
+use parking_lot::Mutex;
 use std::{convert::TryFrom, sync::Arc};
 
 #[cfg(test)]
@@ -134,7 +135,8 @@ impl Channel {
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
-    ) -> Result<PinkySwear<Result<()>>> {
+        publisher_confirms_result: Option<PinkySwear<Result<()>>>,
+    ) -> Result<PinkySwear<Result<Option<PinkySwear<Result<()>>>>, Result<()>>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -156,7 +158,10 @@ impl Channel {
                 .map(|chunk| AMQPFrame::Body(self.id, chunk.into())),
         );
 
-        self.connection.send_frames(self.id, frames)
+        // tweak to make rustc happy
+        let publisher_confirms_result = Arc::new(Mutex::new(publisher_confirms_result));
+
+        Ok(self.connection.send_frames(self.id, frames)?.traverse(Box::new(move |res| res.map(|()| publisher_confirms_result.lock().take()))))
     }
 
     pub(crate) fn send_frame(
@@ -248,10 +253,12 @@ impl Channel {
         }
     }
 
-    fn before_basic_publish(&self) {
+    fn before_basic_publish(&self) -> Option<PinkySwear<Result<()>>> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
-            self.acknowledgements.register_pending(delivery_tag);
+            Some(self.acknowledgements.register_pending(delivery_tag))
+        } else {
+            None
         }
     }
 

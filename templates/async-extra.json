@@ -200,7 +200,12 @@
             "type": "BasicProperties"
           }
         ],
-        "start_hook": true
+        "confirmation": {
+          "type": "Option<PinkySwear<Result<()>>>"
+        },
+        "start_hook": {
+            "returns": "Option<PinkySwear<Result<()>>>"
+        }
       }
     },
     "get": {

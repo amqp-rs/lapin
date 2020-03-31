@@ -1,5 +1,5 @@
 use crate::{
-    pinky_swear::{Pinky, PinkySwear},
+    pinky_swear::{Pinky, PinkyBroadcaster, PinkySwear},
     returned_messages::ReturnedMessages,
     Error, Result,
 };
@@ -23,8 +23,8 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) {
-        self.inner.lock().register_pending(delivery_tag);
+    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) -> PinkySwear<Result<()>> {
+        self.inner.lock().register_pending(delivery_tag)
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Result<()>>> {
@@ -41,14 +41,14 @@ impl Acknowledgements {
 
     pub(crate) fn ack_all_pending(&self) {
         let mut inner = self.inner.lock();
-        for pinky in inner.drain_pending() {
+        for (pinky, _broadcaster) in inner.drain_pending() {
             pinky.swear(Ok(()));
         }
     }
 
     pub(crate) fn nack_all_pending(&self) {
         let mut inner = self.inner.lock();
-        for pinky in inner.drain_pending() {
+        for (pinky, _broadcaster) in inner.drain_pending() {
             pinky.swear(Ok(()));
         }
     }
@@ -73,7 +73,7 @@ impl Acknowledgements {
 #[derive(Debug)]
 struct Inner {
     last: Option<PinkySwear<Result<()>>>,
-    pending: HashMap<DeliveryTag, Pinky<Result<()>>>,
+    pending: HashMap<DeliveryTag, (Pinky<Result<()>>, PinkyBroadcaster<Result<()>>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -86,18 +86,21 @@ impl Inner {
         }
     }
 
-    fn register_pending(&mut self, delivery_tag: DeliveryTag) {
+    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PinkySwear<Result<()>> {
         let (promise, pinky) = PinkySwear::new();
-        self.pending.insert(delivery_tag, pinky);
-        self.last = Some(promise);
+        let broadcaster = PinkyBroadcaster::new(promise);
+        let promise = broadcaster.subscribe();
+        self.last = Some(broadcaster.subscribe());
+        self.pending.insert(delivery_tag, (pinky, broadcaster));
+        promise
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
-        if let Some(pinky) = self.pending.remove(&delivery_tag) {
+        if let Some((pinky, broadcaster)) = self.pending.remove(&delivery_tag) {
             if success {
                 pinky.swear(Ok(()));
             } else {
-                self.returned_messages.register_pinky(pinky);
+                self.returned_messages.register_pinky((pinky, broadcaster));
             }
             Ok(())
         } else {
@@ -113,7 +116,7 @@ impl Inner {
         self.drop_pending(delivery_tag, false)
     }
 
-    fn drain_pending(&mut self) -> Vec<Pinky<Result<()>>> {
+    fn drain_pending(&mut self) -> Vec<(Pinky<Result<()>>, PinkyBroadcaster<Result<()>>)> {
         self.pending.drain().map(|tup| tup.1).collect()
     }
 

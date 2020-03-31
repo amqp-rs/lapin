@@ -1,4 +1,4 @@
-use crate::{message::BasicReturnMessage, pinky_swear::Pinky, BasicProperties, Result};
+use crate::{message::BasicReturnMessage, pinky_swear::{Pinky, PinkyBroadcaster}, BasicProperties, Result};
 use log::error;
 use parking_lot::Mutex;
 use std::{collections::VecDeque, sync::Arc};
@@ -33,7 +33,7 @@ impl ReturnedMessages {
         self.inner.lock().messages.drain(..).collect()
     }
 
-    pub(crate) fn register_pinky(&self, pinky: Pinky<Result<()>>) {
+    pub(crate) fn register_pinky(&self, pinky: (Pinky<Result<()>>, PinkyBroadcaster<Result<()>>)) {
         self.inner.lock().pinkies.push_back(pinky);
     }
 }
@@ -42,7 +42,7 @@ impl ReturnedMessages {
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    pinkies: VecDeque<Pinky<Result<()>>>,
+    pinkies: VecDeque<(Pinky<Result<()>>, PinkyBroadcaster<Result<()>>)>,
 }
 
 impl Inner {
@@ -50,7 +50,7 @@ impl Inner {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
             self.messages.push(message);
-            if let Some(pinky) = self.pinkies.pop_front() {
+            if let Some((pinky, _broadcaster)) = self.pinkies.pop_front() {
                 pinky.swear(Ok(()));
             }
         }
