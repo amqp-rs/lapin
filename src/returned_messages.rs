@@ -87,12 +87,8 @@ impl Inner {
     }
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
-        let mut messages = self.messages.drain(..).collect::<Vec<BasicReturnMessage>>();
-        for promise in self
-            .dropped_confirms
-            .drain(..)
-            .collect::<Vec<PinkySwear<Confirmation>>>()
-        {
+        let mut messages = std::mem::take(&mut self.messages);
+        for promise in std::mem::take(&mut self.dropped_confirms) {
             if let Some(confirmation) = promise.try_wait() {
                 if let Confirmation::Nack(message) = confirmation {
                     messages.push(message);
