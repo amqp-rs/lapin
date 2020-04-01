@@ -278,15 +278,13 @@ impl Channel {
 
     fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
-        self.do_channel_close(
-            AMQPSoftError::PRECONDITIONFAILED.get_id(),
-            "precondition failed",
-            class_id,
-            method_id,
-        )
-        .try_wait()
-        .transpose()
-        .map(|_| ())?;
+        self.connection
+            .register_internal_promise(self.do_channel_close(
+                AMQPSoftError::PRECONDITIONFAILED.get_id(),
+                "precondition failed",
+                class_id,
+                method_id,
+            ))?;
         Err(error)
     }
 
@@ -433,17 +431,15 @@ impl Channel {
                 .client_properties
                 .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-            self.connection_start_ok(
-                options.client_properties,
-                &mechanism,
-                &credentials.sasl_auth_string(options.mechanism),
-                &locale,
-                pinky,
-                credentials,
-            )
-            .try_wait()
-            .transpose()
-            .map(|_| ())
+            self.connection
+                .register_internal_promise(self.connection_start_ok(
+                    options.client_properties,
+                    &mechanism,
+                    &credentials.sasl_auth_string(options.mechanism),
+                    &locale,
+                    pinky,
+                    credentials,
+                ))
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -457,10 +453,9 @@ impl Channel {
 
         let state = self.connection.status().state();
         if let ConnectionState::SentStartOk(_, credentials) = state {
-            self.connection_secure_ok(&credentials.rabbit_cr_demo_answer())
-                .try_wait()
-                .transpose()
-                .map(|_| ())
+            self.connection.register_internal_promise(
+                self.connection_secure_ok(&credentials.rabbit_cr_demo_answer()),
+            )
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -480,18 +475,15 @@ impl Channel {
                 method.heartbeat,
             );
 
-            self.connection_tune_ok(
-                self.connection.configuration().channel_max(),
-                self.connection.configuration().frame_max(),
-                self.connection.configuration().heartbeat(),
+            self.connection
+                .register_internal_promise(self.connection_tune_ok(
+                    self.connection.configuration().channel_max(),
+                    self.connection.configuration().frame_max(),
+                    self.connection.configuration().heartbeat(),
+                ))?;
+            self.connection.register_internal_promise(
+                self.connection_open(&self.connection.status().vhost(), pinky),
             )
-            .try_wait()
-            .transpose()
-            .map(|_| ())?;
-            self.connection_open(&self.connection.status().vhost(), pinky)
-                .try_wait()
-                .transpose()
-                .map(|_| ())
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -537,11 +529,8 @@ impl Channel {
             ConnectionState::SentOpen(pinky) => pinky.swear(Err(error)),
             _ => {}
         }
-        self.connection_close_ok()
-            .try_wait()
-            .transpose()
-            .map(|_| ())?;
-        Ok(())
+        self.connection
+            .register_internal_promise(self.connection_close_ok())
     }
 
     fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
@@ -573,12 +562,10 @@ impl Channel {
 
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
-        self.channel_flow_ok(ChannelFlowOkOptions {
-            active: method.active,
-        })
-        .try_wait()
-        .transpose()
-        .map(|_| ())
+        self.connection
+            .register_internal_promise(self.channel_flow_ok(ChannelFlowOkOptions {
+                active: method.active,
+            }))
     }
 
     fn on_channel_flow_ok_received(
@@ -606,10 +593,8 @@ impl Channel {
                 Error::InvalidChannelState(ChannelState::Closing)
             });
         self.set_state(ChannelState::Closing);
-        self.channel_close_ok(error)
-            .try_wait()
-            .transpose()
-            .map(|_| ())
+        self.connection
+            .register_internal_promise(self.channel_close_ok(error))
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
@@ -717,10 +702,8 @@ impl Channel {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
             .and(if !method.nowait {
-                self.basic_cancel_ok(method.consumer_tag.as_str())
-                    .try_wait()
-                    .transpose()
-                    .map(|_| ())
+                self.connection
+                    .register_internal_promise(self.basic_cancel_ok(method.consumer_tag.as_str()))
             } else {
                 Ok(())
             })

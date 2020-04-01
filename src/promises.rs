@@ -3,7 +3,7 @@ use log::trace;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Promises<T> {
     inner: Arc<Mutex<Inner<T>>>,
 }

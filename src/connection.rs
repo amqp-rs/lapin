@@ -10,6 +10,7 @@ use crate::{
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::IoLoop,
     pinky_swear::PinkySwear,
+    promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
@@ -31,6 +32,7 @@ pub struct Connection {
     waker: Waker,
     frames: Frames,
     io_loop: ThreadHandle,
+    internal_promises: Promises<Result<()>>,
     error_handler: ErrorHandler,
 }
 
@@ -50,6 +52,7 @@ impl Connection {
             waker: Waker::default(),
             frames,
             io_loop: ThreadHandle::default(),
+            internal_promises: Promises::default(),
             error_handler: ErrorHandler::default(),
         };
 
@@ -294,9 +297,12 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
-        // We can wait as CRITICAL frames are immediately considered sent
-        self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), None)?
-            .wait()
+        self.register_internal_promise(self.send_frame(
+            0,
+            Priority::CRITICAL,
+            AMQPFrame::Heartbeat(0),
+            None,
+        )?)
     }
 
     pub(crate) fn requeue_frame(&self, frame: (SendId, AMQPFrame)) -> Result<()> {
@@ -324,6 +330,10 @@ impl Connection {
         self.set_state(ConnectionState::Error);
         self.error_handler.on_error(error.clone());
         self.channels.set_error(error)
+    }
+
+    pub(crate) fn register_internal_promise(&self, promise: PinkySwear<Result<()>>) -> Result<()> {
+        self.internal_promises.register(promise).unwrap_or(Ok(()))
     }
 }
 
