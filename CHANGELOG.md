@@ -1,3 +1,18 @@
+### 0.35.0 (2020-04-02)
+
+#### Breaking changes
+
+* Update to pinky-swear 2.0.0 (shoudln't change much)
+* Publisher Confirms integration has been reworked:
+  * `basic_publish` now gives you a `PinkySwear<Result<PublisherConfirm>>`
+  * If you didn't enable publisher confirms using `confirm_select`, you can ignore it
+  * If you drop the `PublisherConfirm` it will behave as before and you'll need to call `wait_for_confirms`
+  * You can use the ` PublisherConfirm` to wait for this particular `Confirmation` (`Ack`/`Nack(BasicReturnMEssage)`)
+
+#### Bug Fixes
+
+* Detect errors in some edge scenarii
+
 ### 0.34.1 (2020-04-01)
 
 #### Bug Fixes
