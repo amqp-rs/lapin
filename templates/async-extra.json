@@ -5,7 +5,7 @@
         "extra_args": [
           {
             "name": "pinky",
-            "type": "Pinky<Result<Connection>, Result<()>>"
+            "type": "Pinky<Result<Connection>>"
           },
           {
             "name": "credentials",
@@ -24,7 +24,7 @@
         "extra_args": [
           {
             "name": "pinky",
-            "type": "Pinky<Result<Connection>, Result<()>>"
+            "type": "Pinky<Result<Connection>>"
           }
         ],
         "end_hook": {

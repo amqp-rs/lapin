@@ -65,12 +65,12 @@ impl ConnectionStatus {
 pub enum ConnectionState {
     Initial,
     SentProtocolHeader(
-        Pinky<Result<Connection>, Result<()>>,
+        Pinky<Result<Connection>>,
         Credentials,
         ConnectionProperties,
     ),
-    SentStartOk(Pinky<Result<Connection>, Result<()>>, Credentials),
-    SentOpen(Pinky<Result<Connection>, Result<()>>),
+    SentStartOk(Pinky<Result<Connection>>, Credentials),
+    SentOpen(Pinky<Result<Connection>>),
     Connected,
     Closing,
     Closed,

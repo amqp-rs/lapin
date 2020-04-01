@@ -292,7 +292,7 @@ impl Channel {
 
     fn on_connection_start_ok_sent(
         &self,
-        pinky: Pinky<Result<Connection>, Result<()>>,
+        pinky: Pinky<Result<Connection>>,
         credentials: Credentials,
     ) -> Result<()> {
         self.connection
@@ -300,7 +300,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_open_sent(&self, pinky: Pinky<Result<Connection>, Result<()>>) -> Result<()> {
+    fn on_connection_open_sent(&self, pinky: Pinky<Result<Connection>>) -> Result<()> {
         self.connection.set_state(ConnectionState::SentOpen(pinky));
         Ok(())
     }
