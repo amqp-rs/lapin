@@ -225,6 +225,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 self.read()?;
             }
             self.parse()?;
+            self.connection.poll_internal_promises()?;
             if self.stop_looping() {
                 self.maybe_continue()?;
                 break;

@@ -335,6 +335,15 @@ impl Connection {
     pub(crate) fn register_internal_promise(&self, promise: PinkySwear<Result<()>>) -> Result<()> {
         self.internal_promises.register(promise).unwrap_or(Ok(()))
     }
+
+    pub(crate) fn poll_internal_promises(&self) -> Result<()> {
+        for res in self.internal_promises.try_wait() {
+            if let Err(err) = res {
+                self.set_error(err)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Trait providing a method to connect to an AMQP server
