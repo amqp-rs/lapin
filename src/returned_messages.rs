@@ -34,13 +34,14 @@ impl ReturnedMessages {
     }
 
     pub(crate) fn register_pinky(&self, pinky: Pinky<Result<()>>) {
-        self.inner.lock().pinkies.push_back(pinky);
+        self.inner.lock().register_pinky(pinky);
     }
 }
 
 #[derive(Debug, Default)]
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
+    waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
     pinkies: VecDeque<Pinky<Result<()>>>,
 }
@@ -49,10 +50,24 @@ impl Inner {
     fn new_delivery_complete(&mut self) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            self.messages.push(message);
             if let Some(pinky) = self.pinkies.pop_front() {
-                pinky.swear(Ok(()));
+                self.notify(pinky, message);
+            } else {
+                self.waiting_messages.push_back(message);
             }
         }
+    }
+
+    fn register_pinky(&mut self, pinky: Pinky<Result<()>>) {
+        if let Some(message) = self.waiting_messages.pop_front() {
+            self.notify(pinky, message);
+        } else {
+            self.pinkies.push_back(pinky);
+        }
+    }
+
+    fn notify(&mut self, pinky: Pinky<Result<()>>, message: BasicReturnMessage) {
+        self.messages.push(message);
+        pinky.swear(Ok(()));
     }
 }
