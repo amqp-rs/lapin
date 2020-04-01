@@ -38,13 +38,6 @@ fn main() {
         info!("[{}] state: {:?}", line!(), conn.status().state());
         info!("[{}] declared queue: {:?}", line!(), queue);
 
-        let queue = channel_a
-            .confirm_select(ConfirmSelectOptions::default())
-            .await
-            .expect("confirm_select");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
-        info!("Declared queue {:?}", queue);
-
         let chan = channel_b.clone();
         info!("will consume");
         channel_b
