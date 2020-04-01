@@ -1,3 +1,9 @@
+### 0.34.1 (2020-04-01)
+
+#### Bug Fixes
+
+* Fix a bug when receiving basic-return before basic-nack
+
 ### 0.34.0 (2020-03-24)
 
 #### Breaking changes
