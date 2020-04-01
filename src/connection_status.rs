@@ -64,11 +64,7 @@ impl ConnectionStatus {
 #[derive(Clone, Debug)]
 pub enum ConnectionState {
     Initial,
-    SentProtocolHeader(
-        Pinky<Result<Connection>>,
-        Credentials,
-        ConnectionProperties,
-    ),
+    SentProtocolHeader(Pinky<Result<Connection>>, Credentials, ConnectionProperties),
     SentStartOk(Pinky<Result<Connection>>, Credentials),
     SentOpen(Pinky<Result<Connection>>),
     Connected,
