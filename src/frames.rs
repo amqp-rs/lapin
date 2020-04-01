@@ -134,20 +134,21 @@ impl Inner {
         frame: AMQPFrame,
         expected_reply: Option<ExpectedReply>,
     ) -> PinkySwear<Result<()>> {
-        let promise = match priority {
+        let send_id = self.send_id.next();
+        let (promise, pinky) = PinkySwear::new();
+
+        self.outbox
+            .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
+
+        match priority {
             Priority::CRITICAL => {
-                self.priority_frames.push_front((0, frame));
-                PinkySwear::new_with_data(Ok(()))
+                self.priority_frames.push_front((send_id, frame));
             }
             Priority::NORMAL => {
-                let (promise, pinky) = PinkySwear::new();
-                let send_id = self.send_id.next();
                 self.frames.push_back((send_id, frame));
-                self.outbox
-                    .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
-                promise
             }
         };
+
         if let Some(reply) = expected_reply {
             trace!(
                 "channel {} state is now waiting for {:?}",
@@ -159,6 +160,7 @@ impl Inner {
                 .or_default()
                 .push_back(reply);
         }
+
         promise
     }
 
