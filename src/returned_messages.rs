@@ -1,6 +1,7 @@
 use crate::{
     message::BasicReturnMessage,
     pinky_swear::{PinkyBroadcaster, PinkySwear},
+    promises::Promises,
     publisher_confirm::Confirmation,
     BasicProperties,
 };
@@ -52,7 +53,7 @@ pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    dropped_confirms: Vec<PinkySwear<Confirmation>>,
+    dropped_confirms: Promises<Confirmation>,
     pinkies: VecDeque<PinkyBroadcaster<Confirmation>>,
 }
 
@@ -66,7 +67,7 @@ impl Inner {
     }
 
     fn register_dropped_confirm(&mut self, promise: PinkySwear<Confirmation>) {
-        if let Some(confirmation) = promise.try_wait() {
+        if let Some(confirmation) = self.dropped_confirms.register(promise) {
             if let Confirmation::Nack(message) = confirmation {
                 trace!("Dropped PublisherConfirm was a Nack, storing message");
                 self.messages.push(message);
@@ -75,7 +76,6 @@ impl Inner {
             }
         } else {
             trace!("Storing dropped PublisherConfirm for further use");
-            self.dropped_confirms.push(promise);
         }
     }
 
@@ -92,17 +92,12 @@ impl Inner {
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
         let mut messages = std::mem::take(&mut self.messages);
-        for promise in std::mem::take(&mut self.dropped_confirms) {
-            if let Some(confirmation) = promise.try_wait() {
-                if let Confirmation::Nack(message) = confirmation {
-                    trace!("PublisherConfirm was a Nack, storing message");
-                    messages.push(message);
-                } else {
-                    trace!("PublisherConfirm was ready but not a Nack, discarding");
-                }
+        for confirmation in self.dropped_confirms.try_wait() {
+            if let Confirmation::Nack(message) = confirmation {
+                trace!("PublisherConfirm was a Nack, storing message");
+                messages.push(message);
             } else {
-                trace!("PublisherConfirm was still not ready, storing it back");
-                self.dropped_confirms.push(promise);
+                trace!("PublisherConfirm was ready but not a Nack, discarding");
             }
         }
         messages

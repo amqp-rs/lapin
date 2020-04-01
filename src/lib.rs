@@ -123,6 +123,7 @@ mod exchange;
 mod frames;
 mod id_sequence;
 mod io_loop;
+mod promises;
 mod queue;
 mod queues;
 mod returned_messages;
