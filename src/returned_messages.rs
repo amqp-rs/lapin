@@ -4,7 +4,7 @@ use crate::{
     publisher_confirm::Confirmation,
     BasicProperties,
 };
-use log::error;
+use log::{error, trace};
 use parking_lot::Mutex;
 use std::{collections::VecDeque, sync::Arc};
 
@@ -68,9 +68,13 @@ impl Inner {
     fn register_dropped_confirm(&mut self, promise: PinkySwear<Confirmation>) {
         if let Some(confirmation) = promise.try_wait() {
             if let Confirmation::Nack(message) = confirmation {
+                trace!("Dropped PublisherConfirm was a Nack, storing message");
                 self.messages.push(message);
+            } else {
+                trace!("Dropped PublisherConfirm was ready but not a Nack, discarding");
             }
         } else {
+            trace!("Storing dropped PublisherConfirm for further use");
             self.dropped_confirms.push(promise);
         }
     }
@@ -91,9 +95,13 @@ impl Inner {
         for promise in std::mem::take(&mut self.dropped_confirms) {
             if let Some(confirmation) = promise.try_wait() {
                 if let Confirmation::Nack(message) = confirmation {
+                    trace!("PublisherConfirm was a Nack, storing message");
                     messages.push(message);
+                } else {
+                    trace!("PublisherConfirm was ready but not a Nack, discarding");
                 }
             } else {
+                trace!("PublisherConfirm was still not ready, storing it back");
                 self.dropped_confirms.push(promise);
             }
         }
