@@ -277,6 +277,7 @@ impl Channel {
     }
 
     fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
+        error!("Got a bad acknowledgement from server, closing channel");
         self.do_channel_close(
             AMQPSoftError::PRECONDITIONFAILED.get_id(),
             "precondition failed",
