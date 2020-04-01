@@ -337,9 +337,11 @@ impl Connection {
     }
 
     pub(crate) fn poll_internal_promises(&self) -> Result<()> {
-        for res in self.internal_promises.try_wait() {
-            if let Err(err) = res {
-                self.set_error(err)?;
+        if let Some(ress) = self.internal_promises.try_wait() {
+            for res in ress {
+                if let Err(err) = res {
+                    self.set_error(err)?;
+                }
             }
         }
         Ok(())

@@ -92,12 +92,14 @@ impl Inner {
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
         let mut messages = std::mem::take(&mut self.messages);
-        for confirmation in self.dropped_confirms.try_wait() {
-            if let Confirmation::Nack(message) = confirmation {
-                trace!("PublisherConfirm was a Nack, storing message");
-                messages.push(message);
-            } else {
-                trace!("PublisherConfirm was ready but not a Nack, discarding");
+        if let Some(confirmations) = self.dropped_confirms.try_wait() {
+            for confirmation in confirmations {
+                if let Confirmation::Nack(message) = confirmation {
+                    trace!("PublisherConfirm was a Nack, storing message");
+                    messages.push(message);
+                } else {
+                    trace!("PublisherConfirm was ready but not a Nack, discarding");
+                }
             }
         }
         messages

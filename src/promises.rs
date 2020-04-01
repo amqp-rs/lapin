@@ -37,22 +37,28 @@ impl<T: Send + 'static> Promises<T> {
         })
     }
 
-    pub(crate) fn try_wait(&self) -> Vec<T> {
+    pub(crate) fn try_wait(&self) -> Option<Vec<T>> {
         self.inner.lock().try_wait()
     }
 }
 
 impl<T: Send + 'static> Inner<T> {
-    fn try_wait(&mut self) -> Vec<T> {
-        let mut res = Vec::default();
-        for promise in std::mem::take(&mut self.promises) {
-            if let Some(r) = promise.try_wait() {
-                res.push(r);
-            } else {
-                trace!("Promise wasn't ready yet, storing it back");
-                self.promises.push(promise);
+    fn try_wait(&mut self) -> Option<Vec<T>> {
+        let before = self.promises.len();
+        if before != 0 {
+            let mut res = Vec::default();
+            for promise in std::mem::take(&mut self.promises) {
+                if let Some(r) = promise.try_wait() {
+                    res.push(r);
+                } else {
+                    trace!("Promise wasn't ready yet, storing it back");
+                    self.promises.push(promise);
+                }
             }
+            trace!("{} promises left (was {})", self.promises.len(), before);
+            Some(res)
+        } else {
+            None
         }
-        res
     }
 }
