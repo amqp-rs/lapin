@@ -63,6 +63,10 @@ impl Acknowledgements {
         }
         Ok(())
     }
+
+    pub(crate) fn on_channel_error(&self, channel_id: u16, error: Error) {
+        self.inner.lock().on_channel_error(channel_id, error);
+    }
 }
 
 #[derive(Debug)]
@@ -128,10 +132,16 @@ impl Inner {
 
     fn list_pending_before(&mut self, delivery_tag: DeliveryTag) -> HashSet<DeliveryTag> {
         self.pending
-            .iter()
-            .map(|tup| tup.0)
+            .keys()
             .filter(|tag| **tag <= delivery_tag)
             .cloned()
             .collect()
+    }
+
+    fn on_channel_error(&mut self, channel_id: u16, error: Error) {
+       for (_, pinky) in self.pending.values().filter(|(channel, _)| *channel == channel_id) {
+           pinky.swear(Confirmation::Error(Box::new(error.clone())));
+       }
+       self.pending.retain(|_, (channel, _)| *channel != channel_id);
     }
 }

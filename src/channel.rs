@@ -69,8 +69,13 @@ impl Channel {
 
     fn set_error(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Error);
+        self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone())
             .and(self.connection.remove_channel(self.id, error))
+    }
+
+    pub(crate) fn error_publisher_confirms(&self, error: Error) {
+        self.acknowledgements.on_channel_error(self.id, error);
     }
 
     pub(crate) fn cancel_consumers(&self) -> Result<()> {
