@@ -1,5 +1,5 @@
 use crate::{
-    message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages,
+    message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages, Error,
 };
 use log::trace;
 use std::{
@@ -20,6 +20,7 @@ pub enum Confirmation {
     Ack,
     Nack(Box<BasicReturnMessage>),
     NotRequested,
+    Error(Box<Error>),
 }
 
 impl PublisherConfirm {

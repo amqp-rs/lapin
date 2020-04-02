@@ -101,7 +101,6 @@ impl From<io::Error> for Error {
     }
 }
 
-#[cfg(test)]
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         use log::error;
@@ -123,14 +122,14 @@ impl PartialEq for Error {
             }
             (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
 
-            (SerialisationError(_), SerialisationError(_)) => {
-                error!("Unable to compare lapin::Error::SerialisationError");
+            (IOError(_), IOError(_)) => {
+                error!("Unable to compare lapin::Error::IOError");
                 false
             }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
-            (IOError(_), IOError(_)) => {
-                error!("Unable to compare lapin::Error::IOError");
+            (SerialisationError(_), SerialisationError(_)) => {
+                error!("Unable to compare lapin::Error::SerialisationError");
                 false
             }
 
