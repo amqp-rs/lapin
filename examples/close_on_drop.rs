@@ -1,8 +1,7 @@
 use futures_executor::LocalPool;
 use lapin::{
-    CloseOnDrop,
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties, CloseOnDrop, Connection, ConnectionProperties,
 };
 use log::info;
 
@@ -23,7 +22,11 @@ fn main() {
         info!("CONNECTED");
 
         info!("creating then auto-closing channel");
-        let _ = conn.create_channel().await.map(CloseOnDrop::new).expect("create_channel");
+        let _ = conn
+            .create_channel()
+            .await
+            .map(CloseOnDrop::new)
+            .expect("create_channel");
 
         let channel = conn.create_channel().await.expect("create_channel");
 
