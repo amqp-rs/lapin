@@ -2,6 +2,7 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
+    close_on_drop,
     connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
@@ -815,6 +816,17 @@ impl Channel {
 
     fn on_access_request_ok_received(&self, _: protocol::access::RequestOk) -> Result<()> {
         Ok(())
+    }
+}
+
+impl close_on_drop::__private::Closable for Channel {
+    fn close(&self) {
+        if let Err(err) = self
+            .close(protocol::constants::REPLY_SUCCESS.into(), "channel dropped")
+            .wait()
+        {
+            error!("Failed to close channel on drop: {:?}", err);
+        }
     }
 }
 

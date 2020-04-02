@@ -94,6 +94,7 @@ pub use pinky_swear;
 
 pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
+pub use close_on_drop::CloseOnDrop;
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection, ConnectionPromise};
 pub use connection_properties::ConnectionProperties;
@@ -112,6 +113,7 @@ mod buffer;
 mod channel;
 mod channel_status;
 mod channels;
+mod close_on_drop;
 mod configuration;
 mod connection;
 mod connection_properties;

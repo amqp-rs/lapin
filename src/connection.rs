@@ -1,6 +1,7 @@
 use crate::{
     channel::{Channel, Reply},
     channels::Channels,
+    close_on_drop,
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
@@ -11,6 +12,7 @@ use crate::{
     io_loop::IoLoop,
     pinky_swear::{Pinky, PinkySwear},
     promises::Promises,
+    protocol,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
@@ -567,6 +569,20 @@ mod tests {
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
             assert_eq!(channel_state, expected_state);
+        }
+    }
+}
+
+impl close_on_drop::__private::Closable for Connection {
+    fn close(&self) {
+        if let Err(err) = self
+            .close(
+                protocol::constants::REPLY_SUCCESS.into(),
+                "connection dropped",
+            )
+            .wait()
+        {
+            error!("Failed to close connection on drop: {:?}", err);
         }
     }
 }
