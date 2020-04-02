@@ -8,7 +8,7 @@ fn main() {
     let template = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/channel.rs"));
     let extra = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/templates/async-extra.json"
+        "/templates/lapin.json"
     ));
     let data = from_str::<Value>(extra).expect("Failed to parse extra file");
 
