@@ -24,7 +24,11 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag, channel_id: u16) -> PublisherConfirm {
+    pub(crate) fn register_pending(
+        &self,
+        delivery_tag: DeliveryTag,
+        channel_id: u16,
+    ) -> PublisherConfirm {
         self.inner.lock().register_pending(delivery_tag, channel_id)
     }
 
@@ -144,9 +148,14 @@ impl Inner {
     }
 
     fn on_channel_error(&mut self, channel_id: u16, error: Error) {
-       for (_, pinky) in self.pending.values().filter(|(channel, _)| *channel == channel_id) {
-           pinky.swear(Confirmation::Error(Box::new(error.clone())));
-       }
-       self.pending.retain(|_, (channel, _)| *channel != channel_id);
+        for (_, pinky) in self
+            .pending
+            .values()
+            .filter(|(channel, _)| *channel == channel_id)
+        {
+            pinky.swear(Confirmation::Error(Box::new(error.clone())));
+        }
+        self.pending
+            .retain(|_, (channel, _)| *channel != channel_id);
     }
 }

@@ -1,5 +1,6 @@
 use crate::{
-    message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages, Error,
+    message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages,
+    Error,
 };
 use log::trace;
 use std::{
