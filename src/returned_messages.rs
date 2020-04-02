@@ -60,7 +60,7 @@ pub struct Inner {
 impl Inner {
     fn register_pinky(&mut self, pinky: PinkyBroadcaster<Confirmation>) {
         if let Some(message) = self.waiting_messages.pop_front() {
-            pinky.swear(Confirmation::Nack(message));
+            pinky.swear(Confirmation::Nack(Box::new(message)));
         } else {
             self.pinkies.push_back(pinky);
         }
@@ -70,7 +70,7 @@ impl Inner {
         if let Some(confirmation) = self.dropped_confirms.register(promise) {
             if let Confirmation::Nack(message) = confirmation {
                 trace!("Dropped PublisherConfirm was a Nack, storing message");
-                self.messages.push(message);
+                self.messages.push(*message);
             } else {
                 trace!("Dropped PublisherConfirm was ready but not a Nack, discarding");
             }
@@ -83,7 +83,7 @@ impl Inner {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
             if let Some(pinky) = self.pinkies.pop_front() {
-                pinky.swear(Confirmation::Nack(message));
+                pinky.swear(Confirmation::Nack(Box::new(message)));
             } else {
                 self.waiting_messages.push_back(message);
             }
@@ -96,7 +96,7 @@ impl Inner {
             for confirmation in confirmations {
                 if let Confirmation::Nack(message) = confirmation {
                     trace!("PublisherConfirm was a Nack, storing message");
-                    messages.push(message);
+                    messages.push(*message);
                 } else {
                     trace!("PublisherConfirm was ready but not a Nack, discarding");
                 }
