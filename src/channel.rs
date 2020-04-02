@@ -63,6 +63,7 @@ impl Channel {
 
     fn set_closed(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Closed);
+        self.error_publisher_confirms(error.clone());
         self.cancel_consumers()
             .and(self.connection.remove_channel(self.id, error))
     }

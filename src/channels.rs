@@ -88,6 +88,7 @@ impl Channels {
             .map(|(id, channel)| {
                 self.frames.clear_expected_replies(id, error.clone());
                 channel.set_state(ChannelState::Closed);
+                channel.error_publisher_confirms(error.clone());
                 channel.cancel_consumers()
             })
             .fold(Ok(()), Result::and)
