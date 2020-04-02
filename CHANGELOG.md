@@ -1,3 +1,9 @@
+### 0.36.1 (2020-04-02)
+
+#### Bug Fixes
+
+* Properly forward errors to publisher confirms awaiters
+
 ### 0.36.0 (2020-04-02)
 
 #### Bug Fixes
