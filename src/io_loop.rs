@@ -186,16 +186,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         self.poll.poll(events, self.poll_timeout)?;
         trace!("io_loop poll done");
         for event in events.iter() {
-            match event.token() {
-                SOCKET => {
-                    if event.is_readable() {
-                        self.can_read = true;
-                    }
-                    if event.is_writable() {
-                        self.can_write = true;
-                    }
+            if event.token() == SOCKET {
+                if event.is_readable() {
+                    self.can_read = true;
                 }
-                _ => {}
+                if event.is_writable() {
+                    self.can_write = true;
+                }
             }
         }
         Ok(())
