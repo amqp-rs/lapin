@@ -1,3 +1,9 @@
+### 0.35.2 (2020-04-02)
+
+#### Bug Fixes
+
+* Properly report error in one internal place
+
 ### 0.35.1 (2020-04-02)
 
 #### Bug Fixes
