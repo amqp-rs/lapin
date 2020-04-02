@@ -1,3 +1,13 @@
+### 0.36.2 (2020-04-02)
+
+#### Features
+
+* Add a new CloseOnDrop wrapper for automatically closing Connection or Channel when dropped.
+
+#### Bug Fixes
+
+* Properly send errors to publisher confirms awaiters on channel close
+
 ### 0.36.1 (2020-04-02)
 
 #### Bug Fixes
