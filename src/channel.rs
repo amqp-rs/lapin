@@ -89,7 +89,11 @@ impl Channel {
         self.id
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    pub fn close(
+        &self,
+        reply_code: ShortUInt,
+        reply_text: &str,
+    ) -> PinkySwear<Result<()>, Result<()>> {
         self.do_channel_close(reply_code, reply_text, 0, 0)
     }
 
@@ -99,7 +103,7 @@ impl Channel {
         kind: ExchangeKind,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
-    ) -> PinkySwear<Result<()>> {
+    ) -> PinkySwear<Result<()>, Result<()>> {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
@@ -122,11 +126,13 @@ impl Channel {
     pub(crate) fn send_method_frame(
         &self,
         method: AMQPClass,
+        pinky: Pinky<Result<()>>,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<PinkySwear<Result<()>>> {
+    ) -> Result<()> {
         self.send_frame(
             Priority::NORMAL,
             AMQPFrame::Method(self.id, method),
+            pinky,
             expected_reply,
         )
     }
@@ -182,10 +188,11 @@ impl Channel {
         &self,
         priority: Priority,
         frame: AMQPFrame,
+        pinky: Pinky<Result<()>>,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<PinkySwear<Result<()>>> {
+    ) -> Result<()> {
         self.connection
-            .send_frame(self.id, priority, frame, expected_reply)
+            .send_frame(self.id, priority, frame, pinky, expected_reply)
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -279,7 +286,7 @@ impl Channel {
     fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
         self.connection
-            .register_internal_promise(self.do_channel_close(
+            .register_internal_combined_promise(self.do_channel_close(
                 AMQPSoftError::PRECONDITIONFAILED.get_id(),
                 "precondition failed",
                 class_id,
@@ -481,7 +488,7 @@ impl Channel {
                     self.connection.configuration().frame_max(),
                     self.connection.configuration().heartbeat(),
                 ))?;
-            self.connection.register_internal_promise(
+            self.connection.register_internal_combined_promise(
                 self.connection_open(&self.connection.status().vhost(), pinky),
             )
         } else {

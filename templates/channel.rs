@@ -61,7 +61,7 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> PinkySwear<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#if method.metadata.carry_headers ~}}, Result<()>{{/if ~}}> {
+  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> PinkySwear<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#if method.synchronous ~}}, Result<()>{{else}}{{#if method.metadata.carry_headers ~}}, Result<()>{{/if ~}}{{/if ~}}> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -110,17 +110,20 @@ impl Channel {
       {{/each_argument ~}}
     }));
 
-    {{#if method.synchronous ~}}
-    let (promise, {{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky) = PinkySwear::new();
-    {{/if ~}}
     {{#if method.metadata.carry_headers ~}}
-    let send_res = self.send_method_frame_with_body(method, payload, properties, start_hook_res);
+    let promise = match self.send_method_frame_with_body(method, payload, properties, start_hook_res) {
+        Ok(promise) => promise,
+        Err(err) => return PinkySwear::new_with_data(Err(err)),
+    };
     {{else}}
-    let send_res = self.send_method_frame(method, {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky))){{else}}None{{/if ~}});
+    let (promise, send_pinky) = PinkySwear::<Result<()>>::new();
+    {{#if method.synchronous ~}}
+    let (promise, {{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky) = PinkySwear::after(promise);
     {{/if ~}}
-    if let Err(err) = send_res {
-      return PinkySwear::new_with_data(Err(err));
+    if let Err(err) = self.send_method_frame(method, send_pinky, {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky))){{else}}None{{/if ~}}) {
+        return PinkySwear::new_with_data(Err(err));
     }
+    {{/if ~}}
     {{#if method.metadata.end_hook ~}}
     let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     if let Err(err) = end_hook_res {
@@ -138,10 +141,8 @@ impl Channel {
       {{/if ~}}
     }
     {{/if ~}}
-    promise
-    {{else}}
-    send_res.unwrap()
     {{/if ~}}
+    promise
   }
   {{/if ~}}
 

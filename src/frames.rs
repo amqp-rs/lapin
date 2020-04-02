@@ -49,11 +49,12 @@ impl Frames {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
+        pinky: Pinky<Result<()>>,
         expected_reply: Option<ExpectedReply>,
-    ) -> PinkySwear<Result<()>> {
+    ) {
         self.inner
             .lock()
-            .push(channel_id, priority, frame, expected_reply)
+            .push(channel_id, priority, frame, pinky, expected_reply);
     }
 
     pub(crate) fn push_frames(
@@ -132,10 +133,10 @@ impl Inner {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
+        pinky: Pinky<Result<()>>,
         expected_reply: Option<ExpectedReply>,
-    ) -> PinkySwear<Result<()>> {
+    ) {
         let send_id = self.send_id.next();
-        let (promise, pinky) = PinkySwear::new();
 
         self.outbox
             .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
@@ -160,8 +161,6 @@ impl Inner {
                 .or_default()
                 .push_back(reply);
         }
-
-        promise
     }
 
     fn push_frames(

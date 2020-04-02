@@ -9,7 +9,7 @@ use crate::{
     executor::Executor,
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::IoLoop,
-    pinky_swear::PinkySwear,
+    pinky_swear::{Pinky, PinkySwear},
     promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
@@ -32,7 +32,7 @@ pub struct Connection {
     waker: Waker,
     frames: Frames,
     io_loop: ThreadHandle,
-    internal_promises: Promises<Result<()>>,
+    internal_promises: (Promises<Result<()>>, Promises<Result<()>, Result<()>>),
     error_handler: ErrorHandler,
 }
 
@@ -52,7 +52,7 @@ impl Connection {
             waker: Waker::default(),
             frames,
             io_loop: ThreadHandle::default(),
-            internal_promises: Promises::default(),
+            internal_promises: (Promises::default(), Promises::default()),
             error_handler: ErrorHandler::default(),
         };
 
@@ -88,7 +88,7 @@ impl Connection {
         Connect::connect(uri, options, Some(identity))
     }
 
-    pub fn create_channel(&self) -> PinkySwear<Result<Channel>> {
+    pub fn create_channel(&self) -> PinkySwear<Result<Channel>, Result<()>> {
         if !self.status.connected() {
             return PinkySwear::new_with_data(Err(Error::InvalidConnectionState(
                 self.status.state(),
@@ -131,7 +131,11 @@ impl Connection {
         self.channels.get(0).expect("channel 0")
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    pub fn close(
+        &self,
+        reply_code: ShortUInt,
+        reply_text: &str,
+    ) -> PinkySwear<Result<()>, Result<()>> {
         self.channel0()
             .connection_close(reply_code, reply_text, 0, 0)
     }
@@ -147,7 +151,11 @@ impl Connection {
     }
 
     /// Update the secret used by some authentication module such as oauth2
-    pub fn update_secret(&self, new_secret: &str, reason: &str) -> PinkySwear<Result<()>> {
+    pub fn update_secret(
+        &self,
+        new_secret: &str,
+        reason: &str,
+    ) -> PinkySwear<Result<()>, Result<()>> {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
@@ -189,9 +197,16 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            let header_promise = conn
-                .send_frame(0, Priority::CRITICAL, AMQPFrame::ProtocolHeader, None)
-                .unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)));
+            let (mut header_promise, pinky) = PinkySwear::<Result<()>>::new();
+            if let Err(err) = conn.send_frame(
+                0,
+                Priority::CRITICAL,
+                AMQPFrame::ProtocolHeader,
+                pinky,
+                None,
+            ) {
+                header_promise = PinkySwear::new_with_data(Err(err));
+            }
             let (promise, pinky) = PinkySwear::after(header_promise);
             conn.set_state(ConnectionState::SentProtocolHeader(
                 pinky,
@@ -226,14 +241,14 @@ impl Connection {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
+        pinky: Pinky<Result<()>>,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<PinkySwear<Result<()>>> {
+    ) -> Result<()> {
         trace!("connection send_frame; channel_id={}", channel_id);
-        let promise = self
-            .frames
-            .push(channel_id, priority, frame, expected_reply);
+        self.frames
+            .push(channel_id, priority, frame, pinky, expected_reply);
         self.wake()?;
-        Ok(promise)
+        Ok(())
     }
 
     pub(crate) fn send_frames(
@@ -297,12 +312,9 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
-        self.register_internal_promise(self.send_frame(
-            0,
-            Priority::CRITICAL,
-            AMQPFrame::Heartbeat(0),
-            None,
-        )?)
+        let (promise, pinky) = PinkySwear::new();
+        self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), pinky, None)?;
+        self.register_internal_promise(promise)
     }
 
     pub(crate) fn requeue_frame(&self, frame: (SendId, AMQPFrame)) -> Result<()> {
@@ -333,12 +345,24 @@ impl Connection {
     }
 
     pub(crate) fn register_internal_promise(&self, promise: PinkySwear<Result<()>>) -> Result<()> {
-        self.internal_promises.register(promise).unwrap_or(Ok(()))
+        self.internal_promises.0.register(promise).unwrap_or(Ok(()))
+    }
+
+    pub(crate) fn register_internal_combined_promise(
+        &self,
+        promise: PinkySwear<Result<()>, Result<()>>,
+    ) -> Result<()> {
+        self.internal_promises.1.register(promise).unwrap_or(Ok(()))
     }
 
     pub(crate) fn poll_internal_promises(&self) -> Result<()> {
-        if let Some(ress) = self.internal_promises.try_wait() {
-            for res in ress {
+        self.handle_internal_promises_results(self.internal_promises.0.try_wait())?;
+        self.handle_internal_promises_results(self.internal_promises.1.try_wait())
+    }
+
+    fn handle_internal_promises_results(&self, results: Option<Vec<Result<()>>>) -> Result<()> {
+        if let Some(results) = results {
+            for res in results {
                 if let Err(err) = res {
                     self.set_error(err)?;
                 }
