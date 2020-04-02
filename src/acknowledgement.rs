@@ -24,8 +24,8 @@ impl Acknowledgements {
         }
     }
 
-    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag) -> PublisherConfirm {
-        self.inner.lock().register_pending(delivery_tag)
+    pub(crate) fn register_pending(&self, delivery_tag: DeliveryTag, channel_id: u16) -> PublisherConfirm {
+        self.inner.lock().register_pending(delivery_tag, channel_id)
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Confirmation>> {
@@ -68,7 +68,7 @@ impl Acknowledgements {
 #[derive(Debug)]
 struct Inner {
     last: Option<PinkySwear<Confirmation>>,
-    pending: HashMap<DeliveryTag, PinkyBroadcaster<Confirmation>>,
+    pending: HashMap<DeliveryTag, (u16, PinkyBroadcaster<Confirmation>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -81,12 +81,12 @@ impl Inner {
         }
     }
 
-    fn register_pending(&mut self, delivery_tag: DeliveryTag) -> PublisherConfirm {
+    fn register_pending(&mut self, delivery_tag: DeliveryTag, channel_id: u16) -> PublisherConfirm {
         let broadcaster = PinkyBroadcaster::default();
         let promise =
             PublisherConfirm::new(broadcaster.subscribe(), self.returned_messages.clone());
         self.last = Some(broadcaster.subscribe());
-        self.pending.insert(delivery_tag, broadcaster);
+        self.pending.insert(delivery_tag, (channel_id, broadcaster));
         promise
     }
 
@@ -99,18 +99,18 @@ impl Inner {
     }
 
     fn drop_all(&mut self, success: bool) {
-        for pinky in self
+        for (_, pinky) in self
             .pending
             .drain()
             .map(|tup| tup.1)
-            .collect::<Vec<PinkyBroadcaster<Confirmation>>>()
+            .collect::<Vec<(u16, PinkyBroadcaster<Confirmation>)>>()
         {
             self.complete_pending(success, pinky);
         }
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
-        if let Some(pinky) = self.pending.remove(&delivery_tag) {
+        if let Some((_, pinky)) = self.pending.remove(&delivery_tag) {
             self.complete_pending(success, pinky);
             Ok(())
         } else {
