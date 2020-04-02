@@ -162,19 +162,20 @@ impl Channel {
 
     match self.connection.next_expected_reply(self.id) {
       Some(Reply::{{camel class.name}}{{camel method.name}}(pinky{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+        {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}
-        let res = self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, pinky{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}});
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, pinky{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
         {{else}}
         {{#if method.metadata.received_hook ~}}
-        let res = self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})
         {{else}}
-        let res = Ok(());
+        Ok(())
         {{/if ~}}
         {{/if ~}}
-        {{#unless method.metadata.confirmation.type ~}}
-        pinky.swear(Ok(()));
-        {{/unless ~}}
+        {{#unless method.metadata.confirmation.type ~}};
+        pinky.swear(res.clone());
         res
+        {{/unless ~}}
       },
       _ => {
         self.set_error(Error::UnexpectedReply)?;
