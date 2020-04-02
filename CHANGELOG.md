@@ -1,4 +1,10 @@
-### 0.35.0 (2020-04-02)
+### 0.35.1 (2020-04-02)
+
+#### Bug Fixes
+
+* Update pinky-swear to 2.1.0 to avoid any sync op on main thread
+
+### 0.35.0 (2020-04-01)
 
 #### Breaking changes
 
