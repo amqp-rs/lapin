@@ -29,7 +29,7 @@ impl Acknowledgements {
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Confirmation>> {
-        self.inner.lock().last.take()
+        self.inner.lock().last.take().map(|(_, promise)| promise)
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<()> {
@@ -71,7 +71,7 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<PinkySwear<Confirmation>>,
+    last: Option<(DeliveryTag, PinkySwear<Confirmation>)>,
     pending: HashMap<DeliveryTag, (u16, PinkyBroadcaster<Confirmation>)>,
     returned_messages: ReturnedMessages,
 }
@@ -89,7 +89,12 @@ impl Inner {
         let broadcaster = PinkyBroadcaster::default();
         let promise =
             PublisherConfirm::new(broadcaster.subscribe(), self.returned_messages.clone());
-        self.last = Some(broadcaster.subscribe());
+        if let Some((delivery_tag, promise)) = self.last.take() {
+            if let Some((_, broadcaster)) = self.pending.get(&delivery_tag) {
+                broadcaster.unsubscribe(promise);
+            }
+        }
+        self.last = Some((delivery_tag, broadcaster.subscribe()));
         self.pending.insert(delivery_tag, (channel_id, broadcaster));
         promise
     }
