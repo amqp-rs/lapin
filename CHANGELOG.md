@@ -1,3 +1,13 @@
+### 0.36.0 (2020-04-02)
+
+#### Bug Fixes
+
+* Track the frame-sending promise before the response one for syncrhonous methods
+
+#### Breaking changes
+
+* The bugfix induces some changes in the return values of some method. Shouldn't change anything.
+
 ### 0.35.2 (2020-04-02)
 
 #### Bug Fixes
