@@ -10,14 +10,13 @@ use crate::{
     executor::Executor,
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::IoLoop,
-    pinky_swear::Pinky,
     promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
     uri::AMQPUri,
     waker::Waker,
-    CloseOnDropPromise, Error, Promise, Result,
+    CloseOnDropPromise, Error, Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::AMQPFrame;
 use log::{debug, error, log_enabled, trace, Level::Trace};
@@ -196,7 +195,7 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            let (promise, pinky) = Promise::new();
+            let (promise, resolver) = Promise::new();
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
@@ -204,17 +203,17 @@ impl Connection {
                 0,
                 Priority::CRITICAL,
                 AMQPFrame::ProtocolHeader,
-                pinky.clone(),
+                resolver.clone(),
                 None,
             ) {
-                pinky.swear(Err(err));
+                resolver.swear(Err(err));
             }
-            let (promise, pinky) = CloseOnDropPromise::after(promise);
+            let (promise, resolver) = CloseOnDropPromise::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
             conn.set_state(ConnectionState::SentProtocolHeader(
-                pinky,
+                resolver,
                 uri.authority.userinfo.into(),
                 options,
             ));
@@ -246,12 +245,12 @@ impl Connection {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        pinky: Pinky<Result<()>>,
+        resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) -> Result<()> {
         trace!("connection send_frame; channel_id={}", channel_id);
         self.frames
-            .push(channel_id, priority, frame, pinky, expected_reply);
+            .push(channel_id, priority, frame, resolver, expected_reply);
         self.wake()?;
         Ok(())
     }
@@ -317,13 +316,19 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
-        let (promise, pinky) = Promise::new();
+        let (promise, resolver) = Promise::new();
 
         if log_enabled!(Trace) {
             promise.set_marker("Heartbeat".into());
         }
 
-        self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), pinky, None)?;
+        self.send_frame(
+            0,
+            Priority::CRITICAL,
+            AMQPFrame::Heartbeat(0),
+            resolver,
+            None,
+        )?;
         self.register_internal_promise(promise)
     }
 

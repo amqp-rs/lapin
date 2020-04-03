@@ -31,7 +31,7 @@ pub(crate) enum Reply {
   {{#each class.methods as |method| ~}}
   {{#if method.c2s ~}}
   {{#if method.synchronous ~}}
-  {{camel class.name}}{{camel method.name}}Ok(Pinky<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>>{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
+  {{camel class.name}}{{camel method.name}}Ok(PromiseResolver<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}),
   {{/if ~}}
   {{/if ~}}
   {{/each ~}}
@@ -116,21 +116,21 @@ impl Channel {
       Err(err) => return PromiseChain::new_with_data(Err(err)),
     };
     {{else}}
-    let (promise, send_pinky) = Promise::new();
+    let (promise, send_resolver) = Promise::new();
     if log_enabled!(Trace) {
       promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
     {{#if method.synchronous ~}}
-    let (promise, pinky) = Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::after(promise);
+    let (promise, resolver) = Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::after(promise);
     if log_enabled!(Trace) {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
-    if let Err(err) = self.send_method_frame(method, send_pinky.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(pinky.clone()))){{else}}None{{/if ~}}) {
+    if let Err(err) = self.send_method_frame(method, send_resolver.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(resolver.clone()))){{else}}None{{/if ~}}) {
       {{#if method.synchronous ~}}
-      pinky.swear(Err(err.clone()));
+      resolver.swear(Err(err.clone()));
       {{/if ~}}
-      send_pinky.swear(Err(err));
+      send_resolver.swear(Err(err));
       return promise
     }
     {{/if ~}}
@@ -172,10 +172,10 @@ impl Channel {
     }
 
     match self.connection.next_expected_reply(self.id) {
-      Some(Reply::{{camel class.name}}{{camel method.name}}(pinky{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
+      Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, pinky{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
+        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, resolver{{/if ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})
         {{else}}
         {{#if method.metadata.received_hook ~}}
         self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}})
@@ -184,7 +184,7 @@ impl Channel {
         {{/if ~}}
         {{/if ~}}
         {{#unless method.metadata.confirmation.type ~}};
-        pinky.swear(res.clone());
+        resolver.swear(res.clone());
         res
         {{/unless ~}}
       },

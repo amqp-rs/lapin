@@ -263,8 +263,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
-        if let ConnectionState::SentProtocolHeader(pinky, ..) = self.connection.status().state() {
-            pinky.swear(Err(error.clone()));
+        if let ConnectionState::SentProtocolHeader(resolver, ..) = self.connection.status().state()
+        {
+            resolver.swear(Err(error.clone()));
             self.status = Status::Stop;
         }
         self.connection.set_error(error.clone())?;

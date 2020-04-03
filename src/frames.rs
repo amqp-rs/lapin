@@ -1,12 +1,8 @@
-use crate::{
-    channel::Reply,
-    id_sequence::IdSequence,
-    pinky_swear::{Cancellable, Pinky},
-    Error, Promise, Result,
-};
+use crate::{channel::Reply, id_sequence::IdSequence, Error, Promise, PromiseResolver};
 use amq_protocol::frame::AMQPFrame;
 use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
+use pinky_swear::Cancellable;
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
@@ -49,12 +45,12 @@ impl Frames {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        pinky: Pinky<Result<()>>,
+        resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
         self.inner
             .lock()
-            .push(channel_id, priority, frame, pinky, expected_reply);
+            .push(channel_id, priority, frame, resolver, expected_reply);
     }
 
     pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Promise<()> {
@@ -79,8 +75,8 @@ impl Frames {
     }
 
     pub(crate) fn mark_sent(&self, send_id: SendId) {
-        if let Some((_, pinky, _)) = self.inner.lock().outbox.remove(&send_id) {
-            pinky.swear(Ok(()));
+        if let Some((_, resolver, _)) = self.inner.lock().outbox.remove(&send_id) {
+            resolver.swear(Ok(()));
         }
     }
 
@@ -105,7 +101,7 @@ struct Inner {
     frames: VecDeque<(SendId, AMQPFrame)>,
     low_prio_frames: VecDeque<(SendId, AMQPFrame)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
-    outbox: HashMap<SendId, (u16, Pinky<Result<()>>, bool)>,
+    outbox: HashMap<SendId, (u16, PromiseResolver<()>, bool)>,
     send_id: IdSequence<SendId>,
 }
 
@@ -129,13 +125,13 @@ impl Inner {
         channel_id: u16,
         priority: Priority,
         frame: AMQPFrame,
-        pinky: Pinky<Result<()>>,
+        resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
         let send_id = self.send_id.next();
 
         self.outbox
-            .insert(send_id, (channel_id, pinky, expected_reply.is_some()));
+            .insert(send_id, (channel_id, resolver, expected_reply.is_some()));
 
         match priority {
             Priority::CRITICAL => {
@@ -160,7 +156,7 @@ impl Inner {
     }
 
     fn push_frames(&mut self, channel_id: u16, mut frames: Vec<AMQPFrame>) -> Promise<()> {
-        let (promise, pinky) = Promise::new();
+        let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
         if log_enabled!(Trace) {
@@ -173,9 +169,9 @@ impl Inner {
         if let Some(last_frame) = last_frame {
             let send_id = self.send_id.next();
             self.low_prio_frames.push_back((send_id, last_frame));
-            self.outbox.insert(send_id, (channel_id, pinky, false));
+            self.outbox.insert(send_id, (channel_id, resolver, false));
         } else {
-            pinky.swear(Ok(()));
+            resolver.swear(Ok(()));
         }
 
         promise
@@ -236,19 +232,19 @@ impl Inner {
         for (_, replies) in self.expected_replies.drain() {
             Self::cancel_expected_replies(replies, error.clone());
         }
-        for (_, (_, pinky, _)) in self.outbox.drain() {
-            pinky.swear(Ok(()));
+        for (_, (_, resolver, _)) in self.outbox.drain() {
+            resolver.swear(Ok(()));
         }
     }
 
     fn clear_expected_replies(&mut self, channel_id: u16, error: Error) {
         let mut outbox = HashMap::default();
 
-        for (send_id, (chan_id, pinky, expects_reply)) in self.outbox.drain() {
+        for (send_id, (chan_id, resolver, expects_reply)) in self.outbox.drain() {
             if chan_id == channel_id && expects_reply {
-                pinky.swear(Err(error.clone()))
+                resolver.swear(Err(error.clone()))
             } else {
-                outbox.insert(send_id, (chan_id, pinky, expects_reply));
+                outbox.insert(send_id, (chan_id, resolver, expects_reply));
             }
         }
 

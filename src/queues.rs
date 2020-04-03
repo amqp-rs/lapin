@@ -1,10 +1,9 @@
 use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
-    pinky_swear::Pinky,
     queue::{Queue, QueueState},
     types::ShortString,
-    BasicProperties, Error, Result,
+    BasicProperties, Error, PromiseResolver, Result,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -98,10 +97,10 @@ impl Queues {
         &self,
         queue: &str,
         message: BasicGetMessage,
-        pinky: Pinky<Result<Option<BasicGetMessage>>>,
+        resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
         self.with_queue(queue, |queue| {
-            queue.start_new_delivery(message, pinky);
+            queue.start_new_delivery(message, resolver);
             Ok(())
         })
         .expect("start_basic_get_delivery cannot fail");

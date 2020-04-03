@@ -36,8 +36,8 @@ impl ReturnedMessages {
         self.inner.lock().drain()
     }
 
-    pub(crate) fn register_pinky(&self, pinky: ConfirmationBroadcaster) {
-        self.inner.lock().register_pinky(pinky);
+    pub(crate) fn register_resolver(&self, resolver: ConfirmationBroadcaster) {
+        self.inner.lock().register_resolver(resolver);
     }
 
     pub(crate) fn register_dropped_confirm(&self, promise: Promise<Confirmation>) {
@@ -55,11 +55,11 @@ pub struct Inner {
 }
 
 impl Inner {
-    fn register_pinky(&mut self, pinky: ConfirmationBroadcaster) {
+    fn register_resolver(&mut self, resolver: ConfirmationBroadcaster) {
         if let Some(message) = self.waiting_messages.pop_front() {
-            pinky.swear(Ok(Confirmation::Nack(Box::new(message))));
+            resolver.swear(Ok(Confirmation::Nack(Box::new(message))));
         } else {
-            self.pinkies.push_back(pinky);
+            self.pinkies.push_back(resolver);
         }
     }
 
@@ -79,8 +79,8 @@ impl Inner {
     fn new_delivery_complete(&mut self) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            if let Some(pinky) = self.pinkies.pop_front() {
-                pinky.swear(Ok(Confirmation::Nack(Box::new(message))));
+            if let Some(resolver) = self.pinkies.pop_front() {
+                resolver.swear(Ok(Confirmation::Nack(Box::new(message))));
             } else {
                 self.waiting_messages.push_back(message);
             }

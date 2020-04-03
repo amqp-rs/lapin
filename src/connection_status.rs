@@ -1,6 +1,4 @@
-use crate::{
-    auth::Credentials, pinky_swear::Pinky, CloseOnDrop, Connection, ConnectionProperties, Result,
-};
+use crate::{auth::Credentials, CloseOnDrop, Connection, ConnectionProperties, PromiseResolver};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -67,12 +65,12 @@ impl ConnectionStatus {
 pub enum ConnectionState {
     Initial,
     SentProtocolHeader(
-        Pinky<Result<CloseOnDrop<Connection>>>,
+        PromiseResolver<CloseOnDrop<Connection>>,
         Credentials,
         ConnectionProperties,
     ),
-    SentStartOk(Pinky<Result<CloseOnDrop<Connection>>>, Credentials),
-    SentOpen(Pinky<Result<CloseOnDrop<Connection>>>),
+    SentStartOk(PromiseResolver<CloseOnDrop<Connection>>, Credentials),
+    SentOpen(PromiseResolver<CloseOnDrop<Connection>>),
     Connected,
     Closing,
     Closed,

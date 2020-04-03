@@ -93,7 +93,6 @@ pub use amq_protocol::{
     protocol::{self, BasicProperties},
     tcp, types, uri,
 };
-pub use pinky_swear;
 
 pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
@@ -119,6 +118,7 @@ pub type ConfirmationPromise<T> =
 
 type ConfirmationBroadcaster =
     pinky_swear::PinkyBroadcaster<Result<publisher_confirm::Confirmation>>;
+type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
 mod acknowledgement;
 mod buffer;

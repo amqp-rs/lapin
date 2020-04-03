@@ -10,7 +10,6 @@ use crate::{
     frames::{ExpectedReply, Priority},
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
-    pinky_swear::Pinky,
     protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
@@ -18,7 +17,7 @@ use crate::{
     returned_messages::ReturnedMessages,
     types::*,
     BasicProperties, CloseOnDrop, ConfirmationPromise, Error, ExchangeKind, Promise, PromiseChain,
-    Result,
+    PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
@@ -130,13 +129,13 @@ impl Channel {
     pub(crate) fn send_method_frame(
         &self,
         method: AMQPClass,
-        pinky: Pinky<Result<()>>,
+        resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) -> Result<()> {
         self.send_frame(
             Priority::NORMAL,
             AMQPFrame::Method(self.id, method),
-            pinky,
+            resolver,
             expected_reply,
         )
     }
@@ -192,11 +191,11 @@ impl Channel {
         &self,
         priority: Priority,
         frame: AMQPFrame,
-        pinky: Pinky<Result<()>>,
+        resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) -> Result<()> {
         self.connection
-            .send_frame(self.id, priority, frame, pinky, expected_reply)
+            .send_frame(self.id, priority, frame, resolver, expected_reply)
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -304,16 +303,20 @@ impl Channel {
 
     fn on_connection_start_ok_sent(
         &self,
-        pinky: Pinky<Result<CloseOnDrop<Connection>>>,
+        resolver: PromiseResolver<CloseOnDrop<Connection>>,
         credentials: Credentials,
     ) -> Result<()> {
         self.connection
-            .set_state(ConnectionState::SentStartOk(pinky, credentials));
+            .set_state(ConnectionState::SentStartOk(resolver, credentials));
         Ok(())
     }
 
-    fn on_connection_open_sent(&self, pinky: Pinky<Result<CloseOnDrop<Connection>>>) -> Result<()> {
-        self.connection.set_state(ConnectionState::SentOpen(pinky));
+    fn on_connection_open_sent(
+        &self,
+        resolver: PromiseResolver<CloseOnDrop<Connection>>,
+    ) -> Result<()> {
+        self.connection
+            .set_state(ConnectionState::SentOpen(resolver));
         Ok(())
     }
 
@@ -399,7 +402,7 @@ impl Channel {
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!("Server sent connection::Start: {:?}", method);
         let state = self.connection.status().state();
-        if let ConnectionState::SentProtocolHeader(pinky, credentials, mut options) = state {
+        if let ConnectionState::SentProtocolHeader(resolver, credentials, mut options) = state {
             let mechanism = options.mechanism.to_string();
             let locale = options.locale.clone();
 
@@ -451,7 +454,7 @@ impl Channel {
                     &mechanism,
                     &credentials.sasl_auth_string(options.mechanism),
                     &locale,
-                    pinky,
+                    resolver,
                     credentials,
                 ))
         } else {
@@ -482,7 +485,7 @@ impl Channel {
         debug!("Server sent Connection::Tune: {:?}", method);
 
         let state = self.connection.status().state();
-        if let ConnectionState::SentStartOk(pinky, _) = state {
+        if let ConnectionState::SentStartOk(resolver, _) = state {
             self.tune_connection_configuration(
                 method.channel_max,
                 method.frame_max,
@@ -496,7 +499,7 @@ impl Channel {
                     self.connection.configuration().heartbeat(),
                 ))?;
             self.connection.register_internal_promise(
-                self.connection_open(&self.connection.status().vhost(), pinky),
+                self.connection_open(&self.connection.status().vhost(), resolver),
             )
         } else {
             error!("Invalid state: {:?}", state);
@@ -508,9 +511,9 @@ impl Channel {
 
     fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<()> {
         let state = self.connection.status().state();
-        if let ConnectionState::SentOpen(pinky) = state {
+        if let ConnectionState::SentOpen(resolver) = state {
             self.connection.set_state(ConnectionState::Connected);
-            pinky.swear(Ok(CloseOnDrop::new(self.connection.clone())));
+            resolver.swear(Ok(CloseOnDrop::new(self.connection.clone())));
             Ok(())
         } else {
             error!("Invalid state: {:?}", state);
@@ -538,9 +541,9 @@ impl Channel {
         self.connection.set_closing();
         self.connection.drop_pending_frames(error.clone());
         match state {
-            ConnectionState::SentProtocolHeader(pinky, ..) => pinky.swear(Err(error)),
-            ConnectionState::SentStartOk(pinky, _) => pinky.swear(Err(error)),
-            ConnectionState::SentOpen(pinky) => pinky.swear(Err(error)),
+            ConnectionState::SentProtocolHeader(resolver, ..) => resolver.swear(Err(error)),
+            ConnectionState::SentStartOk(resolver, _) => resolver.swear(Err(error)),
+            ConnectionState::SentOpen(resolver) => resolver.swear(Err(error)),
             _ => {}
         }
         self.connection
@@ -567,10 +570,10 @@ impl Channel {
     fn on_channel_open_ok_received(
         &self,
         _method: protocol::channel::OpenOk,
-        pinky: Pinky<Result<CloseOnDrop<Channel>>>,
+        resolver: PromiseResolver<CloseOnDrop<Channel>>,
     ) -> Result<()> {
         self.set_state(ChannelState::Connected);
-        pinky.swear(Ok(CloseOnDrop::new(self.clone())));
+        resolver.swear(Ok(CloseOnDrop::new(self.clone())));
         Ok(())
     }
 
@@ -585,10 +588,10 @@ impl Channel {
     fn on_channel_flow_ok_received(
         &self,
         method: protocol::channel::FlowOk,
-        pinky: Pinky<Result<Boolean>>,
+        resolver: PromiseResolver<Boolean>,
     ) -> Result<()> {
         // Nothing to do here, the server just confirmed that we paused/resumed the receiving flow
-        pinky.swear(Ok(method.active));
+        resolver.swear(Ok(method.active));
         Ok(())
     }
 
@@ -618,38 +621,38 @@ impl Channel {
     fn on_queue_delete_ok_received(
         &self,
         method: protocol::queue::DeleteOk,
-        pinky: Pinky<Result<LongUInt>>,
+        resolver: PromiseResolver<LongUInt>,
         queue: ShortString,
     ) -> Result<()> {
         self.queues.deregister(queue.as_str());
-        pinky.swear(Ok(method.message_count));
+        resolver.swear(Ok(method.message_count));
         Ok(())
     }
 
     fn on_queue_purge_ok_received(
         &self,
         method: protocol::queue::PurgeOk,
-        pinky: Pinky<Result<LongUInt>>,
+        resolver: PromiseResolver<LongUInt>,
     ) -> Result<()> {
-        pinky.swear(Ok(method.message_count));
+        resolver.swear(Ok(method.message_count));
         Ok(())
     }
 
     fn on_queue_declare_ok_received(
         &self,
         method: protocol::queue::DeclareOk,
-        pinky: Pinky<Result<Queue>>,
+        resolver: PromiseResolver<Queue>,
     ) -> Result<()> {
         let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
         self.queues.register(queue.clone().into());
-        pinky.swear(Ok(queue));
+        resolver.swear(Ok(queue));
         Ok(())
     }
 
     fn on_basic_get_ok_received(
         &self,
         method: protocol::basic::GetOk,
-        pinky: Pinky<Result<Option<BasicGetMessage>>>,
+        resolver: PromiseResolver<Option<BasicGetMessage>>,
         queue: ShortString,
     ) -> Result<()> {
         self.queues.start_basic_get_delivery(
@@ -661,7 +664,7 @@ impl Channel {
                 method.redelivered,
                 method.message_count,
             ),
-            pinky,
+            resolver,
         );
         self.set_state(ChannelState::WillReceiveContent(Some(queue), None));
         Ok(())
@@ -669,8 +672,8 @@ impl Channel {
 
     fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<()> {
         match self.connection.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(pinky, _)) => {
-                pinky.swear(Ok(None));
+            Some(Reply::BasicGetOk(resolver, _)) => {
+                resolver.swear(Ok(None));
                 Ok(())
             }
             _ => {
@@ -684,13 +687,13 @@ impl Channel {
     fn on_basic_consume_ok_received(
         &self,
         method: protocol::basic::ConsumeOk,
-        pinky: Pinky<Result<Consumer>>,
+        resolver: PromiseResolver<Consumer>,
         queue: ShortString,
     ) -> Result<()> {
         let consumer = Consumer::new(method.consumer_tag.clone(), self.executor.clone());
         self.queues
             .register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
-        pinky.swear(Ok(consumer));
+        resolver.swear(Ok(consumer));
         Ok(())
     }
 

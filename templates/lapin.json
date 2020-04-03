@@ -4,8 +4,8 @@
       "metadata": {
         "extra_args": [
           {
-            "name": "pinky",
-            "type": "Pinky<Result<CloseOnDrop<Connection>>>"
+            "name": "resolver",
+            "type": "PromiseResolver<CloseOnDrop<Connection>>"
           },
           {
             "name": "credentials",
@@ -13,7 +13,7 @@
           }
         ],
         "end_hook": {
-          "params": ["pinky", "credentials"]
+          "params": ["resolver", "credentials"]
         }
       }
     },
@@ -22,12 +22,12 @@
         "internal": true,
         "extra_args": [
           {
-            "name": "conn_pinky",
-            "type": "Pinky<Result<CloseOnDrop<Connection>>>"
+            "name": "conn_resolver",
+            "type": "PromiseResolver<CloseOnDrop<Connection>>"
           }
         ],
         "end_hook": {
-          "params": ["conn_pinky"]
+          "params": ["conn_resolver"]
         }
       }
     },

@@ -1,6 +1,6 @@
 use crate::{
-    consumer::Consumer, message::BasicGetMessage, pinky_swear::Pinky, types::ShortString,
-    BasicProperties, Error, Result,
+    consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
+    PromiseResolver, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, hash::Hash};
 
@@ -29,7 +29,7 @@ impl Queue {
 pub(crate) struct QueueState {
     name: ShortString,
     consumers: HashMap<ShortString, Consumer>,
-    current_get_message: Option<(BasicGetMessage, Pinky<Result<Option<BasicGetMessage>>>)>,
+    current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
 }
 
 impl Queue {
@@ -104,9 +104,9 @@ impl QueueState {
     pub(crate) fn start_new_delivery(
         &mut self,
         delivery: BasicGetMessage,
-        pinky: Pinky<Result<Option<BasicGetMessage>>>,
+        resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.current_get_message = Some((delivery, pinky));
+        self.current_get_message = Some((delivery, resolver));
     }
 
     pub(crate) fn set_delivery_properties(&mut self, properties: BasicProperties) {
@@ -122,8 +122,8 @@ impl QueueState {
     }
 
     pub(crate) fn new_delivery_complete(&mut self) {
-        if let Some((message, pinky)) = self.current_get_message.take() {
-            pinky.swear(Ok(Some(message)));
+        if let Some((message, resolver)) = self.current_get_message.take() {
+            resolver.swear(Ok(Some(message)));
         }
     }
 }

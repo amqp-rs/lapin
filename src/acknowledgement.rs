@@ -102,28 +102,28 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, pinky: ConfirmationBroadcaster) {
+    fn complete_pending(&mut self, success: bool, resolver: ConfirmationBroadcaster) {
         if success {
-            pinky.swear(Ok(Confirmation::Ack));
+            resolver.swear(Ok(Confirmation::Ack));
         } else {
-            self.returned_messages.register_pinky(pinky);
+            self.returned_messages.register_resolver(resolver);
         }
     }
 
     fn drop_all(&mut self, success: bool) {
-        for (_, pinky) in self
+        for (_, resolver) in self
             .pending
             .drain()
             .map(|tup| tup.1)
             .collect::<Vec<(u16, ConfirmationBroadcaster)>>()
         {
-            self.complete_pending(success, pinky);
+            self.complete_pending(success, resolver);
         }
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
-        if let Some((_, pinky)) = self.pending.remove(&delivery_tag) {
-            self.complete_pending(success, pinky);
+        if let Some((_, resolver)) = self.pending.remove(&delivery_tag) {
+            self.complete_pending(success, resolver);
             Ok(())
         } else {
             Err(Error::InvalidAck)
@@ -147,12 +147,12 @@ impl Inner {
     }
 
     fn on_channel_error(&mut self, channel_id: u16, error: Error) {
-        for (_, pinky) in self
+        for (_, resolver) in self
             .pending
             .values()
             .filter(|(channel, _)| *channel == channel_id)
         {
-            pinky.swear(Err(error.clone()));
+            resolver.swear(Err(error.clone()));
         }
         self.pending
             .retain(|_, (channel, _)| *channel != channel_id);
