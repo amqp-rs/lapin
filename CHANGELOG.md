@@ -1,4 +1,4 @@
-### 0.37.0 (2020-04-??)
+### 0.37.0 (2020-04-03
 
 #### Features
 
@@ -12,6 +12,7 @@
 * `PublisherConfirm` now returns a proper `Result<Confirmation>`
 * Connecting now returns a `CloseOnDrop<Connection>`
 * Creating a channel now returns a `CloseOnDrop<Channel>`
+* `PinkySwear` is now hidden from the public API
 
 ### 0.36.2 (2020-04-02)
 
