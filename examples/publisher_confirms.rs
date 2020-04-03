@@ -78,7 +78,8 @@ fn main() {
             )
             .await
             .expect("basic_publish")
-            .await; // Wait for this specific ack/nack
+            .await // Wait for this specific ack/nack
+            .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::Ack);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 

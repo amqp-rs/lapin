@@ -71,7 +71,8 @@ fn main() {
             )
             .await
             .expect("basic_publish")
-            .await;
+            .await
+            .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 

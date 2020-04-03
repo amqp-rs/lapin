@@ -69,7 +69,8 @@ fn main() {
             )
             .await
             .expect("basic_publish")
-            .await;
+            .await
+            .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::NotRequested);
 
         std::thread::sleep(std::time::Duration::from_millis(2000));

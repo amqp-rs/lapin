@@ -32,7 +32,8 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 use futures_executor::LocalPool;
 use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
+    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
+    ConnectionProperties, Result,
 };
 use log::info;
 
@@ -85,7 +86,7 @@ fn main() -> Result<()> {
         let payload = b"Hello world!";
 
         loop {
-            channel_a
+            let confirm = channel_a
                 .basic_publish(
                     "",
                     "hello",
@@ -93,7 +94,9 @@ fn main() -> Result<()> {
                     payload.to_vec(),
                     BasicProperties::default(),
                 )
+                .await?
                 .await?;
+            assert_eq!(confirm, Confirmation::NotRequested);
         }
     })
 }

@@ -3,6 +3,8 @@
 #### Breaking changes
 
 * Update to pinky-swear 3.0.0 (properly handle chaining result promises)
+* `Confirmation` can no longer hold an error
+* `PublisherConfirm` now returns a proper `Result<Confirmation>`
 
 #### Features
 

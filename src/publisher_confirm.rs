@@ -1,6 +1,6 @@
 use crate::{
     message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages,
-    Error,
+    Result,
 };
 use log::trace;
 use std::{
@@ -11,7 +11,7 @@ use std::{
 
 #[derive(Debug)]
 pub struct PublisherConfirm {
-    inner: Option<PinkySwear<Confirmation>>,
+    inner: Option<PinkySwear<Result<Confirmation>>>,
     returned_messages: ReturnedMessages,
     used: bool,
 }
@@ -21,12 +21,11 @@ pub enum Confirmation {
     Ack,
     Nack(Box<BasicReturnMessage>),
     NotRequested,
-    Error(Box<Error>),
 }
 
 impl PublisherConfirm {
     pub(crate) fn new(
-        inner: PinkySwear<Confirmation>,
+        inner: PinkySwear<Result<Confirmation>>,
         returned_messages: ReturnedMessages,
     ) -> Self {
         Self {
@@ -38,13 +37,13 @@ impl PublisherConfirm {
 
     pub(crate) fn not_requested(returned_messages: ReturnedMessages) -> Self {
         Self {
-            inner: Some(PinkySwear::new_with_data(Confirmation::NotRequested)),
+            inner: Some(PinkySwear::new_with_data(Ok(Confirmation::NotRequested))),
             returned_messages,
             used: false,
         }
     }
 
-    pub fn try_wait(&mut self) -> Option<Confirmation> {
+    pub fn try_wait(&mut self) -> Option<Result<Confirmation>> {
         let confirmation = self
             .inner
             .as_ref()
@@ -54,7 +53,7 @@ impl PublisherConfirm {
         Some(confirmation)
     }
 
-    pub fn wait(&mut self) -> Confirmation {
+    pub fn wait(&mut self) -> Result<Confirmation> {
         self.used = true;
         self.inner
             .as_ref()
@@ -64,7 +63,7 @@ impl PublisherConfirm {
 }
 
 impl Future for PublisherConfirm {
-    type Output = Confirmation;
+    type Output = Result<Confirmation>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut();

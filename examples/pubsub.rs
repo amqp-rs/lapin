@@ -64,7 +64,7 @@ fn main() -> Result<()> {
                     BasicProperties::default(),
                 )
                 .await?
-                .await;
+                .await?;
             assert_eq!(confirm, Confirmation::NotRequested);
         }
     })
