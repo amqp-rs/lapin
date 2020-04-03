@@ -20,7 +20,7 @@ use crate::{
     BasicProperties, Error, ExchangeKind, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use log::{debug, error, info, trace};
+use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use std::{convert::TryFrom, sync::Arc};
 

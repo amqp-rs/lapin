@@ -5,7 +5,7 @@ use crate::{
     Error, Result,
 };
 use amq_protocol::frame::AMQPFrame;
-use log::trace;
+use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use std::{
     collections::{HashMap, VecDeque},
@@ -170,6 +170,10 @@ impl Inner {
     ) -> PinkySwear<Result<()>> {
         let (promise, pinky) = PinkySwear::new();
         let last_frame = frames.pop();
+
+        if log_enabled!(Trace) {
+            promise.set_marker("Frames".into());
+        }
 
         for frame in frames {
             self.low_prio_frames.push_back((0, frame));

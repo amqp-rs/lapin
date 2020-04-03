@@ -20,7 +20,7 @@ use crate::{
     Error, Result,
 };
 use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
-use log::{debug, error, trace};
+use log::{debug, error, log_enabled, trace, Level::Trace};
 use mio::{Poll, Token, Waker as MioWaker};
 use std::sync::Arc;
 
@@ -199,17 +199,23 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            let (mut header_promise, pinky) = PinkySwear::<Result<()>>::new();
+            let (promise, pinky) = PinkySwear::<Result<()>>::new();
+            if log_enabled!(Trace) {
+                promise.set_marker("ProtocolHeader".into());
+            }
             if let Err(err) = conn.send_frame(
                 0,
                 Priority::CRITICAL,
                 AMQPFrame::ProtocolHeader,
-                pinky,
+                pinky.clone(),
                 None,
             ) {
-                header_promise = PinkySwear::new_with_data(Err(err));
+                pinky.swear(Err(err));
             }
-            let (promise, pinky) = PinkySwear::after(header_promise);
+            let (promise, pinky) = PinkySwear::after(promise);
+            if log_enabled!(Trace) {
+                promise.set_marker("ProtocolHeader.Ok".into());
+            }
             conn.set_state(ConnectionState::SentProtocolHeader(
                 pinky,
                 uri.authority.userinfo.into(),
@@ -315,6 +321,11 @@ impl Connection {
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
         let (promise, pinky) = PinkySwear::new();
+
+        if log_enabled!(Trace) {
+            promise.set_marker("Heartbeat".into());
+        }
+
         self.send_frame(0, Priority::CRITICAL, AMQPFrame::Heartbeat(0), pinky, None)?;
         self.register_internal_promise(promise)
     }
