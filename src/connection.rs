@@ -1,7 +1,7 @@
 use crate::{
     channel::{Channel, Reply},
     channels::Channels,
-    close_on_drop::{self, CloseOnDrop},
+    close_on_drop,
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
@@ -17,7 +17,7 @@ use crate::{
     types::ShortUInt,
     uri::AMQPUri,
     waker::Waker,
-    Error, Result,
+    CloseOnDrop, Error, Result,
 };
 use amq_protocol::frame::AMQPFrame;
 use log::{debug, error, log_enabled, trace, Level::Trace};
@@ -25,7 +25,7 @@ use mio::{Poll, Token, Waker as MioWaker};
 use std::sync::Arc;
 
 pub type ChannelPromise = PinkySwear<Result<CloseOnDrop<Channel>>, Result<()>>;
-pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
+pub type ConnectionPromise = PinkySwear<Result<CloseOnDrop<Connection>>, Result<()>>;
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -205,7 +205,8 @@ impl Connection {
             ) {
                 pinky.swear(Err(err));
             }
-            let (promise, pinky) = PinkySwear::<Result<Connection>, Result<()>>::after(promise);
+            let (promise, pinky) =
+                PinkySwear::<Result<CloseOnDrop<Connection>>, Result<()>>::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }

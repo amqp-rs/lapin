@@ -2,7 +2,7 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
-    close_on_drop::{self, CloseOnDrop},
+    close_on_drop,
     connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
@@ -17,7 +17,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, Error, ExchangeKind, Result,
+    BasicProperties, CloseOnDrop, Error, ExchangeKind, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
@@ -305,7 +305,7 @@ impl Channel {
 
     fn on_connection_start_ok_sent(
         &self,
-        pinky: Pinky<Result<Connection>>,
+        pinky: Pinky<Result<CloseOnDrop<Connection>>>,
         credentials: Credentials,
     ) -> Result<()> {
         self.connection
@@ -313,7 +313,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_open_sent(&self, pinky: Pinky<Result<Connection>>) -> Result<()> {
+    fn on_connection_open_sent(&self, pinky: Pinky<Result<CloseOnDrop<Connection>>>) -> Result<()> {
         self.connection.set_state(ConnectionState::SentOpen(pinky));
         Ok(())
     }
@@ -511,7 +511,7 @@ impl Channel {
         let state = self.connection.status().state();
         if let ConnectionState::SentOpen(pinky) = state {
             self.connection.set_state(ConnectionState::Connected);
-            pinky.swear(Ok(self.connection.clone()));
+            pinky.swear(Ok(CloseOnDrop::new(self.connection.clone())));
             Ok(())
         } else {
             error!("Invalid state: {:?}", state);

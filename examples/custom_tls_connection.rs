@@ -1,7 +1,8 @@
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, tcp::AMQPUriTcpExt,
-    types::FieldTable, BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
+    types::FieldTable, BasicProperties, CloseOnDrop, Connection, ConnectionProperties,
+    ConsumerDelegate, Result,
 };
 use log::info;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
@@ -15,7 +16,7 @@ impl ConsumerDelegate for Subscriber {
     }
 }
 
-async fn connect() -> Result<Connection> {
+async fn connect() -> Result<CloseOnDrop<Connection>> {
     // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
     std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
