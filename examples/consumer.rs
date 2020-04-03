@@ -3,7 +3,7 @@ use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use log::info;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "lapin=trace");
+    std::env::set_var("RUST_LOG", "info");
 
     env_logger::init();
 

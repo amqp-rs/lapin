@@ -42,7 +42,7 @@ async fn connect() -> Result<CloseOnDrop<Connection>> {
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "lapin=trace");
+    std::env::set_var("RUST_LOG", "info");
 
     env_logger::init();
 

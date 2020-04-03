@@ -6,7 +6,7 @@ use lapin::{
 use log::info;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "lapin=trace");
+    std::env::set_var("RUST_LOG", "info");
 
     env_logger::init();
 
@@ -23,7 +23,11 @@ fn main() {
         //send channel
         let channel_a = conn.create_channel().await.expect("create_channel");
         //receive channel
-        let channel_b = conn.create_channel().await.expect("create_channel");
+        let channel_b = conn
+            .create_channel()
+            .await
+            .expect("create_channel")
+            .into_inner();
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         //create the hello queue
@@ -75,8 +79,5 @@ fn main() {
             .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
-
-        std::thread::sleep(std::time::Duration::from_millis(2000));
-        conn.close(200, "OK").await.expect("connection close");
     })
 }
