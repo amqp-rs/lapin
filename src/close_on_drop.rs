@@ -1,5 +1,5 @@
 use crate::{protocol, types::ShortUInt, Promise};
-use log::error;
+use log::warn;
 use std::ops::Deref;
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl<T: __private::Closable> Drop for CloseOnDrop<T> {
                 .close(protocol::constants::REPLY_SUCCESS.into(), "OK")
                 .wait()
             {
-                error!("Failed to close on drop: {:?}", err);
+                warn!("Failed to close on drop: {:?}", err);
             }
         }
     }
