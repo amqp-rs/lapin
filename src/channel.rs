@@ -818,13 +818,8 @@ impl Channel {
 }
 
 impl close_on_drop::__private::Closable for Channel {
-    fn close(&self) {
-        if let Err(err) = self
-            .close(protocol::constants::REPLY_SUCCESS.into(), "channel dropped")
-            .wait()
-        {
-            error!("Failed to close channel on drop: {:?}", err);
-        }
+    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+        Channel::close(self, reply_code, reply_text)
     }
 }
 

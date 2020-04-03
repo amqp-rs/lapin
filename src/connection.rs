@@ -12,7 +12,6 @@ use crate::{
     io_loop::IoLoop,
     pinky_swear::{Pinky, PinkySwear},
     promises::Promises,
-    protocol,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
@@ -567,15 +566,7 @@ mod tests {
 }
 
 impl close_on_drop::__private::Closable for Connection {
-    fn close(&self) {
-        if let Err(err) = self
-            .close(
-                protocol::constants::REPLY_SUCCESS.into(),
-                "connection dropped",
-            )
-            .wait()
-        {
-            error!("Failed to close connection on drop: {:?}", err);
-        }
+    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+        Connection::close(self, reply_code, reply_text)
     }
 }

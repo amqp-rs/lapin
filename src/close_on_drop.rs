@@ -1,3 +1,5 @@
+use amq_protocol::protocol;
+use log::error;
 use std::ops::Deref;
 
 #[derive(Debug)]
@@ -12,7 +14,9 @@ impl<T: __private::Closable> CloseOnDrop<T> {
 
     /// Give the underlying object, cancelling the close on drop action
     pub fn into_inner(mut self) -> T {
-        self.inner.take().expect("inner should only be None once consumed or dropped")
+        self.inner
+            .take()
+            .expect("inner should only be None once consumed or dropped")
     }
 }
 
@@ -20,20 +24,29 @@ impl<T: __private::Closable> Deref for CloseOnDrop<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.inner.as_ref().expect("inner should only be None once consumed or dropped")
+        self.inner
+            .as_ref()
+            .expect("inner should only be None once consumed or dropped")
     }
 }
 
 impl<T: __private::Closable> Drop for CloseOnDrop<T> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.as_ref() {
-            inner.close();
+            if let Err(err) = inner
+                .close(protocol::constants::REPLY_SUCCESS.into(), "OK")
+                .wait()
+            {
+                error!("Failed to close on drop: {:?}", err);
+            }
         }
     }
 }
 
 pub(crate) mod __private {
+    use crate::{pinky_swear::PinkySwear, types::ShortUInt, Result};
+
     pub trait Closable {
-        fn close(&self);
+        fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>>;
     }
 }
