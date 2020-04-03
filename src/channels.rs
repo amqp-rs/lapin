@@ -1,8 +1,7 @@
 use crate::{
     connection::Connection, executor::Executor, frames::Frames, id_sequence::IdSequence,
-    BasicProperties, Channel, ChannelState, Error, Result,
+    protocol::AMQPClass, BasicProperties, Channel, ChannelState, Error, Result,
 };
-use amq_protocol::protocol::AMQPClass;
 use log::debug;
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};

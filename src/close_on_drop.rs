@@ -1,5 +1,4 @@
-use crate::{pinky_swear::PinkySwear, types::ShortUInt, Result};
-use amq_protocol::protocol;
+use crate::{pinky_swear::PinkySwear, protocol, types::ShortUInt, Result};
 use log::error;
 use std::ops::Deref;
 

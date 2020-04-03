@@ -1,8 +1,9 @@
-use crate::{channel_status::ChannelState, connection_status::ConnectionState};
-use amq_protocol::{
-    frame::{GenError, ParserError},
+use crate::{
+    channel_status::ChannelState,
+    connection_status::ConnectionState,
     protocol::{AMQPClass, AMQPError},
 };
+use amq_protocol::frame::{GenError, ParserError};
 use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
