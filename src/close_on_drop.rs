@@ -1,3 +1,4 @@
+use crate::{pinky_swear::PinkySwear, types::ShortUInt, Result};
 use amq_protocol::protocol;
 use log::error;
 use std::ops::Deref;
@@ -17,6 +18,10 @@ impl<T: __private::Closable> CloseOnDrop<T> {
         self.inner
             .take()
             .expect("inner should only be None once consumed or dropped")
+    }
+
+    pub fn close(self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+        self.into_inner().close(reply_code, reply_text)
     }
 }
 
@@ -44,7 +49,7 @@ impl<T: __private::Closable> Drop for CloseOnDrop<T> {
 }
 
 pub(crate) mod __private {
-    use crate::{pinky_swear::PinkySwear, types::ShortUInt, Result};
+    use super::*;
 
     pub trait Closable {
         fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>>;
