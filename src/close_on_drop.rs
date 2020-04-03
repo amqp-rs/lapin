@@ -15,9 +15,12 @@ impl<T: __private::Closable> CloseOnDrop<T> {
 
     /// Give the underlying object, cancelling the close on drop action
     pub fn into_inner(mut self) -> T {
-        self.inner
+        let inner = self
+            .inner
             .take()
-            .expect("inner should only be None once consumed or dropped")
+            .expect("inner should only be None once consumed or dropped");
+        std::mem::forget(self);
+        inner
     }
 
     pub fn close(self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
