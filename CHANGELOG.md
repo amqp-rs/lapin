@@ -1,5 +1,10 @@
 ### 0.37.0 (2020-04-??)
 
+#### Features
+
+* `Connection` and `Channel` can be moved out of `CloseOnDrop` using `into_inner()`
+* We now add a marker to promises when trace logging is enabled to make debugging easier
+
 #### Breaking changes
 
 * Update to pinky-swear 3.0.0 (properly handle chaining result promises)
@@ -7,10 +12,6 @@
 * `PublisherConfirm` now returns a proper `Result<Confirmation>`
 * Connecting now returns a `CloseOnDrop<Connection>`
 * Creating a channel now returns a `CloseOnDrop<Channel>`
-
-#### Features
-
-* We now add a marker to promises when trace logging is enabled to make debugging easier
 
 ### 0.36.2 (2020-04-02)
 
