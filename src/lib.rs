@@ -99,7 +99,7 @@ pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use close_on_drop::CloseOnDrop;
 pub use configuration::Configuration;
-pub use connection::{Connect, Connection, ConnectionPromise};
+pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
@@ -110,6 +110,15 @@ pub use queue::Queue;
 pub mod executor;
 pub mod message;
 pub mod publisher_confirm;
+
+pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
+pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
+pub type CloseOnDropPromise<T> = PromiseChain<CloseOnDrop<T>>;
+pub type ConfirmationPromise<T> =
+    pinky_swear::PinkySwear<Result<T>, Result<publisher_confirm::Confirmation>>;
+
+type ConfirmationBroadcaster =
+    pinky_swear::PinkyBroadcaster<Result<publisher_confirm::Confirmation>>;
 
 mod acknowledgement;
 mod buffer;

@@ -61,7 +61,7 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> PinkySwear<Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#if method.metadata.confirmation.type ~}}, Result<()>{{/if ~}}> {
+  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -71,7 +71,7 @@ impl Channel {
     if !self.status.is_connected() {
     {{/if ~}}
     {{/if ~}}
-      return PinkySwear::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
+      return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
     }
 
     {{#if method.metadata.start_hook ~}}
@@ -112,32 +112,32 @@ impl Channel {
 
     {{#if method.metadata.carry_headers ~}}
     let promise = match self.send_method_frame_with_body(method, payload, properties, start_hook_res) {
-        Ok(promise) => promise,
-        Err(err) => return PinkySwear::new_with_data(Err(err)),
+      Ok(promise) => promise,
+      Err(err) => return PromiseChain::new_with_data(Err(err)),
     };
     {{else}}
-    let (promise, send_pinky) = PinkySwear::<Result<()>>::new();
+    let (promise, send_pinky) = Promise::new();
     if log_enabled!(Trace) {
-        promise.set_marker("{{class.name}}.{{method.name}}".into());
+      promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
     {{#if method.synchronous ~}}
-    let (promise, pinky) = PinkySwear::<{{#if method.metadata.confirmation.type ~}}Result<{{method.metadata.confirmation.type}}>, {{/if ~}}Result<()>>::after(promise);
+    let (promise, pinky) = Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::after(promise);
     if log_enabled!(Trace) {
-        promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
+      promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
     if let Err(err) = self.send_method_frame(method, send_pinky.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(pinky.clone()))){{else}}None{{/if ~}}) {
-        {{#if method.synchronous ~}}
-        pinky.swear(Err(err.clone()));
-        {{/if ~}}
-        send_pinky.swear(Err(err));
-        return promise
+      {{#if method.synchronous ~}}
+      pinky.swear(Err(err.clone()));
+      {{/if ~}}
+      send_pinky.swear(Err(err));
+      return promise
     }
     {{/if ~}}
     {{#if method.metadata.end_hook ~}}
     let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     if let Err(err) = end_hook_res {
-      return PinkySwear::new_with_data(Err(err));
+      return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(err));
     }
     {{/if ~}}
 
@@ -146,7 +146,7 @@ impl Channel {
     if nowait {
       {{#if method.metadata.nowait_hook ~}}
       if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#unless method.metadata.nowait_hook.exhaustive_args ~}}..Default::default(){{/unless ~}} }) {
-        return PinkySwear::new_with_data(Err(err));
+        return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(err));
       }
       {{/if ~}}
     }

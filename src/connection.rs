@@ -10,22 +10,19 @@ use crate::{
     executor::Executor,
     frames::{ExpectedReply, Frames, Priority, SendId},
     io_loop::IoLoop,
-    pinky_swear::{Pinky, PinkySwear},
+    pinky_swear::Pinky,
     promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
     uri::AMQPUri,
     waker::Waker,
-    CloseOnDrop, Error, Result,
+    CloseOnDropPromise, Error, Promise, Result,
 };
 use amq_protocol::frame::AMQPFrame;
 use log::{debug, error, log_enabled, trace, Level::Trace};
 use mio::{Poll, Token, Waker as MioWaker};
 use std::sync::Arc;
-
-pub type ChannelPromise = PinkySwear<Result<CloseOnDrop<Channel>>, Result<()>>;
-pub type ConnectionPromise = PinkySwear<Result<CloseOnDrop<Connection>>, Result<()>>;
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -35,7 +32,7 @@ pub struct Connection {
     waker: Waker,
     frames: Frames,
     io_loop: ThreadHandle,
-    internal_promises: Promises<Result<()>>,
+    internal_promises: Promises<()>,
     error_handler: ErrorHandler,
 }
 
@@ -64,7 +61,7 @@ impl Connection {
     }
 
     /// Connect to an AMQP Server
-    pub fn connect(uri: &str, options: ConnectionProperties) -> ConnectionPromise {
+    pub fn connect(uri: &str, options: ConnectionProperties) -> CloseOnDropPromise<Connection> {
         Connect::connect(uri, options, None)
     }
 
@@ -73,12 +70,15 @@ impl Connection {
         uri: &str,
         options: ConnectionProperties,
         identity: Identity<'_, '_>,
-    ) -> ConnectionPromise {
+    ) -> CloseOnDropPromise<Connection> {
         Connect::connect(uri, options, Some(identity))
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> ConnectionPromise {
+    pub fn connect_uri(
+        uri: AMQPUri,
+        options: ConnectionProperties,
+    ) -> CloseOnDropPromise<Connection> {
         Connect::connect(uri, options, None)
     }
 
@@ -87,19 +87,19 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
         identity: Identity<'_, '_>,
-    ) -> ConnectionPromise {
+    ) -> CloseOnDropPromise<Connection> {
         Connect::connect(uri, options, Some(identity))
     }
 
-    pub fn create_channel(&self) -> ChannelPromise {
+    pub fn create_channel(&self) -> CloseOnDropPromise<Channel> {
         if !self.status.connected() {
-            return PinkySwear::new_with_data(Err(Error::InvalidConnectionState(
+            return CloseOnDropPromise::new_with_data(Err(Error::InvalidConnectionState(
                 self.status.state(),
             )));
         }
         match self.channels.create(self.clone()) {
             Ok(channel) => channel.channel_open(),
-            Err(error) => PinkySwear::new_with_data(Err(error)),
+            Err(error) => CloseOnDropPromise::new_with_data(Err(error)),
         }
     }
 
@@ -134,23 +134,23 @@ impl Connection {
         self.channels.get(0).expect("channel 0")
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.channel0()
             .connection_close(reply_code, reply_text, 0, 0)
     }
 
     /// Block all consumers and publishers on this connection
-    pub fn block(&self, reason: &str) -> PinkySwear<Result<()>> {
+    pub fn block(&self, reason: &str) -> Promise<()> {
         self.channel0().connection_blocked(reason)
     }
 
     /// Unblock all consumers and publishers on this connection
-    pub fn unblock(&self) -> PinkySwear<Result<()>> {
+    pub fn unblock(&self) -> Promise<()> {
         self.channel0().connection_unblocked()
     }
 
     /// Update the secret used by some authentication module such as oauth2
-    pub fn update_secret(&self, new_secret: &str, reason: &str) -> PinkySwear<Result<()>> {
+    pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
@@ -173,8 +173,12 @@ impl Connection {
 
     pub fn connector(
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(TcpStream, AMQPUri, Option<(Poll, Token)>) -> Result<ConnectionPromise> + 'static
-    {
+    ) -> impl FnOnce(
+        TcpStream,
+        AMQPUri,
+        Option<(Poll, Token)>,
+    ) -> Result<CloseOnDropPromise<Connection>>
+           + 'static {
         move |stream, uri, poll| {
             let executor = options
                 .executor
@@ -192,7 +196,7 @@ impl Connection {
             if let Some(heartbeat) = uri.query.heartbeat {
                 conn.configuration.set_heartbeat(heartbeat);
             }
-            let (promise, pinky) = PinkySwear::<Result<()>>::new();
+            let (promise, pinky) = Promise::new();
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
@@ -205,8 +209,7 @@ impl Connection {
             ) {
                 pinky.swear(Err(err));
             }
-            let (promise, pinky) =
-                PinkySwear::<Result<CloseOnDrop<Connection>>, Result<()>>::after(promise);
+            let (promise, pinky) = CloseOnDropPromise::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
@@ -257,7 +260,7 @@ impl Connection {
         &self,
         channel_id: u16,
         frames: Vec<AMQPFrame>,
-    ) -> Result<PinkySwear<Result<()>>> {
+    ) -> Result<Promise<()>> {
         trace!("connection send_frames; channel_id={}", channel_id);
         let promise = self.frames.push_frames(channel_id, frames);
         self.wake()?;
@@ -314,7 +317,7 @@ impl Connection {
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         self.wake()?;
-        let (promise, pinky) = PinkySwear::new();
+        let (promise, pinky) = Promise::new();
 
         if log_enabled!(Trace) {
             promise.set_marker("Heartbeat".into());
@@ -351,7 +354,7 @@ impl Connection {
         self.channels.set_error(error)
     }
 
-    pub(crate) fn register_internal_promise(&self, promise: PinkySwear<Result<()>>) -> Result<()> {
+    pub(crate) fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
         self.internal_promises.register(promise).unwrap_or(Ok(()))
     }
 
@@ -374,14 +377,14 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         identity: Option<Identity<'_, '_>>,
-    ) -> ConnectionPromise
+    ) -> CloseOnDropPromise<Connection>
     where
         Self: Sized,
     {
         Poll::new()
             .map_err(Error::from)
             .and_then(|poll| self.connect_raw(options, Some(poll), identity))
-            .unwrap_or_else(|err| PinkySwear::new_with_data(Err(err)))
+            .unwrap_or_else(|err| CloseOnDropPromise::new_with_data(Err(err)))
     }
 
     /// connect to an AMQP server, for internal use
@@ -390,7 +393,7 @@ pub trait Connect {
         options: ConnectionProperties,
         poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<ConnectionPromise>;
+    ) -> Result<CloseOnDropPromise<Connection>>;
 }
 
 impl Connect for AMQPUri {
@@ -399,7 +402,7 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<ConnectionPromise> {
+    ) -> Result<CloseOnDropPromise<Connection>> {
         AMQPUriTcpExt::connect_full(
             self,
             Connection::connector(options),
@@ -415,7 +418,7 @@ impl Connect for &str {
         options: ConnectionProperties,
         poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<ConnectionPromise> {
+    ) -> Result<CloseOnDropPromise<Connection>> {
         AMQPUriTcpExt::connect_full(
             self,
             Connection::connector(options),
@@ -567,7 +570,7 @@ mod tests {
 }
 
 impl close_on_drop::__private::Closable for Connection {
-    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         Connection::close(self, reply_code, reply_text)
     }
 }

@@ -10,14 +10,15 @@ use crate::{
     frames::{ExpectedReply, Priority},
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
-    pinky_swear::{Pinky, PinkySwear},
+    pinky_swear::Pinky,
     protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
-    publisher_confirm::{Confirmation, PublisherConfirm},
+    publisher_confirm::PublisherConfirm,
     queue::Queue,
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, CloseOnDrop, Error, ExchangeKind, Result,
+    BasicProperties, CloseOnDrop, ConfirmationPromise, Error, ExchangeKind, Promise, PromiseChain,
+    Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
@@ -96,7 +97,7 @@ impl Channel {
         self.id
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.do_channel_close(reply_code, reply_text, 0, 0)
     }
 
@@ -106,20 +107,18 @@ impl Channel {
         kind: ExchangeKind,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
-    ) -> PinkySwear<Result<()>> {
+    ) -> Promise<()> {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
     }
 
-    pub fn wait_for_confirms(
-        &self,
-    ) -> PinkySwear<Result<Vec<BasicReturnMessage>>, Result<Confirmation>> {
+    pub fn wait_for_confirms(&self) -> ConfirmationPromise<Vec<BasicReturnMessage>> {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
             promise.traverse(Box::new(move |_| Ok(returned_messages.drain())))
         } else {
             trace!("No confirms to wait for");
-            PinkySwear::new_with_data(Ok(Vec::default()))
+            ConfirmationPromise::new_with_data(Ok(Vec::default()))
         }
     }
 
@@ -148,7 +147,7 @@ impl Channel {
         payload: Vec<u8>,
         properties: BasicProperties,
         publisher_confirms_result: Option<PublisherConfirm>,
-    ) -> Result<PinkySwear<Result<PublisherConfirm>, Result<()>>> {
+    ) -> Result<PromiseChain<PublisherConfirm>> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -818,7 +817,7 @@ impl Channel {
 }
 
 impl close_on_drop::__private::Closable for Channel {
-    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         Channel::close(self, reply_code, reply_text)
     }
 }

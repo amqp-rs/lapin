@@ -20,13 +20,13 @@ impl ConsumerDelegate for Subscriber {
     fn on_new_delivery(&self, delivery: DeliveryResult) {
         println!("received message: {:?}", delivery);
 
-        let delivery = delivery.unwrap().unwrap();
+        if let Some(delivery) = delivery.unwrap() {
+            println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
 
-        println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
+            assert_eq!(delivery.data, b"Hello world!");
 
-        assert_eq!(delivery.data, b"Hello world!");
-
-        self.hello_world.store(true, Ordering::SeqCst);
+            self.hello_world.store(true, Ordering::SeqCst);
+        }
     }
 }
 

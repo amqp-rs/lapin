@@ -1,7 +1,4 @@
-use crate::{
-    message::BasicReturnMessage, pinky_swear::PinkySwear, returned_messages::ReturnedMessages,
-    Result,
-};
+use crate::{message::BasicReturnMessage, returned_messages::ReturnedMessages, Promise, Result};
 use log::trace;
 use std::{
     future::Future,
@@ -11,7 +8,7 @@ use std::{
 
 #[derive(Debug)]
 pub struct PublisherConfirm {
-    inner: Option<PinkySwear<Result<Confirmation>>>,
+    inner: Option<Promise<Confirmation>>,
     returned_messages: ReturnedMessages,
     used: bool,
 }
@@ -24,10 +21,7 @@ pub enum Confirmation {
 }
 
 impl PublisherConfirm {
-    pub(crate) fn new(
-        inner: PinkySwear<Result<Confirmation>>,
-        returned_messages: ReturnedMessages,
-    ) -> Self {
+    pub(crate) fn new(inner: Promise<Confirmation>, returned_messages: ReturnedMessages) -> Self {
         Self {
             inner: Some(inner),
             returned_messages,
@@ -37,7 +31,7 @@ impl PublisherConfirm {
 
     pub(crate) fn not_requested(returned_messages: ReturnedMessages) -> Self {
         Self {
-            inner: Some(PinkySwear::new_with_data(Ok(Confirmation::NotRequested))),
+            inner: Some(Promise::new_with_data(Ok(Confirmation::NotRequested))),
             returned_messages,
             used: false,
         }

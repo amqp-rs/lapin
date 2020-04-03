@@ -1,8 +1,8 @@
 use crate::{
     channel::Reply,
     id_sequence::IdSequence,
-    pinky_swear::{Cancellable, Pinky, PinkySwear},
-    Error, Result,
+    pinky_swear::{Cancellable, Pinky},
+    Error, Promise, Result,
 };
 use amq_protocol::frame::AMQPFrame;
 use log::{log_enabled, trace, Level::Trace};
@@ -57,11 +57,7 @@ impl Frames {
             .push(channel_id, priority, frame, pinky, expected_reply);
     }
 
-    pub(crate) fn push_frames(
-        &self,
-        channel_id: u16,
-        frames: Vec<AMQPFrame>,
-    ) -> PinkySwear<Result<()>> {
+    pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Promise<()> {
         self.inner.lock().push_frames(channel_id, frames)
     }
 
@@ -163,12 +159,8 @@ impl Inner {
         }
     }
 
-    fn push_frames(
-        &mut self,
-        channel_id: u16,
-        mut frames: Vec<AMQPFrame>,
-    ) -> PinkySwear<Result<()>> {
-        let (promise, pinky) = PinkySwear::new();
+    fn push_frames(&mut self, channel_id: u16, mut frames: Vec<AMQPFrame>) -> Promise<()> {
+        let (promise, pinky) = Promise::new();
         let last_frame = frames.pop();
 
         if log_enabled!(Trace) {

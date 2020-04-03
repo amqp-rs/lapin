@@ -1,4 +1,4 @@
-use crate::pinky_swear::PinkySwear;
+use crate::{Promise, Result};
 use log::trace;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ pub(crate) struct Promises<T> {
 
 #[derive(Debug)]
 struct Inner<T> {
-    promises: Vec<PinkySwear<T>>,
+    promises: Vec<Promise<T>>,
 }
 
 impl<T> Default for Promises<T> {
@@ -30,20 +30,20 @@ impl<T> Default for Inner<T> {
 }
 
 impl<T: Send + 'static> Promises<T> {
-    pub(crate) fn register(&self, promise: PinkySwear<T>) -> Option<T> {
+    pub(crate) fn register(&self, promise: Promise<T>) -> Option<Result<T>> {
         promise.try_wait().or_else(|| {
             self.inner.lock().promises.push(promise);
             None
         })
     }
 
-    pub(crate) fn try_wait(&self) -> Option<Vec<T>> {
+    pub(crate) fn try_wait(&self) -> Option<Vec<Result<T>>> {
         self.inner.lock().try_wait()
     }
 }
 
 impl<T: Send + 'static> Inner<T> {
-    fn try_wait(&mut self) -> Option<Vec<T>> {
+    fn try_wait(&mut self) -> Option<Vec<Result<T>>> {
         let before = self.promises.len();
         if before != 0 {
             let mut res = Vec::default();

@@ -1,9 +1,6 @@
 use crate::{
-    message::BasicReturnMessage,
-    pinky_swear::{PinkyBroadcaster, PinkySwear},
-    promises::Promises,
-    publisher_confirm::Confirmation,
-    BasicProperties, Result,
+    message::BasicReturnMessage, promises::Promises, publisher_confirm::Confirmation,
+    BasicProperties, ConfirmationBroadcaster, Promise,
 };
 use log::{error, trace};
 use parking_lot::Mutex;
@@ -39,11 +36,11 @@ impl ReturnedMessages {
         self.inner.lock().drain()
     }
 
-    pub(crate) fn register_pinky(&self, pinky: PinkyBroadcaster<Result<Confirmation>>) {
+    pub(crate) fn register_pinky(&self, pinky: ConfirmationBroadcaster) {
         self.inner.lock().register_pinky(pinky);
     }
 
-    pub(crate) fn register_dropped_confirm(&self, promise: PinkySwear<Result<Confirmation>>) {
+    pub(crate) fn register_dropped_confirm(&self, promise: Promise<Confirmation>) {
         self.inner.lock().register_dropped_confirm(promise);
     }
 }
@@ -53,12 +50,12 @@ pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    dropped_confirms: Promises<Result<Confirmation>>,
-    pinkies: VecDeque<PinkyBroadcaster<Result<Confirmation>>>,
+    dropped_confirms: Promises<Confirmation>,
+    pinkies: VecDeque<ConfirmationBroadcaster>,
 }
 
 impl Inner {
-    fn register_pinky(&mut self, pinky: PinkyBroadcaster<Result<Confirmation>>) {
+    fn register_pinky(&mut self, pinky: ConfirmationBroadcaster) {
         if let Some(message) = self.waiting_messages.pop_front() {
             pinky.swear(Ok(Confirmation::Nack(Box::new(message))));
         } else {
@@ -66,7 +63,7 @@ impl Inner {
         }
     }
 
-    fn register_dropped_confirm(&mut self, promise: PinkySwear<Result<Confirmation>>) {
+    fn register_dropped_confirm(&mut self, promise: Promise<Confirmation>) {
         if let Some(confirmation) = self.dropped_confirms.register(promise) {
             if let Ok(Confirmation::Nack(message)) = confirmation {
                 trace!("Dropped PublisherConfirm was a Nack, storing message");

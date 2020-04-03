@@ -1,8 +1,7 @@
 use crate::{
-    pinky_swear::{PinkyBroadcaster, PinkySwear},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    Error, Result,
+    ConfirmationBroadcaster, Error, Promise, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -32,7 +31,7 @@ impl Acknowledgements {
         self.inner.lock().register_pending(delivery_tag, channel_id)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Result<Confirmation>>> {
+    pub(crate) fn get_last_pending(&self) -> Option<Promise<Confirmation>> {
         self.inner.lock().last.take().map(|(_, promise)| promise)
     }
 
@@ -75,8 +74,8 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<(DeliveryTag, PinkySwear<Result<Confirmation>>)>,
-    pending: HashMap<DeliveryTag, (u16, PinkyBroadcaster<Result<Confirmation>>)>,
+    last: Option<(DeliveryTag, Promise<Confirmation>)>,
+    pending: HashMap<DeliveryTag, (u16, ConfirmationBroadcaster)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -90,7 +89,7 @@ impl Inner {
     }
 
     fn register_pending(&mut self, delivery_tag: DeliveryTag, channel_id: u16) -> PublisherConfirm {
-        let broadcaster = PinkyBroadcaster::default();
+        let broadcaster = ConfirmationBroadcaster::default();
         let promise =
             PublisherConfirm::new(broadcaster.subscribe(), self.returned_messages.clone());
         if let Some((delivery_tag, promise)) = self.last.take() {
@@ -103,7 +102,7 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, pinky: PinkyBroadcaster<Result<Confirmation>>) {
+    fn complete_pending(&mut self, success: bool, pinky: ConfirmationBroadcaster) {
         if success {
             pinky.swear(Ok(Confirmation::Ack));
         } else {
@@ -116,7 +115,7 @@ impl Inner {
             .pending
             .drain()
             .map(|tup| tup.1)
-            .collect::<Vec<(u16, PinkyBroadcaster<Result<Confirmation>>)>>()
+            .collect::<Vec<(u16, ConfirmationBroadcaster)>>()
         {
             self.complete_pending(success, pinky);
         }

@@ -1,4 +1,4 @@
-use crate::{pinky_swear::PinkySwear, protocol, types::ShortUInt, Result};
+use crate::{protocol, types::ShortUInt, Promise};
 use log::error;
 use std::ops::Deref;
 
@@ -22,7 +22,7 @@ impl<T: __private::Closable> CloseOnDrop<T> {
         inner
     }
 
-    pub fn close(self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
+    pub fn close(self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.into_inner().close(reply_code, reply_text)
     }
 }
@@ -54,6 +54,6 @@ pub(crate) mod __private {
     use super::*;
 
     pub trait Closable {
-        fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>>;
+        fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()>;
     }
 }
