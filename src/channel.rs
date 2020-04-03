@@ -2,7 +2,7 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
-    close_on_drop,
+    close_on_drop::{self, CloseOnDrop},
     connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
@@ -568,10 +568,10 @@ impl Channel {
     fn on_channel_open_ok_received(
         &self,
         _method: protocol::channel::OpenOk,
-        pinky: Pinky<Result<Channel>>,
+        pinky: Pinky<Result<CloseOnDrop<Channel>>>,
     ) -> Result<()> {
         self.set_state(ChannelState::Connected);
-        pinky.swear(Ok(self.clone()));
+        pinky.swear(Ok(CloseOnDrop::new(self.clone())));
         Ok(())
     }
 

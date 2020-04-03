@@ -1,7 +1,7 @@
 use crate::{
     channel::{Channel, Reply},
     channels::Channels,
-    close_on_drop,
+    close_on_drop::{self, CloseOnDrop},
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
@@ -24,7 +24,7 @@ use log::{debug, error, log_enabled, trace, Level::Trace};
 use mio::{Poll, Token, Waker as MioWaker};
 use std::sync::Arc;
 
-pub type ChannelPromise = PinkySwear<Result<Channel>, Result<()>>;
+pub type ChannelPromise = PinkySwear<Result<CloseOnDrop<Channel>>, Result<()>>;
 pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
 
 #[derive(Clone, Debug)]
