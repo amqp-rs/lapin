@@ -3,7 +3,7 @@ use crate::{
     pinky_swear::{PinkyBroadcaster, PinkySwear},
     promises::Promises,
     publisher_confirm::Confirmation,
-    BasicProperties,
+    BasicProperties, Result,
 };
 use log::{error, trace};
 use parking_lot::Mutex;
@@ -39,11 +39,11 @@ impl ReturnedMessages {
         self.inner.lock().drain()
     }
 
-    pub(crate) fn register_pinky(&self, pinky: PinkyBroadcaster<Confirmation>) {
+    pub(crate) fn register_pinky(&self, pinky: PinkyBroadcaster<Result<Confirmation>>) {
         self.inner.lock().register_pinky(pinky);
     }
 
-    pub(crate) fn register_dropped_confirm(&self, promise: PinkySwear<Confirmation>) {
+    pub(crate) fn register_dropped_confirm(&self, promise: PinkySwear<Result<Confirmation>>) {
         self.inner.lock().register_dropped_confirm(promise);
     }
 }
@@ -53,22 +53,22 @@ pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    dropped_confirms: Promises<Confirmation>,
-    pinkies: VecDeque<PinkyBroadcaster<Confirmation>>,
+    dropped_confirms: Promises<Result<Confirmation>>,
+    pinkies: VecDeque<PinkyBroadcaster<Result<Confirmation>>>,
 }
 
 impl Inner {
-    fn register_pinky(&mut self, pinky: PinkyBroadcaster<Confirmation>) {
+    fn register_pinky(&mut self, pinky: PinkyBroadcaster<Result<Confirmation>>) {
         if let Some(message) = self.waiting_messages.pop_front() {
-            pinky.swear(Confirmation::Nack(Box::new(message)));
+            pinky.swear(Ok(Confirmation::Nack(Box::new(message))));
         } else {
             self.pinkies.push_back(pinky);
         }
     }
 
-    fn register_dropped_confirm(&mut self, promise: PinkySwear<Confirmation>) {
+    fn register_dropped_confirm(&mut self, promise: PinkySwear<Result<Confirmation>>) {
         if let Some(confirmation) = self.dropped_confirms.register(promise) {
-            if let Confirmation::Nack(message) = confirmation {
+            if let Ok(Confirmation::Nack(message)) = confirmation {
                 trace!("Dropped PublisherConfirm was a Nack, storing message");
                 self.messages.push(*message);
             } else {
@@ -83,7 +83,7 @@ impl Inner {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
             if let Some(pinky) = self.pinkies.pop_front() {
-                pinky.swear(Confirmation::Nack(Box::new(message)));
+                pinky.swear(Ok(Confirmation::Nack(Box::new(message))));
             } else {
                 self.waiting_messages.push_back(message);
             }
@@ -94,7 +94,7 @@ impl Inner {
         let mut messages = std::mem::take(&mut self.messages);
         if let Some(confirmations) = self.dropped_confirms.try_wait() {
             for confirmation in confirmations {
-                if let Confirmation::Nack(message) = confirmation {
+                if let Ok(Confirmation::Nack(message)) = confirmation {
                     trace!("PublisherConfirm was a Nack, storing message");
                     messages.push(*message);
                 } else {

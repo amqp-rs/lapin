@@ -97,7 +97,8 @@ fn connection() {
         )
         .wait()
         .expect("basic_publish")
-        .wait();
+        .wait()
+        .expect("publisher-confirms");
     assert_eq!(confirm, Confirmation::NotRequested);
     println!("[{}] state: {:?}", line!(), conn.status().state());
 

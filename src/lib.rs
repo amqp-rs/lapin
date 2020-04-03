@@ -18,7 +18,8 @@
 //! use futures_executor::LocalPool;
 //! use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 //! use lapin::{
-//!     options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
+//!     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
+//!     ConnectionProperties, Result,
 //! };
 //! use log::info;
 //!
@@ -71,7 +72,7 @@
 //!         let payload = b"Hello world!";
 //!
 //!         loop {
-//!             channel_a
+//!             let confirm = channel_a
 //!                 .basic_publish(
 //!                     "",
 //!                     "hello",
@@ -79,7 +80,9 @@
 //!                     payload.to_vec(),
 //!                     BasicProperties::default(),
 //!                 )
+//!                 .await?
 //!                 .await?;
+//!             assert_eq!(confirm, Confirmation::NotRequested);
 //!         }
 //!     })
 //! }

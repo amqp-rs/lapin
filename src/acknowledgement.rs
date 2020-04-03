@@ -32,7 +32,7 @@ impl Acknowledgements {
         self.inner.lock().register_pending(delivery_tag, channel_id)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Confirmation>> {
+    pub(crate) fn get_last_pending(&self) -> Option<PinkySwear<Result<Confirmation>>> {
         self.inner.lock().last.take().map(|(_, promise)| promise)
     }
 
@@ -75,8 +75,8 @@ impl Acknowledgements {
 
 #[derive(Debug)]
 struct Inner {
-    last: Option<(DeliveryTag, PinkySwear<Confirmation>)>,
-    pending: HashMap<DeliveryTag, (u16, PinkyBroadcaster<Confirmation>)>,
+    last: Option<(DeliveryTag, PinkySwear<Result<Confirmation>>)>,
+    pending: HashMap<DeliveryTag, (u16, PinkyBroadcaster<Result<Confirmation>>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -103,9 +103,9 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, pinky: PinkyBroadcaster<Confirmation>) {
+    fn complete_pending(&mut self, success: bool, pinky: PinkyBroadcaster<Result<Confirmation>>) {
         if success {
-            pinky.swear(Confirmation::Ack);
+            pinky.swear(Ok(Confirmation::Ack));
         } else {
             self.returned_messages.register_pinky(pinky);
         }
@@ -116,7 +116,7 @@ impl Inner {
             .pending
             .drain()
             .map(|tup| tup.1)
-            .collect::<Vec<(u16, PinkyBroadcaster<Confirmation>)>>()
+            .collect::<Vec<(u16, PinkyBroadcaster<Result<Confirmation>>)>>()
         {
             self.complete_pending(success, pinky);
         }
@@ -153,7 +153,7 @@ impl Inner {
             .values()
             .filter(|(channel, _)| *channel == channel_id)
         {
-            pinky.swear(Confirmation::Error(Box::new(error.clone())));
+            pinky.swear(Err(error.clone()));
         }
         self.pending
             .retain(|_, (channel, _)| *channel != channel_id);
