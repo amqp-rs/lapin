@@ -4,16 +4,16 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Promises<T, S = ()> {
-    inner: Arc<Mutex<Inner<T, S>>>,
+pub(crate) struct Promises<T> {
+    inner: Arc<Mutex<Inner<T>>>,
 }
 
 #[derive(Debug)]
-struct Inner<T, S = ()> {
-    promises: Vec<PinkySwear<T, S>>,
+struct Inner<T> {
+    promises: Vec<PinkySwear<T>>,
 }
 
-impl<T, S> Default for Promises<T, S> {
+impl<T> Default for Promises<T> {
     fn default() -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::default())),
@@ -21,7 +21,7 @@ impl<T, S> Default for Promises<T, S> {
     }
 }
 
-impl<T, S> Default for Inner<T, S> {
+impl<T> Default for Inner<T> {
     fn default() -> Self {
         Self {
             promises: Vec::default(),
@@ -29,8 +29,8 @@ impl<T, S> Default for Inner<T, S> {
     }
 }
 
-impl<T: Send + 'static, S: Send + 'static> Promises<T, S> {
-    pub(crate) fn register(&self, promise: PinkySwear<T, S>) -> Option<T> {
+impl<T: Send + 'static> Promises<T> {
+    pub(crate) fn register(&self, promise: PinkySwear<T>) -> Option<T> {
         promise.try_wait().or_else(|| {
             self.inner.lock().promises.push(promise);
             None
@@ -42,7 +42,7 @@ impl<T: Send + 'static, S: Send + 'static> Promises<T, S> {
     }
 }
 
-impl<T: Send + 'static, S: Send + 'static> Inner<T, S> {
+impl<T: Send + 'static> Inner<T> {
     fn try_wait(&mut self) -> Option<Vec<T>> {
         let before = self.promises.len();
         if before != 0 {

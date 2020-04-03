@@ -1,3 +1,13 @@
+### 0.37.0 (2020-04-??)
+
+#### Breaking changes
+
+* Update to pinky-swear 3.0.0 (properly handle chaining result promises)
+
+#### Features
+
+* We now add a marker to promises when trace logging is enabled to make debugging easier
+
 ### 0.36.2 (2020-04-02)
 
 #### Features

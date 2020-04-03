@@ -16,14 +16,16 @@ use crate::{
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
+    uri::AMQPUri,
     waker::Waker,
     Error, Result,
 };
-use amq_protocol::{frame::AMQPFrame, uri::AMQPUri};
+use amq_protocol::frame::AMQPFrame;
 use log::{debug, error, log_enabled, trace, Level::Trace};
 use mio::{Poll, Token, Waker as MioWaker};
 use std::sync::Arc;
 
+pub type ChannelPromise = PinkySwear<Result<Channel>, Result<()>>;
 pub type ConnectionPromise = PinkySwear<Result<Connection>, Result<()>>;
 
 #[derive(Clone, Debug)]
@@ -34,7 +36,7 @@ pub struct Connection {
     waker: Waker,
     frames: Frames,
     io_loop: ThreadHandle,
-    internal_promises: (Promises<Result<()>>, Promises<Result<()>, Result<()>>),
+    internal_promises: Promises<Result<()>>,
     error_handler: ErrorHandler,
 }
 
@@ -54,7 +56,7 @@ impl Connection {
             waker: Waker::default(),
             frames,
             io_loop: ThreadHandle::default(),
-            internal_promises: (Promises::default(), Promises::default()),
+            internal_promises: Promises::default(),
             error_handler: ErrorHandler::default(),
         };
 
@@ -90,7 +92,7 @@ impl Connection {
         Connect::connect(uri, options, Some(identity))
     }
 
-    pub fn create_channel(&self) -> PinkySwear<Result<Channel>, Result<()>> {
+    pub fn create_channel(&self) -> ChannelPromise {
         if !self.status.connected() {
             return PinkySwear::new_with_data(Err(Error::InvalidConnectionState(
                 self.status.state(),
@@ -133,11 +135,7 @@ impl Connection {
         self.channels.get(0).expect("channel 0")
     }
 
-    pub fn close(
-        &self,
-        reply_code: ShortUInt,
-        reply_text: &str,
-    ) -> PinkySwear<Result<()>, Result<()>> {
+    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> PinkySwear<Result<()>> {
         self.channel0()
             .connection_close(reply_code, reply_text, 0, 0)
     }
@@ -153,11 +151,7 @@ impl Connection {
     }
 
     /// Update the secret used by some authentication module such as oauth2
-    pub fn update_secret(
-        &self,
-        new_secret: &str,
-        reason: &str,
-    ) -> PinkySwear<Result<()>, Result<()>> {
+    pub fn update_secret(&self, new_secret: &str, reason: &str) -> PinkySwear<Result<()>> {
         self.channel0().connection_update_secret(new_secret, reason)
     }
 
@@ -212,7 +206,7 @@ impl Connection {
             ) {
                 pinky.swear(Err(err));
             }
-            let (promise, pinky) = PinkySwear::after(promise);
+            let (promise, pinky) = PinkySwear::<Result<Connection>, Result<()>>::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
@@ -358,23 +352,11 @@ impl Connection {
     }
 
     pub(crate) fn register_internal_promise(&self, promise: PinkySwear<Result<()>>) -> Result<()> {
-        self.internal_promises.0.register(promise).unwrap_or(Ok(()))
-    }
-
-    pub(crate) fn register_internal_combined_promise(
-        &self,
-        promise: PinkySwear<Result<()>, Result<()>>,
-    ) -> Result<()> {
-        self.internal_promises.1.register(promise).unwrap_or(Ok(()))
+        self.internal_promises.register(promise).unwrap_or(Ok(()))
     }
 
     pub(crate) fn poll_internal_promises(&self) -> Result<()> {
-        self.handle_internal_promises_results(self.internal_promises.0.try_wait())?;
-        self.handle_internal_promises_results(self.internal_promises.1.try_wait())
-    }
-
-    fn handle_internal_promises_results(&self, results: Option<Vec<Result<()>>>) -> Result<()> {
-        if let Some(results) = results {
+        if let Some(results) = self.internal_promises.try_wait() {
             for res in results {
                 if let Err(err) = res {
                     self.set_error(err)?;

@@ -1,8 +1,7 @@
-use amq_protocol::tcp::AMQPUriTcpExt;
 use futures_executor::LocalPool;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
+    message::DeliveryResult, options::*, publisher_confirm::Confirmation, tcp::AMQPUriTcpExt,
+    types::FieldTable, BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
 };
 use log::info;
 use tcp_stream::{HandshakeError, NativeTlsConnector};
