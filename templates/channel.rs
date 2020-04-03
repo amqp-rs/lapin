@@ -121,14 +121,14 @@ impl Channel {
         promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
     {{#if method.synchronous ~}}
-    let (promise, {{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky) = PinkySwear::after(promise);
+    let (promise, pinky) = PinkySwear::after(promise);
     if log_enabled!(Trace) {
         promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
-    if let Err(err) = self.send_method_frame(method, send_pinky.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new({{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky.clone()))){{else}}None{{/if ~}}) {
+    if let Err(err) = self.send_method_frame(method, send_pinky.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(pinky.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(pinky.clone()))){{else}}None{{/if ~}}) {
         {{#if method.synchronous ~}}
-        {{#if method.metadata.bypass_pinky ~}}_{{/if ~}}pinky.swear(Err(err.clone()));
+        pinky.swear(Err(err.clone()));
         {{/if ~}}
         send_pinky.swear(Err(err));
         return promise
