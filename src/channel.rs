@@ -225,7 +225,7 @@ impl Channel {
             } else {
                 self.returned_messages.set_delivery_properties(properties);
                 if size == 0 {
-                    self.returned_messages.new_delivery_complete();
+                    self.returned_messages.new_delivery_complete(self.status.confirm());
                 }
             }
             Ok(())
@@ -255,7 +255,7 @@ impl Channel {
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == payload_size {
-                        self.returned_messages.new_delivery_complete();
+                        self.returned_messages.new_delivery_complete(self.status.confirm());
                     }
                 }
                 if remaining_size == payload_size {

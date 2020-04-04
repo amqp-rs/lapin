@@ -22,8 +22,8 @@ impl ReturnedMessages {
         }
     }
 
-    pub(crate) fn new_delivery_complete(&self) {
-        self.inner.lock().new_delivery_complete();
+    pub(crate) fn new_delivery_complete(&self, confirm_mode: bool) {
+        self.inner.lock().new_delivery_complete(confirm_mode);
     }
 
     pub(crate) fn receive_delivery_content(&self, data: Vec<u8>) {
@@ -52,6 +52,7 @@ impl ReturnedMessages {
 #[derive(Debug, Default)]
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
+    non_confirm_messages: Vec<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
     dropped_confirms: Promises<Confirmation>,
@@ -80,13 +81,17 @@ impl Inner {
         }
     }
 
-    fn new_delivery_complete(&mut self) {
+    fn new_delivery_complete(&mut self, confirm_mode: bool) {
         if let Some(message) = self.current_message.take() {
             error!("Server returned us a message: {:?}", message);
-            if let Some(resolver) = self.pinkies.pop_front() {
-                resolver.swear(Ok(Confirmation::Nack(Box::new(message))));
+            if confirm_mode {
+                if let Some(resolver) = self.pinkies.pop_front() {
+                    resolver.swear(Ok(Confirmation::Nack(Box::new(message))));
+                } else {
+                    self.waiting_messages.push_back(message);
+                }
             } else {
-                self.waiting_messages.push_back(message);
+                self.non_confirm_messages.push(message);
             }
         }
     }
