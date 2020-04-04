@@ -1,3 +1,9 @@
+### 0.37.1 (2020-04-04
+
+#### Bug Fixes
+
+* Prevent a issue when hitting EWOULDBLOCK mid-frame with no other frame queued
+
 ### 0.37.0 (2020-04-03
 
 #### Features
