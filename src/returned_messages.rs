@@ -97,7 +97,12 @@ impl Inner {
     }
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
+        let mut non_confirm_messages = std::mem::take(&mut self.non_confirm_messages);
         let mut messages = std::mem::take(&mut self.messages);
+        if !non_confirm_messages.is_empty() {
+            non_confirm_messages.append(&mut messages);
+            messages = non_confirm_messages;
+        }
         if let Some(confirmations) = self.dropped_confirms.try_wait() {
             for confirmation in confirmations {
                 if let Ok(Confirmation::Nack(message)) = confirmation {
