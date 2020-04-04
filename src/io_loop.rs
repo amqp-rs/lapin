@@ -143,9 +143,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn can_write(&self) -> bool {
-        self.can_write
-            && self.has_data()
-            && !self.connection.status().blocked()
+        self.can_write && self.has_data() && !self.connection.status().blocked()
     }
 
     fn can_read(&self) -> bool {
