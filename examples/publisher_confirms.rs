@@ -1,6 +1,9 @@
 use futures_executor::LocalPool;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
+    message::{BasicReturnMessage, Delivery, DeliveryResult},
+    options::*,
+    publisher_confirm::Confirmation,
+    types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
@@ -42,12 +45,12 @@ fn main() {
         info!("[{}] state: {:?}", line!(), conn.status().state());
         info!("[{}] declared queue: {:?}", line!(), queue);
 
-        let confirm_select = channel_a
+        channel_a
             .confirm_select(ConfirmSelectOptions::default())
             .await
             .expect("confirm_select");
         info!("[{}] state: {:?}", line!(), conn.status().state());
-        info!("Enabled publisher-confirms: {:?}", confirm_select);
+        info!("Enabled publisher-confirms");
 
         let chan = channel_b.clone();
         info!("will consume");
@@ -84,7 +87,7 @@ fn main() {
             .expect("basic_publish")
             .await // Wait for this specific ack/nack
             .expect("publisher-confirms");
-        assert_eq!(confirm, Confirmation::Ack);
+        assert_eq!(confirm, Confirmation::Ack(None));
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         for _ in 1..=2 {
@@ -106,5 +109,38 @@ fn main() {
             .await
             .expect("wait for confirms");
         assert!(returned.is_empty());
+
+        let confirm = channel_a
+            .basic_publish(
+                "",
+                "unroutable-routing-key-for-tests",
+                BasicPublishOptions {
+                    mandatory: true,
+                    ..BasicPublishOptions::default()
+                },
+                payload.to_vec(),
+                BasicProperties::default(),
+            )
+            .await
+            .expect("basic_publish")
+            .await // Wait for this specific ack/nack
+            .expect("publisher-confirms");
+        assert_eq!(
+            confirm,
+            Confirmation::Ack(Some(BasicReturnMessage {
+                delivery: Delivery {
+                    delivery_tag: 0,
+                    exchange: "".into(),
+                    routing_key: "unroutable-routing-key-for-tests".into(),
+                    redelivered: false,
+                    properties: BasicProperties::default(),
+                    data: payload.to_vec(),
+                },
+                reply_code: 312,
+                reply_text: "NO_ROUTE".into(),
+            }))
+        );
+
+        let _ = channel_a;
     })
 }

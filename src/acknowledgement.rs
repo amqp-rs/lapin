@@ -104,7 +104,9 @@ impl Inner {
 
     fn complete_pending(&mut self, success: bool, resolver: ConfirmationBroadcaster) {
         if success {
-            resolver.swear(Ok(Confirmation::Ack));
+            resolver.swear(Ok(Confirmation::Ack(
+                self.returned_messages.get_waiting_message(),
+            )));
         } else {
             self.returned_messages.register_resolver(resolver);
         }

@@ -43,6 +43,10 @@ impl ReturnedMessages {
     pub(crate) fn register_dropped_confirm(&self, promise: Promise<Confirmation>) {
         self.inner.lock().register_dropped_confirm(promise);
     }
+
+    pub(crate) fn get_waiting_message(&self) -> Option<BasicReturnMessage> {
+        self.inner.lock().waiting_messages.pop_front()
+    }
 }
 
 #[derive(Debug, Default)]
