@@ -138,9 +138,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         Ok(())
     }
 
+    fn has_data(&self) -> bool {
+        self.connection.has_pending_frames() || self.send_buffer.available_data() > 0
+    }
+
     fn can_write(&self) -> bool {
         self.can_write
-            && self.connection.has_pending_frames()
+            && self.has_data()
             && !self.connection.status().blocked()
     }
 
@@ -210,7 +214,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             "io_loop do_run; can_read={}, can_write={}, has_data={}",
             self.can_read,
             self.can_write,
-            self.connection.has_pending_frames()
+            self.has_data()
         );
         loop {
             self.heartbeat()?;
@@ -232,7 +236,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             "io_loop do_run done; can_read={}, can_write={}, has_data={}, status={:?}",
             self.can_read,
             self.can_write,
-            self.connection.has_pending_frames(),
+            self.has_data(),
             self.status
         );
         Ok(())
@@ -255,7 +259,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 "io_loop send continue; can_read={}, can_write={}, has_data={}",
                 self.can_read,
                 self.can_write,
-                self.connection.has_pending_frames()
+                self.has_data()
             );
             self.send_continue()?;
         }
