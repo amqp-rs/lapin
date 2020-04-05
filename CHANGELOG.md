@@ -1,10 +1,24 @@
-### 0.37.1 (2020-04-04
+### 0.38.0 (2020-04-05)
+
+#### Bug Fixes
+
+* Wait until a frame has been fully sent before notifying sender
+* Properly handle Basic.Return when channel is not in confirm mode
+* Fix handling of publisher-confirms ack with returned message
+* Fix handling of publisher-confirms nack without returned message
+
+#### Breaking changes
+
+* `Confirmation::Nack` now carries an `Option<Box<BasicReturnMessage>>`
+* `Confirmation::Ack` now carries an `Option<Box<BasicReturnMessage>>`
+
+### 0.37.1 (2020-04-04)
 
 #### Bug Fixes
 
 * Prevent a issue when hitting EWOULDBLOCK mid-frame with no other frame queued
 
-### 0.37.0 (2020-04-03
+### 0.37.0 (2020-04-03)
 
 #### Features
 
