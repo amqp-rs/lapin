@@ -1,4 +1,4 @@
-use crate::{channel::Reply, id_sequence::IdSequence, Error, Promise, PromiseResolver};
+use crate::{channel::Reply, Error, Promise, PromiseResolver};
 use amq_protocol::frame::AMQPFrame;
 use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
@@ -19,8 +19,6 @@ impl fmt::Debug for ExpectedReply {
         write!(f, "ExpectedReply({:?})", self.0)
     }
 }
-
-pub(crate) type SendId = u64;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Priority {
@@ -57,14 +55,14 @@ impl Frames {
         self.inner.lock().push_frames(frames)
     }
 
-    pub(crate) fn retry(&self, frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>)) {
+    pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
         self.inner.lock().retry(frame);
     }
 
     pub(crate) fn pop(
         &self,
         flow: bool,
-    ) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
+    ) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         self.inner.lock().pop(flow)
     }
 
@@ -93,12 +91,11 @@ impl Frames {
 #[derive(Debug)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
-    header_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
-    priority_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
-    frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
-    low_prio_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+    header_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    priority_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
-    send_id: IdSequence<SendId>,
 }
 
 impl Default for Inner {
@@ -109,7 +106,6 @@ impl Default for Inner {
             frames: VecDeque::default(),
             low_prio_frames: VecDeque::default(),
             expected_replies: HashMap::default(),
-            send_id: IdSequence::new(false),
         }
     }
 }
@@ -123,15 +119,13 @@ impl Inner {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
-        let send_id = self.send_id.next();
-
         match priority {
             Priority::CRITICAL => {
                 self.priority_frames
-                    .push_front((send_id, frame, Some(resolver)));
+                    .push_front((frame, Some(resolver)));
             }
             Priority::NORMAL => {
-                self.frames.push_back((send_id, frame, Some(resolver)));
+                self.frames.push_back((frame, Some(resolver)));
             }
         };
 
@@ -157,12 +151,11 @@ impl Inner {
         }
 
         for frame in frames {
-            self.low_prio_frames.push_back((0, frame, None));
+            self.low_prio_frames.push_back((frame, None));
         }
         if let Some(last_frame) = last_frame {
-            let send_id = self.send_id.next();
             self.low_prio_frames
-                .push_back((send_id, last_frame, Some(resolver)));
+                .push_back((last_frame, Some(resolver)));
         } else {
             resolver.swear(Ok(()));
         }
@@ -170,7 +163,7 @@ impl Inner {
         promise
     }
 
-    fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
+    fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         if let Some(frame) = self
             .header_frames
             .pop_front()
@@ -188,7 +181,7 @@ impl Inner {
                 if self
                     .low_prio_frames
                     .front()
-                    .map(|(_, frame, _)| frame.is_header())
+                    .map(|(frame, _)| frame.is_header())
                     .unwrap_or(false)
                 {
                     // Yes, this will always be Some(), but let's keep our unwrap() count low
@@ -202,8 +195,8 @@ impl Inner {
         None
     }
 
-    fn retry(&mut self, frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>)) {
-        if frame.1.is_header() {
+    fn retry(&mut self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
+        if frame.0.is_header() {
             self.header_frames.push_front(frame);
         } else {
             self.priority_frames.push_back(frame);
@@ -228,10 +221,10 @@ impl Inner {
     }
 
     fn drop_pending_frames(
-        frames: &mut VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+        frames: &mut VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
         error: Error,
     ) {
-        for (_, _, resolver) in std::mem::take(frames) {
+        for (_, resolver) in std::mem::take(frames) {
             if let Some(resolver) = resolver {
                 resolver.swear(Err(error.clone()));
             }

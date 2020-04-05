@@ -8,7 +8,7 @@ use crate::{
     error_handler::ErrorHandler,
     executor::DefaultExecutor,
     executor::Executor,
-    frames::{ExpectedReply, Frames, Priority, SendId},
+    frames::{ExpectedReply, Frames, Priority},
     io_loop::IoLoop,
     promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
@@ -273,7 +273,7 @@ impl Connection {
     /// next message to send to the network
     ///
     /// returns None if there's no message to send
-    pub(crate) fn next_frame(&self) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
+    pub(crate) fn next_frame(&self) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         self.frames.pop(self.flow())
     }
 
@@ -334,7 +334,7 @@ impl Connection {
 
     pub(crate) fn requeue_frame(
         &self,
-        frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>),
+        frame: (AMQPFrame, Option<PromiseResolver<()>>),
     ) -> Result<()> {
         self.wake()?;
         self.frames.retry(frame);
