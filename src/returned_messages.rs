@@ -68,14 +68,14 @@ impl Inner {
 
     fn register_dropped_confirm(&mut self, promise: Promise<Confirmation>) {
         if let Some(confirmation) = self.dropped_confirms.register(promise) {
-            if let Ok(confirmation) = confirmation {
-                if let Some(message) = confirmation.take_message() {
-                    trace!("Dropped PublisherConfirm was carrying a message, storing it");
-                    self.messages.push(message);
-                    return;
-                }
+            if let Ok(Confirmation::Nack(Some(message))) | Ok(Confirmation::Ack(Some(message))) =
+                confirmation
+            {
+                trace!("Dropped PublisherConfirm was carrying a message, storing it");
+                self.messages.push(*message);
+            } else {
+                trace!("Dropped PublisherConfirm was ready but didn't carry a message, discarding");
             }
-            trace!("Dropped PublisherConfirm was ready but didn't carry a message, discarding");
         } else {
             trace!("Storing dropped PublisherConfirm for further use");
         }
@@ -90,14 +90,14 @@ impl Inner {
         }
         if let Some(confirmations) = self.dropped_confirms.try_wait() {
             for confirmation in confirmations {
-                if let Ok(confirmation) = confirmation {
-                    if let Some(message) = confirmation.take_message() {
-                        trace!("PublisherConfirm was carrying a message, storing it");
-                        messages.push(message);
-                        continue;
-                    }
+                if let Ok(Confirmation::Nack(Some(message)))
+                | Ok(Confirmation::Ack(Some(message))) = confirmation
+                {
+                    trace!("PublisherConfirm was carrying a message, storing it");
+                    messages.push(*message);
+                } else {
+                    trace!("PublisherConfirm was ready but didn't carry a message, discarding");
                 }
-                trace!("PublisherConfirm was ready but didn't carry a message, discarding");
             }
         }
         messages
