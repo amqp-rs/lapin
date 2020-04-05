@@ -261,7 +261,7 @@ impl Connection {
         frames: Vec<AMQPFrame>,
     ) -> Result<Promise<()>> {
         trace!("connection send_frames; channel_id={}", channel_id);
-        let promise = self.frames.push_frames(channel_id, frames);
+        let promise = self.frames.push_frames(frames);
         self.wake()?;
         Ok(promise)
     }
@@ -273,7 +273,7 @@ impl Connection {
     /// next message to send to the network
     ///
     /// returns None if there's no message to send
-    pub(crate) fn next_frame(&self) -> Option<(SendId, AMQPFrame)> {
+    pub(crate) fn next_frame(&self) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
         self.frames.pop(self.flow())
     }
 
@@ -332,14 +332,13 @@ impl Connection {
         self.register_internal_promise(promise)
     }
 
-    pub(crate) fn requeue_frame(&self, frame: (SendId, AMQPFrame)) -> Result<()> {
+    pub(crate) fn requeue_frame(
+        &self,
+        frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>),
+    ) -> Result<()> {
         self.wake()?;
         self.frames.retry(frame);
         Ok(())
-    }
-
-    pub(crate) fn mark_sent(&self, send_id: SendId) {
-        self.frames.mark_sent(send_id);
     }
 
     pub(crate) fn set_closing(&self) {

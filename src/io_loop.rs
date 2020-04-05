@@ -340,13 +340,15 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn serialize(&mut self) -> Result<()> {
-        if let Some((send_id, next_msg)) = self.connection.next_frame() {
+        if let Some((send_id, next_msg, resolver)) = self.connection.next_frame() {
             trace!("will write to buffer: {:?}", next_msg);
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
                 Ok(_) => {
-                    self.connection.mark_sent(send_id);
+                    if let Some(resolver) = resolver {
+                        resolver.swear(Ok(())); // FIXME: do that only once written all
+                    }
                     Ok(())
                 }
                 Err(e) => {
@@ -354,7 +356,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
-                            self.connection.requeue_frame((send_id, next_msg))?;
+                            self.connection
+                                .requeue_frame((send_id, next_msg, resolver))?;
                             self.send_buffer.shift();
                             Ok(())
                         }

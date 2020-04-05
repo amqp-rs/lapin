@@ -53,15 +53,18 @@ impl Frames {
             .push(channel_id, priority, frame, resolver, expected_reply);
     }
 
-    pub(crate) fn push_frames(&self, channel_id: u16, frames: Vec<AMQPFrame>) -> Promise<()> {
-        self.inner.lock().push_frames(channel_id, frames)
+    pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
+        self.inner.lock().push_frames(frames)
     }
 
-    pub(crate) fn retry(&self, frame: (SendId, AMQPFrame)) {
+    pub(crate) fn retry(&self, frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>)) {
         self.inner.lock().retry(frame);
     }
 
-    pub(crate) fn pop(&self, flow: bool) -> Option<(SendId, AMQPFrame)> {
+    pub(crate) fn pop(
+        &self,
+        flow: bool,
+    ) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
         self.inner.lock().pop(flow)
     }
 
@@ -72,12 +75,6 @@ impl Frames {
             .get_mut(&channel_id)
             .and_then(|replies| replies.pop_front())
             .map(|t| t.0)
-    }
-
-    pub(crate) fn mark_sent(&self, send_id: SendId) {
-        if let Some((_, resolver, _)) = self.inner.lock().outbox.remove(&send_id) {
-            resolver.swear(Ok(()));
-        }
     }
 
     pub(crate) fn has_pending(&self) -> bool {
@@ -96,12 +93,11 @@ impl Frames {
 #[derive(Debug)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
-    header_frames: VecDeque<(SendId, AMQPFrame)>,
-    priority_frames: VecDeque<(SendId, AMQPFrame)>,
-    frames: VecDeque<(SendId, AMQPFrame)>,
-    low_prio_frames: VecDeque<(SendId, AMQPFrame)>,
+    header_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+    priority_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+    frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+    low_prio_frames: VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
-    outbox: HashMap<SendId, (u16, PromiseResolver<()>, bool)>,
     send_id: IdSequence<SendId>,
 }
 
@@ -113,7 +109,6 @@ impl Default for Inner {
             frames: VecDeque::default(),
             low_prio_frames: VecDeque::default(),
             expected_replies: HashMap::default(),
-            outbox: HashMap::default(),
             send_id: IdSequence::new(false),
         }
     }
@@ -130,15 +125,13 @@ impl Inner {
     ) {
         let send_id = self.send_id.next();
 
-        self.outbox
-            .insert(send_id, (channel_id, resolver, expected_reply.is_some()));
-
         match priority {
             Priority::CRITICAL => {
-                self.priority_frames.push_front((send_id, frame));
+                self.priority_frames
+                    .push_front((send_id, frame, Some(resolver)));
             }
             Priority::NORMAL => {
-                self.frames.push_back((send_id, frame));
+                self.frames.push_back((send_id, frame, Some(resolver)));
             }
         };
 
@@ -155,7 +148,7 @@ impl Inner {
         }
     }
 
-    fn push_frames(&mut self, channel_id: u16, mut frames: Vec<AMQPFrame>) -> Promise<()> {
+    fn push_frames(&mut self, mut frames: Vec<AMQPFrame>) -> Promise<()> {
         let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
@@ -164,12 +157,12 @@ impl Inner {
         }
 
         for frame in frames {
-            self.low_prio_frames.push_back((0, frame));
+            self.low_prio_frames.push_back((0, frame, None));
         }
         if let Some(last_frame) = last_frame {
             let send_id = self.send_id.next();
-            self.low_prio_frames.push_back((send_id, last_frame));
-            self.outbox.insert(send_id, (channel_id, resolver, false));
+            self.low_prio_frames
+                .push_back((send_id, last_frame, Some(resolver)));
         } else {
             resolver.swear(Ok(()));
         }
@@ -177,7 +170,7 @@ impl Inner {
         promise
     }
 
-    fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame)> {
+    fn pop(&mut self, flow: bool) -> Option<(SendId, AMQPFrame, Option<PromiseResolver<()>>)> {
         if let Some(frame) = self
             .header_frames
             .pop_front()
@@ -195,7 +188,7 @@ impl Inner {
                 if self
                     .low_prio_frames
                     .front()
-                    .map(|(_, frame)| frame.is_header())
+                    .map(|(_, frame, _)| frame.is_header())
                     .unwrap_or(false)
                 {
                     // Yes, this will always be Some(), but let's keep our unwrap() count low
@@ -209,7 +202,7 @@ impl Inner {
         None
     }
 
-    fn retry(&mut self, frame: (SendId, AMQPFrame)) {
+    fn retry(&mut self, frame: (SendId, AMQPFrame, Option<PromiseResolver<()>>)) {
         if frame.1.is_header() {
             self.header_frames.push_front(frame);
         } else {
@@ -225,31 +218,27 @@ impl Inner {
     }
 
     fn drop_pending(&mut self, error: Error) {
-        self.header_frames.clear();
-        self.priority_frames.clear();
-        self.frames.clear();
-        self.low_prio_frames.clear();
+        Self::drop_pending_frames(&mut self.header_frames, error.clone());
+        Self::drop_pending_frames(&mut self.priority_frames, error.clone());
+        Self::drop_pending_frames(&mut self.frames, error.clone());
+        Self::drop_pending_frames(&mut self.low_prio_frames, error.clone());
         for (_, replies) in self.expected_replies.drain() {
             Self::cancel_expected_replies(replies, error.clone());
         }
-        for (_, (_, resolver, _)) in self.outbox.drain() {
-            resolver.swear(Ok(()));
+    }
+
+    fn drop_pending_frames(
+        frames: &mut VecDeque<(SendId, AMQPFrame, Option<PromiseResolver<()>>)>,
+        error: Error,
+    ) {
+        for (_, _, resolver) in std::mem::take(frames) {
+            if let Some(resolver) = resolver {
+                resolver.swear(Err(error.clone()));
+            }
         }
     }
 
     fn clear_expected_replies(&mut self, channel_id: u16, error: Error) {
-        let mut outbox = HashMap::default();
-
-        for (send_id, (chan_id, resolver, expects_reply)) in self.outbox.drain() {
-            if chan_id == channel_id && expects_reply {
-                resolver.swear(Err(error.clone()))
-            } else {
-                outbox.insert(send_id, (chan_id, resolver, expects_reply));
-            }
-        }
-
-        self.outbox = outbox;
-
         if let Some(replies) = self.expected_replies.remove(&channel_id) {
             Self::cancel_expected_replies(replies, error);
         }
