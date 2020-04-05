@@ -16,7 +16,7 @@ pub struct PublisherConfirm {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Confirmation {
     Ack(Option<BasicReturnMessage>),
-    Nack(Box<BasicReturnMessage>),
+    Nack(Option<BasicReturnMessage>),
     NotRequested,
 }
 

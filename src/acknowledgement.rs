@@ -103,13 +103,12 @@ impl Inner {
     }
 
     fn complete_pending(&mut self, success: bool, resolver: ConfirmationBroadcaster) {
-        if success {
-            resolver.swear(Ok(Confirmation::Ack(
-                self.returned_messages.get_waiting_message(),
-            )));
+        let returned_message = self.returned_messages.get_waiting_message();
+        resolver.swear(Ok(if success {
+            Confirmation::Ack(returned_message)
         } else {
-            self.returned_messages.register_resolver(resolver);
-        }
+            Confirmation::Nack(returned_message)
+        }));
     }
 
     fn drop_all(&mut self, success: bool) {
