@@ -111,10 +111,7 @@ impl Channel {
     }));
 
     {{#if method.metadata.carry_headers ~}}
-    let promise = match self.send_method_frame_with_body(method, payload, properties, start_hook_res) {
-      Ok(promise) => promise,
-      Err(err) => return PromiseChain::new_with_data(Err(err)),
-    };
+    self.send_method_frame_with_body(method, payload, properties, start_hook_res).unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
     {{else}}
     let (promise, send_resolver) = Promise::new();
     if log_enabled!(Trace) {
@@ -133,7 +130,6 @@ impl Channel {
       send_resolver.swear(Err(err));
       return promise
     }
-    {{/if ~}}
     {{#if method.metadata.end_hook ~}}
     let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     if let Err(err) = end_hook_res {
@@ -153,6 +149,7 @@ impl Channel {
     {{/if ~}}
     {{/if ~}}
     promise
+    {{/if ~}}
   }
   {{/if ~}}
 

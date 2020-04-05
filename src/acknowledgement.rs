@@ -103,7 +103,7 @@ impl Inner {
     }
 
     fn complete_pending(&mut self, success: bool, resolver: ConfirmationBroadcaster) {
-        let returned_message = self.returned_messages.get_waiting_message();
+        let returned_message = Box::new(self.returned_messages.get_waiting_message());
         resolver.swear(Ok(if success {
             Confirmation::Ack(returned_message)
         } else {

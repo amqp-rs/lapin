@@ -2,7 +2,6 @@ use futures_executor::LocalPool;
 use lapin::{
     message::{BasicReturnMessage, Delivery, DeliveryResult},
     options::*,
-    publisher_confirm::Confirmation,
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
@@ -87,7 +86,8 @@ fn main() {
             .expect("basic_publish")
             .await // Wait for this specific ack/nack
             .expect("publisher-confirms");
-        assert_eq!(confirm, Confirmation::Ack(None));
+        assert!(confirm.is_ack());
+        assert_eq!(confirm.take_message(), None);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         for _ in 1..=2 {
@@ -125,9 +125,10 @@ fn main() {
             .expect("basic_publish")
             .await // Wait for this specific ack/nack
             .expect("publisher-confirms");
+        assert!(confirm.is_ack());
         assert_eq!(
-            confirm,
-            Confirmation::Ack(Some(BasicReturnMessage {
+            confirm.take_message(),
+            Some(BasicReturnMessage {
                 delivery: Delivery {
                     delivery_tag: 0,
                     exchange: "".into(),
@@ -138,7 +139,7 @@ fn main() {
                 },
                 reply_code: 312,
                 reply_text: "NO_ROUTE".into(),
-            }))
+            })
         );
 
         let _ = channel_a;
