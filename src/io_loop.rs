@@ -1,10 +1,12 @@
 use crate::{
-    buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error, Result,
+    buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error,
+    PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
 use log::{error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use std::{
+    collections::VecDeque,
     io::{Read, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -40,6 +42,7 @@ pub struct IoLoop<T> {
     can_read: bool,
     send_heartbeat: Arc<AtomicBool>,
     poll_timeout: Option<Duration>,
+    serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
 }
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
@@ -67,6 +70,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             can_read: false,
             send_heartbeat: Arc::new(AtomicBool::new(false)),
             poll_timeout: None,
+            serialized_frames: VecDeque::default(),
         };
         if registered {
             inner.poll.registry().reregister(
@@ -316,6 +320,25 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
         trace!("wrote {} bytes", sz);
         self.send_buffer.consume(sz);
+
+        let mut written = sz as u64;
+        while written > 0 {
+            if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
+                if written < to_write {
+                    self.serialized_frames
+                        .push_front((to_write - written, resolver));
+                    written = 0;
+                } else {
+                    if let Some(resolver) = resolver {
+                        resolver.swear(Ok(()));
+                    }
+                    written -= to_write;
+                }
+            } else {
+                break;
+            }
+        }
+
         if sz > 0 && self.send_buffer.available_data() > 0 {
             // We didn't write all the data yet
             self.send_continue()?;
@@ -345,10 +368,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
-                Ok(_) => {
-                    if let Some(resolver) = resolver {
-                        resolver.swear(Ok(())); // FIXME: do that only once written all
-                    }
+                Ok(sz) => {
+                    self.serialized_frames.push_back((sz, resolver));
                     Ok(())
                 }
                 Err(e) => {
