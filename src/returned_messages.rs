@@ -97,9 +97,9 @@ impl Inner {
     }
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
-        let mut non_confirm_messages = std::mem::take(&mut self.non_confirm_messages);
         let mut messages = std::mem::take(&mut self.messages);
-        if !non_confirm_messages.is_empty() {
+        if !self.non_confirm_messages.is_empty() {
+            let mut non_confirm_messages = std::mem::take(&mut self.non_confirm_messages);
             non_confirm_messages.append(&mut messages);
             messages = non_confirm_messages;
         }
