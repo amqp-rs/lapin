@@ -143,7 +143,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn has_data(&self) -> bool {
-        self.connection.has_pending_frames() || self.send_buffer.available_data() > 0 || !self.serialized_frames.is_empty()
+        self.connection.has_pending_frames()
+            || self.send_buffer.available_data() > 0
+            || !self.serialized_frames.is_empty()
     }
 
     fn can_write(&self) -> bool {
@@ -377,8 +379,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
-                            self.connection
-                                .requeue_frame((next_msg, resolver))?;
+                            self.connection.requeue_frame((next_msg, resolver))?;
                             self.send_buffer.shift();
                             Ok(())
                         }

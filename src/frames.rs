@@ -59,10 +59,7 @@ impl Frames {
         self.inner.lock().retry(frame);
     }
 
-    pub(crate) fn pop(
-        &self,
-        flow: bool,
-    ) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
+    pub(crate) fn pop(&self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         self.inner.lock().pop(flow)
     }
 
@@ -121,8 +118,7 @@ impl Inner {
     ) {
         match priority {
             Priority::CRITICAL => {
-                self.priority_frames
-                    .push_front((frame, Some(resolver)));
+                self.priority_frames.push_front((frame, Some(resolver)));
             }
             Priority::NORMAL => {
                 self.frames.push_back((frame, Some(resolver)));
@@ -154,8 +150,7 @@ impl Inner {
             self.low_prio_frames.push_back((frame, None));
         }
         if let Some(last_frame) = last_frame {
-            self.low_prio_frames
-                .push_back((last_frame, Some(resolver)));
+            self.low_prio_frames.push_back((last_frame, Some(resolver)));
         } else {
             resolver.swear(Ok(()));
         }
