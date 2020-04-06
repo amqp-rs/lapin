@@ -1,3 +1,9 @@
+### 0.38.3 (2020-04-06)
+
+#### Bug Fixes
+
+* Fix the way we schedule heartbeats to be sent
+
 ### 0.38.2 (2020-04-06)
 
 #### Bug Fixes
