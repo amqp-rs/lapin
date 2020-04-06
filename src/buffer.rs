@@ -43,7 +43,7 @@ impl Buffer {
         self.end - self.position
     }
 
-    pub(crate) fn available_space(&self) -> usize {
+    fn available_space(&self) -> usize {
         self.capacity - self.end
     }
 
@@ -59,12 +59,16 @@ impl Buffer {
         cnt
     }
 
-    pub(crate) fn data(&self) -> &[u8] {
-        &self.memory[self.position..self.end]
+    pub(crate) fn write_to<T: io::Write>(&self, writer: &mut T) -> io::Result<usize> {
+        writer.write(&self.memory[self.position..self.end])
     }
 
-    pub(crate) fn space(&mut self) -> &mut [u8] {
-        &mut self.memory[self.end..self.capacity]
+    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T) -> io::Result<usize> {
+        reader.read(&mut self.memory[self.end..])
+    }
+
+    pub(crate) fn data(&self) -> &[u8] {
+        &self.memory[self.position..self.end]
     }
 
     pub(crate) fn shift(&mut self) {
@@ -88,7 +92,8 @@ impl Buffer {
 
 impl io::Write for &mut Buffer {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        let amt = self.space().write(data)?;
+        let mut space = &mut self.memory[self.end..];
+        let amt = space.write(data)?;
         self.fill(amt);
         Ok(amt)
     }

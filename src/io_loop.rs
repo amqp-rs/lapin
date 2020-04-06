@@ -318,7 +318,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     fn write_to_stream(&mut self) -> Result<()> {
         self.serialize()?;
 
-        let sz = self.socket.write(&self.send_buffer.data())?;
+        let sz = self.send_buffer.write_to(&mut self.socket)?;
 
         trace!("wrote {} bytes", sz);
         self.send_buffer.consume(sz);
@@ -353,12 +353,10 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.socket
-                    .read(&mut self.receive_buffer.space())
-                    .map(|sz| {
-                        trace!("read {} bytes", sz);
-                        self.receive_buffer.fill(sz);
-                    })?;
+                self.receive_buffer.read_from(&mut self.socket).map(|sz| {
+                    trace!("read {} bytes", sz);
+                    self.receive_buffer.fill(sz);
+                })?;
                 Ok(())
             }
         }
