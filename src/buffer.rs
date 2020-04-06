@@ -1,5 +1,8 @@
 use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
-use std::{cmp, io};
+use std::{
+    cmp,
+    io::{self, IoSlice, IoSliceMut},
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct Buffer {
@@ -34,44 +37,111 @@ impl Buffer {
             return false;
         }
 
+        let old_capacity = self.capacity;
+
         self.memory.resize(new_size, 0);
         self.capacity = new_size;
+
+        if self.end < self.position {
+            let (old, new) = self.memory.split_at_mut(old_capacity);
+            new[..].copy_from_slice(&old[..self.end]);
+            self.end += old_capacity;
+        }
+
         true
     }
 
     pub(crate) fn available_data(&self) -> usize {
-        self.end - self.position
+        if self.end >= self.position {
+            self.end - self.position
+        } else {
+            self.end + self.capacity - self.position
+        }
     }
 
     fn available_space(&self) -> usize {
-        self.capacity - self.end
+        if self.end >= self.position {
+            self.capacity - self.end + self.position
+        } else {
+            self.position - self.end
+        }
     }
 
-    pub(crate) fn consume(&mut self, count: usize) -> usize {
+    pub(crate) fn consume(&mut self, count: usize, ring: bool) -> usize {
         let cnt = cmp::min(count, self.available_data());
         self.position += cnt;
+        if ring {
+            self.position %= self.capacity;
+        }
         cnt
     }
 
-    pub(crate) fn fill(&mut self, count: usize) -> usize {
+    pub(crate) fn fill(&mut self, count: usize, ring: bool) -> usize {
         let cnt = cmp::min(count, self.available_space());
         self.end += cnt;
+        if ring {
+            self.end %= self.capacity;
+        }
         cnt
     }
 
     pub(crate) fn write_to<T: io::Write>(&self, writer: &mut T) -> io::Result<usize> {
-        writer.write(&self.memory[self.position..self.end])
+        if self.end >= self.position {
+            writer.write(&self.memory[self.position..self.end])
+        } else {
+            writer.write_vectored(&[
+                IoSlice::new(&self.memory[self.position..]),
+                IoSlice::new(&self.memory[..self.end]),
+            ])
+        }
     }
 
-    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T) -> io::Result<usize> {
-        reader.read(&mut self.memory[self.end..])
+    pub(crate) fn read_from<T: io::Read>(
+        &mut self,
+        reader: &mut T,
+        ring: bool,
+    ) -> io::Result<usize> {
+        if ring {
+            if self.end >= self.position {
+                let (start, end) = self.memory.split_at_mut(self.end);
+                reader.read_vectored(
+                    &mut [
+                        IoSliceMut::new(&mut end[..]),
+                        IoSliceMut::new(&mut start[..self.position]),
+                    ][..],
+                )
+            } else {
+                reader.read(&mut self.memory[self.end..self.position])
+            }
+        } else {
+            reader.read(&mut self.memory[self.end..])
+        }
+    }
+
+    pub(crate) fn offset(&self, buf: &[u8]) -> usize {
+        let bufptr = buf.as_ptr() as usize;
+        if self.end >= self.position {
+            let data = &self.memory[self.position..self.end];
+            bufptr - data.as_ptr() as usize
+        } else {
+            let data = &self.memory[self.position..];
+            let dataptr = data.as_ptr() as usize;
+            if dataptr < bufptr {
+                bufptr - dataptr
+            } else {
+                let data = &self.memory[..self.end];
+                bufptr + self.capacity - self.position - data.as_ptr() as usize
+            }
+        }
     }
 
     pub(crate) fn data(&self) -> &[u8] {
+        // FIXME: drop
         &self.memory[self.position..self.end]
     }
 
     pub(crate) fn shift(&mut self) {
+        // FIXME: drop
         let length = self.end - self.position;
         if length > self.position {
             return;
@@ -84,6 +154,7 @@ impl Buffer {
     }
 
     pub(crate) fn shift_unless_available(&mut self, size: usize) {
+        // FIXME: drop
         if self.available_space() < size {
             self.shift();
         }
@@ -92,9 +163,19 @@ impl Buffer {
 
 impl io::Write for &mut Buffer {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        let mut space = &mut self.memory[self.end..];
-        let amt = space.write(data)?;
-        self.fill(amt);
+        let amt = if self.end >= self.position {
+            let mut space = &mut self.memory[self.end..];
+            let mut amt = space.write(data)?;
+            if amt == self.capacity - self.end {
+                let mut space = &mut self.memory[..self.position];
+                amt += space.write(&data[amt..])?;
+            }
+            amt
+        } else {
+            let mut space = &mut self.memory[self.end..self.position];
+            space.write(data)?
+        };
+        self.fill(amt, true);
         Ok(amt)
     }
 
@@ -120,7 +201,7 @@ impl BackToTheBuffer for &mut Buffer {
             ));
         }
         let start = s.write.checkpoint();
-        s.write.fill(reserved);
+        s.write.fill(reserved, true);
         gen(s).and_then(|(s, tmp)| {
             let end = s.write.checkpoint();
             s.write.rollback(start);

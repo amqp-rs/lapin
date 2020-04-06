@@ -2,7 +2,7 @@ use crate::{
     buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error,
     PromiseResolver, Result,
 };
-use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError, Offset};
+use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use std::{
@@ -290,7 +290,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     self.critical_error(e)?;
                 }
             }
-            self.send_buffer.shift_unless_available(self.frame_size);
         }
         Ok(())
     }
@@ -321,7 +320,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         let sz = self.send_buffer.write_to(&mut self.socket)?;
 
         trace!("wrote {} bytes", sz);
-        self.send_buffer.consume(sz);
+        self.send_buffer.consume(sz, true);
 
         let mut written = sz as u64;
         while written > 0 {
@@ -353,9 +352,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer.read_from(&mut self.socket).map(|sz| {
+                self.receive_buffer.read_from(&mut self.socket, false).map(|sz| {
                     trace!("read {} bytes", sz);
-                    self.receive_buffer.fill(sz);
+                    self.receive_buffer.fill(sz, false);
                 })?;
                 Ok(())
             }
@@ -378,7 +377,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
                             self.connection.requeue_frame((next_msg, resolver))?;
-                            self.send_buffer.shift();
                             Ok(())
                         }
                         e => {
@@ -407,8 +405,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     fn do_parse(&mut self) -> Result<Option<AMQPFrame>> {
         match parse_frame(self.receive_buffer.data()) {
             Ok((i, f)) => {
-                let consumed = self.receive_buffer.data().offset(i);
-                self.receive_buffer.consume(consumed);
+                let consumed = self.receive_buffer.offset(i);
+                self.receive_buffer.consume(consumed, false);
                 Ok(Some(f))
             }
             Err(e) => {
