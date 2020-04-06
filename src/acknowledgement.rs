@@ -36,11 +36,11 @@ impl Acknowledgements {
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.inner.lock().ack(delivery_tag)
+        self.inner.lock().drop_pending(delivery_tag, true)
     }
 
     pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.inner.lock().nack(delivery_tag)
+        self.inner.lock().drop_pending(delivery_tag, false)
     }
 
     pub(crate) fn ack_all_pending(&self) {
@@ -52,19 +52,15 @@ impl Acknowledgements {
     }
 
     pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        let mut inner = self.inner.lock();
-        for tag in inner.list_pending_before(delivery_tag) {
-            inner.ack(tag)?;
-        }
-        Ok(())
+        self.inner
+            .lock()
+            .complete_pending_before(delivery_tag, true)
     }
 
     pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        let mut inner = self.inner.lock();
-        for tag in inner.list_pending_before(delivery_tag) {
-            inner.nack(tag)?;
-        }
-        Ok(())
+        self.inner
+            .lock()
+            .complete_pending_before(delivery_tag, false)
     }
 
     pub(crate) fn on_channel_error(&self, channel_id: u16, error: Error) {
@@ -131,20 +127,20 @@ impl Inner {
         }
     }
 
-    fn ack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.drop_pending(delivery_tag, true)
-    }
-
-    fn nack(&mut self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.drop_pending(delivery_tag, false)
-    }
-
-    fn list_pending_before(&mut self, delivery_tag: DeliveryTag) -> HashSet<DeliveryTag> {
-        self.pending
+    fn complete_pending_before(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
+        let mut res = Ok(());
+        for tag in self
+            .pending
             .keys()
             .filter(|tag| **tag <= delivery_tag)
             .cloned()
-            .collect()
+            .collect::<HashSet<DeliveryTag>>()
+        {
+            if let Err(err) = self.drop_pending(tag, success) {
+                res = Err(err);
+            }
+        }
+        res
     }
 
     fn on_channel_error(&mut self, channel_id: u16, error: Error) {
