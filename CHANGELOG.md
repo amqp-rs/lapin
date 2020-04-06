@@ -1,3 +1,9 @@
+### 0.38.2 (2020-04-06)
+
+#### Bug Fixes
+
+* Properly put the Conneciton in Error state when we get closed with protocol error
+
 ### 0.38.1 (2020-04-06)
 
 #### Bug Fixes
