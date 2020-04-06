@@ -134,8 +134,11 @@ impl Connection {
     }
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        self.channel0()
-            .connection_close(reply_code, reply_text, 0, 0)
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_close(reply_code, reply_text, 0, 0)
+        } else {
+            Promise::new_with_data(Ok(()))
+        }
     }
 
     /// Block all consumers and publishers on this connection
