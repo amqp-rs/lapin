@@ -3,15 +3,12 @@ use crate::{
     PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
-use log::{error, trace};
+use log::{debug, error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use std::{
     collections::VecDeque,
     io::{Read, Write},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
     thread::{self, Builder as ThreadBuilder, JoinHandle},
     time::{Duration, Instant},
 };
@@ -40,7 +37,6 @@ pub struct IoLoop<T> {
     send_buffer: Buffer,
     can_write: bool,
     can_read: bool,
-    send_heartbeat: Arc<AtomicBool>,
     poll_timeout: Option<Duration>,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
 }
@@ -68,7 +64,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             can_write: false,
             can_read: false,
-            send_heartbeat: Arc::new(AtomicBool::new(false)),
             poll_timeout: None,
             serialized_frames: VecDeque::default(),
         };
@@ -90,7 +85,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
     fn start_heartbeat(&mut self, interval: Duration) -> Result<()> {
         let connection = self.connection.clone();
-        let send_hartbeat = self.send_heartbeat.clone();
         let hb_handle = ThreadBuilder::new()
             .name("heartbeat".to_owned())
             .spawn(move || {
@@ -107,19 +101,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         remaining -= interval - elapsed;
                     }
 
-                    send_hartbeat.store(true, Ordering::Relaxed);
+                    debug!("send heartbeat");
+                    if let Err(err) = connection.send_heartbeat() {
+                        error!("Error while sending heartbeat: {}", err);
+                    }
                 }
             })?;
         self.hb_handle = Some(hb_handle);
-        Ok(())
-    }
-
-    fn heartbeat(&mut self) -> Result<()> {
-        if self.send_heartbeat.load(Ordering::Relaxed) {
-            trace!("send heartbeat");
-            self.connection.send_heartbeat()?;
-            self.send_heartbeat.store(false, Ordering::Relaxed);
-        }
         Ok(())
     }
 
@@ -132,7 +120,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             let heartbeat = self.connection.configuration().heartbeat();
             if heartbeat != 0 {
                 trace!("io_loop: start heartbeat");
-                let heartbeat = Duration::from_secs(u64::from(heartbeat));
+                let heartbeat = Duration::from_secs(u64::from(heartbeat / 2));
                 self.start_heartbeat(heartbeat)?;
                 self.poll_timeout = Some(heartbeat);
                 trace!("io_loop: heartbeat started");
@@ -221,7 +209,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.has_data()
         );
         loop {
-            self.heartbeat()?;
             self.write()?;
             if self.connection.status().closed() {
                 self.status = Status::Stop;
