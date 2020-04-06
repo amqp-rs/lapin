@@ -327,10 +327,12 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_close_ok_sent(&self) -> Result<()> {
-        self.connection.set_closed(Error::InvalidConnectionState(
-            self.connection.status().state(),
-        ))
+    fn on_connection_close_ok_sent(&self, error: Error) -> Result<()> {
+        if let Error::ProtocolError(_) = error {
+            self.connection.set_error(error)
+        } else {
+            self.connection.set_closed(error)
+        }
     }
 
     fn before_channel_close(&self) {
@@ -543,13 +545,13 @@ impl Channel {
         self.connection.set_closing();
         self.connection.drop_pending_frames(error.clone());
         match state {
-            ConnectionState::SentProtocolHeader(resolver, ..) => resolver.swear(Err(error)),
-            ConnectionState::SentStartOk(resolver, _) => resolver.swear(Err(error)),
-            ConnectionState::SentOpen(resolver) => resolver.swear(Err(error)),
+            ConnectionState::SentProtocolHeader(resolver, ..) => resolver.swear(Err(error.clone())),
+            ConnectionState::SentStartOk(resolver, _) => resolver.swear(Err(error.clone())),
+            ConnectionState::SentOpen(resolver) => resolver.swear(Err(error.clone())),
             _ => {}
         }
         self.connection
-            .register_internal_promise(self.connection_close_ok())
+            .register_internal_promise(self.connection_close_ok(error))
     }
 
     fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {

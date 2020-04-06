@@ -41,7 +41,15 @@
       "metadata": {
         "channel_deinit": true,
         "received_hook": true,
-        "end_hook": true
+        "extra_args": [
+          {
+            "name": "error",
+            "type": "Error"
+          }
+        ],
+        "end_hook": {
+          "params": ["error"]
+        }
       }
     },
     "blocked": {
