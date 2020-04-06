@@ -1,3 +1,13 @@
+### 0.38.1 (2020-04-06)
+
+#### Bug Fixes
+
+* Don't panic when CloseOnDrop tries to close an already closed Connection
+
+#### Misc
+
+* Use vectored IO when appropriate when writing to socket
+
 ### 0.38.0 (2020-04-05)
 
 #### Bug Fixes
