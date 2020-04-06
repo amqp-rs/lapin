@@ -104,7 +104,7 @@ impl BackToTheBuffer for &mut Buffer {
         Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>,
         Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>,
     >(
-        mut s: WriteContext<Self>,
+        s: WriteContext<Self>,
         reserved: usize,
         gen: &Gen,
         before: &Before,
@@ -114,13 +114,13 @@ impl BackToTheBuffer for &mut Buffer {
                 reserved - s.write.available_space(),
             ));
         }
-        let start = s.write.end;
-        s.write.end += reserved;
+        let start = s.write.checkpoint();
+        s.write.fill(reserved);
         gen(s).and_then(|(s, tmp)| {
-            let end = s.write.end;
-            s.write.end = start;
+            let end = s.write.checkpoint();
+            s.write.rollback(start);
             before(s, tmp).and_then(|s| {
-                s.write.end = end;
+                s.write.rollback(end);
                 Ok(s)
             })
         })
