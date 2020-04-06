@@ -575,6 +575,10 @@ mod tests {
 
 impl close_on_drop::__private::Closable for Connection {
     fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        Connection::close(self, reply_code, reply_text)
+        if self.status().connected() {
+            Connection::close(self, reply_code, reply_text)
+        } else {
+            Promise::new_with_data(Ok(()))
+        }
     }
 }
