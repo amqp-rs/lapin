@@ -352,10 +352,12 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer.read_from(&mut self.socket, false).map(|sz| {
-                    trace!("read {} bytes", sz);
-                    self.receive_buffer.fill(sz, false);
-                })?;
+                self.receive_buffer
+                    .read_from(&mut self.socket, false)
+                    .map(|sz| {
+                        trace!("read {} bytes", sz);
+                        self.receive_buffer.fill(sz, false);
+                    })?;
                 Ok(())
             }
         }
