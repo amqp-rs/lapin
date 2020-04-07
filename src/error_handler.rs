@@ -10,8 +10,8 @@ pub(crate) struct ErrorHandler {
 }
 
 impl ErrorHandler {
-    pub(crate) fn set_handler<E: FnMut(Error) + Send + 'static>(&self, handler: Box<E>) {
-        *self.handler.lock() = Some(handler);
+    pub(crate) fn set_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
+        *self.handler.lock() = Some(Box::new(handler));
     }
 
     pub(crate) fn on_error(&self, error: Error) {
