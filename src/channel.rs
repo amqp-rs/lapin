@@ -140,7 +140,7 @@ impl Channel {
         if let Some(promise) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
             let returned_messages = self.returned_messages.clone();
-            promise.traverse(Box::new(move |_| Ok(returned_messages.drain())))
+            promise.traverse(move |_| Ok(returned_messages.drain()))
         } else {
             trace!("No confirms to wait for");
             ConfirmationPromise::new_with_data(Ok(Vec::default()))
@@ -203,14 +203,14 @@ impl Channel {
         Ok(self
             .connection
             .send_frames(self.id, frames)?
-            .traverse(Box::new(move |res| {
+            .traverse(move |res| {
                 res.map(|()| {
                     let mut data = data.lock();
                     data.0
                         .take()
                         .unwrap_or_else(|| PublisherConfirm::not_requested(data.1.clone()))
                 })
-            })))
+            }))
     }
 
     pub(crate) fn send_frame(
