@@ -11,7 +11,7 @@ use crate::{
     frames::{ExpectedReply, Frames, Priority},
     io_loop::IoLoop,
     promises::Promises,
-    protocol::AMQPHardError,
+    protocol::{AMQPError, AMQPHardError},
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::{JoinHandle, ThreadHandle},
     types::ShortUInt,
@@ -319,7 +319,8 @@ impl Connection {
                     self.register_internal_promise(
                         self.close(AMQPHardError::FRAMEERROR.get_id(), "frame error"),
                     )?;
-                    return Err(Error::InvalidFrameReceived);
+                    // FIXME: AMQPError::from(AMQPHardError)
+                    return Err(Error::ProtocolError(AMQPError::from_id(AMQPHardError::FRAMEERROR.get_id(), format!("got heartbeat frame on channel {}", channel_id).into()).unwrap()));
                 }
             }
             AMQPFrame::Header(channel_id, _, header) => {
