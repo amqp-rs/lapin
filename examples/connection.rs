@@ -53,14 +53,14 @@ fn main() {
             )
             .await
             .expect("basic_consume")
-            .set_delegate(Box::new(move |delivery: DeliveryResult| {
+            .set_delegate(move |delivery: DeliveryResult| {
                 info!("received message: {:?}", delivery);
                 if let Ok(Some(delivery)) = delivery {
                     chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                         .wait() // await is hard to handle here
                         .expect("basic_ack");
                 }
-            }));
+            });
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         info!("will publish");

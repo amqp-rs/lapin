@@ -320,7 +320,13 @@ impl Connection {
                         self.close(AMQPHardError::FRAMEERROR.get_id(), "frame error"),
                     )?;
                     // FIXME: AMQPError::from(AMQPHardError)
-                    return Err(Error::ProtocolError(AMQPError::from_id(AMQPHardError::FRAMEERROR.get_id(), format!("got heartbeat frame on channel {}", channel_id).into()).unwrap()));
+                    return Err(Error::ProtocolError(
+                        AMQPError::from_id(
+                            AMQPHardError::FRAMEERROR.get_id(),
+                            format!("got heartbeat frame on channel {}", channel_id).into(),
+                        )
+                        .unwrap(),
+                    ));
                 }
             }
             AMQPFrame::Header(channel_id, _, header) => {

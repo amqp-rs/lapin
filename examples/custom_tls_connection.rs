@@ -81,7 +81,7 @@ fn main() {
             )
             .await
             .expect("basic_consume")
-            .set_delegate(Box::new(Subscriber));
+            .set_delegate(Subscriber);
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         info!("will publish");

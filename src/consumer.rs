@@ -42,12 +42,12 @@ impl Consumer {
         self.inner.lock()
     }
 
-    pub fn set_delegate(&self, delegate: Box<dyn ConsumerDelegate>) {
+    pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
         let mut inner = self.inner();
         while let Some(delivery) = inner.next_delivery() {
             delegate.on_new_delivery(delivery);
         }
-        inner.delegate = Some(Arc::new(delegate));
+        inner.delegate = Some(Arc::new(Box::new(delegate)));
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {

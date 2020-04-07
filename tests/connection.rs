@@ -82,7 +82,7 @@ fn connection() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Box::new(subscriber));
+        .set_delegate(subscriber);
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     println!("will publish");

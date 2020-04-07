@@ -57,9 +57,9 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Box::new(Subscriber {
+        .set_delegate(Subscriber {
             channel: channel_b.clone(),
-        }));
+        });
 
     let payload = b"Hello world!";
 
