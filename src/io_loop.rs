@@ -120,7 +120,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             let heartbeat = self.connection.configuration().heartbeat();
             if heartbeat != 0 {
                 trace!("io_loop: start heartbeat");
-                let heartbeat = Duration::from_secs(u64::from(heartbeat / 2));
+                let heartbeat = Duration::from_millis(u64::from(heartbeat * 500)); // * 1000 (ms) / 2 (half the negociated timeout)
                 self.start_heartbeat(heartbeat)?;
                 self.poll_timeout = Some(heartbeat);
                 trace!("io_loop: heartbeat started");
