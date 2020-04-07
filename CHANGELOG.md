@@ -2,6 +2,12 @@
 
 #### Bug Fixes
 
+* Don't queue extraneous heartbeats if we cannot write to socket
+
+### 0.38.4 (2020-04-07)
+
+#### Bug Fixes
+
 * Refuse invalid incoming frames
 * Don't send heartbeats unless necessary
 
