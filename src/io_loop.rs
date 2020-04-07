@@ -3,13 +3,13 @@ use crate::{
     PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
-use log::{debug, error, trace};
+use log::{error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use std::{
     collections::VecDeque,
     io::{Read, Write},
     sync::Arc,
-    thread::{self, Builder as ThreadBuilder, JoinHandle},
+    thread::Builder as ThreadBuilder,
     time::{Duration, Instant},
 };
 
@@ -38,6 +38,7 @@ pub struct IoLoop<T> {
     can_read: bool,
     poll_timeout: Option<Duration>,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
+    last_write: Instant,
 }
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
@@ -64,6 +65,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             can_read: false,
             poll_timeout: None,
             serialized_frames: VecDeque::default(),
+            last_write: Instant::now(),
         };
         if registered {
             inner.poll.registry().reregister(
@@ -140,9 +142,17 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         )
     }
 
+    fn poll_timeout(&self) -> Option<Duration> {
+        self.poll_timeout.map(|timeout| {
+            timeout
+                .checked_sub(self.last_write.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0))
+        })
+    }
+
     fn poll(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop poll");
-        self.poll.poll(events, self.poll_timeout)?;
+        self.poll.poll(events, self.poll_timeout())?;
         trace!("io_loop poll done");
         for event in events.iter() {
             if event.token() == SOCKET {
@@ -181,6 +191,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             }
             self.parse()?;
             self.connection.poll_internal_promises()?;
+            if self.should_heartbeat() {
+                self.connection.send_heartbeat()?;
+            }
             if self.stop_looping() {
                 self.maybe_continue()?;
                 break;
@@ -194,6 +207,14 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.status
         );
         Ok(())
+    }
+
+    fn should_heartbeat(&self) -> bool {
+        if let Some(heartbeat_timeout) = self.poll_timeout {
+            self.last_write.elapsed() > heartbeat_timeout
+        } else {
+            false
+        }
     }
 
     fn stop_looping(&self) -> bool {
@@ -269,30 +290,34 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
         let sz = self.send_buffer.write_to(&mut self.socket)?;
 
-        trace!("wrote {} bytes", sz);
-        self.send_buffer.consume(sz, true);
+        if sz > 0 {
+            self.last_write = Instant::now();
 
-        let mut written = sz as u64;
-        while written > 0 {
-            if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
-                if written < to_write {
-                    self.serialized_frames
-                        .push_front((to_write - written, resolver));
-                    written = 0;
-                } else {
-                    if let Some(resolver) = resolver {
-                        resolver.swear(Ok(()));
+            trace!("wrote {} bytes", sz);
+            self.send_buffer.consume(sz, true);
+
+            let mut written = sz as u64;
+            while written > 0 {
+                if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
+                    if written < to_write {
+                        self.serialized_frames
+                            .push_front((to_write - written, resolver));
+                        written = 0;
+                    } else {
+                        if let Some(resolver) = resolver {
+                            resolver.swear(Ok(()));
+                        }
+                        written -= to_write;
                     }
-                    written -= to_write;
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
-        }
 
-        if sz > 0 && self.send_buffer.available_data() > 0 {
-            // We didn't write all the data yet
-            self.send_continue()?;
+            if self.send_buffer.available_data() > 0 {
+                // We didn't write all the data yet
+                self.send_continue()?;
+            }
         }
         Ok(())
     }

@@ -318,6 +318,8 @@ impl Connection {
     }
 
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
+        debug!("send heartbeat");
+
         self.wake()?;
         let (promise, resolver) = Promise::new();
 
