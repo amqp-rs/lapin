@@ -31,7 +31,6 @@ pub struct IoLoop<T> {
     status: Status,
     poll: Poll,
     waker: Arc<Waker>,
-    hb_handle: Option<JoinHandle<()>>,
     frame_size: usize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
@@ -58,7 +57,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             status: Status::Initial,
             poll,
             waker,
-            hb_handle: None,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
@@ -83,34 +81,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         Ok(inner)
     }
 
-    fn start_heartbeat(&mut self, interval: Duration) -> Result<()> {
-        let connection = self.connection.clone();
-        let hb_handle = ThreadBuilder::new()
-            .name("heartbeat".to_owned())
-            .spawn(move || {
-                while connection.status().connected() {
-                    let start = Instant::now();
-                    let mut remaining = interval;
-
-                    loop {
-                        thread::park_timeout(remaining);
-                        let elapsed = start.elapsed();
-                        if elapsed >= remaining {
-                            break;
-                        }
-                        remaining -= interval - elapsed;
-                    }
-
-                    debug!("send heartbeat");
-                    if let Err(err) = connection.send_heartbeat() {
-                        error!("Error while sending heartbeat: {}", err);
-                    }
-                }
-            })?;
-        self.hb_handle = Some(hb_handle);
-        Ok(())
-    }
-
     fn ensure_setup(&mut self) -> Result<()> {
         if self.status != Status::Setup && self.connection.status().connected() {
             let frame_max = self.connection.configuration().frame_max() as usize;
@@ -119,11 +89,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
             let heartbeat = self.connection.configuration().heartbeat();
             if heartbeat != 0 {
-                trace!("io_loop: start heartbeat");
                 let heartbeat = Duration::from_millis(u64::from(heartbeat * 500)); // * 1000 (ms) / 2 (half the negociated timeout)
-                self.start_heartbeat(heartbeat)?;
                 self.poll_timeout = Some(heartbeat);
-                trace!("io_loop: heartbeat started");
             }
             self.status = Status::Setup;
         }
@@ -166,10 +133,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
                         self.run(&mut events)?;
-                    }
-                    if let Some(hb_handle) = self.hb_handle.take() {
-                        hb_handle.thread().unpark();
-                        hb_handle.join().expect("heartbeat loop failed");
                     }
                     Ok(())
                 })?,
