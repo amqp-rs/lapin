@@ -114,7 +114,7 @@ impl Connection {
         self.io_loop.wait("io loop")
     }
 
-    pub fn on_error<E: Fn(Error) + Send + 'static>(&self, handler: Box<E>) {
+    pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: Box<E>) {
         self.error_handler.set_handler(handler);
     }
 
