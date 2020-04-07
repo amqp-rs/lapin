@@ -1,3 +1,14 @@
+### 0.38.4 (2020-04-??)
+
+#### Bug Fixes
+
+* Refuse invalid incoming frames
+* Don't send heartbeats unless necessary
+
+#### Misc
+
+* Drop the heartbeat thread
+
 ### 0.38.3 (2020-04-06)
 
 #### Bug Fixes
