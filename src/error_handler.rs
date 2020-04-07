@@ -31,6 +31,6 @@ impl Default for ErrorHandler {
 
 impl fmt::Debug for ErrorHandler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ErrorHandler")
+        f.debug_struct("ErrorHandler").finish()
     }
 }

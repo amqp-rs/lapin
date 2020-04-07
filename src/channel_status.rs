@@ -1,9 +1,9 @@
 use crate::types::ShortString;
 use log::trace;
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct ChannelStatus {
     inner: Arc<Mutex<Inner>>,
 }
@@ -71,7 +71,17 @@ impl Default for ChannelState {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Debug for ChannelStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.lock();
+        f.debug_struct("ChannelStatus")
+            .field("state", &inner.state)
+            .field("confirm", &inner.confirm)
+            .field("send_flow", &inner.send_flow)
+            .finish()
+    }
+}
+
 struct Inner {
     confirm: bool,
     send_flow: bool,

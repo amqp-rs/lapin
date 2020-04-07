@@ -120,9 +120,14 @@ impl IntoIterator for Consumer {
     }
 }
 
-impl fmt::Debug for ConsumerInner {
+impl fmt::Debug for Consumer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ConsumerInnder({})", self.tag)
+        let inner = self.inner.lock();
+        f.debug_struct("Consumer")
+            .field("tag", &inner.tag)
+            .field("executor", &inner.executor)
+            .field("task", &inner.task)
+            .finish()
     }
 }
 
@@ -206,12 +211,6 @@ impl ConsumerInner {
                 .expect("failed to send error to consumer");
         }
         self.cancel()
-    }
-}
-
-impl fmt::Debug for Consumer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Consumer({})", self.inner().tag())
     }
 }
 

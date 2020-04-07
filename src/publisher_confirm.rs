@@ -1,12 +1,12 @@
 use crate::{message::BasicReturnMessage, returned_messages::ReturnedMessages, Promise, Result};
 use log::trace;
 use std::{
+    fmt,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-#[derive(Debug)]
 pub struct PublisherConfirm {
     inner: Option<Promise<Confirmation>>,
     returned_messages: ReturnedMessages,
@@ -79,6 +79,12 @@ impl PublisherConfirm {
             .as_ref()
             .expect("inner should only be None after Drop")
             .wait()
+    }
+}
+
+impl fmt::Debug for PublisherConfirm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PublisherConfirm").finish()
     }
 }
 

@@ -6,12 +6,13 @@ use crate::{
 use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     sync::Arc,
 };
 
 pub type DeliveryTag = u64;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Acknowledgements {
     inner: Arc<Mutex<Inner>>,
 }
@@ -68,7 +69,16 @@ impl Acknowledgements {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Debug for Acknowledgements {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.lock();
+        f.debug_struct("Acknowledgements")
+            .field("returned_messages", &inner.returned_messages)
+            .field("pending", &inner.pending.keys())
+            .finish()
+    }
+}
+
 struct Inner {
     last: Option<(DeliveryTag, Promise<Confirmation>)>,
     pending: HashMap<DeliveryTag, (u16, ConfirmationBroadcaster)>,

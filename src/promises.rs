@@ -1,14 +1,14 @@
 use crate::{Promise, Result};
 use log::trace;
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
-#[derive(Clone, Debug)]
+// FIXME: drop Inner
+#[derive(Clone)]
 pub(crate) struct Promises<T> {
     inner: Arc<Mutex<Inner<T>>>,
 }
 
-#[derive(Debug)]
 struct Inner<T> {
     promises: Vec<Promise<T>>,
 }
@@ -39,6 +39,12 @@ impl<T: Send + 'static> Promises<T> {
 
     pub(crate) fn try_wait(&self) -> Option<Vec<Result<T>>> {
         self.inner.lock().try_wait()
+    }
+}
+
+impl<T> fmt::Debug for Promises<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Promises").finish()
     }
 }
 

@@ -4,9 +4,9 @@ use crate::{
 };
 use log::debug;
 use parking_lot::Mutex;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
     frames: Frames,
@@ -116,7 +116,18 @@ impl Channels {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Debug for Channels {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.lock();
+        f.debug_struct("Channels")
+            .field("channels", &inner.channels.values())
+            .field("frames", &self.frames)
+            .field("channel_id", &inner.channel_id)
+            .field("executor", &inner.executor)
+            .finish()
+    }
+}
+
 struct Inner {
     channels: HashMap<u16, Channel>,
     channel_id: IdSequence<u16>,

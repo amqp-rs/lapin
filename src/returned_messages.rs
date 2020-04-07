@@ -4,9 +4,9 @@ use crate::{
 };
 use log::{trace, warn};
 use parking_lot::Mutex;
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, fmt, sync::Arc};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub(crate) struct ReturnedMessages {
     inner: Arc<Mutex<Inner>>,
 }
@@ -45,7 +45,18 @@ impl ReturnedMessages {
     }
 }
 
-#[derive(Debug, Default)]
+impl fmt::Debug for ReturnedMessages {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.lock();
+        f.debug_struct("ReturnedMessages")
+            .field("waiting_messages", &inner.waiting_messages)
+            .field("messages", &inner.messages)
+            .field("non_confirm_messages", &inner.non_confirm_messages)
+            .finish()
+    }
+}
+
+#[derive(Default)]
 pub struct Inner {
     current_message: Option<BasicReturnMessage>,
     non_confirm_messages: Vec<BasicReturnMessage>,

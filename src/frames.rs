@@ -16,10 +16,11 @@ pub(crate) struct ExpectedReply(
 
 impl fmt::Debug for ExpectedReply {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ExpectedReply({:?})", self.0)
+        f.debug_tuple("ExpectedReply").field(&self.0).finish()
     }
 }
 
+// FIXME: drop this?
 #[derive(Clone, Debug)]
 pub(crate) enum Priority {
     CRITICAL,
@@ -32,7 +33,7 @@ impl Default for Priority {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Frames {
     inner: Arc<Mutex<Inner>>,
 }
@@ -85,7 +86,6 @@ impl Frames {
     }
 }
 
-#[derive(Debug)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
     header_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
@@ -104,6 +104,14 @@ impl Default for Inner {
             low_prio_frames: VecDeque::default(),
             expected_replies: HashMap::default(),
         }
+    }
+}
+
+impl fmt::Debug for Frames {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Frames")
+            .field("expected_replies", &self.inner.lock().expected_replies)
+            .finish()
     }
 }
 

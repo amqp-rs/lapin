@@ -2,7 +2,7 @@ use crate::{
     consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
     PromiseResolver, Result,
 };
-use std::{borrow::Borrow, collections::HashMap, hash::Hash};
+use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
 
 #[derive(Clone, Debug)]
 pub struct Queue {
@@ -25,11 +25,19 @@ impl Queue {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct QueueState {
     name: ShortString,
     consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
+}
+
+impl fmt::Debug for QueueState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("QueueState")
+            .field("name", &self.name)
+            .field("consumers", &self.consumers)
+            .finish()
+    }
 }
 
 impl Queue {

@@ -4,7 +4,7 @@ use std::{sync::Arc, thread};
 
 pub(crate) type JoinHandle = thread::JoinHandle<Result<()>>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct ThreadHandle {
     handle: Arc<Mutex<Option<JoinHandle>>>,
 }

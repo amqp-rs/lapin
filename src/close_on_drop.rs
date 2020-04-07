@@ -1,8 +1,8 @@
 use crate::{protocol, types::ShortUInt, Promise};
 use log::warn;
-use std::ops::Deref;
+use std::{fmt, ops::Deref};
 
-#[derive(Debug)]
+// FIXME: tuple
 pub struct CloseOnDrop<T: __private::Closable> {
     inner: Option<T>,
 }
@@ -24,6 +24,12 @@ impl<T: __private::Closable> CloseOnDrop<T> {
 
     pub fn close(self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.into_inner().close(reply_code, reply_text)
+    }
+}
+
+impl<T: __private::Closable + fmt::Debug> fmt::Debug for CloseOnDrop<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("CloseOnDrop").field(&self.inner).finish()
     }
 }
 

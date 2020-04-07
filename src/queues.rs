@@ -6,9 +6,9 @@ use crate::{
     BasicProperties, Error, PromiseResolver, Result,
 };
 use parking_lot::Mutex;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Queues {
     queues: Arc<Mutex<HashMap<ShortString, QueueState>>>,
 }
@@ -161,5 +161,11 @@ impl Queues {
             }
             Ok(())
         })
+    }
+}
+
+impl fmt::Debug for Queues {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Queues").field(&*self.queues.lock()).finish()
     }
 }

@@ -1,7 +1,7 @@
 use parking_lot::RwLock;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Configuration {
     inner: Arc<RwLock<Inner>>,
 }
@@ -32,9 +32,20 @@ impl Configuration {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct Inner {
     channel_max: u16,
     frame_max: u32,
     heartbeat: u16,
+}
+
+impl fmt::Debug for Configuration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.read();
+        f.debug_struct("Configuration")
+            .field("channel_max", &inner.channel_max)
+            .field("frame_max", &inner.frame_max)
+            .field("heartbeat", &inner.heartbeat)
+            .finish()
+    }
 }

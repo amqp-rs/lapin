@@ -22,12 +22,12 @@ use crate::{
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
-use std::{convert::TryFrom, sync::Arc};
+use std::{convert::TryFrom, fmt, sync::Arc};
 
 #[cfg(test)]
 use crate::queue::QueueState;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Channel {
     id: u16,
     connection: Connection,
@@ -37,6 +37,20 @@ pub struct Channel {
     queues: Queues,
     returned_messages: ReturnedMessages,
     executor: Arc<dyn Executor>,
+}
+
+impl fmt::Debug for Channel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Channel")
+            .field("id", &self.id)
+            .field("status", &self.status)
+            .field("acknowledgements", &self.acknowledgements)
+            .field("delivery_tag", &self.delivery_tag)
+            .field("queues", &self.queues)
+            .field("returned_messages", &self.returned_messages)
+            .field("executor", &self.executor)
+            .finish()
+    }
 }
 
 impl Channel {

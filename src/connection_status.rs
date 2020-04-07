@@ -1,8 +1,8 @@
 use crate::{auth::Credentials, CloseOnDrop, Connection, ConnectionProperties, PromiseResolver};
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct ConnectionStatus {
     inner: Arc<Mutex<Inner>>,
 }
@@ -101,7 +101,18 @@ impl PartialEq for ConnectionState {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Debug for ConnectionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.lock();
+        f.debug_struct("ConnectionStatus")
+            .field("state", &inner.state)
+            .field("vhost", &inner.vhost)
+            .field("username", &inner.username)
+            .field("blocked", &inner.blocked)
+            .finish()
+    }
+}
+
 struct Inner {
     state: ConnectionState,
     vhost: String,

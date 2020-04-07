@@ -24,6 +24,6 @@ impl Waker {
 
 impl fmt::Debug for Waker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Waker")
+        f.debug_struct("Waker").finish()
     }
 }

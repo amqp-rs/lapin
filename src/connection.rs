@@ -22,9 +22,9 @@ use crate::{
 use amq_protocol::frame::AMQPFrame;
 use log::{debug, error, log_enabled, trace, Level::Trace};
 use mio::{Poll, Token, Waker as MioWaker};
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
@@ -402,6 +402,19 @@ impl Connection {
             }
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Connection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Connection")
+            .field("configuration", &self.configuration)
+            .field("status", &self.status)
+            .field("channels", &self.channels)
+            .field("waker", &self.waker)
+            .field("frames", &self.frames)
+            .field("error_handler", &self.error_handler)
+            .finish()
     }
 }
 
