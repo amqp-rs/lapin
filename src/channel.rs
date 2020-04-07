@@ -364,10 +364,10 @@ impl Channel {
     }
 
     fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
-        // If we disable the heartbeat (0) but the server don't, follow him and enable it too
+        // If we disable the heartbeat (0) but the server don't, follow it and enable it too
         // If both us and the server want heartbeat enabled, pick the lowest value.
         if self.connection.configuration().heartbeat() == 0
-            || heartbeat != 0 && heartbeat < self.connection.configuration().heartbeat()
+            || (heartbeat != 0 && heartbeat < self.connection.configuration().heartbeat())
         {
             self.connection.configuration().set_heartbeat(heartbeat);
         }
