@@ -1,5 +1,8 @@
 {
   "connection": {
+    "metadata": {
+      "channel0_only": true
+    },
     "start-ok": {
       "metadata": {
         "extra_args": [

@@ -10,7 +10,7 @@ use crate::{
     frames::{ExpectedReply, Priority},
     id_sequence::IdSequence,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
-    protocol::{self, AMQPClass, AMQPError, AMQPSoftError},
+    protocol::{self, AMQPClass, AMQPError, AMQPHardError, AMQPSoftError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
     queues::Queues,
@@ -94,6 +94,32 @@ impl Channel {
 
     pub fn id(&self) -> u16 {
         self.id
+    }
+
+    fn assert_channel0(&self, class_id: u16, method_id: u16) -> Result<()> {
+        if self.id == 0 {
+            Ok(())
+        } else {
+            error!(
+                "Got a connection frame on channel {}, closing connection",
+                self.id
+            );
+            self.connection
+                .register_internal_promise(self.connection.close_full(
+                    AMQPHardError::COMMANDINVALID.get_id(),
+                    "command invalid",
+                    class_id,
+                    method_id,
+                ))?;
+            // FIXME: AMQPError::from(AMQPHardError)
+            Err(Error::ProtocolError(
+                AMQPError::from_id(
+                    AMQPHardError::COMMANDINVALID.get_id(),
+                    format!("connection frame received on channel {}", self.id).into(),
+                )
+                .unwrap(),
+            ))
+        }
     }
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {

@@ -155,7 +155,13 @@ impl Channel {
 
   {{#if method.s2c ~}}
   {{#if method.is_reply ~}}
-  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if method.arguments ~}}method{{else}}_{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if class.metadata.channel0_only ~}}method{{else}}{{#if method.arguments ~}}method{{else}}_{{/if ~}}{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
+    {{#if class.metadata.channel0_only ~}}
+    self.assert_channel0(
+      method.get_amqp_class_id(),
+      method.get_amqp_method_id(),
+    )?;
+    {{/if ~}}
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -193,6 +199,12 @@ impl Channel {
   }
   {{else}}
   fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
+    {{#if class.metadata.channel0_only ~}}
+    self.assert_channel0(
+      method.get_amqp_class_id(),
+      method.get_amqp_method_id(),
+    )?;
+    {{/if ~}}
     if !self.status.is_connected() {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
