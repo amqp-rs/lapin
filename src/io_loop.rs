@@ -196,6 +196,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             if self.should_heartbeat() {
                 self.sent_initial_heartbeat = true;
                 self.connection.send_heartbeat()?;
+                // Update last_write so that if we cannot write yet to the socket, we don't enqueue countless heartbeats
+                self.last_write = Instant::now();
             }
             if self.stop_looping() {
                 self.maybe_continue()?;
