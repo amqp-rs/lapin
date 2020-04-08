@@ -1,3 +1,4 @@
+use crate::parsing::ParsingContext;
 use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
 use std::{
     cmp,
@@ -134,6 +135,14 @@ impl Buffer {
                 let dataptr = data.as_ptr() as usize;
                 bufptr + self.capacity - self.position - dataptr
             }
+        }
+    }
+
+    pub(crate) fn parsing_context(&self) -> ParsingContext<'_> {
+        if self.end > self.position {
+            self.memory[self.position..self.end].into()
+        } else {
+            [&self.memory[self.position..], &self.memory[..self.end]].into()
         }
     }
 
