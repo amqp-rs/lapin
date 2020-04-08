@@ -122,7 +122,8 @@ impl Buffer {
         let bufptr = buf.as_ptr() as usize;
         if self.end >= self.position {
             let data = &self.memory[self.position..self.end];
-            bufptr - data.as_ptr() as usize
+            let dataptr = data.as_ptr() as usize;
+            bufptr - dataptr
         } else {
             let data = &self.memory[self.position..];
             let dataptr = data.as_ptr() as usize;
@@ -130,7 +131,8 @@ impl Buffer {
                 bufptr - dataptr
             } else {
                 let data = &self.memory[..self.end];
-                bufptr + self.capacity - self.position - data.as_ptr() as usize
+                let dataptr = data.as_ptr() as usize;
+                bufptr + self.capacity - self.position - dataptr
             }
         }
     }
