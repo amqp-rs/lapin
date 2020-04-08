@@ -21,11 +21,11 @@ rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 
 [build-dependencies]
-amq-protocol-codegen = "^5.1"
+amq-protocol-codegen = "=6.0.0-alpha1"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "^5.1"
+version = "=6.0.0-alpha1"
 default-features = false
 
 [dependencies.mio]
