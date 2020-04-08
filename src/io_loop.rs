@@ -297,7 +297,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     self.critical_error(e)?;
                 }
             }
-            self.receive_buffer.shift_unless_available(self.frame_size);
         }
         Ok(())
     }
@@ -318,7 +317,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             }
 
             trace!("wrote {} bytes", sz);
-            self.send_buffer.consume(sz, true);
+            self.send_buffer.consume(sz);
 
             let mut written = sz as u64;
             while written > 0 {
@@ -351,12 +350,10 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer
-                    .read_from(&mut self.socket, false)
-                    .map(|sz| {
-                        trace!("read {} bytes", sz);
-                        self.receive_buffer.fill(sz, false);
-                    })?;
+                self.receive_buffer.read_from(&mut self.socket).map(|sz| {
+                    trace!("read {} bytes", sz);
+                    self.receive_buffer.fill(sz);
+                })?;
                 Ok(())
             }
         }
@@ -404,15 +401,14 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn do_parse(&mut self) -> Result<Option<AMQPFrame>> {
-        match parse_frame(self.receive_buffer.data()) {
+        match parse_frame(self.receive_buffer.parsing_context()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.offset(i);
-                self.receive_buffer.consume(consumed, false);
+                self.receive_buffer.consume(consumed);
                 Ok(Some(f))
             }
             Err(e) => {
                 if e.is_incomplete() {
-                    self.receive_buffer.shift();
                     Ok(None)
                 } else {
                     error!("parse error: {:?}", e);

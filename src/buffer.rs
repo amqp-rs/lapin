@@ -68,21 +68,17 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn consume(&mut self, count: usize, ring: bool) -> usize {
+    pub(crate) fn consume(&mut self, count: usize) -> usize {
         let cnt = cmp::min(count, self.available_data());
         self.position += cnt;
-        if ring {
-            self.position %= self.capacity;
-        }
+        self.position %= self.capacity;
         cnt
     }
 
-    pub(crate) fn fill(&mut self, count: usize, ring: bool) -> usize {
+    pub(crate) fn fill(&mut self, count: usize) -> usize {
         let cnt = cmp::min(count, self.available_space());
         self.end += cnt;
-        if ring {
-            self.end %= self.capacity;
-        }
+        self.end %= self.capacity;
         cnt
     }
 
@@ -97,29 +93,21 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn read_from<T: io::Read>(
-        &mut self,
-        reader: &mut T,
-        ring: bool,
-    ) -> io::Result<usize> {
-        if ring {
-            if self.end >= self.position {
-                let (start, end) = self.memory.split_at_mut(self.end);
-                reader.read_vectored(
-                    &mut [
-                        IoSliceMut::new(&mut end[..]),
-                        IoSliceMut::new(&mut start[..self.position]),
-                    ][..],
-                )
-            } else {
-                reader.read(&mut self.memory[self.end..self.position])
-            }
+    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T) -> io::Result<usize> {
+        if self.end >= self.position {
+            let (start, end) = self.memory.split_at_mut(self.end);
+            reader.read_vectored(
+                &mut [
+                    IoSliceMut::new(&mut end[..]),
+                    IoSliceMut::new(&mut start[..self.position]),
+                ][..],
+            )
         } else {
-            reader.read(&mut self.memory[self.end..])
+            reader.read(&mut self.memory[self.end..self.position])
         }
     }
 
-    pub(crate) fn offset(&self, buf: &[u8]) -> usize {
+    pub(crate) fn offset(&self, buf: ParsingContext<'_>) -> usize {
         let bufptr = buf.as_ptr() as usize;
         if self.end >= self.position {
             let data = &self.memory[self.position..self.end];
@@ -145,31 +133,6 @@ impl Buffer {
             [&self.memory[self.position..], &self.memory[..self.end]].into()
         }
     }
-
-    pub(crate) fn data(&self) -> &[u8] {
-        // FIXME: drop
-        &self.memory[self.position..self.end]
-    }
-
-    pub(crate) fn shift(&mut self) {
-        // FIXME: drop
-        let length = self.end - self.position;
-        if length > self.position {
-            return;
-        } else {
-            let (start, end) = self.memory.split_at_mut(self.position);
-            start[..length].copy_from_slice(&end[..length]);
-        }
-        self.position = 0;
-        self.end = length;
-    }
-
-    pub(crate) fn shift_unless_available(&mut self, size: usize) {
-        // FIXME: drop
-        if self.available_space() < size {
-            self.shift();
-        }
-    }
 }
 
 impl io::Write for &mut Buffer {
@@ -186,7 +149,7 @@ impl io::Write for &mut Buffer {
             let mut space = &mut self.memory[self.end..self.position];
             space.write(data)?
         };
-        self.fill(amt, true);
+        self.fill(amt);
         Ok(amt)
     }
 
@@ -212,7 +175,7 @@ impl BackToTheBuffer for &mut Buffer {
             ));
         }
         let start = s.write.checkpoint();
-        s.write.fill(reserved, true);
+        s.write.fill(reserved);
         gen(s).and_then(|(s, tmp)| {
             let end = s.write.checkpoint();
             s.write.rollback(start);
