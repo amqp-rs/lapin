@@ -1,3 +1,11 @@
+### 0.39.0 (2020-04-08)
+
+#### Breaking changes
+
+* `Connection::on_error` and `Consumer::set_delegate` no longer require a `Box`
+* `Connection::on_error` now accept a `FnMut`
+* Update to pinky-swear 4.0.0
+
 ### 0.38.4 (2020-04-07)
 
 #### Bug Fixes
