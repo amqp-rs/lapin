@@ -1,7 +1,7 @@
 use crate::{
     error_handler::ErrorHandler,
     executor::Executor,
-    frames::{Frames, Priority},
+    frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     promises::Promises,
@@ -166,7 +166,7 @@ impl Channels {
                 promise.set_marker("Heartbeat".into());
             }
 
-            channel0.send_frame(Priority::CRITICAL, AMQPFrame::Heartbeat(0), resolver, None)?;
+            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None)?;
             self.register_internal_promise(promise)
         } else {
             Err(Error::InvalidConnectionState(

@@ -7,7 +7,7 @@ use crate::{
     connection_status::{ConnectionState, ConnectionStatus},
     executor::DefaultExecutor,
     executor::Executor,
-    frames::{Frames, Priority},
+    frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     promises::Promises,
@@ -203,12 +203,10 @@ impl Connection {
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
-            if let Err(err) = conn.channel0().send_frame(
-                Priority::CRITICAL,
-                AMQPFrame::ProtocolHeader,
-                resolver.clone(),
-                None,
-            ) {
+            if let Err(err) =
+                conn.channel0()
+                    .send_frame(AMQPFrame::ProtocolHeader, resolver.clone(), None)
+            {
                 resolver.swear(Err(err));
             }
             let (promise, resolver) = CloseOnDropPromise::after(promise);

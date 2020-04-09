@@ -20,19 +20,6 @@ impl fmt::Debug for ExpectedReply {
     }
 }
 
-// FIXME: drop this?
-#[derive(Clone, Debug)]
-pub(crate) enum Priority {
-    CRITICAL,
-    NORMAL,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::NORMAL
-    }
-}
-
 #[derive(Clone, Default)]
 pub(crate) struct Frames {
     inner: Arc<Mutex<Inner>>,
@@ -42,14 +29,13 @@ impl Frames {
     pub(crate) fn push(
         &self,
         channel_id: u16,
-        priority: Priority,
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
         self.inner
             .lock()
-            .push(channel_id, priority, frame, resolver, expected_reply);
+            .push(channel_id, frame, resolver, expected_reply);
     }
 
     pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
@@ -119,21 +105,11 @@ impl Inner {
     fn push(
         &mut self,
         channel_id: u16,
-        priority: Priority,
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
-        match priority {
-            Priority::CRITICAL => {
-                // FIXME: Should we store channel_id and notify on close here?
-                self.priority_frames.push_front((frame, Some(resolver)));
-            }
-            Priority::NORMAL => {
-                self.frames.push_back((frame, Some(resolver)));
-            }
-        };
-
+        self.frames.push_back((frame, Some(resolver)));
         if let Some(reply) = expected_reply {
             trace!(
                 "channel {} state is now waiting for {:?}",

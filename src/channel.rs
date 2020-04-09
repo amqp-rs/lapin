@@ -6,7 +6,7 @@ use crate::{
     connection_status::ConnectionState,
     consumer::Consumer,
     executor::Executor,
-    frames::{ExpectedReply, Frames, Priority},
+    frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -202,24 +202,17 @@ impl Channel {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) -> Result<()> {
-        self.send_frame(
-            Priority::NORMAL,
-            AMQPFrame::Method(self.id, method),
-            resolver,
-            expected_reply,
-        )
+        self.send_frame(AMQPFrame::Method(self.id, method), resolver, expected_reply)
     }
 
     pub(crate) fn send_frame(
         &self,
-        priority: Priority,
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) -> Result<()> {
         trace!("channel {} send_frame", self.id);
-        self.frames
-            .push(self.id, priority, frame, resolver, expected_reply);
+        self.frames.push(self.id, frame, resolver, expected_reply);
         self.wake()
     }
 
