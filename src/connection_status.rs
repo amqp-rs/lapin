@@ -66,10 +66,15 @@ pub enum ConnectionState {
     Initial,
     SentProtocolHeader(
         PromiseResolver<CloseOnDrop<Connection>>,
+        Connection,
         Credentials,
         ConnectionProperties,
     ),
-    SentStartOk(PromiseResolver<CloseOnDrop<Connection>>, Credentials),
+    SentStartOk(
+        PromiseResolver<CloseOnDrop<Connection>>,
+        Connection,
+        Credentials,
+    ),
     SentOpen(PromiseResolver<CloseOnDrop<Connection>>),
     Connected,
     Closing,

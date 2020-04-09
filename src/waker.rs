@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc};
 
 #[derive(Clone, Default)]
 pub(crate) struct Waker {
-    inner: Arc<RwLock<Option<Arc<MioWaker>>>>,
+    inner: Arc<RwLock<Option<MioWaker>>>,
 }
 
 impl Waker {
@@ -16,9 +16,8 @@ impl Waker {
         Ok(())
     }
 
-    pub(crate) fn set_waker(&self, waker: Arc<MioWaker>) -> Result<()> {
+    pub(crate) fn set_waker(&self, waker: MioWaker) {
         *self.inner.write() = Some(waker);
-        self.wake()
     }
 }
 

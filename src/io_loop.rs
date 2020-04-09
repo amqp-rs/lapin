@@ -1,10 +1,11 @@
 use crate::{
-    buffer::Buffer, connection::Connection, connection_status::ConnectionState, Error,
-    PromiseResolver, Result,
+    buffer::Buffer, channels::Channels, connection_status::ConnectionState, frames::Frames,
+    internal_rpc::InternalRPC, thread::ThreadHandle, waker::Waker, Configuration, ConnectionStatus,
+    Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
-use mio::{event::Source, Events, Interest, Poll, Token, Waker};
+use mio::{event::Source, Events, Interest, Poll, Token, Waker as MioWaker};
 use std::{
     collections::VecDeque,
     io::{Read, Write},
@@ -26,11 +27,16 @@ enum Status {
 }
 
 pub struct IoLoop<T> {
-    connection: Connection,
+    connection_status: ConnectionStatus,
+    configuration: Configuration,
+    channels: Channels,
+    internal_rpc: InternalRPC,
+    frames: Frames,
+    connection_io_loop_handle: ThreadHandle,
+    waker: Waker,
     socket: T,
     status: Status,
     poll: Poll,
-    waker: Arc<Waker>,
     frame_size: usize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
@@ -44,21 +50,32 @@ pub struct IoLoop<T> {
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     pub(crate) fn new(
-        connection: Connection,
+        connection_status: ConnectionStatus,
+        configuration: Configuration,
+        channels: Channels,
+        internal_rpc: InternalRPC,
+        frames: Frames,
+        connection_io_loop_handle: ThreadHandle,
+        waker: Waker,
         socket: T,
         poll: Option<(Poll, Token)>,
     ) -> Result<Self> {
         let (poll, registered) = poll
             .map(|t| Ok((t.0, true)))
             .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
-        let frame_size = std::cmp::max(8192, connection.configuration().frame_max() as usize);
-        let waker = Arc::new(Waker::new(poll.registry(), WAKER)?);
+        waker.set_waker(MioWaker::new(poll.registry(), WAKER)?);
+        let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
         let mut inner = Self {
-            connection,
+            connection_status,
+            configuration,
+            channels,
+            internal_rpc,
+            frames,
+            connection_io_loop_handle,
+            waker,
             socket,
             status: Status::Initial,
             poll,
-            waker,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
@@ -86,12 +103,12 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn ensure_setup(&mut self) -> Result<()> {
-        if self.status != Status::Setup && self.connection.status().connected() {
-            let frame_max = self.connection.configuration().frame_max() as usize;
+        if self.status != Status::Setup && self.connection_status.connected() {
+            let frame_max = self.configuration.frame_max() as usize;
             self.frame_size = std::cmp::max(self.frame_size, frame_max);
             self.receive_buffer.grow(FRAMES_STORAGE * self.frame_size);
             self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
-            let heartbeat = self.connection.configuration().heartbeat();
+            let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat * 500)); // * 1000 (ms) / 2 (half the negociated timeout)
                 self.poll_timeout = Some(heartbeat);
@@ -102,13 +119,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn has_data(&self) -> bool {
-        self.connection.has_pending_frames()
+        self.frames.has_pending()
             || self.send_buffer.available_data() > 0
             || !self.serialized_frames.is_empty()
     }
 
     fn can_write(&self) -> bool {
-        self.can_write && self.has_data() && !self.connection.status().blocked()
+        self.can_write && self.has_data() && !self.connection_status.blocked()
     }
 
     fn can_read(&self) -> bool {
@@ -120,17 +137,16 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn should_continue(&self) -> bool {
-        let connection_status = self.connection.status();
         (self.status == Status::Initial
-            || connection_status.connected()
-            || connection_status.closing())
+            || self.connection_status.connected()
+            || self.connection_status.closing())
             && self.status != Status::Stop
-            && !connection_status.errored()
+            && !self.connection_status.errored()
     }
 
     pub fn start(mut self) -> Result<()> {
         let waker = self.waker.clone();
-        self.connection.clone().set_io_loop(
+        self.connection_io_loop_handle.clone().register(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
                 .spawn(move || {
@@ -140,8 +156,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     }
                     Ok(())
                 })?,
-            waker,
-        )
+        );
+        waker.wake()
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
@@ -173,7 +189,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         trace!("io_loop run");
         self.ensure_setup()?;
         self.poll(events)?;
-        self.do_run()
+        self.do_run()?;
+        self.internal_rpc.poll(&self.channels)
     }
 
     fn do_run(&mut self) -> Result<()> {
@@ -185,17 +202,18 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         );
         loop {
             self.write()?;
-            if self.connection.status().closed() {
+            self.internal_rpc.poll(&self.channels)?;
+            if self.connection_status.closed() {
                 self.status = Status::Stop;
             }
             if self.should_continue() {
                 self.read()?;
             }
             self.parse()?;
-            self.connection.poll_internal_promises()?;
+            self.internal_rpc.poll(&self.channels)?;
             if self.should_heartbeat() {
                 self.sent_initial_heartbeat = true;
-                self.connection.send_heartbeat()?;
+                self.channels.send_heartbeat()?;
                 // Update last_write so that if we cannot write yet to the socket, we don't enqueue countless heartbeats
                 self.last_write = Instant::now();
             }
@@ -226,7 +244,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         !self.can_read()
             || !self.can_write()
             || self.status == Status::Stop
-            || self.connection.status().errored()
+            || self.connection_status.errored()
     }
 
     fn has_pending_operations(&self) -> bool {
@@ -247,12 +265,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
-        if let ConnectionState::SentProtocolHeader(resolver, ..) = self.connection.status().state()
-        {
+        if let ConnectionState::SentProtocolHeader(resolver, ..) = self.connection_status.state() {
             resolver.swear(Err(error.clone()));
             self.status = Status::Stop;
         }
-        self.connection.set_error(error.clone())?;
+        self.channels.set_connection_error(error.clone())?;
         Err(error)
     }
 
@@ -286,8 +303,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn send_continue(&mut self) -> Result<()> {
-        self.waker.wake()?;
-        Ok(())
+        self.waker.wake()
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
@@ -331,7 +347,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn read_from_stream(&mut self) -> Result<()> {
-        match self.connection.status().state() {
+        match self.connection_status.state() {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
@@ -347,7 +363,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn serialize(&mut self) -> Result<()> {
-        if let Some((next_msg, resolver)) = self.connection.next_frame() {
+        if let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
             trace!("will write to buffer: {:?}", next_msg);
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
@@ -361,13 +377,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
-                            self.connection.requeue_frame((next_msg, resolver))?;
-                            Ok(())
+                            self.frames.retry((next_msg, resolver));
+                            self.waker.wake()
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
                             let error = Error::SerialisationError(Arc::new(e));
-                            self.connection.set_error(error.clone())?;
+                            self.channels.set_connection_error(error.clone())?;
                             Err(error)
                         }
                     }
@@ -381,7 +397,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     fn parse(&mut self) -> Result<()> {
         if self.can_parse() {
             if let Some(frame) = self.do_parse()? {
-                self.connection.handle_frame(frame)?;
+                self.channels.handle_frame(frame)?;
             }
         }
         Ok(())
@@ -401,7 +417,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 } else {
                     error!("parse error: {:?}", e);
                     let error = Error::ParsingError(e);
-                    self.connection.set_error(error.clone())?;
+                    self.channels.set_connection_error(error.clone())?;
                     Err(error)
                 }
             }

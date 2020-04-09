@@ -3,21 +3,23 @@ use crate::{
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
     close_on_drop,
-    connection::Connection,
     connection_status::ConnectionState,
     consumer::Consumer,
     executor::Executor,
-    frames::{ExpectedReply, Priority},
+    frames::{ExpectedReply, Frames, Priority},
     id_sequence::IdSequence,
+    internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
+    promises::Promises,
     protocol::{self, AMQPClass, AMQPError, AMQPHardError, AMQPSoftError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
     queues::Queues,
     returned_messages::ReturnedMessages,
     types::*,
-    BasicProperties, CloseOnDrop, ConfirmationPromise, Error, ExchangeKind, Promise, PromiseChain,
-    PromiseResolver, Result,
+    waker::Waker,
+    BasicProperties, CloseOnDrop, Configuration, ConfirmationPromise, Connection, ConnectionStatus,
+    Error, ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
@@ -30,12 +32,17 @@ use crate::queue::QueueState;
 #[derive(Clone)]
 pub struct Channel {
     id: u16,
-    connection: Connection,
+    configuration: Configuration,
     status: ChannelStatus,
+    connection_status: ConnectionStatus,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
     returned_messages: ReturnedMessages,
+    waker: Waker,
+    internal_rpc: InternalRPCHandle,
+    frames: Frames,
+    internal_promises: Promises<()>,
     executor: Arc<dyn Executor>,
 }
 
@@ -43,11 +50,16 @@ impl fmt::Debug for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Channel")
             .field("id", &self.id)
+            .field("configuration", &self.configuration)
             .field("status", &self.status)
+            .field("connection_status", &self.connection_status)
             .field("acknowledgements", &self.acknowledgements)
             .field("delivery_tag", &self.delivery_tag)
             .field("queues", &self.queues)
             .field("returned_messages", &self.returned_messages)
+            .field("waker", &self.waker)
+            .field("frames", &self.frames)
+            .field("internal_promises", &self.internal_promises)
             .field("executor", &self.executor)
             .finish()
     }
@@ -56,18 +68,28 @@ impl fmt::Debug for Channel {
 impl Channel {
     pub(crate) fn new(
         channel_id: u16,
-        connection: Connection,
+        configuration: Configuration,
+        connection_status: ConnectionStatus,
+        waker: Waker,
+        internal_rpc: InternalRPCHandle,
+        frames: Frames,
+        internal_promises: Promises<()>,
         executor: Arc<dyn Executor>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
         Channel {
             id: channel_id,
-            connection,
+            configuration,
             status: ChannelStatus::default(),
+            connection_status,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
             returned_messages,
+            waker,
+            internal_rpc,
+            frames,
+            internal_promises,
             executor,
         }
     }
@@ -80,14 +102,18 @@ impl Channel {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
         self.cancel_consumers()
-            .and(self.connection.remove_channel(self.id, error))
+            .and(self.internal_rpc.remove_channel(self.id, error))
     }
 
     fn set_error(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone())
-            .and(self.connection.remove_channel(self.id, error))
+            .and(self.internal_rpc.remove_channel(self.id, error))
+    }
+
+    fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
+        self.internal_promises.register(promise).unwrap_or(Ok(()))
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
@@ -110,6 +136,11 @@ impl Channel {
         self.id
     }
 
+    fn wake(&self) -> Result<()> {
+        trace!("channel {} wake", self.id);
+        self.waker.wake()
+    }
+
     fn assert_channel0(&self, class_id: u16, method_id: u16) -> Result<()> {
         if self.id == 0 {
             Ok(())
@@ -118,13 +149,12 @@ impl Channel {
                 "Got a connection frame on channel {}, closing connection",
                 self.id
             );
-            self.connection
-                .register_internal_promise(self.connection.close_full(
-                    AMQPHardError::COMMANDINVALID.get_id(),
-                    "command invalid",
-                    class_id,
-                    method_id,
-                ))?;
+            self.internal_rpc.close_connection(
+                AMQPHardError::COMMANDINVALID.get_id(),
+                "command invalid".into(),
+                class_id,
+                method_id,
+            )?;
             // FIXME: AMQPError::from(AMQPHardError)
             Err(Error::ProtocolError(
                 AMQPError::from_id(
@@ -180,6 +210,19 @@ impl Channel {
         )
     }
 
+    pub(crate) fn send_frame(
+        &self,
+        priority: Priority,
+        frame: AMQPFrame,
+        resolver: PromiseResolver<()>,
+        expected_reply: Option<ExpectedReply>,
+    ) -> Result<()> {
+        trace!("channel {} send_frame", self.id);
+        self.frames
+            .push(self.id, priority, frame, resolver, expected_reply);
+        self.wake()
+    }
+
     fn send_method_frame_with_body(
         &self,
         method: AMQPClass,
@@ -194,7 +237,7 @@ impl Channel {
             body_size: payload.len() as u64,
             properties,
         };
-        let frame_max = self.connection.configuration().frame_max();
+        let frame_max = self.configuration.frame_max();
         let mut frames = vec![
             AMQPFrame::Method(self.id, method),
             AMQPFrame::Header(self.id, class_id, Box::new(header)),
@@ -214,28 +257,17 @@ impl Channel {
             self.returned_messages.clone(),
         )));
 
-        Ok(self
-            .connection
-            .send_frames(self.id, frames)?
-            .traverse(move |res| {
-                res.map(|()| {
-                    let mut data = data.lock();
-                    data.0
-                        .take()
-                        .unwrap_or_else(|| PublisherConfirm::not_requested(data.1.clone()))
-                })
-            }))
-    }
-
-    pub(crate) fn send_frame(
-        &self,
-        priority: Priority,
-        frame: AMQPFrame,
-        resolver: PromiseResolver<()>,
-        expected_reply: Option<ExpectedReply>,
-    ) -> Result<()> {
-        self.connection
-            .send_frame(self.id, priority, frame, resolver, expected_reply)
+        trace!("channel {} send_frames", self.id);
+        let promise = self.frames.push_frames(frames);
+        self.wake()?;
+        Ok(promise.traverse(move |res| {
+            res.map(|()| {
+                let mut data = data.lock();
+                data.0
+                    .take()
+                    .unwrap_or_else(|| PublisherConfirm::not_requested(data.1.clone()))
+            })
+        }))
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -333,23 +365,27 @@ impl Channel {
 
     fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
-        self.connection
-            .register_internal_promise(self.do_channel_close(
-                AMQPSoftError::PRECONDITIONFAILED.get_id(),
-                "precondition failed",
-                class_id,
-                method_id,
-            ))?;
+        self.register_internal_promise(self.do_channel_close(
+            AMQPSoftError::PRECONDITIONFAILED.get_id(),
+            "precondition failed",
+            class_id,
+            method_id,
+        ))?;
         Err(error)
     }
 
     fn on_connection_start_ok_sent(
         &self,
         resolver: PromiseResolver<CloseOnDrop<Connection>>,
+        connection: Connection,
         credentials: Credentials,
     ) -> Result<()> {
-        self.connection
-            .set_state(ConnectionState::SentStartOk(resolver, credentials));
+        self.connection_status
+            .set_state(ConnectionState::SentStartOk(
+                resolver,
+                connection,
+                credentials,
+            ));
         Ok(())
     }
 
@@ -357,21 +393,20 @@ impl Channel {
         &self,
         resolver: PromiseResolver<CloseOnDrop<Connection>>,
     ) -> Result<()> {
-        self.connection
+        self.connection_status
             .set_state(ConnectionState::SentOpen(resolver));
         Ok(())
     }
 
     fn on_connection_close_sent(&self) -> Result<()> {
-        self.connection.set_closing();
-        Ok(())
+        self.internal_rpc.set_connection_closing()
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) -> Result<()> {
         if let Error::ProtocolError(_) = error {
-            self.connection.set_error(error)
+            self.internal_rpc.set_connection_error(error)
         } else {
-            self.connection.set_closed(error)
+            self.internal_rpc.set_connection_closed(error)
         }
     }
 
@@ -406,47 +441,43 @@ impl Channel {
     fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
         // If we disable the heartbeat (0) but the server don't, follow it and enable it too
         // If both us and the server want heartbeat enabled, pick the lowest value.
-        if self.connection.configuration().heartbeat() == 0
-            || (heartbeat != 0 && heartbeat < self.connection.configuration().heartbeat())
+        if self.configuration.heartbeat() == 0
+            || (heartbeat != 0 && heartbeat < self.configuration.heartbeat())
         {
-            self.connection.configuration().set_heartbeat(heartbeat);
+            self.configuration.set_heartbeat(heartbeat);
         }
 
         if channel_max != 0 {
             // 0 means we want to take the server's value
             // If both us and the server specified a channel_max, pick the lowest value.
-            if self.connection.configuration().channel_max() == 0
-                || channel_max < self.connection.configuration().channel_max()
+            if self.configuration.channel_max() == 0
+                || channel_max < self.configuration.channel_max()
             {
-                self.connection.configuration().set_channel_max(channel_max);
+                self.configuration.set_channel_max(channel_max);
             }
         }
-        if self.connection.configuration().channel_max() == 0 {
-            self.connection
-                .configuration()
-                .set_channel_max(u16::max_value());
+        if self.configuration.channel_max() == 0 {
+            self.configuration.set_channel_max(u16::max_value());
         }
 
         if frame_max != 0 {
             // 0 means we want to take the server's value
             // If both us and the server specified a frame_max, pick the lowest value.
-            if self.connection.configuration().frame_max() == 0
-                || frame_max < self.connection.configuration().frame_max()
-            {
-                self.connection.configuration().set_frame_max(frame_max);
+            if self.configuration.frame_max() == 0 || frame_max < self.configuration.frame_max() {
+                self.configuration.set_frame_max(frame_max);
             }
         }
-        if self.connection.configuration().frame_max() == 0 {
-            self.connection
-                .configuration()
-                .set_frame_max(u32::max_value());
+        if self.configuration.frame_max() == 0 {
+            self.configuration.set_frame_max(u32::max_value());
         }
     }
 
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!("Server sent connection::Start: {:?}", method);
-        let state = self.connection.status().state();
-        if let ConnectionState::SentProtocolHeader(resolver, credentials, mut options) = state {
+        let state = self.connection_status.state();
+        if let ConnectionState::SentProtocolHeader(resolver, connection, credentials, mut options) =
+            state
+        {
             let mechanism = options.mechanism.to_string();
             let locale = options.locale.clone();
 
@@ -492,19 +523,19 @@ impl Channel {
                 .client_properties
                 .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-            self.connection
-                .register_internal_promise(self.connection_start_ok(
-                    options.client_properties,
-                    &mechanism,
-                    &credentials.sasl_auth_string(options.mechanism),
-                    &locale,
-                    resolver,
-                    credentials,
-                ))
+            self.register_internal_promise(self.connection_start_ok(
+                options.client_properties,
+                &mechanism,
+                &credentials.sasl_auth_string(options.mechanism),
+                &locale,
+                resolver,
+                connection,
+                credentials,
+            ))
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.connection.set_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone())?;
             Err(error)
         }
     }
@@ -512,15 +543,15 @@ impl Channel {
     fn on_connection_secure_received(&self, method: protocol::connection::Secure) -> Result<()> {
         trace!("Server sent connection::Secure: {:?}", method);
 
-        let state = self.connection.status().state();
-        if let ConnectionState::SentStartOk(_, credentials) = state {
-            self.connection.register_internal_promise(
+        let state = self.connection_status.state();
+        if let ConnectionState::SentStartOk(_, _, credentials) = state {
+            self.register_internal_promise(
                 self.connection_secure_ok(&credentials.rabbit_cr_demo_answer()),
             )
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.connection.set_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone())?;
             Err(error)
         }
     }
@@ -528,41 +559,46 @@ impl Channel {
     fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<()> {
         debug!("Server sent Connection::Tune: {:?}", method);
 
-        let state = self.connection.status().state();
-        if let ConnectionState::SentStartOk(resolver, _) = state {
+        let state = self.connection_status.state();
+        if let ConnectionState::SentStartOk(resolver, connection, _) = state {
             self.tune_connection_configuration(
                 method.channel_max,
                 method.frame_max,
                 method.heartbeat,
             );
 
-            self.connection
-                .register_internal_promise(self.connection_tune_ok(
-                    self.connection.configuration().channel_max(),
-                    self.connection.configuration().frame_max(),
-                    self.connection.configuration().heartbeat(),
-                ))?;
-            self.connection.register_internal_promise(
-                self.connection_open(&self.connection.status().vhost(), resolver),
-            )
+            self.register_internal_promise(self.connection_tune_ok(
+                self.configuration.channel_max(),
+                self.configuration.frame_max(),
+                self.configuration.heartbeat(),
+            ))?;
+            self.register_internal_promise(self.connection_open(
+                &self.connection_status.vhost(),
+                connection,
+                resolver,
+            ))
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.connection.set_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone())?;
             Err(error)
         }
     }
 
-    fn on_connection_open_ok_received(&self, _: protocol::connection::OpenOk) -> Result<()> {
-        let state = self.connection.status().state();
+    fn on_connection_open_ok_received(
+        &self,
+        _: protocol::connection::OpenOk,
+        connection: Connection,
+    ) -> Result<()> {
+        let state = self.connection_status.state();
         if let ConnectionState::SentOpen(resolver) = state {
-            self.connection.set_state(ConnectionState::Connected);
-            resolver.swear(Ok(CloseOnDrop::new(self.connection.clone())));
+            self.connection_status.set_state(ConnectionState::Connected);
+            resolver.swear(Ok(CloseOnDrop::new(connection)));
             Ok(())
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.connection.set_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone())?;
             Err(error)
         }
     }
@@ -581,21 +617,20 @@ impl Channel {
                 info!("Connection closed on channel {}: {:?}", self.id, method);
                 Error::InvalidConnectionState(ConnectionState::Closed)
             });
-        let state = self.connection.status().state();
-        self.connection.set_closing();
-        self.connection.drop_pending_frames(error.clone());
+        let state = self.connection_status.state();
+        self.internal_rpc.set_connection_closing()?;
+        self.frames.drop_pending(error.clone());
         match state {
             ConnectionState::SentProtocolHeader(resolver, ..) => resolver.swear(Err(error.clone())),
-            ConnectionState::SentStartOk(resolver, _) => resolver.swear(Err(error.clone())),
+            ConnectionState::SentStartOk(resolver, ..) => resolver.swear(Err(error.clone())),
             ConnectionState::SentOpen(resolver) => resolver.swear(Err(error.clone())),
             _ => {}
         }
-        self.connection
-            .register_internal_promise(self.connection_close_ok(error))
+        self.internal_rpc.send_connection_close_ok(error)
     }
 
     fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
-        self.connection.do_block();
+        self.connection_status.block();
         Ok(())
     }
 
@@ -603,12 +638,13 @@ impl Channel {
         &self,
         _method: protocol::connection::Unblocked,
     ) -> Result<()> {
-        self.connection.do_unblock()
+        self.connection_status.unblock();
+        self.wake()
     }
 
     fn on_connection_close_ok_received(&self) -> Result<()> {
-        self.connection
-            .set_closed(Error::InvalidConnectionState(ConnectionState::Closed))
+        self.internal_rpc
+            .set_connection_closed(Error::InvalidConnectionState(ConnectionState::Closed))
     }
 
     fn on_channel_open_ok_received(
@@ -623,10 +659,9 @@ impl Channel {
 
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
-        self.connection
-            .register_internal_promise(self.channel_flow_ok(ChannelFlowOkOptions {
-                active: method.active,
-            }))
+        self.register_internal_promise(self.channel_flow_ok(ChannelFlowOkOptions {
+            active: method.active,
+        }))
     }
 
     fn on_channel_flow_ok_received(
@@ -654,8 +689,7 @@ impl Channel {
                 Error::InvalidChannelState(ChannelState::Closing)
             });
         self.set_state(ChannelState::Closing);
-        self.connection
-            .register_internal_promise(self.channel_close_ok(error))
+        self.register_internal_promise(self.channel_close_ok(error))
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
@@ -715,7 +749,7 @@ impl Channel {
     }
 
     fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<()> {
-        match self.connection.next_expected_reply(self.id) {
+        match self.frames.next_expected_reply(self.id) {
             Some(Reply::BasicGetOk(resolver, _)) => {
                 resolver.swear(Ok(None));
                 Ok(())
@@ -763,8 +797,7 @@ impl Channel {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
             .and(if !method.nowait {
-                self.connection
-                    .register_internal_promise(self.basic_cancel_ok(method.consumer_tag.as_str()))
+                self.register_internal_promise(self.basic_cancel_ok(method.consumer_tag.as_str()))
             } else {
                 Ok(())
             })

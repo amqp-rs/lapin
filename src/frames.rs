@@ -126,6 +126,7 @@ impl Inner {
     ) {
         match priority {
             Priority::CRITICAL => {
+                // FIXME: Should we store channel_id and notify on close here?
                 self.priority_frames.push_front((frame, Some(resolver)));
             }
             Priority::NORMAL => {

@@ -61,7 +61,7 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-  {{#unless method.metadata.require_wrapper ~}}{{#unless method.is_reply ~}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/unless ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
+  {{#unless method.metadata.require_wrapper ~}}{{#if method.is_reply ~}}{{#if method.metadata.internal ~}}pub(crate) {{/if ~}}{{else}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/if ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
     {{#if method.metadata.channel_init ~}}
     if !self.status.is_initializing() {
     {{else}}
@@ -174,7 +174,7 @@ impl Channel {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
 
-    match self.connection.next_expected_reply(self.id) {
+    match self.frames.next_expected_reply(self.id) {
       Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}

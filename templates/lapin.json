@@ -11,19 +11,33 @@
             "type": "PromiseResolver<CloseOnDrop<Connection>>"
           },
           {
+            "name": "connection",
+            "type": "Connection"
+          },
+          {
             "name": "credentials",
             "type": "Credentials"
           }
         ],
         "end_hook": {
-          "params": ["resolver", "credentials"]
+          "params": ["resolver", "connection", "credentials"]
         }
       }
     },
     "open": {
       "metadata": {
         "internal": true,
+        "state": [
+          {
+            "name": "connection",
+            "type": "Connection"
+          }
+        ],
         "extra_args": [
+          {
+            "name": "connection",
+            "type": "Connection"
+          },
           {
             "name": "conn_resolver",
             "type": "PromiseResolver<CloseOnDrop<Connection>>"
@@ -43,6 +57,7 @@
     "close-ok": {
       "metadata": {
         "channel_deinit": true,
+        "internal": true,
         "received_hook": true,
         "extra_args": [
           {

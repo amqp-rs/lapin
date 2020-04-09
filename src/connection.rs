@@ -1,27 +1,26 @@
 use crate::{
-    channel::{Channel, Reply},
+    channel::Channel,
     channels::Channels,
     close_on_drop,
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
-    error_handler::ErrorHandler,
     executor::DefaultExecutor,
     executor::Executor,
-    frames::{ExpectedReply, Frames, Priority},
+    frames::{Frames, Priority},
+    internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     promises::Promises,
-    protocol::{AMQPError, AMQPHardError},
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
-    thread::{JoinHandle, ThreadHandle},
+    thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
     waker::Waker,
-    CloseOnDropPromise, Error, Promise, PromiseResolver, Result,
+    CloseOnDropPromise, Error, Promise, Result,
 };
 use amq_protocol::frame::AMQPFrame;
-use log::{debug, error, log_enabled, trace, Level::Trace};
-use mio::{Poll, Token, Waker as MioWaker};
+use log::{log_enabled, Level::Trace};
+use mio::{Poll, Token};
 use std::{fmt, sync::Arc};
 
 #[derive(Clone)]
@@ -29,34 +28,38 @@ pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
     channels: Channels,
-    waker: Waker,
     frames: Frames,
     io_loop: ThreadHandle,
-    internal_promises: Promises<()>,
-    error_handler: ErrorHandler,
-}
-
-impl Default for Connection {
-    fn default() -> Self {
-        Self::new(DefaultExecutor::default())
-    }
 }
 
 impl Connection {
-    fn new(executor: Arc<dyn Executor>) -> Self {
+    fn new(
+        waker: Waker,
+        internal_rpc: InternalRPCHandle,
+        internal_promises: Promises<()>,
+        executor: Arc<dyn Executor>,
+    ) -> Self {
+        let configuration = Configuration::default();
+        let status = ConnectionStatus::default();
         let frames = Frames::default();
+        let channels = Channels::new(
+            configuration.clone(),
+            status.clone(),
+            waker,
+            internal_rpc,
+            frames.clone(),
+            internal_promises,
+            executor,
+        );
         let connection = Self {
-            configuration: Configuration::default(),
-            status: ConnectionStatus::default(),
-            channels: Channels::new(frames.clone(), executor),
-            waker: Waker::default(),
+            configuration,
+            status,
+            channels,
             frames,
             io_loop: ThreadHandle::default(),
-            internal_promises: Promises::default(),
-            error_handler: ErrorHandler::default(),
         };
 
-        connection.channels.create_zero(connection.clone());
+        connection.channels.create_zero();
         connection
     }
 
@@ -97,14 +100,10 @@ impl Connection {
                 self.status.state(),
             )));
         }
-        match self.channels.create(self.clone()) {
+        match self.channels.create() {
             Ok(channel) => channel.channel_open(),
             Err(error) => CloseOnDropPromise::new_with_data(Err(error)),
         }
-    }
-
-    pub(crate) fn remove_channel(&self, channel_id: u16, error: Error) -> Result<()> {
-        self.channels.remove(channel_id, error)
     }
 
     /// Block current thread while the connection is still active.
@@ -115,7 +114,7 @@ impl Connection {
     }
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
-        self.error_handler.set_handler(handler);
+        self.channels.set_error_handler(handler);
     }
 
     pub fn configuration(&self) -> &Configuration {
@@ -126,27 +125,13 @@ impl Connection {
         &self.status
     }
 
-    pub(crate) fn flow(&self) -> bool {
-        self.channels.flow()
-    }
-
     fn channel0(&self) -> Channel {
         self.channels.get(0).expect("channel 0")
     }
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        self.close_full(reply_code, reply_text, 0, 0)
-    }
-
-    pub(crate) fn close_full(
-        &self,
-        reply_code: ShortUInt,
-        reply_text: &str,
-        class_id: ShortUInt,
-        method_id: ShortUInt,
-    ) -> Promise<()> {
         if let Some(channel0) = self.channels.get(0) {
-            channel0.connection_close(reply_code, reply_text, class_id, method_id)
+            channel0.connection_close(reply_code, reply_text, 0, 0)
         } else {
             Promise::new_with_data(Ok(()))
         }
@@ -154,34 +139,29 @@ impl Connection {
 
     /// Block all consumers and publishers on this connection
     pub fn block(&self, reason: &str) -> Promise<()> {
-        self.channel0().connection_blocked(reason)
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_blocked(reason)
+        } else {
+            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+        }
     }
 
     /// Unblock all consumers and publishers on this connection
     pub fn unblock(&self) -> Promise<()> {
-        self.channel0().connection_unblocked()
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_unblocked()
+        } else {
+            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+        }
     }
 
     /// Update the secret used by some authentication module such as oauth2
     pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
-        self.channel0().connection_update_secret(new_secret, reason)
-    }
-
-    pub(crate) fn set_io_loop(
-        &mut self,
-        io_loop_handle: JoinHandle,
-        waker: Arc<MioWaker>,
-    ) -> Result<()> {
-        self.io_loop.register(io_loop_handle);
-        self.waker.set_waker(waker)
-    }
-
-    pub(crate) fn has_pending_frames(&self) -> bool {
-        self.frames.has_pending()
-    }
-
-    pub(crate) fn drop_pending_frames(&self, error: Error) {
-        self.frames.drop_pending(error);
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_update_secret(new_secret, reason)
+        } else {
+            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+        }
     }
 
     pub fn connector(
@@ -193,28 +173,37 @@ impl Connection {
     ) -> Result<CloseOnDropPromise<Connection>>
            + 'static {
         move |stream, uri, poll| {
+            let waker = Waker::default();
             let executor = options
                 .executor
                 .take()
                 .unwrap_or_else(|| DefaultExecutor::new(options.max_executor_threads));
-            let conn = Connection::new(executor);
-            conn.status.set_vhost(&uri.vhost);
-            conn.status.set_username(&uri.authority.userinfo.username);
+            let internal_promises = Promises::default();
+            let internal_rpc = InternalRPC::new(waker.clone(), internal_promises.clone());
+            let conn = Connection::new(
+                waker.clone(),
+                internal_rpc.handle(),
+                internal_promises,
+                executor,
+            );
+            let status = conn.status.clone();
+            let configuration = conn.configuration.clone();
+            status.set_vhost(&uri.vhost);
+            status.set_username(&uri.authority.userinfo.username);
             if let Some(frame_max) = uri.query.frame_max {
-                conn.configuration.set_frame_max(frame_max);
+                configuration.set_frame_max(frame_max);
             }
             if let Some(channel_max) = uri.query.channel_max {
-                conn.configuration.set_channel_max(channel_max);
+                configuration.set_channel_max(channel_max);
             }
             if let Some(heartbeat) = uri.query.heartbeat {
-                conn.configuration.set_heartbeat(heartbeat);
+                configuration.set_heartbeat(heartbeat);
             }
             let (promise, resolver) = Promise::new();
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
-            if let Err(err) = conn.send_frame(
-                0,
+            if let Err(err) = conn.channel0().send_frame(
                 Priority::CRITICAL,
                 AMQPFrame::ProtocolHeader,
                 resolver.clone(),
@@ -226,182 +215,29 @@ impl Connection {
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
-            conn.set_state(ConnectionState::SentProtocolHeader(
+            let channels = conn.channels.clone();
+            let frames = conn.frames.clone();
+            let io_loop_handle = conn.io_loop.clone();
+            status.set_state(ConnectionState::SentProtocolHeader(
                 resolver,
+                conn,
                 uri.authority.userinfo.into(),
                 options,
             ));
-            IoLoop::new(conn, stream, poll)?.start()?;
+            IoLoop::new(
+                status,
+                configuration,
+                channels,
+                internal_rpc,
+                frames,
+                io_loop_handle,
+                waker,
+                stream,
+                poll,
+            )?
+            .start()?;
             Ok(promise)
         }
-    }
-
-    pub(crate) fn set_state(&self, state: ConnectionState) {
-        self.status.set_state(state);
-    }
-
-    pub(crate) fn do_block(&self) {
-        self.status.block();
-    }
-
-    pub(crate) fn do_unblock(&self) -> Result<()> {
-        self.status.unblock();
-        self.wake()
-    }
-
-    pub(crate) fn wake(&self) -> Result<()> {
-        trace!("connection wake");
-        self.waker.wake()
-    }
-
-    pub(crate) fn send_frame(
-        &self,
-        channel_id: u16,
-        priority: Priority,
-        frame: AMQPFrame,
-        resolver: PromiseResolver<()>,
-        expected_reply: Option<ExpectedReply>,
-    ) -> Result<()> {
-        trace!("connection send_frame; channel_id={}", channel_id);
-        self.frames
-            .push(channel_id, priority, frame, resolver, expected_reply);
-        self.wake()?;
-        Ok(())
-    }
-
-    pub(crate) fn send_frames(
-        &self,
-        channel_id: u16,
-        frames: Vec<AMQPFrame>,
-    ) -> Result<Promise<()>> {
-        trace!("connection send_frames; channel_id={}", channel_id);
-        let promise = self.frames.push_frames(frames);
-        self.wake()?;
-        Ok(promise)
-    }
-
-    pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
-        self.frames.next_expected_reply(channel_id)
-    }
-
-    /// next message to send to the network
-    ///
-    /// returns None if there's no message to send
-    pub(crate) fn next_frame(&self) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
-        self.frames.pop(self.flow())
-    }
-
-    /// updates the current state with a new received frame
-    pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
-        if let Err(err) = self.do_handle_frame(f) {
-            self.set_error(err.clone())?;
-            Err(err)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn do_handle_frame(&self, f: AMQPFrame) -> Result<()> {
-        trace!("will handle frame: {:?}", f);
-        match f {
-            AMQPFrame::ProtocolHeader => {
-                error!("error: the client should not receive a protocol header");
-                return Err(Error::InvalidFrameReceived);
-            }
-            AMQPFrame::Method(channel_id, method) => {
-                self.channels.receive_method(channel_id, method)?;
-            }
-            AMQPFrame::Heartbeat(channel_id) => {
-                if channel_id == 0 {
-                    debug!("received heartbeat from server");
-                } else {
-                    error!("received invalid heartbeat on channel {}", channel_id);
-                    self.register_internal_promise(
-                        self.close(AMQPHardError::FRAMEERROR.get_id(), "frame error"),
-                    )?;
-                    // FIXME: AMQPError::from(AMQPHardError)
-                    return Err(Error::ProtocolError(
-                        AMQPError::from_id(
-                            AMQPHardError::FRAMEERROR.get_id(),
-                            format!("got heartbeat frame on channel {}", channel_id).into(),
-                        )
-                        .unwrap(),
-                    ));
-                }
-            }
-            AMQPFrame::Header(channel_id, _, header) => {
-                self.channels.handle_content_header_frame(
-                    channel_id,
-                    header.body_size,
-                    header.properties,
-                )?;
-            }
-            AMQPFrame::Body(channel_id, payload) => {
-                self.channels.handle_body_frame(channel_id, payload)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn send_heartbeat(&self) -> Result<()> {
-        debug!("send heartbeat");
-
-        self.wake()?;
-        let (promise, resolver) = Promise::new();
-
-        if log_enabled!(Trace) {
-            promise.set_marker("Heartbeat".into());
-        }
-
-        self.send_frame(
-            0,
-            Priority::CRITICAL,
-            AMQPFrame::Heartbeat(0),
-            resolver,
-            None,
-        )?;
-        self.register_internal_promise(promise)
-    }
-
-    pub(crate) fn requeue_frame(
-        &self,
-        frame: (AMQPFrame, Option<PromiseResolver<()>>),
-    ) -> Result<()> {
-        self.wake()?;
-        self.frames.retry(frame);
-        Ok(())
-    }
-
-    pub(crate) fn set_closing(&self) {
-        self.set_state(ConnectionState::Closing);
-        self.channels.set_closing();
-    }
-
-    pub(crate) fn set_closed(&self, error: Error) -> Result<()> {
-        self.set_state(ConnectionState::Closed);
-        self.channels.set_closed(error)
-    }
-
-    pub(crate) fn set_error(&self, error: Error) -> Result<()> {
-        error!("Connection error");
-        self.set_state(ConnectionState::Error);
-        self.error_handler.on_error(error.clone());
-        self.channels.set_error(error)
-    }
-
-    pub(crate) fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.internal_promises.register(promise).unwrap_or(Ok(()))
-    }
-
-    pub(crate) fn poll_internal_promises(&self) -> Result<()> {
-        if let Some(results) = self.internal_promises.try_wait() {
-            for res in results {
-                if let Err(err) = res {
-                    self.set_error(err)?;
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -411,9 +247,7 @@ impl fmt::Debug for Connection {
             .field("configuration", &self.configuration)
             .field("status", &self.status)
             .field("channels", &self.channels)
-            .field("waker", &self.waker)
             .field("frames", &self.frames)
-            .field("error_handler", &self.error_handler)
             .finish()
     }
 }
@@ -495,10 +329,17 @@ mod tests {
         use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
-        let conn = Connection::default();
-        conn.set_state(ConnectionState::Connected);
+        let waker = Waker::default();
+        let internal_promises = Promises::default();
+        let conn = Connection::new(
+            waker.clone(),
+            InternalRPC::new(waker, internal_promises.clone()).handle(),
+            internal_promises,
+            DefaultExecutor::default(),
+        );
+        conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create(conn.clone()).unwrap();
+        let channel = conn.channels.create().unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
@@ -520,7 +361,7 @@ mod tests {
                     routing_key: queue_name.clone(),
                 })),
             );
-            conn.handle_frame(deliver_frame).unwrap();
+            conn.channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::WillReceiveContent(
                 Some(queue_name.clone()),
@@ -539,7 +380,7 @@ mod tests {
                     properties: BasicProperties::default(),
                 }),
             );
-            conn.handle_frame(header_frame).unwrap();
+            conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::ReceivingContent(
                 Some(queue_name.clone()),
@@ -550,7 +391,7 @@ mod tests {
         }
         {
             let body_frame = AMQPFrame::Body(channel.id(), "{}".as_bytes().to_vec());
-            conn.handle_frame(body_frame).unwrap();
+            conn.channels.handle_frame(body_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
             assert_eq!(channel_state, expected_state);
@@ -565,10 +406,17 @@ mod tests {
         use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
-        let conn = Connection::default();
-        conn.set_state(ConnectionState::Connected);
+        let waker = Waker::default();
+        let internal_promises = Promises::default();
+        let conn = Connection::new(
+            waker.clone(),
+            InternalRPC::new(waker, internal_promises.clone()).handle(),
+            internal_promises,
+            DefaultExecutor::default(),
+        );
+        conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create(conn.clone()).unwrap();
+        let channel = conn.channels.create().unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
@@ -590,7 +438,7 @@ mod tests {
                     routing_key: queue_name.clone(),
                 })),
             );
-            conn.handle_frame(deliver_frame).unwrap();
+            conn.channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::WillReceiveContent(
                 Some(queue_name.clone()),
@@ -609,7 +457,7 @@ mod tests {
                     properties: BasicProperties::default(),
                 }),
             );
-            conn.handle_frame(header_frame).unwrap();
+            conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
             assert_eq!(channel_state, expected_state);
