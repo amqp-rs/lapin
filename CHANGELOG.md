@@ -1,3 +1,19 @@
+### 1.0.0 (2020-??-??)
+
+#### Breaking changes
+
+* Tha auth mechanism is now configured using a query parameter in the AMQPUri
+
+#### Bug Fixes
+
+* Follow the specifications in being stricter about receiving invalid frames
+
+#### Misc
+
+* Better Debug implementations
+* Internals cleanup
+* Use vectored io when applicable
+
 ### 0.39.0 (2020-04-08)
 
 #### Breaking changes
