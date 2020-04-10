@@ -2,6 +2,7 @@ use crate::{
     channels::Channels, promises::Promises, types::ShortUInt, waker::Waker, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
+use log::trace;
 
 pub(crate) struct InternalRPC {
     rpc_in: Sender<InternalCommand>,
@@ -50,11 +51,13 @@ impl InternalRPCHandle {
     }
 
     fn send(&self, command: InternalCommand) -> Result<()> {
+        trace!("Queuing internal RPC command: {:?}", command);
         self.sender.send(command).expect("internal RPC failed");
         self.waker.wake()
     }
 }
 
+#[derive(Debug)]
 enum InternalCommand {
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
     SendConnectionCloseOk(Error),
@@ -92,6 +95,7 @@ impl InternalRPC {
     fn run(&self, command: InternalCommand, channels: &Channels) -> Result<()> {
         use InternalCommand::*;
 
+        trace!("Handling internal RPC command: {:?}", command);
         match command {
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .get(0)
