@@ -1,4 +1,4 @@
-use crate::{auth::Credentials, CloseOnDrop, Connection, ConnectionProperties, PromiseResolver};
+use crate::{auth::{Credentials, SASLMechanism}, CloseOnDrop, Connection, ConnectionProperties, PromiseResolver};
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 
@@ -68,6 +68,7 @@ pub enum ConnectionState {
         PromiseResolver<CloseOnDrop<Connection>>,
         Connection,
         Credentials,
+        SASLMechanism,
         ConnectionProperties,
     ),
     SentStartOk(

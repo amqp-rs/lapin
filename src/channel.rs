@@ -465,13 +465,13 @@ impl Channel {
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!("Server sent connection::Start: {:?}", method);
         let state = self.connection_status.state();
-        if let ConnectionState::SentProtocolHeader(resolver, connection, credentials, mut options) =
+        if let ConnectionState::SentProtocolHeader(resolver, connection, credentials, mechanism, mut options) =
             state
         {
-            let mechanism = options.mechanism.to_string();
+            let mechanism_str = mechanism.to_string();
             let locale = options.locale.clone();
 
-            if !method.mechanisms.split_whitespace().any(|m| m == mechanism) {
+            if !method.mechanisms.split_whitespace().any(|m| m == mechanism_str) {
                 error!("unsupported mechanism: {}", mechanism);
             }
             if !method.locales.split_whitespace().any(|l| l == locale) {
@@ -515,8 +515,8 @@ impl Channel {
 
             self.register_internal_promise(self.connection_start_ok(
                 options.client_properties,
-                &mechanism,
-                &credentials.sasl_auth_string(options.mechanism),
+                &mechanism_str,
+                &credentials.sasl_auth_string(mechanism),
                 &locale,
                 resolver,
                 connection,

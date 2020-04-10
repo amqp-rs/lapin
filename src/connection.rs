@@ -219,6 +219,7 @@ impl Connection {
                 resolver,
                 conn,
                 uri.authority.userinfo.into(),
+                uri.query.auth_mechanism.unwrap_or_default(),
                 options,
             ));
             IoLoop::new(
