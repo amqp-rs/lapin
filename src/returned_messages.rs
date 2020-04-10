@@ -47,12 +47,14 @@ impl ReturnedMessages {
 
 impl fmt::Debug for ReturnedMessages {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("ReturnedMessages")
-            .field("waiting_messages", &inner.waiting_messages)
-            .field("messages", &inner.messages)
-            .field("non_confirm_messages", &inner.non_confirm_messages)
-            .finish()
+        let mut debug = f.debug_struct("ReturnedMessages");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("waiting_messages", &inner.waiting_messages)
+                .field("messages", &inner.messages)
+                .field("non_confirm_messages", &inner.non_confirm_messages);
+        }
+        debug.finish()
     }
 }
 

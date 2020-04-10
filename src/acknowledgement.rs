@@ -71,11 +71,13 @@ impl Acknowledgements {
 
 impl fmt::Debug for Acknowledgements {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("Acknowledgements")
-            .field("returned_messages", &inner.returned_messages)
-            .field("pending", &inner.pending.keys())
-            .finish()
+        let mut debug = f.debug_struct("Acknowledgements");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("returned_messages", &inner.returned_messages)
+                .field("pending", &inner.pending.keys());
+        }
+        debug.finish()
     }
 }
 

@@ -166,6 +166,10 @@ impl Queues {
 
 impl fmt::Debug for Queues {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Queues").field(&*self.queues.lock()).finish()
+        let mut debug = f.debug_tuple("Queues");
+        if let Some(queues) = self.queues.try_lock() {
+            debug.field(&*queues);
+        }
+        debug.finish()
     }
 }

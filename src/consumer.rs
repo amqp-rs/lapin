@@ -122,12 +122,14 @@ impl IntoIterator for Consumer {
 
 impl fmt::Debug for Consumer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("Consumer")
-            .field("tag", &inner.tag)
-            .field("executor", &inner.executor)
-            .field("task", &inner.task)
-            .finish()
+        let mut debug = f.debug_struct("Consumer");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("tag", &inner.tag)
+                .field("executor", &inner.executor)
+                .field("task", &inner.task);
+        }
+        debug.finish()
     }
 }
 

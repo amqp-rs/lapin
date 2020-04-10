@@ -95,9 +95,11 @@ impl Default for Inner {
 
 impl fmt::Debug for Frames {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Frames")
-            .field("expected_replies", &self.inner.lock().expected_replies)
-            .finish()
+        let mut debug = f.debug_struct("Frames");
+        if let Some(inner) = self.inner.try_lock() {
+            debug.field("expected_replies", &inner.expected_replies);
+        }
+        debug.finish()
     }
 }
 

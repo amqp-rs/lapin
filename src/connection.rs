@@ -28,7 +28,6 @@ pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
     channels: Channels,
-    frames: Frames,
     io_loop: ThreadHandle,
 }
 
@@ -37,17 +36,17 @@ impl Connection {
         waker: Waker,
         internal_rpc: InternalRPCHandle,
         internal_promises: Promises<()>,
+        frames: Frames,
         executor: Arc<dyn Executor>,
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
-        let frames = Frames::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
             waker,
             internal_rpc,
-            frames.clone(),
+            frames,
             internal_promises,
             executor,
         );
@@ -55,7 +54,6 @@ impl Connection {
             configuration,
             status,
             channels,
-            frames,
             io_loop: ThreadHandle::default(),
         };
 
@@ -174,16 +172,18 @@ impl Connection {
            + 'static {
         move |stream, uri, poll| {
             let waker = Waker::default();
+            let internal_promises = Promises::default();
+            let internal_rpc = InternalRPC::new(waker.clone(), internal_promises.clone());
+            let frames = Frames::default();
             let executor = options
                 .executor
                 .take()
                 .unwrap_or_else(|| DefaultExecutor::new(options.max_executor_threads));
-            let internal_promises = Promises::default();
-            let internal_rpc = InternalRPC::new(waker.clone(), internal_promises.clone());
             let conn = Connection::new(
                 waker.clone(),
                 internal_rpc.handle(),
                 internal_promises,
+                frames.clone(),
                 executor,
             );
             let status = conn.status.clone();
@@ -214,7 +214,6 @@ impl Connection {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
             let channels = conn.channels.clone();
-            let frames = conn.frames.clone();
             let io_loop_handle = conn.io_loop.clone();
             status.set_state(ConnectionState::SentProtocolHeader(
                 resolver,
@@ -245,7 +244,6 @@ impl fmt::Debug for Connection {
             .field("configuration", &self.configuration)
             .field("status", &self.status)
             .field("channels", &self.channels)
-            .field("frames", &self.frames)
             .finish()
     }
 }
@@ -333,6 +331,7 @@ mod tests {
             waker.clone(),
             InternalRPC::new(waker, internal_promises.clone()).handle(),
             internal_promises,
+            Frames::default(),
             DefaultExecutor::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
@@ -410,6 +409,7 @@ mod tests {
             waker.clone(),
             InternalRPC::new(waker, internal_promises.clone()).handle(),
             internal_promises,
+            Frames::default(),
             DefaultExecutor::default(),
         );
         conn.status.set_state(ConnectionState::Connected);

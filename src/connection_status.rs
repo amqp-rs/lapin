@@ -108,13 +108,15 @@ impl PartialEq for ConnectionState {
 
 impl fmt::Debug for ConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("ConnectionStatus")
-            .field("state", &inner.state)
-            .field("vhost", &inner.vhost)
-            .field("username", &inner.username)
-            .field("blocked", &inner.blocked)
-            .finish()
+        let mut debug = f.debug_struct("ConnectionStatus");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("state", &inner.state)
+                .field("vhost", &inner.vhost)
+                .field("username", &inner.username)
+                .field("blocked", &inner.blocked);
+        }
+        debug.finish()
     }
 }
 

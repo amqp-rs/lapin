@@ -238,17 +238,20 @@ impl Channels {
 
 impl fmt::Debug for Channels {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("Channels")
-            .field("channels", &inner.channels.values())
+        let mut debug = f.debug_struct("Channels");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("channels", &inner.channels.values())
+                .field("channel_id", &inner.channel_id)
+                .field("configuration", &inner.configuration)
+                .field("waker", &inner.waker)
+                .field("executor", &inner.executor);
+        }
+        debug
             .field("frames", &self.frames)
-            .field("channel_id", &inner.channel_id)
-            .field("configuration", &inner.configuration)
             .field("connection_status", &self.connection_status)
             .field("error_handler", &self.error_handler)
-            .field("waker", &inner.waker)
             .field("internal_promises", &self.internal_promises)
-            .field("executor", &inner.executor)
             .finish()
     }
 }

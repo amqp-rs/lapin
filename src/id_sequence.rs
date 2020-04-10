@@ -24,12 +24,14 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
 
 impl<T: fmt::Debug> fmt::Debug for IdSequence<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("IdSequence")
-            .field("allow_zero", &inner.allow_zero)
-            .field("max", &inner.max)
-            .field("id", &inner.id)
-            .finish()
+        let mut debug = f.debug_struct("IdSequence");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("allow_zero", &inner.allow_zero)
+                .field("max", &inner.max)
+                .field("id", &inner.id);
+        }
+        debug.finish()
     }
 }
 

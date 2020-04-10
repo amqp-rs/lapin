@@ -73,12 +73,14 @@ impl Default for ChannelState {
 
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.lock();
-        f.debug_struct("ChannelStatus")
-            .field("state", &inner.state)
-            .field("confirm", &inner.confirm)
-            .field("send_flow", &inner.send_flow)
-            .finish()
+        let mut debug = f.debug_struct("ChannelStatus");
+        if let Some(inner) = self.inner.try_lock() {
+            debug
+                .field("state", &inner.state)
+                .field("confirm", &inner.confirm)
+                .field("send_flow", &inner.send_flow);
+        }
+        debug.finish()
     }
 }
 
