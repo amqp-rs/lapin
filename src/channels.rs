@@ -199,22 +199,19 @@ impl Channels {
                     debug!("received heartbeat from server");
                 } else {
                     error!("received invalid heartbeat on channel {}", channel_id);
+                    let error = AMQPError::new(
+                        AMQPHardError::FRAMEERROR.into(),
+                        format!("heartbeat frame received on channel {}", channel_id).into(),
+                    );
                     if let Some(channel0) = self.get(0) {
                         self.register_internal_promise(channel0.connection_close(
-                            AMQPHardError::FRAMEERROR.get_id(),
-                            "frame error".into(),
+                            error.get_id(),
+                            error.get_message().as_str(),
                             0,
                             0,
                         ))?;
                     }
-                    // FIXME: AMQPError::from(AMQPHardError)
-                    return Err(Error::ProtocolError(
-                        AMQPError::from_id(
-                            AMQPHardError::FRAMEERROR.get_id(),
-                            format!("got heartbeat frame on channel {}", channel_id).into(),
-                        )
-                        .unwrap(),
-                    ));
+                    return Err(Error::ProtocolError(error));
                 }
             }
             AMQPFrame::Header(channel_id, _, header) => {

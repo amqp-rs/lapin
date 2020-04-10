@@ -149,20 +149,17 @@ impl Channel {
                 "Got a connection frame on channel {}, closing connection",
                 self.id
             );
+            let error = AMQPError::new(
+                AMQPHardError::COMMANDINVALID.into(),
+                format!("connection frame received on channel {}", self.id).into(),
+            );
             self.internal_rpc.close_connection(
-                AMQPHardError::COMMANDINVALID.get_id(),
-                "command invalid".into(),
+                error.get_id(),
+                error.get_message().to_string(),
                 class_id,
                 method_id,
             )?;
-            // FIXME: AMQPError::from(AMQPHardError)
-            Err(Error::ProtocolError(
-                AMQPError::from_id(
-                    AMQPHardError::COMMANDINVALID.get_id(),
-                    format!("connection frame received on channel {}", self.id).into(),
-                )
-                .unwrap(),
-            ))
+            Err(Error::ProtocolError(error))
         }
     }
 
