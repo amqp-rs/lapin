@@ -504,10 +504,13 @@ impl Channel {
             capabilities.insert("basic.nack".into(), AMQPValue::Boolean(true));
             capabilities.insert("consumer_cancel_notify".into(), AMQPValue::Boolean(true));
             capabilities.insert("connection.blocked".into(), AMQPValue::Boolean(true));
+            // FIXME: consumer_priorities
             capabilities.insert(
                 "authentication_failure_close".into(),
                 AMQPValue::Boolean(true),
             );
+            // FIXME: per_consumer_qos
+            // FIXME: direct_reply_to
 
             options
                 .client_properties
