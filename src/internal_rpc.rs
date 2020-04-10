@@ -5,10 +5,9 @@ use crossbeam_channel::{Receiver, Sender};
 use log::trace;
 
 pub(crate) struct InternalRPC {
-    rpc_in: Sender<InternalCommand>,
-    rpc_out: Receiver<InternalCommand>,
-    waker: Waker,
+    rpc: Receiver<InternalCommand>,
     internal_promises: Promises<()>,
+    handle: InternalRPCHandle,
 }
 
 #[derive(Clone)]
@@ -69,24 +68,21 @@ enum InternalCommand {
 
 impl InternalRPC {
     pub(crate) fn new(waker: Waker, internal_promises: Promises<()>) -> Self {
-        let (rpc_in, rpc_out) = crossbeam_channel::unbounded();
+        let (sender, rpc) = crossbeam_channel::unbounded();
+        let handle = InternalRPCHandle { sender, waker };
         Self {
-            rpc_in,
-            rpc_out,
-            waker,
+            rpc,
             internal_promises,
+            handle,
         }
     }
 
     pub(crate) fn handle(&self) -> InternalRPCHandle {
-        InternalRPCHandle {
-            sender: self.rpc_in.clone(),
-            waker: self.waker.clone(),
-        }
+        self.handle.clone()
     }
 
     pub(crate) fn poll(&self, channels: &Channels) -> Result<()> {
-        while let Ok(command) = self.rpc_out.try_recv() {
+        while let Ok(command) = self.rpc.try_recv() {
             self.run(command, channels)?;
         }
         self.poll_internal_promises(channels)

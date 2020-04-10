@@ -49,6 +49,7 @@ pub struct IoLoop<T> {
 }
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
@@ -153,7 +154,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
                         if let Err(err) = self.run(&mut events) {
-                            self.cancel_serilized_frames(err)?;
+                            self.cancel_serialized_frames(err)?;
                         }
                     }
                     Ok(())
@@ -162,16 +163,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         waker.wake()
     }
 
-    fn cancel_serilized_frames(&self, error: Error) -> Result<()> {
-        for (_, resolver) in self.serialized_frames.iter() {
-            if let Some(resolver) = resolver {
-                resolver.swear(Err(error.clone()));
-            }
-        }
-        Err(error)
-    }
-
-    fn cancel_serilized_frames(&self, error: Error) -> Result<()> {
+    fn cancel_serialized_frames(&self, error: Error) -> Result<()> {
         for (_, resolver) in self.serialized_frames.iter() {
             if let Some(resolver) = resolver {
                 resolver.swear(Err(error.clone()));
@@ -395,7 +387,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
                             self.frames.retry((next_msg, resolver));
-                            self.waker.wake()
+                            self.send_continue()
                         }
                         e => {
                             error!("error generating frame: {:?}", e);

@@ -119,7 +119,7 @@ fn main() {
                     ..BasicPublishOptions::default()
                 },
                 payload.to_vec(),
-                BasicProperties::default(),
+                BasicProperties::default().with_priority(42),
             )
             .await
             .expect("basic_publish")
@@ -134,7 +134,7 @@ fn main() {
                     exchange: "".into(),
                     routing_key: "unroutable-routing-key-for-tests".into(),
                     redelivered: false,
-                    properties: BasicProperties::default(),
+                    properties: BasicProperties::default().with_priority(42),
                     data: payload.to_vec(),
                 },
                 reply_code: 312,

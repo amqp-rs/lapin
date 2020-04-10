@@ -20,18 +20,15 @@ pub struct DefaultExecutor {
 }
 
 impl DefaultExecutor {
-    pub fn new(max_threads: usize) -> Arc<Self> {
+    pub fn new(max_threads: usize) -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        Arc::new(Self {
+        let threads = Default::default();
+        Self {
             sender,
             receiver,
-            threads: Default::default(),
+            threads,
             max_threads,
-        })
-    }
-
-    pub fn default() -> Arc<Self> {
-        Self::new(1)
+        }
     }
 
     pub(crate) fn maybe_spawn_thread(&self) -> Result<()> {
@@ -50,6 +47,12 @@ impl DefaultExecutor {
             );
         }
         Ok(())
+    }
+}
+
+impl Default for DefaultExecutor {
+    fn default() -> Self {
+        Self::new(1)
     }
 }
 

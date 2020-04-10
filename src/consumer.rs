@@ -267,7 +267,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            DefaultExecutor::default(),
+            Arc::new(DefaultExecutor::default()),
         );
 
         assert_eq!(awoken_count.get(), 0);
@@ -286,7 +286,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            DefaultExecutor::default(),
+            Arc::new(DefaultExecutor::default()),
         );
 
         assert_eq!(awoken_count.get(), 0);

@@ -1,4 +1,7 @@
-use crate::{executor::Executor, types::FieldTable};
+use crate::{
+    executor::{DefaultExecutor, Executor},
+    types::FieldTable,
+};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -6,7 +9,6 @@ pub struct ConnectionProperties {
     pub locale: String,
     pub client_properties: FieldTable,
     pub executor: Option<Arc<dyn Executor>>,
-    pub max_executor_threads: usize,
 }
 
 impl Default for ConnectionProperties {
@@ -15,7 +17,17 @@ impl Default for ConnectionProperties {
             locale: "en_US".into(),
             client_properties: FieldTable::default(),
             executor: None,
-            max_executor_threads: 1,
         }
+    }
+}
+
+impl ConnectionProperties {
+    pub fn with_executor<E: Executor + 'static>(mut self, executor: E) -> Self {
+        self.executor = Some(Arc::new(executor));
+        self
+    }
+
+    pub fn with_default_executor(self, max_threads: usize) -> Self {
+        self.with_executor(DefaultExecutor::new(max_threads))
     }
 }

@@ -178,7 +178,7 @@ impl Connection {
             let executor = options
                 .executor
                 .take()
-                .unwrap_or_else(|| DefaultExecutor::new(options.max_executor_threads));
+                .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
             let conn = Connection::new(
                 waker.clone(),
                 internal_rpc.handle(),
@@ -333,7 +333,7 @@ mod tests {
             InternalRPC::new(waker, internal_promises.clone()).handle(),
             internal_promises,
             Frames::default(),
-            DefaultExecutor::default(),
+            Arc::new(DefaultExecutor::default()),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -342,7 +342,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), DefaultExecutor::default());
+        let consumer = Consumer::new(consumer_tag.clone(), Arc::new(DefaultExecutor::default()));
         queue.register_consumer(consumer_tag.clone(), consumer);
         if let Some(c) = conn.channels.get(channel.id()) {
             c.register_queue(queue);
@@ -411,7 +411,7 @@ mod tests {
             InternalRPC::new(waker, internal_promises.clone()).handle(),
             internal_promises,
             Frames::default(),
-            DefaultExecutor::default(),
+            Arc::new(DefaultExecutor::default()),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -420,7 +420,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), DefaultExecutor::default());
+        let consumer = Consumer::new(consumer_tag.clone(), Arc::new(DefaultExecutor::default()));
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels.get(channel.id()).map(|c| {
             c.register_queue(queue);

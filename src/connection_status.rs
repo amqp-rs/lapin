@@ -1,4 +1,7 @@
-use crate::{auth::{Credentials, SASLMechanism}, CloseOnDrop, Connection, ConnectionProperties, PromiseResolver};
+use crate::{
+    auth::{Credentials, SASLMechanism},
+    CloseOnDrop, Connection, ConnectionProperties, PromiseResolver,
+};
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 

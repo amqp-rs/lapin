@@ -33,7 +33,7 @@ impl Delivery {
             routing_key,
             redelivered,
             properties: BasicProperties::default(),
-            data: Vec::new(),
+            data: Vec::default(),
         }
     }
 

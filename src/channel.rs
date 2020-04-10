@@ -66,6 +66,7 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: u16,
         configuration: Configuration,
@@ -465,13 +466,22 @@ impl Channel {
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!("Server sent connection::Start: {:?}", method);
         let state = self.connection_status.state();
-        if let ConnectionState::SentProtocolHeader(resolver, connection, credentials, mechanism, mut options) =
-            state
+        if let ConnectionState::SentProtocolHeader(
+            resolver,
+            connection,
+            credentials,
+            mechanism,
+            mut options,
+        ) = state
         {
             let mechanism_str = mechanism.to_string();
             let locale = options.locale.clone();
 
-            if !method.mechanisms.split_whitespace().any(|m| m == mechanism_str) {
+            if !method
+                .mechanisms
+                .split_whitespace()
+                .any(|m| m == mechanism_str)
+            {
                 error!("unsupported mechanism: {}", mechanism);
             }
             if !method.locales.split_whitespace().any(|l| l == locale) {
