@@ -199,12 +199,14 @@ impl Channels {
                     debug!("received heartbeat from server");
                 } else {
                     error!("received invalid heartbeat on channel {}", channel_id);
-                    self.internal_rpc.close_connection(
-                        AMQPHardError::FRAMEERROR.get_id(),
-                        "frame error".into(),
-                        0,
-                        0,
-                    )?;
+                    if let Some(channel0) = self.get(0) {
+                        self.register_internal_promise(channel0.connection_close(
+                            AMQPHardError::FRAMEERROR.get_id(),
+                            "frame error".into(),
+                            0,
+                            0,
+                        ))?;
+                    }
                     // FIXME: AMQPError::from(AMQPHardError)
                     return Err(Error::ProtocolError(
                         AMQPError::from_id(
