@@ -16,7 +16,7 @@ default = ["lapin/default"]
 
 [dependencies.async-std]
 version = "^1.0"
-default-features = false
+features = ["default"]
 
 [dependencies.lapin]
 version = "1.0.0-alpha1"
