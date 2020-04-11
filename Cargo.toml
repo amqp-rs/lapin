@@ -21,7 +21,7 @@ rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 
 [workspace]
-members = [".", "tokio"]
+members = [".", "async-std", "tokio"]
 
 [build-dependencies]
 amq-protocol-codegen = "=6.0.0-alpha1"

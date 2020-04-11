@@ -1,0 +1,24 @@
+[package]
+name = "async-amqp"
+version = "0.0.0"
+edition = "2018"
+authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
+description = "Placeholder - lapin intergration with async-std"
+repository = "https://github.com/sozu-proxy/lapin"
+readme = "README.md"
+documentation = "https://docs.rs/tokio-amqp"
+keywords = ["amqp", "async-std", "rabbitmq", "mio", "futures"]
+categories = ["database"]
+license = "MIT"
+
+[features]
+default = ["lapin/default"]
+
+[dependencies.async-std]
+version = "^1.0"
+default-features = false
+
+[dependencies.lapin]
+version = "1.0.0-alpha1"
+path = ".."
+default-features = false
