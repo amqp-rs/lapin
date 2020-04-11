@@ -1,0 +1,25 @@
+[package]
+name = "tokio-amqp"
+version = "0.0.0"
+edition = "2018"
+authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
+description = "Placeholder - lapin intergration with tokio"
+repository = "https://github.com/sozu-proxy/lapin"
+readme = "README.md"
+documentation = "https://docs.rs/tokio-amqp"
+keywords = ["amqp", "rabbitmq", "mio", "futures", "tokio"]
+categories = ["database"]
+license = "MIT"
+
+[features]
+default = ["lapin/default"]
+
+[dependencies.lapin]
+version = "1.0.0-alpha1"
+path = ".."
+default-features = false
+
+[dependencies.tokio]
+version = "^0.2"
+default-features = false
+features = ["rt-core"]
