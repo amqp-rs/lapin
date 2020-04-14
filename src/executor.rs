@@ -1,20 +1,23 @@
 use crate::Result;
+use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use std::{
     fmt,
+    future::Future,
+    pin::Pin,
     sync::Arc,
     thread::{Builder as ThreadBuilder, JoinHandle},
 };
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()>;
+    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
 }
 
 #[derive(Clone)]
 pub struct DefaultExecutor {
-    sender: Sender<Box<dyn FnOnce() + Send>>,
-    receiver: Receiver<Box<dyn FnOnce() + Send>>,
+    sender: Sender<Task<()>>,
+    receiver: Receiver<Task<()>>,
     threads: Arc<Mutex<Vec<JoinHandle<()>>>>,
     max_threads: usize,
 }
@@ -40,8 +43,8 @@ impl DefaultExecutor {
                 ThreadBuilder::new()
                     .name(format!("executor {}", id))
                     .spawn(move || {
-                        for f in receiver {
-                            f();
+                        for task in receiver {
+                            task.run();
                         }
                     })?,
             );
@@ -65,9 +68,12 @@ impl fmt::Debug for DefaultExecutor {
 }
 
 impl Executor for DefaultExecutor {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         self.maybe_spawn_thread()?;
-        self.sender.send(f).expect("executor failed");
+        let sender = self.sender.clone();
+        let schedule = move |task| sender.send(task).expect("executor failed");
+        let (task, _) = async_task::spawn(f, schedule, ());
+        task.schedule();
         Ok(())
     }
 }

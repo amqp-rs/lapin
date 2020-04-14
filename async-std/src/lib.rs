@@ -1,5 +1,5 @@
 use lapin::{executor::Executor, ConnectionProperties, Result};
-use std::sync::Arc;
+use std::{future::Future, pin::Pin};
 
 pub trait LapinAsyncStdExt {
     fn with_async_std(self) -> Self
@@ -8,9 +8,8 @@ pub trait LapinAsyncStdExt {
 }
 
 impl LapinAsyncStdExt for ConnectionProperties {
-    fn with_async_std(mut self) -> Self {
-        self.executor = Some(Arc::new(AsyncStdExecutor));
-        self
+    fn with_async_std(self) -> Self {
+        self.with_executor(AsyncStdExecutor)
     }
 }
 
@@ -18,10 +17,8 @@ impl LapinAsyncStdExt for ConnectionProperties {
 struct AsyncStdExecutor;
 
 impl Executor for AsyncStdExecutor {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        async_std::task::spawn(async {
-            f();
-        });
+    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        async_std::task::spawn(f);
         Ok(())
     }
 }

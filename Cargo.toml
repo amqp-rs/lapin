@@ -36,6 +36,7 @@ version  = "^0.7"
 features = ["os-poll", "tcp"]
 
 [dependencies]
+async-task = "^2.0"
 crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
@@ -45,8 +46,8 @@ pinky-swear = "^4.0"
 [dev-dependencies]
 env_logger = "^0.7"
 futures-executor = "^0.3"
-futures-util = "^0.3"
 futures-test = "^0.3"
+futures-util = "^0.3"
 tcp-stream = "^0.10"
 
 [[example]]

@@ -1,5 +1,5 @@
 use lapin::{executor::Executor, ConnectionProperties, Result};
-use std::sync::Arc;
+use std::{future::Future, pin::Pin};
 
 pub trait LapinTokioExt {
     fn with_tokio(self) -> Self
@@ -8,9 +8,8 @@ pub trait LapinTokioExt {
 }
 
 impl LapinTokioExt for ConnectionProperties {
-    fn with_tokio(mut self) -> Self {
-        self.executor = Some(Arc::new(TokioExecutor));
-        self
+    fn with_tokio(self) -> Self {
+        self.with_executor(TokioExecutor)
     }
 }
 
@@ -18,8 +17,8 @@ impl LapinTokioExt for ConnectionProperties {
 struct TokioExecutor;
 
 impl Executor for TokioExecutor {
-    fn execute(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        tokio::spawn(async { f() });
+    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        tokio::spawn(f);
         Ok(())
     }
 }
