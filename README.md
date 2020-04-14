@@ -26,6 +26,18 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 * `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
 * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
 
+## Integration with async-std
+
+Integration with async-std is provided by the [async-amqp](https://crate.io/crates/async-amqp) crate.
+
+## Integration with smol
+
+Integration with smol is provided by the [lapinou](https://crate.io/crates/lapinou) crate.
+
+## Integration with tokio
+
+Integration with tokio is provided by the [tokio-amqp](https://crate.io/crates/tokio-amqp) crate.
+
 ## Example
 
 ```rust
@@ -45,7 +57,7 @@ fn main() -> Result<()> {
     let spawner = executor.spawner();
 
     executor.run_until(async {
-        let conn = Connection::connect(&addr, ConnectionProperties::default()).await?;
+        let conn = Connection::connect(&addr, ConnectionProperties::default().with_default_executor(8)).await?;
 
         info!("CONNECTED");
 
