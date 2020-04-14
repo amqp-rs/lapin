@@ -1,5 +1,4 @@
 use async_amqp::*;
-//use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 use lapin::{
     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, Result, message::DeliveryResult,
