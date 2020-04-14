@@ -1,8 +1,17 @@
 ### 1.0.0 (2020-??-??)
 
+#### Features
+
+* Introduce tokio-amqp to use the tokio executor instead of the default one
+* Introduce async-amqp to use the async-std executor instead of the default one
+* Introduce lapinou to use the smol executor instead of the default one
+
 #### Breaking changes
 
-* Tha auth mechanism is now configured using a query parameter in the AMQPUri
+* The auth mechanism is now configured using a query parameter in the AMQPUri
+* The executor trait is now made to handle futures. (e.g. `Box::pin(async move {})`)
+* ConsumerDelegate is now built with futures.
+* The number of threads used by the default executor is now configured using `ConnectionProperties::with_default_executor`
 
 #### Bug Fixes
 
