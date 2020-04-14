@@ -93,7 +93,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
             let heartbeat = self.connection.configuration().heartbeat();
             if heartbeat != 0 {
-                let heartbeat = Duration::from_millis(u64::from(heartbeat * 500)); // * 1000 (ms) / 2 (half the negociated timeout)
+                let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negociated timeout)
                 self.poll_timeout = Some(heartbeat);
             }
             self.status = Status::Setup;
