@@ -5,12 +5,11 @@ use crate::{
     close_on_drop,
     connection_status::ConnectionState,
     consumer::Consumer,
-    executor::Executor,
+    executor::{Executor, ExecutorExt},
     frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
-    promises::Promises,
     protocol::{self, AMQPClass, AMQPError, AMQPHardError, AMQPSoftError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
@@ -42,7 +41,6 @@ pub struct Channel {
     waker: Waker,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
-    internal_promises: Promises<()>,
     executor: Arc<dyn Executor>,
 }
 
@@ -59,7 +57,6 @@ impl fmt::Debug for Channel {
             .field("returned_messages", &self.returned_messages)
             .field("waker", &self.waker)
             .field("frames", &self.frames)
-            .field("internal_promises", &self.internal_promises)
             .field("executor", &self.executor)
             .finish()
     }
@@ -74,7 +71,6 @@ impl Channel {
         waker: Waker,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        internal_promises: Promises<()>,
         executor: Arc<dyn Executor>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
@@ -90,7 +86,6 @@ impl Channel {
             waker,
             internal_rpc,
             frames,
-            internal_promises,
             executor,
         }
     }
@@ -114,7 +109,8 @@ impl Channel {
     }
 
     fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.internal_promises.register(promise).unwrap_or(Ok(()))
+        self.executor
+            .spawn_internal(promise, self.internal_rpc.clone())
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {

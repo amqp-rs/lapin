@@ -1,10 +1,11 @@
-use crate::Result;
+use crate::{internal_rpc::InternalRPCHandle, Promise, Result};
 use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use std::{
     fmt,
     future::Future,
+    ops::Deref,
     pin::Pin,
     sync::Arc,
     thread::{Builder as ThreadBuilder, JoinHandle},
@@ -13,6 +14,32 @@ use std::{
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
 }
+
+pub(crate) trait ExecutorExt: Executor {
+    fn spawn_internal(&self, promise: Promise<()>, internal_rpc: InternalRPCHandle) -> Result<()> {
+        if let Some(res) = promise.try_wait() {
+            if let Err(err) = res.clone() {
+                internal_rpc.set_connection_error(err)?;
+            }
+            res
+        } else {
+            self.spawn(Box::pin(async move {
+                if let Err(err) = promise.await {
+                    internal_rpc
+                        .set_connection_error(err)
+                        .expect("internal RPC error");
+                }
+            }))
+        }
+    }
+}
+
+impl Executor for Arc<dyn Executor> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        self.deref().spawn(f)
+    }
+}
+impl ExecutorExt for Arc<dyn Executor> {}
 
 #[derive(Clone)]
 pub struct DefaultExecutor {

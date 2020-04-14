@@ -1,12 +1,17 @@
 use crate::{
-    channels::Channels, promises::Promises, types::ShortUInt, waker::Waker, Error, Result,
+    channels::Channels,
+    executor::{Executor, ExecutorExt},
+    types::ShortUInt,
+    waker::Waker,
+    Error, Promise, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
+use std::sync::Arc;
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<InternalCommand>,
-    internal_promises: Promises<()>,
+    executor: Arc<dyn Executor>,
     handle: InternalRPCHandle,
 }
 
@@ -67,12 +72,12 @@ enum InternalCommand {
 }
 
 impl InternalRPC {
-    pub(crate) fn new(waker: Waker, internal_promises: Promises<()>) -> Self {
+    pub(crate) fn new(executor: Arc<dyn Executor>, waker: Waker) -> Self {
         let (sender, rpc) = crossbeam_channel::unbounded();
         let handle = InternalRPCHandle { sender, waker };
         Self {
             rpc,
-            internal_promises,
+            executor,
             handle,
         }
     }
@@ -85,7 +90,7 @@ impl InternalRPC {
         while let Ok(command) = self.rpc.try_recv() {
             self.run(command, channels)?;
         }
-        self.poll_internal_promises(channels)
+        Ok(())
     }
 
     fn run(&self, command: InternalCommand, channels: &Channels) -> Result<()> {
@@ -95,8 +100,8 @@ impl InternalRPC {
         match command {
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .get(0)
-                .and_then(|channel0| {
-                    self.internal_promises.register(channel0.connection_close(
+                .map(|channel0| {
+                    self.register_internal_promise(channel0.connection_close(
                         reply_code,
                         &reply_text,
                         class_id,
@@ -106,10 +111,7 @@ impl InternalRPC {
                 .unwrap_or(Ok(())),
             SendConnectionCloseOk(error) => channels
                 .get(0)
-                .and_then(|channel| {
-                    self.internal_promises
-                        .register(channel.connection_close_ok(error))
-                })
+                .map(|channel| self.register_internal_promise(channel.connection_close_ok(error)))
                 .unwrap_or(Ok(())),
             RemoveChannel(channel_id, error) => channels.remove(channel_id, error),
             SetConnectionClosing => {
@@ -121,14 +123,7 @@ impl InternalRPC {
         }
     }
 
-    fn poll_internal_promises(&self, channels: &Channels) -> Result<()> {
-        if let Some(results) = self.internal_promises.try_wait() {
-            for res in results {
-                if let Err(err) = res {
-                    channels.set_connection_error(err)?;
-                }
-            }
-        }
-        Ok(())
+    fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
+        self.executor.spawn_internal(promise, self.handle())
     }
 }

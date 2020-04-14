@@ -1,10 +1,9 @@
 use crate::{
     error_handler::ErrorHandler,
-    executor::Executor,
+    executor::{Executor, ExecutorExt},
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
-    promises::Promises,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
     waker::Waker,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
@@ -20,9 +19,9 @@ pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
     connection_status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,
+    executor: Arc<dyn Executor>,
     frames: Frames,
     error_handler: ErrorHandler,
-    internal_promises: Promises<()>,
 }
 
 impl Channels {
@@ -32,16 +31,15 @@ impl Channels {
         waker: Waker,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        internal_promises: Promises<()>,
         executor: Arc<dyn Executor>,
     ) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner::new(configuration, waker, executor))),
+            inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
             connection_status,
             internal_rpc,
+            executor,
             frames,
             error_handler: ErrorHandler::default(),
-            internal_promises,
         }
     }
 
@@ -50,7 +48,7 @@ impl Channels {
             self.connection_status.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
-            self.internal_promises.clone(),
+            self.executor.clone(),
         )
     }
 
@@ -62,7 +60,7 @@ impl Channels {
                 self.connection_status.clone(),
                 self.internal_rpc.clone(),
                 self.frames.clone(),
-                self.internal_promises.clone(),
+                self.executor.clone(),
             )
             .set_state(ChannelState::Connected);
     }
@@ -229,7 +227,8 @@ impl Channels {
     }
 
     fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.internal_promises.register(promise).unwrap_or(Ok(()))
+        self.executor
+            .spawn_internal(promise, self.internal_rpc.clone())
     }
 }
 
@@ -241,14 +240,13 @@ impl fmt::Debug for Channels {
                 .field("channels", &inner.channels.values())
                 .field("channel_id", &inner.channel_id)
                 .field("configuration", &inner.configuration)
-                .field("waker", &inner.waker)
-                .field("executor", &inner.executor);
+                .field("waker", &inner.waker);
         }
         debug
             .field("frames", &self.frames)
+            .field("executor", &self.executor)
             .field("connection_status", &self.connection_status)
             .field("error_handler", &self.error_handler)
-            .field("internal_promises", &self.internal_promises)
             .finish()
     }
 }
@@ -258,17 +256,15 @@ struct Inner {
     channel_id: IdSequence<u16>,
     configuration: Configuration,
     waker: Waker,
-    executor: Arc<dyn Executor>,
 }
 
 impl Inner {
-    fn new(configuration: Configuration, waker: Waker, executor: Arc<dyn Executor>) -> Self {
+    fn new(configuration: Configuration, waker: Waker) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
             configuration,
             waker,
-            executor,
         }
     }
 
@@ -278,7 +274,7 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        internal_promises: Promises<()>,
+        executor: Arc<dyn Executor>,
     ) -> Channel {
         debug!("create channel with id {}", id);
         let channel = Channel::new(
@@ -288,8 +284,7 @@ impl Inner {
             self.waker.clone(),
             internal_rpc,
             frames,
-            internal_promises,
-            self.executor.clone(),
+            executor,
         );
         self.channels.insert(id, channel.clone());
         channel
@@ -300,7 +295,7 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        internal_promises: Promises<()>,
+        executor: Arc<dyn Executor>,
     ) -> Result<Channel> {
         debug!("create channel");
         self.channel_id.set_max(self.configuration.channel_max());
@@ -317,7 +312,7 @@ impl Inner {
                     connection_status,
                     internal_rpc,
                     frames,
-                    internal_promises,
+                    executor,
                 ));
             }
             id = self.channel_id.next();

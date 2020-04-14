@@ -5,12 +5,10 @@ use crate::{
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus},
-    executor::DefaultExecutor,
-    executor::Executor,
+    executor::{DefaultExecutor, Executor},
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
-    promises::Promises,
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::ThreadHandle,
     types::ShortUInt,
@@ -35,7 +33,6 @@ impl Connection {
     fn new(
         waker: Waker,
         internal_rpc: InternalRPCHandle,
-        internal_promises: Promises<()>,
         frames: Frames,
         executor: Arc<dyn Executor>,
     ) -> Self {
@@ -47,7 +44,6 @@ impl Connection {
             waker,
             internal_rpc,
             frames,
-            internal_promises,
             executor,
         );
         let connection = Self {
@@ -171,18 +167,16 @@ impl Connection {
     ) -> Result<CloseOnDropPromise<Connection>>
            + 'static {
         move |stream, uri, poll| {
-            let waker = Waker::default();
-            let internal_promises = Promises::default();
-            let internal_rpc = InternalRPC::new(waker.clone(), internal_promises.clone());
-            let frames = Frames::default();
             let executor = options
                 .executor
                 .take()
                 .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
+            let waker = Waker::default();
+            let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+            let frames = Frames::default();
             let conn = Connection::new(
                 waker.clone(),
                 internal_rpc.handle(),
-                internal_promises,
                 frames.clone(),
                 executor,
             );
@@ -327,13 +321,12 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let waker = Waker::default();
-        let internal_promises = Promises::default();
+        let executor = Arc::new(DefaultExecutor::default());
         let conn = Connection::new(
             waker.clone(),
-            InternalRPC::new(waker, internal_promises.clone()).handle(),
-            internal_promises,
+            InternalRPC::new(executor.clone(), waker).handle(),
             Frames::default(),
-            Arc::new(DefaultExecutor::default()),
+            executor.clone(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -342,7 +335,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), Arc::new(DefaultExecutor::default()));
+        let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
         if let Some(c) = conn.channels.get(channel.id()) {
             c.register_queue(queue);
@@ -405,13 +398,12 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let waker = Waker::default();
-        let internal_promises = Promises::default();
+        let executor = Arc::new(DefaultExecutor::default());
         let conn = Connection::new(
             waker.clone(),
-            InternalRPC::new(waker, internal_promises.clone()).handle(),
-            internal_promises,
+            InternalRPC::new(executor.clone(), waker).handle(),
             Frames::default(),
-            Arc::new(DefaultExecutor::default()),
+            executor.clone(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -420,7 +412,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), Arc::new(DefaultExecutor::default()));
+        let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels.get(channel.id()).map(|c| {
             c.register_queue(queue);
