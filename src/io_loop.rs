@@ -110,7 +110,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
             let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
-                let heartbeat = Duration::from_millis(u64::from(heartbeat * 500)); // * 1000 (ms) / 2 (half the negociated timeout)
+                let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negociated timeout)
                 self.poll_timeout = Some(heartbeat);
             }
             self.status = Status::Setup;
@@ -160,6 +160,15 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 })?,
         );
         waker.wake()
+    }
+
+    fn cancel_serilized_frames(&self, error: Error) -> Result<()> {
+        for (_, resolver) in self.serialized_frames.iter() {
+            if let Some(resolver) = resolver {
+                resolver.swear(Err(error.clone()));
+            }
+        }
+        Err(error)
     }
 
     fn cancel_serilized_frames(&self, error: Error) -> Result<()> {

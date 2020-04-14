@@ -14,6 +14,13 @@
 * Internals cleanup
 * Use vectored io when applicable
 
+### 0.39.1 (2020-04-14)
+
+#### Bug Fixes
+
+* Fix overflow with high heartbeats
+* Properly report connection errors
+
 ### 0.39.0 (2020-04-08)
 
 #### Breaking changes
