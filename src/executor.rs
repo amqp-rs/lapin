@@ -11,7 +11,7 @@ use std::{
 };
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
-    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -68,7 +68,7 @@ impl fmt::Debug for DefaultExecutor {
 }
 
 impl Executor for DefaultExecutor {
-    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         self.maybe_spawn_thread()?;
         let sender = self.sender.clone();
         let schedule = move |task| sender.send(task).expect("executor failed");

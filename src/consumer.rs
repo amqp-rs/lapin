@@ -171,7 +171,7 @@ impl ConsumerInner {
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .execute(delegate.on_new_delivery(Ok(Some(delivery))))?;
+                .spawn(delegate.on_new_delivery(Ok(Some(delivery))))?;
         } else {
             self.deliveries_in
                 .send(Ok(Some(delivery)))
@@ -187,7 +187,7 @@ impl ConsumerInner {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.execute(delegate.drop_prefetched_messages())?;
+            self.executor.spawn(delegate.drop_prefetched_messages())?;
         }
         while let Some(_) = self.next_delivery() {}
         Ok(())
@@ -197,7 +197,7 @@ impl ConsumerInner {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.execute(delegate.on_new_delivery(Ok(None)))?;
+            self.executor.spawn(delegate.on_new_delivery(Ok(None)))?;
         } else {
             self.deliveries_in
                 .send(Ok(None))
@@ -213,8 +213,7 @@ impl ConsumerInner {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor
-                .execute(delegate.on_new_delivery(Err(error)))?;
+            self.executor.spawn(delegate.on_new_delivery(Err(error)))?;
         } else {
             self.deliveries_in
                 .send(Err(error))

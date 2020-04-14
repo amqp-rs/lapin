@@ -17,7 +17,7 @@ impl LapinAsyncStdExt for ConnectionProperties {
 struct AsyncStdExecutor;
 
 impl Executor for AsyncStdExecutor {
-    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         async_std::task::spawn(f);
         Ok(())
     }

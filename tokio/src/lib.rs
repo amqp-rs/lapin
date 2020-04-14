@@ -18,7 +18,7 @@ impl LapinTokioExt for ConnectionProperties {
 struct TokioExecutor(Handle);
 
 impl Executor for TokioExecutor {
-    fn execute(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         self.0.spawn(f);
         Ok(())
     }
