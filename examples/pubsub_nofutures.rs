@@ -3,6 +3,7 @@ use lapin::{
     BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
 };
 use log::info;
+use std::{future::Future, pin::Pin};
 
 #[derive(Clone, Debug)]
 struct Subscriber {
@@ -10,13 +11,19 @@ struct Subscriber {
 }
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        if let Ok(Some(delivery)) = delivery {
-            self.channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                .wait()
-                .expect("basic_ack");
-        }
+    fn on_new_delivery(
+        &self,
+        delivery: DeliveryResult,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        let channel = self.channel.clone();
+        Box::pin(async move {
+            if let Ok(Some(delivery)) = delivery {
+                channel
+                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .await
+                    .expect("basic_ack");
+            }
+        })
     }
 }
 

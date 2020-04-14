@@ -4,6 +4,8 @@ use lapin::{
 };
 use log::info;
 use std::{
+    future::Future,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -11,22 +13,28 @@ use std::{
     thread, time,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Subscriber {
     hello_world: Arc<AtomicBool>,
 }
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        println!("received message: {:?}", delivery);
+    fn on_new_delivery(
+        &self,
+        delivery: DeliveryResult,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        let subscriber = self.clone();
+        Box::pin(async move {
+            println!("received message: {:?}", delivery);
 
-        if let Some(delivery) = delivery.unwrap() {
-            println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
+            if let Some(delivery) = delivery.unwrap() {
+                println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
 
-            assert_eq!(delivery.data, b"Hello world!");
+                assert_eq!(delivery.data, b"Hello world!");
 
-            self.hello_world.store(true, Ordering::SeqCst);
-        }
+                subscriber.hello_world.store(true, Ordering::SeqCst);
+            }
+        })
     }
 }
 

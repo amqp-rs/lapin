@@ -63,11 +63,14 @@ fn main() {
             .await
             .expect("basic_consume")
             .set_delegate(move |delivery: DeliveryResult| {
-                info!("received message: {:?}", delivery);
-                if let Ok(Some(delivery)) = delivery {
-                    chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                        .wait() // await is hard to handle here
-                        .expect("basic_ack");
+                let chan = chan.clone();
+                async move {
+                    info!("received message: {:?}", delivery);
+                    if let Ok(Some(delivery)) = delivery {
+                        chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                            .await
+                            .expect("basic_ack");
+                    }
                 }
             });
         info!("[{}] state: {:?}", line!(), conn.status().state());

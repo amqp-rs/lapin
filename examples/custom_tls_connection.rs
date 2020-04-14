@@ -5,14 +5,20 @@ use lapin::{
     ConsumerDelegate, Result,
 };
 use log::info;
+use std::{future::Future, pin::Pin};
 use tcp_stream::{HandshakeError, NativeTlsConnector};
 
 #[derive(Clone, Debug, PartialEq)]
 struct Subscriber;
 
 impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        info!("received message: {:?}", delivery);
+    fn on_new_delivery(
+        &self,
+        delivery: DeliveryResult,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        Box::pin(async move {
+            info!("received message: {:?}", delivery);
+        })
     }
 }
 

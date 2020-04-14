@@ -17,13 +17,23 @@ use std::{
 };
 
 pub trait ConsumerDelegate: Send + Sync {
-    fn on_new_delivery(&self, delivery: DeliveryResult);
-    fn drop_prefetched_messages(&self) {}
+    fn on_new_delivery(&self, delivery: DeliveryResult)
+        -> Pin<Box<dyn Future<Output = ()> + Send>>;
+    fn drop_prefetched_messages(&self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        Box::pin(async move {})
+    }
 }
 
-impl<DeliveryHandler: Fn(DeliveryResult) + Send + Sync> ConsumerDelegate for DeliveryHandler {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        self(delivery);
+impl<
+        F: Future<Output = ()> + Send + 'static,
+        DeliveryHandler: Fn(DeliveryResult) -> F + Send + Sync + 'static,
+    > ConsumerDelegate for DeliveryHandler
+{
+    fn on_new_delivery(
+        &self,
+        delivery: DeliveryResult,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        Box::pin(self(delivery))
     }
 }
 
@@ -160,7 +170,8 @@ impl ConsumerInner {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.execute(async move { delegate.on_new_delivery(Ok(Some(delivery))) })?;
+            self.executor
+                .execute(delegate.on_new_delivery(Ok(Some(delivery))))?;
         } else {
             self.deliveries_in
                 .send(Ok(Some(delivery)))
@@ -176,7 +187,7 @@ impl ConsumerInner {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.execute(async move { delegate.drop_prefetched_messages() })?;
+            self.executor.execute(delegate.drop_prefetched_messages())?;
         }
         while let Some(_) = self.next_delivery() {}
         Ok(())
@@ -186,7 +197,7 @@ impl ConsumerInner {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.execute(async move { delegate.on_new_delivery(Ok(None)) })?;
+            self.executor.execute(delegate.on_new_delivery(Ok(None)))?;
         } else {
             self.deliveries_in
                 .send(Ok(None))
@@ -202,17 +213,14 @@ impl ConsumerInner {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.execute(async move { delegate.on_new_delivery(Err(error)) })?;
+            self.executor
+                .execute(delegate.on_new_delivery(Err(error)))?;
         } else {
             self.deliveries_in
                 .send(Err(error))
                 .expect("failed to send error to consumer");
         }
         self.cancel()
-    }
-
-    fn execute(&self, f: impl Future<Output = ()> + Send + 'static) -> Result<()> {
-        self.executor.execute(Box::pin(f))
     }
 }
 
