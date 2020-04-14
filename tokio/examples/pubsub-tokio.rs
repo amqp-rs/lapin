@@ -1,9 +1,9 @@
-use tokio_amqp::*;
 use lapin::{
-    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Result, message::DeliveryResult,
+    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
+    BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
+use tokio_amqp::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -38,14 +38,14 @@ async fn main() -> Result<()> {
         .await?;
 
     consumer.set_delegate(move |delivery: DeliveryResult| {
-            let delivery = delivery.expect("error caught in in consumer");
-            if let Some(delivery) = delivery {
-                channel_b
-                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                    .wait()
-                    .expect("failed to ack");
-            }
-        });
+        let delivery = delivery.expect("error caught in in consumer");
+        if let Some(delivery) = delivery {
+            channel_b
+                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                .wait()
+                .expect("failed to ack");
+        }
+    });
 
     let payload = b"Hello world!";
 
