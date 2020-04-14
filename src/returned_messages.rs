@@ -1,6 +1,5 @@
 use crate::{
-    message::BasicReturnMessage, promises::Promises, publisher_confirm::Confirmation,
-    BasicProperties, Promise,
+    message::BasicReturnMessage, publisher_confirm::Confirmation, BasicProperties, Promise,
 };
 use log::{trace, warn};
 use parking_lot::Mutex;
@@ -64,7 +63,7 @@ pub struct Inner {
     non_confirm_messages: Vec<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
     messages: Vec<BasicReturnMessage>,
-    dropped_confirms: Promises<Confirmation>,
+    dropped_confirms: Vec<Promise<Confirmation>>,
 }
 
 impl Inner {
@@ -80,7 +79,7 @@ impl Inner {
     }
 
     fn register_dropped_confirm(&mut self, promise: Promise<Confirmation>) {
-        if let Some(confirmation) = self.dropped_confirms.register(promise) {
+        if let Some(confirmation) = promise.try_wait() {
             if let Ok(Confirmation::Nack(Some(message))) | Ok(Confirmation::Ack(Some(message))) =
                 confirmation
             {
@@ -91,6 +90,7 @@ impl Inner {
             }
         } else {
             trace!("Storing dropped PublisherConfirm for further use");
+            self.dropped_confirms.push(promise);
         }
     }
 
@@ -101,17 +101,28 @@ impl Inner {
             non_confirm_messages.append(&mut messages);
             messages = non_confirm_messages;
         }
-        if let Some(confirmations) = self.dropped_confirms.try_wait() {
-            for confirmation in confirmations {
-                if let Ok(Confirmation::Nack(Some(message)))
-                | Ok(Confirmation::Ack(Some(message))) = confirmation
-                {
-                    trace!("PublisherConfirm was carrying a message, storing it");
-                    messages.push(*message);
+        let before = self.dropped_confirms.len();
+        if before != 0 {
+            for promise in std::mem::take(&mut self.dropped_confirms) {
+                if let Some(confirmation) = promise.try_wait() {
+                    if let Ok(Confirmation::Nack(Some(message)))
+                    | Ok(Confirmation::Ack(Some(message))) = confirmation
+                    {
+                        trace!("PublisherConfirm was carrying a message, storing it");
+                        messages.push(*message);
+                    } else {
+                        trace!("PublisherConfirm was ready but didn't carry a message, discarding");
+                    }
                 } else {
-                    trace!("PublisherConfirm was ready but didn't carry a message, discarding");
+                    trace!("PublisherConfirm wasn't ready yet, storing it back");
+                    self.dropped_confirms.push(promise);
                 }
             }
+            trace!(
+                "{} PublisherConfirms left (was {})",
+                self.dropped_confirms.len(),
+                before
+            );
         }
         messages
     }

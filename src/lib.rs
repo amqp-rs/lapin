@@ -139,7 +139,6 @@ mod id_sequence;
 mod internal_rpc;
 mod io_loop;
 mod parsing;
-mod promises;
 mod queue;
 mod queues;
 mod returned_messages;
