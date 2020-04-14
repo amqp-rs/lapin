@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
             if let Some(delivery) = delivery {
                 channel_b
                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                    .wait()
+                    .await
                     .expect("failed to ack");
             }
         }
