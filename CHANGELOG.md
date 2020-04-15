@@ -12,6 +12,7 @@
 * The executor trait is now made to handle futures. (e.g. `Box::pin(async move {})`)
 * ConsumerDelegate is now built with futures.
 * The number of threads used by the default executor is now configured using `ConnectionProperties::with_default_executor`
+* `Connection` no longer implements `Clone`
 
 #### Bug Fixes
 

@@ -21,7 +21,6 @@ use log::{log_enabled, Level::Trace};
 use mio::{Poll, Token};
 use std::{fmt, sync::Arc};
 
-#[derive(Clone)]
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
