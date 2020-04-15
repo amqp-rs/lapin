@@ -219,7 +219,7 @@ impl Stream for Consumer {
     type Item = Result<Delivery>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        trace!("consumer poll; polling transport");
+        trace!("consumer poll_next");
         let mut inner = self.inner();
         trace!(
             "consumer poll; acquired inner lock, consumer_tag={}",
