@@ -25,6 +25,10 @@ impl ConnectionStatus {
         self.0.lock().connection_step = Some(connection_step);
     }
 
+    pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<CloseOnDrop<Connection>>> {
+        self.0.lock().connection_resolver()
+    }
+
     pub fn vhost(&self) -> String {
         self.0.lock().vhost.clone()
     }
@@ -70,20 +74,21 @@ impl ConnectionStatus {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ConnectionStep {
-    SentProtocolHeader(
+    ProtocolHeader(
         PromiseResolver<CloseOnDrop<Connection>>,
         Connection,
         Credentials,
         SASLMechanism,
         ConnectionProperties,
     ),
-    SentStartOk(
+    StartOk(
         PromiseResolver<CloseOnDrop<Connection>>,
         Connection,
         Credentials,
     ),
-    SentOpen(PromiseResolver<CloseOnDrop<Connection>>),
+    Open(PromiseResolver<CloseOnDrop<Connection>>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -132,6 +137,22 @@ impl Default for Inner {
             vhost: "/".into(),
             username: "guest".into(),
             blocked: false,
+        }
+    }
+}
+
+impl Inner {
+    fn connection_resolver(&mut self) -> Option<PromiseResolver<CloseOnDrop<Connection>>> {
+        if let ConnectionState::Connecting = self.state {
+            self.connection_step
+                .take()
+                .map(|connection_step| match connection_step {
+                    ConnectionStep::ProtocolHeader(resolver, ..) => resolver,
+                    ConnectionStep::StartOk(resolver, ..) => resolver,
+                    ConnectionStep::Open(resolver, ..) => resolver,
+                })
+        } else {
+            None
         }
     }
 }

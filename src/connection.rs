@@ -209,7 +209,7 @@ impl Connection {
             let channels = conn.channels.clone();
             let io_loop_handle = conn.io_loop.clone();
             status.set_state(ConnectionState::Connecting);
-            status.set_connection_step(ConnectionStep::SentProtocolHeader(
+            status.set_connection_step(ConnectionStep::ProtocolHeader(
                 resolver,
                 conn,
                 uri.authority.userinfo.into(),

@@ -368,7 +368,7 @@ impl Channel {
         credentials: Credentials,
     ) -> Result<()> {
         self.connection_status
-            .set_connection_step(ConnectionStep::SentStartOk(
+            .set_connection_step(ConnectionStep::StartOk(
                 resolver,
                 connection,
                 credentials,
@@ -381,7 +381,7 @@ impl Channel {
         resolver: PromiseResolver<CloseOnDrop<Connection>>,
     ) -> Result<()> {
         self.connection_status
-            .set_connection_step(ConnectionStep::SentOpen(resolver));
+            .set_connection_step(ConnectionStep::Open(resolver));
         Ok(())
     }
 
@@ -464,7 +464,7 @@ impl Channel {
         let state = self.connection_status.state();
         if let (
             ConnectionState::Connecting,
-            Some(ConnectionStep::SentProtocolHeader(
+            Some(ConnectionStep::ProtocolHeader(
                 resolver,
                 connection,
                 credentials,
@@ -546,7 +546,7 @@ impl Channel {
         trace!("Server sent connection::Secure: {:?}", method);
 
         let state = self.connection_status.state();
-        if let (ConnectionState::Connecting, Some(ConnectionStep::SentStartOk(.., credentials))) =
+        if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
             (state.clone(), self.connection_status.connection_step())
         {
             self.register_internal_promise(
@@ -566,7 +566,7 @@ impl Channel {
         let state = self.connection_status.state();
         if let (
             ConnectionState::Connecting,
-            Some(ConnectionStep::SentStartOk(resolver, connection, _)),
+            Some(ConnectionStep::StartOk(resolver, connection, _)),
         ) = (state.clone(), self.connection_status.connection_step())
         {
             self.tune_connection_configuration(
@@ -599,7 +599,7 @@ impl Channel {
         connection: Connection,
     ) -> Result<()> {
         let state = self.connection_status.state();
-        if let (ConnectionState::Connecting, Some(ConnectionStep::SentOpen(resolver))) =
+        if let (ConnectionState::Connecting, Some(ConnectionStep::Open(resolver))) =
             (state.clone(), self.connection_status.connection_step())
         {
             self.connection_status.set_state(ConnectionState::Connected);
@@ -629,17 +629,8 @@ impl Channel {
             });
         self.internal_rpc.set_connection_closing()?;
         self.frames.drop_pending(error.clone());
-        if let (ConnectionState::Connecting, Some(connection_step)) = (
-            self.connection_status.state(),
-            self.connection_status.connection_step(),
-        ) {
-            match connection_step {
-                ConnectionStep::SentProtocolHeader(resolver, ..) => {
-                    resolver.swear(Err(error.clone()))
-                }
-                ConnectionStep::SentStartOk(resolver, ..) => resolver.swear(Err(error.clone())),
-                ConnectionStep::SentOpen(resolver) => resolver.swear(Err(error.clone())),
-            }
+        if let Some(resolver) = self.connection_status.connection_resolver() {
+            resolver.swear(Err(error.clone()));
         }
         self.internal_rpc.send_connection_close_ok(error)
     }
