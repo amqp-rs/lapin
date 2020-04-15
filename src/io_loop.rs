@@ -45,7 +45,6 @@ pub struct IoLoop<T> {
     poll_timeout: Option<Duration>,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
     last_write: Instant,
-    sent_initial_heartbeat: bool,
 }
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
@@ -85,7 +84,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             poll_timeout: None,
             serialized_frames: VecDeque::default(),
             last_write: Instant::now(),
-            sent_initial_heartbeat: false,
         };
         if registered {
             inner.poll.registry().reregister(
@@ -224,7 +222,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.parse()?;
             self.internal_rpc.poll(&self.channels)?;
             if self.should_heartbeat() {
-                self.sent_initial_heartbeat = true;
                 self.channels.send_heartbeat()?;
                 // Update last_write so that if we cannot write yet to the socket, we don't enqueue countless heartbeats
                 self.last_write = Instant::now();
@@ -323,10 +320,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         let sz = self.send_buffer.write_to(&mut self.socket)?;
 
         if sz > 0 {
-            // If we didn't send the first heartbeat, don't update last_write to trick us into sending it
-            if self.sent_initial_heartbeat {
-                self.last_write = Instant::now();
-            }
+            self.last_write = Instant::now();
 
             trace!("wrote {} bytes", sz);
             self.send_buffer.consume(sz);
