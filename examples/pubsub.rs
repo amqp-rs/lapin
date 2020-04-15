@@ -16,7 +16,11 @@ fn main() -> Result<()> {
     let spawner = executor.spawner();
 
     executor.run_until(async {
-        let conn = Connection::connect(&addr, ConnectionProperties::default().with_default_executor(8)).await?;
+        let conn = Connection::connect(
+            &addr,
+            ConnectionProperties::default().with_default_executor(8),
+        )
+        .await?;
 
         info!("CONNECTED");
 
