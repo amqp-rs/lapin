@@ -28,15 +28,15 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 
 ## Integration with async-std
 
-Integration with async-std is provided by the [async-amqp](https://crate.io/crates/async-amqp) crate.
+Integration with async-std is provided by the [async-amqp](https://crates.io/crates/async-amqp) crate.
 
 ## Integration with smol
 
-Integration with smol is provided by the [lapinou](https://crate.io/crates/lapinou) crate.
+Integration with smol is provided by the [lapinou](https://crates.io/crates/lapinou) crate.
 
 ## Integration with tokio
 
-Integration with tokio is provided by the [tokio-amqp](https://crate.io/crates/tokio-amqp) crate.
+Integration with tokio is provided by the [tokio-amqp](https://crates.io/crates/tokio-amqp) crate.
 
 ## Example
 
