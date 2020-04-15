@@ -368,11 +368,7 @@ impl Channel {
         credentials: Credentials,
     ) -> Result<()> {
         self.connection_status
-            .set_connection_step(ConnectionStep::StartOk(
-                resolver,
-                connection,
-                credentials,
-            ));
+            .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
         Ok(())
     }
 
