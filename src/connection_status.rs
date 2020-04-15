@@ -6,67 +6,71 @@ use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 
 #[derive(Clone, Default)]
-pub struct ConnectionStatus {
-    inner: Arc<Mutex<Inner>>,
-}
+pub struct ConnectionStatus(Arc<Mutex<Inner>>);
 
 impl ConnectionStatus {
     pub fn state(&self) -> ConnectionState {
-        self.inner.lock().state.clone()
+        self.0.lock().state.clone()
     }
 
     pub(crate) fn set_state(&self, state: ConnectionState) {
-        self.inner.lock().state = state
+        self.0.lock().state = state
+    }
+
+    pub(crate) fn connection_step(&self) -> Option<ConnectionStep> {
+        self.0.lock().connection_step.take()
+    }
+
+    pub(crate) fn set_connection_step(&self, connection_step: ConnectionStep) {
+        self.0.lock().connection_step = Some(connection_step);
     }
 
     pub fn vhost(&self) -> String {
-        self.inner.lock().vhost.clone()
+        self.0.lock().vhost.clone()
     }
 
     pub(crate) fn set_vhost(&self, vhost: &str) {
-        self.inner.lock().vhost = vhost.into();
+        self.0.lock().vhost = vhost.into();
     }
 
     pub fn username(&self) -> String {
-        self.inner.lock().username.clone()
+        self.0.lock().username.clone()
     }
 
     pub(crate) fn set_username(&self, username: &str) {
-        self.inner.lock().username = username.into();
+        self.0.lock().username = username.into();
     }
 
     pub(crate) fn block(&self) {
-        self.inner.lock().blocked = true;
+        self.0.lock().blocked = true;
     }
 
     pub(crate) fn unblock(&self) {
-        self.inner.lock().blocked = false;
+        self.0.lock().blocked = false;
     }
 
     pub fn blocked(&self) -> bool {
-        self.inner.lock().blocked
+        self.0.lock().blocked
     }
 
     pub fn connected(&self) -> bool {
-        self.inner.lock().state == ConnectionState::Connected
+        self.0.lock().state == ConnectionState::Connected
     }
 
     pub fn closing(&self) -> bool {
-        self.inner.lock().state == ConnectionState::Closing
+        self.0.lock().state == ConnectionState::Closing
     }
 
     pub fn closed(&self) -> bool {
-        self.inner.lock().state == ConnectionState::Closed
+        self.0.lock().state == ConnectionState::Closed
     }
 
     pub fn errored(&self) -> bool {
-        self.inner.lock().state == ConnectionState::Error
+        self.0.lock().state == ConnectionState::Error
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum ConnectionState {
-    Initial,
+pub(crate) enum ConnectionStep {
     SentProtocolHeader(
         PromiseResolver<CloseOnDrop<Connection>>,
         Connection,
@@ -80,6 +84,12 @@ pub enum ConnectionState {
         Credentials,
     ),
     SentOpen(PromiseResolver<CloseOnDrop<Connection>>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConnectionState {
+    Initial,
+    Connecting,
     Connected,
     Closing,
     Closed,
@@ -92,28 +102,10 @@ impl Default for ConnectionState {
     }
 }
 
-impl PartialEq for ConnectionState {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (ConnectionState::Initial, ConnectionState::Initial) => true,
-            (ConnectionState::SentProtocolHeader(..), ConnectionState::SentProtocolHeader(..)) => {
-                true
-            }
-            (ConnectionState::SentStartOk(..), ConnectionState::SentStartOk(..)) => true,
-            (ConnectionState::SentOpen(_), ConnectionState::SentOpen(_)) => true,
-            (ConnectionState::Connected, ConnectionState::Connected) => true,
-            (ConnectionState::Closing, ConnectionState::Closing) => true,
-            (ConnectionState::Closed, ConnectionState::Closed) => true,
-            (ConnectionState::Error, ConnectionState::Error) => true,
-            _ => false,
-        }
-    }
-}
-
 impl fmt::Debug for ConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ConnectionStatus");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Some(inner) = self.0.try_lock() {
             debug
                 .field("state", &inner.state)
                 .field("vhost", &inner.vhost)
@@ -125,6 +117,7 @@ impl fmt::Debug for ConnectionStatus {
 }
 
 struct Inner {
+    connection_step: Option<ConnectionStep>,
     state: ConnectionState,
     vhost: String,
     username: String,
@@ -134,6 +127,7 @@ struct Inner {
 impl Default for Inner {
     fn default() -> Self {
         Self {
+            connection_step: None,
             state: ConnectionState::default(),
             vhost: "/".into(),
             username: "guest".into(),

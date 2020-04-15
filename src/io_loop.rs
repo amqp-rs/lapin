@@ -1,7 +1,8 @@
 use crate::{
-    buffer::Buffer, channels::Channels, connection_status::ConnectionState, frames::Frames,
-    internal_rpc::InternalRPC, thread::ThreadHandle, waker::Waker, Configuration, ConnectionStatus,
-    Error, PromiseResolver, Result,
+    buffer::Buffer, channels::Channels, connection_status::ConnectionState,
+    connection_status::ConnectionStep, frames::Frames, internal_rpc::InternalRPC,
+    thread::ThreadHandle, waker::Waker, Configuration, ConnectionStatus, Error, PromiseResolver,
+    Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
@@ -277,7 +278,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
-        if let ConnectionState::SentProtocolHeader(resolver, ..) = self.connection_status.state() {
+        if let Some(ConnectionStep::SentProtocolHeader(resolver, ..)) =
+            self.connection_status.connection_step()
+        {
             resolver.swear(Err(error.clone()));
             self.status = Status::Stop;
         }

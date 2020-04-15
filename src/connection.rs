@@ -4,7 +4,7 @@ use crate::{
     close_on_drop,
     configuration::Configuration,
     connection_properties::ConnectionProperties,
-    connection_status::{ConnectionState, ConnectionStatus},
+    connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
     executor::{DefaultExecutor, Executor},
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -209,7 +209,8 @@ impl Connection {
             }
             let channels = conn.channels.clone();
             let io_loop_handle = conn.io_loop.clone();
-            status.set_state(ConnectionState::SentProtocolHeader(
+            status.set_state(ConnectionState::Connecting);
+            status.set_connection_step(ConnectionStep::SentProtocolHeader(
                 resolver,
                 conn,
                 uri.authority.userinfo.into(),
