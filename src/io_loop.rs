@@ -167,6 +167,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         trace!("io_loop poll done");
         for event in events.iter() {
             if event.token() == SOCKET {
+                trace!("Got mio event for socket: {:?}", event);
                 if event.is_readable() {
                     self.can_read = true;
                 }
@@ -315,6 +316,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     if written < to_write {
                         self.serialized_frames
                             .push_front((to_write - written, resolver));
+                        trace!("{} to write to complete this frame", to_write - written);
                         written = 0;
                     } else {
                         if let Some(resolver) = resolver {
@@ -323,14 +325,19 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         written -= to_write;
                     }
                 } else {
+                    error!("We've written {} but didn't expect to write anything", written);
                     break;
                 }
             }
 
             if self.send_buffer.available_data() > 0 {
                 // We didn't write all the data yet
+                trace!("Still {} to write", self.send_buffer.available_data());
                 self.send_continue()?;
             }
+        } else {
+            error!("Socket was writable but we wrote 0, marking as wouldblock");
+            self.can_write = false;
         }
         Ok(())
     }
@@ -353,7 +360,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
     fn serialize(&mut self) -> Result<()> {
         if let Some((next_msg, resolver)) = self.connection.next_frame() {
-            trace!("will write to buffer: {:?}", next_msg);
+            // FIXME: having the body here is too verbose, impl Display on frame instead: trace!("will write to buffer: {:?}", next_msg);
+            trace!("Will write to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
