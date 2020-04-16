@@ -347,6 +347,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 // We didn't write all the data yet
                 trace!("Still {} to write", self.send_buffer.available_data());
                 self.send_continue()?;
+            } else {
+                self.socket.flush()?;
             }
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
