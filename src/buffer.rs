@@ -10,9 +10,11 @@ pub(crate) struct Buffer {
     capacity: usize,
     position: usize,
     end: usize,
+    available_data: usize,
 }
 
-pub(crate) struct Checkpoint(usize);
+// The bool is true when the checkpoint is to go backwards, false for forward
+pub(crate) struct Checkpoint(usize, bool);
 
 impl Buffer {
     pub(crate) fn with_capacity(capacity: usize) -> Buffer {
@@ -21,14 +23,28 @@ impl Buffer {
             capacity,
             position: 0,
             end: 0,
+            available_data: 0,
         }
     }
 
     pub(crate) fn checkpoint(&self) -> Checkpoint {
-        Checkpoint(self.end)
+        Checkpoint(self.end, true)
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {
+        if checkpoint.1 {
+            if self.end > checkpoint.0 {
+                self.available_data -= self.end - checkpoint.0;
+            } else {
+                self.available_data -= self.end + (self.capacity - checkpoint.0);
+            }
+        } else {
+            if self.end > checkpoint.0 {
+                self.available_data += (self.capacity - self.end) + checkpoint.0;
+            } else {
+                self.available_data += checkpoint.0 - self.end;
+            }
+        }
         self.end = checkpoint.0;
     }
 
@@ -43,6 +59,7 @@ impl Buffer {
         self.capacity = new_size;
 
         if self.end < self.position {
+            // FIXME: make sure there's enough room
             let (old, new) = self.memory.split_at_mut(old_capacity);
             new[..].copy_from_slice(&old[..self.end]);
             self.end += old_capacity;
@@ -52,19 +69,11 @@ impl Buffer {
     }
 
     pub(crate) fn available_data(&self) -> usize {
-        if self.end >= self.position {
-            self.end - self.position
-        } else {
-            self.end + self.capacity - self.position
-        }
+        self.available_data
     }
 
     fn available_space(&self) -> usize {
-        if self.end >= self.position {
-            self.capacity - self.end + self.position
-        } else {
-            self.position - self.end
-        }
+        self.capacity - self.available_data
     }
 
     pub(crate) fn consume(&mut self, count: usize, ring: bool) -> usize {
@@ -73,6 +82,7 @@ impl Buffer {
         if ring {
             self.position %= self.capacity;
         }
+        self.available_data -= cnt;
         cnt
     }
 
@@ -82,39 +92,44 @@ impl Buffer {
         if ring {
             self.end %= self.capacity;
         }
+        self.available_data += cnt;
         cnt
     }
 
     pub(crate) fn write_to<T: io::Write>(&self, writer: &mut T) -> io::Result<usize> {
-        if self.end >= self.position {
-            writer.write(&self.memory[self.position..self.end])
+        if self.available_data() == 0 {
+            Ok(0)
         } else {
-            writer.write_vectored(&[
-                IoSlice::new(&self.memory[self.position..]),
-                IoSlice::new(&self.memory[..self.end]),
-            ])
+            if self.end > self.position {
+                writer.write(&self.memory[self.position..self.end])
+            } else {
+                writer.write_vectored(&[
+                    IoSlice::new(&self.memory[self.position..]),
+                    IoSlice::new(&self.memory[..self.end]),
+                ])
+            }
         }
     }
 
-    pub(crate) fn read_from<T: io::Read>(
-        &mut self,
-        reader: &mut T,
-        ring: bool,
-    ) -> io::Result<usize> {
-        if ring {
-            if self.end >= self.position {
-                let (start, end) = self.memory.split_at_mut(self.end);
-                reader.read_vectored(
-                    &mut [
+    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T, ring: bool) -> io::Result<usize> {
+        if self.available_space() == 0 {
+            Ok(0)
+        } else {
+            if ring {
+                if self.end >= self.position {
+                    let (start, end) = self.memory.split_at_mut(self.end);
+                    reader.read_vectored(
+                        &mut [
                         IoSliceMut::new(&mut end[..]),
                         IoSliceMut::new(&mut start[..self.position]),
-                    ][..],
-                )
+                        ][..],
+                    )
+                } else {
+                    reader.read(&mut self.memory[self.end..self.position])
+                }
             } else {
-                reader.read(&mut self.memory[self.end..self.position])
+                reader.read(&mut self.memory[self.end..])
             }
-        } else {
-            reader.read(&mut self.memory[self.end..])
         }
     }
 
@@ -163,17 +178,21 @@ impl Buffer {
 
 impl io::Write for &mut Buffer {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        let amt = if self.end >= self.position {
-            let mut space = &mut self.memory[self.end..];
-            let mut amt = space.write(data)?;
-            if amt == self.capacity - self.end {
-                let mut space = &mut self.memory[..self.position];
-                amt += space.write(&data[amt..])?;
-            }
-            amt
+        let amt = if self.available_space() == 0 {
+            0
         } else {
-            let mut space = &mut self.memory[self.end..self.position];
-            space.write(data)?
+            if self.end >= self.position {
+                let mut space = &mut self.memory[self.end..];
+                let mut amt = space.write(data)?;
+                if amt == self.capacity - self.end {
+                    let mut space = &mut self.memory[..self.position];
+                    amt += space.write(&data[amt..])?;
+                }
+                amt
+            } else {
+                let mut space = &mut self.memory[self.end..self.position];
+                space.write(data)?
+            }
         };
         self.fill(amt, true);
         Ok(amt)
@@ -203,7 +222,8 @@ impl BackToTheBuffer for &mut Buffer {
         let start = s.write.checkpoint();
         s.write.fill(reserved, true);
         gen(s).and_then(|(s, tmp)| {
-            let end = s.write.checkpoint();
+            let mut end = s.write.checkpoint();
+            end.1 = false;
             s.write.rollback(start);
             before(s, tmp).and_then(|s| {
                 s.write.rollback(end);
