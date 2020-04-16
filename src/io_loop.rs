@@ -7,7 +7,7 @@ use log::{error, trace};
 use mio::{event::Source, Events, Interest, Poll, Token, Waker};
 use std::{
     collections::VecDeque,
-    io::{Read, Write},
+    io::{self, Read, Write},
     sync::Arc,
     thread::Builder as ThreadBuilder,
     time::{Duration, Instant},
@@ -168,6 +168,12 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         for event in events.iter() {
             if event.token() == SOCKET {
                 trace!("Got mio event for socket: {:?}", event);
+                if event.is_read_closed() || event.is_write_closed() {
+                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
+                }
+                if event.is_error() {
+                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
+                }
                 if event.is_readable() {
                     self.can_read = true;
                 }
@@ -259,8 +265,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         if let ConnectionState::SentProtocolHeader(resolver, ..) = self.connection.status().state()
         {
             resolver.swear(Err(error.clone()));
-            self.status = Status::Stop;
         }
+        self.status = Status::Stop;
         self.connection.set_error(error.clone())?;
         Err(error)
     }
