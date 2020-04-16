@@ -1,3 +1,9 @@
+### 0.39.2 (2020-04-16)
+
+#### Bug Fixes
+
+* Work around a bug in mio where we sometimes wouldn't receive a readable notification for the socket
+
 ### 0.39.1 (2020-04-14)
 
 #### Bug Fixes
