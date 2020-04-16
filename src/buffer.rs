@@ -147,7 +147,7 @@ impl Buffer {
 
     pub(crate) fn parsing_context(&self) -> ParsingContext<'_> {
         if self.available_data() == 0 {
-            self.memory[self.end..].into()
+            self.memory[self.end..self.end].into()
         } else {
             if self.end > self.position {
                 self.memory[self.position..self.end].into()
