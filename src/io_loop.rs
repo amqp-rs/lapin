@@ -331,7 +331,10 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         written -= to_write;
                     }
                 } else {
-                    error!("We've written {} but didn't expect to write anything", written);
+                    error!(
+                        "We've written {} but didn't expect to write anything",
+                        written
+                    );
                     break;
                 }
             }
