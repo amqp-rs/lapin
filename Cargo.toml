@@ -36,7 +36,7 @@ version  = "^0.7"
 features = ["os-poll", "tcp"]
 
 [dependencies]
-async-task = "^2.0"
+async-task = "^3.0"
 crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
