@@ -174,9 +174,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 if event.is_error() {
                     self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
                 }
+                // Due to a bug in epoll/mio, it doesn't seem like we can trust this, it's sometimes missing when it should be there
+                /*
                 if event.is_readable() {
                     self.can_read = true;
                 }
+                */
+                self.can_read = true;
                 if event.is_writable() {
                     self.can_write = true;
                 }
