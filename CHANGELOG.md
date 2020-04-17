@@ -24,6 +24,13 @@
 * Internals cleanup
 * Use vectored io when applicable
 
+### 0.39.3 (2020-04-17)
+
+#### Bug Fixes
+
+* Fix some issues with openssl
+* Flush socket for rustls
+
 ### 0.39.2 (2020-04-16)
 
 #### Bug Fixes
