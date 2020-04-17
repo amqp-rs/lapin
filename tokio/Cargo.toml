@@ -1,6 +1,6 @@
 [package]
 name = "tokio-amqp"
-version = "0.1.0-alpha3"
+version = "0.1.0-alpha4"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "Placeholder - lapin intergration with tokio"
@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies.lapin]
-version = "=1.0.0-alpha4"
+version = "=1.0.0-alpha5"
 path = ".."
 default-features = false
 
