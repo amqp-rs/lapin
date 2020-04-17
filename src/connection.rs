@@ -383,8 +383,12 @@ impl Connection {
     }
 
     pub(crate) fn set_error(&self, error: Error) -> Result<()> {
+        if let ConnectionState::Error = self.status.state() {
+            return Ok(());
+        }
         error!("Connection error");
         self.set_state(ConnectionState::Error);
+        self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
         self.channels.set_error(error)
     }
