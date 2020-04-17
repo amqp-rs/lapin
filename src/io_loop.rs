@@ -210,7 +210,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         trace!("io_loop run");
         self.ensure_setup()?;
         self.poll(events)?;
-        self.socket.flush()?;
         let res = self.do_run();
         self.internal_rpc.poll(&self.channels).and(res)
     }
