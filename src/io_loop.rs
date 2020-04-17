@@ -101,7 +101,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         Ok(inner)
     }
 
-    fn ensure_setup(&mut self) -> Result<()> {
+    fn ensure_setup(&mut self) {
         if self.status != Status::Setup && self.connection_status.connected() {
             let frame_max = self.configuration.frame_max() as usize;
             self.frame_size = std::cmp::max(self.frame_size, frame_max);
@@ -114,7 +114,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             }
             self.status = Status::Setup;
         }
-        Ok(())
     }
 
     fn has_data(&self) -> bool {
@@ -208,7 +207,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
     fn run(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop run");
-        self.ensure_setup()?;
+        self.ensure_setup();
         self.poll(events)?;
         let res = self.do_run();
         self.internal_rpc.poll(&self.channels).and(res)
@@ -326,6 +325,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
+        self.socket.flush()?;
+
         self.serialize()?;
 
         let sz = self.send_buffer.write_to(&mut self.socket)?;
@@ -363,9 +364,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 // We didn't write all the data yet
                 trace!("Still {} to write", self.send_buffer.available_data());
                 self.send_continue()?;
-            } else {
-                self.socket.flush()?;
             }
+
+            self.socket.flush()?;
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
             self.can_write = false;
@@ -407,9 +408,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
-                            let error = Error::SerialisationError(Arc::new(e));
-                            self.channels.set_connection_error(error.clone())?;
-                            Err(error)
+                            self.critical_error(Error::SerialisationError(Arc::new(e)))
                         }
                     }
                 }
@@ -436,14 +435,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 Ok(Some(f))
             }
             Err(e) => {
-                if e.is_incomplete() {
-                    Ok(None)
-                } else {
+                if !e.is_incomplete() {
                     error!("parse error: {:?}", e);
-                    let error = Error::ParsingError(e);
-                    self.channels.set_connection_error(error.clone())?;
-                    Err(error)
+                    self.critical_error(Error::ParsingError(e))?;
                 }
+                Ok(None)
             }
         }
     }

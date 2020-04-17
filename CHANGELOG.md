@@ -24,6 +24,12 @@
 * Internals cleanup
 * Use vectored io when applicable
 
+### 0.39.6 (2020-04-17)
+
+#### Bug Fixes
+
+* IoLoop error handling fixes
+
 ### 0.39.5 (2020-04-17)
 
 #### Bug Fixes
