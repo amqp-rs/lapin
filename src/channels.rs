@@ -136,6 +136,7 @@ impl Channels {
 
         error!("Connection error");
         self.connection_status.set_state(ConnectionState::Error);
+        self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
         self.inner
             .lock()
