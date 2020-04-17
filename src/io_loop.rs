@@ -83,7 +83,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         Ok(inner)
     }
 
-    fn ensure_setup(&mut self) -> Result<()> {
+    fn ensure_setup(&mut self) {
         if self.status != Status::Setup && self.connection.status().connected() {
             let frame_max = self.connection.configuration().frame_max() as usize;
             self.frame_size = std::cmp::max(self.frame_size, frame_max);
@@ -96,7 +96,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             }
             self.status = Status::Setup;
         }
-        Ok(())
     }
 
     fn has_data(&self) -> bool {
@@ -191,7 +190,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
     fn run(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop run");
-        self.ensure_setup()?;
+        self.ensure_setup();
         self.poll(events)?;
         self.do_run()
     }
@@ -396,9 +395,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
-                            let error = Error::SerialisationError(Arc::new(e));
-                            self.connection.set_error(error.clone())?;
-                            Err(error)
+                            self.critical_error(Error::SerialisationError(Arc::new(e)))
                         }
                     }
                 }
@@ -427,13 +424,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             Err(e) => {
                 if e.is_incomplete() {
                     self.receive_buffer.shift();
-                    Ok(None)
                 } else {
                     error!("parse error: {:?}", e);
-                    let error = Error::ParsingError(e);
-                    self.connection.set_error(error.clone())?;
-                    Err(error)
+                    self.critical_error(Error::ParsingError(e))?;
                 }
+                Ok(None)
             }
         }
     }
