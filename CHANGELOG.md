@@ -1,3 +1,9 @@
+### 0.39.7 (2020-04-17)
+
+#### Bug Fixes
+
+* Error handling fixes
+
 ### 0.39.6 (2020-04-17)
 
 #### Bug Fixes
