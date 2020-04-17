@@ -24,11 +24,11 @@ rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 members = [".", "async-std", "tokio"]
 
 [build-dependencies]
-amq-protocol-codegen = "=6.0.0-alpha1"
+amq-protocol-codegen = "=6.0.0-alpha2"
 serde_json = "^1.0"
 
 [dependencies.amq-protocol]
-version = "=6.0.0-alpha1"
+version = "=6.0.0-alpha2"
 default-features = false
 
 [dependencies.mio]

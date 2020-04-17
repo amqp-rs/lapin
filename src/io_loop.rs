@@ -390,8 +390,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
 
     fn serialize(&mut self) -> Result<()> {
         if let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
-            // FIXME: having the body here is too verbose, impl Display on frame instead: trace!("will write to buffer: {:?}", next_msg);
-            trace!("Will write to buffer");
+            trace!("will write to buffer: {}", next_msg);
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
