@@ -1,3 +1,9 @@
+### 0.39.4 (2020-04-17)
+
+#### Bug Fixes
+
+* Fix some edge cases issues with the internal buffer
+
 ### 0.39.3 (2020-04-17)
 
 #### Bug Fixes
