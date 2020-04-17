@@ -33,6 +33,9 @@ impl Buffer {
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {
+        if checkpoint.0 == self.end {
+            return;
+        }
         if checkpoint.1 {
             if self.end > checkpoint.0 {
                 self.available_data -= self.end - checkpoint.0;
