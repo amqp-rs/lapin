@@ -310,6 +310,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
+        self.socket.flush()?;
+
         self.serialize()?;
 
         let sz = self.send_buffer.write_to(&mut self.socket)?;
@@ -347,9 +349,9 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 // We didn't write all the data yet
                 trace!("Still {} to write", self.send_buffer.available_data());
                 self.send_continue()?;
-            } else {
-                self.socket.flush()?;
             }
+
+            self.socket.flush()?;
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
             self.can_write = false;
