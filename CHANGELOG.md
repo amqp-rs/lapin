@@ -1,3 +1,9 @@
+### 0.39.5 (2020-04-17)
+
+#### Bug Fixes
+
+* Fix a hang with rustls flush
+
 ### 0.39.4 (2020-04-17)
 
 #### Bug Fixes
