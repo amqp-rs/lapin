@@ -161,7 +161,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         waker.wake()
     }
 
-    fn cancel_serialized_frames(&self, error: Error) -> Result<()> {
+    fn cancel_serialized_frames(&mut self, error: Error) -> Result<()> {
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
                 resolver.swear(Err(error.clone()));
