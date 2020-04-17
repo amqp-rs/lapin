@@ -179,11 +179,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         for event in events.iter() {
             if event.token() == SOCKET {
                 trace!("Got mio event for socket: {:?}", event);
-                if event.is_read_closed() || event.is_write_closed() {
-                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
-                }
                 if event.is_error() {
                     self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
+                }
+                if event.is_read_closed() || event.is_write_closed() {
+                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
                 }
                 // Due to a bug in epoll/mio, it doesn't seem like we can trust this, it's sometimes missing when it should be there
                 /*
