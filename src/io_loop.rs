@@ -151,7 +151,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
                         if let Err(err) = self.run(&mut events) {
-                            self.cancel_serialized_frames(err)?;
+                            self.critical_error(err)?;
                         }
                     }
                     Ok(())
@@ -160,21 +160,16 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         waker.wake()
     }
 
-    fn cancel_serialized_frames(&mut self, error: Error) -> Result<()> {
-        for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
-            if let Some(resolver) = resolver {
-                resolver.swear(Err(error.clone()));
-            }
-        }
-        Err(error)
-    }
-
     fn poll_timeout(&self) -> Option<Duration> {
         self.poll_timeout.map(|timeout| {
             timeout
                 .checked_sub(self.last_write.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0))
         })
+    }
+
+    fn poll_internal_rpc(&self) -> Result<()> {
+        self.internal_rpc.poll(&self.channels)
     }
 
     fn poll(&mut self, events: &mut Events) -> Result<()> {
@@ -202,15 +197,14 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 }
             }
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn run(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop run");
         self.ensure_setup();
         self.poll(events)?;
-        let res = self.do_run();
-        self.internal_rpc.poll(&self.channels).and(res)
+        self.do_run()
     }
 
     fn do_run(&mut self) -> Result<()> {
@@ -222,15 +216,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         );
         loop {
             self.write()?;
-            self.internal_rpc.poll(&self.channels)?;
             if self.connection_status.closed() {
                 self.status = Status::Stop;
             }
             if self.should_continue() {
                 self.read()?;
             }
-            self.parse()?;
-            self.internal_rpc.poll(&self.channels)?;
+            self.handle_frames()?;
             if self.should_heartbeat() {
                 self.channels.send_heartbeat()?;
                 // Update last_write so that if we cannot write yet to the socket, we don't enqueue countless heartbeats
@@ -248,7 +240,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.has_data(),
             self.status
         );
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn should_heartbeat(&self) -> bool {
@@ -280,7 +272,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             );
             self.send_continue()?;
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
@@ -289,6 +281,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         }
         self.status = Status::Stop;
         self.channels.set_connection_error(error.clone())?;
+        for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
+            if let Some(resolver) = resolver {
+                resolver.swear(Err(error.clone()));
+            }
+        }
         Err(error)
     }
 
@@ -303,7 +300,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 }
             }
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn read(&mut self) -> Result<()> {
@@ -317,7 +314,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 }
             }
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn send_continue(&mut self) -> Result<()> {
@@ -371,7 +368,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
             self.can_write = false;
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
     fn read_from_stream(&mut self) -> Result<()> {
@@ -383,7 +380,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
                 })?;
-                Ok(())
+                self.poll_internal_rpc()
             }
         }
     }
@@ -394,40 +391,36 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
-                Ok(sz) => {
-                    self.serialized_frames.push_back((sz, resolver));
-                    Ok(())
-                }
+                Ok(sz) => self.serialized_frames.push_back((sz, resolver)),
                 Err(e) => {
                     self.send_buffer.rollback(checkpoint);
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
                             self.frames.retry((next_msg, resolver));
-                            self.send_continue()
+                            self.send_continue()?;
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
-                            self.critical_error(Error::SerialisationError(Arc::new(e)))
+                            self.critical_error(Error::SerialisationError(Arc::new(e)))?;
                         }
                     }
                 }
             }
-        } else {
-            Ok(())
         }
+        self.poll_internal_rpc()
     }
 
-    fn parse(&mut self) -> Result<()> {
+    fn handle_frames(&mut self) -> Result<()> {
         if self.can_parse() {
-            if let Some(frame) = self.do_parse()? {
+            if let Some(frame) = self.parse()? {
                 self.channels.handle_frame(frame)?;
             }
         }
-        Ok(())
+        self.poll_internal_rpc()
     }
 
-    fn do_parse(&mut self) -> Result<Option<AMQPFrame>> {
+    fn parse(&mut self) -> Result<Option<AMQPFrame>> {
         match parse_frame(self.receive_buffer.parsing_context()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.offset(i);
