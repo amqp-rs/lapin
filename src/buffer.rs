@@ -111,7 +111,11 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T, ring: bool) -> io::Result<usize> {
+    pub(crate) fn read_from<T: io::Read>(
+        &mut self,
+        reader: &mut T,
+        ring: bool,
+    ) -> io::Result<usize> {
         if self.available_space() == 0 {
             Ok(0)
         } else {
@@ -120,8 +124,8 @@ impl Buffer {
                     let (start, end) = self.memory.split_at_mut(self.end);
                     reader.read_vectored(
                         &mut [
-                        IoSliceMut::new(&mut end[..]),
-                        IoSliceMut::new(&mut start[..self.position]),
+                            IoSliceMut::new(&mut end[..]),
+                            IoSliceMut::new(&mut start[..self.position]),
                         ][..],
                     )
                 } else {
