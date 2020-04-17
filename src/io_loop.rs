@@ -134,22 +134,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                     let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
                         if let Err(err) = self.run(&mut events) {
-                            self.cancel_serilized_frames(err)?;
+                            self.critical_error(err)?;
                         }
                     }
                     Ok(())
                 })?,
             waker,
         )
-    }
-
-    fn cancel_serilized_frames(&mut self, error: Error) -> Result<()> {
-        for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
-            if let Some(resolver) = resolver {
-                resolver.swear(Err(error.clone()));
-            }
-        }
-        Err(error)
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
@@ -271,6 +262,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         }
         self.status = Status::Stop;
         self.connection.set_error(error.clone())?;
+        for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
+            if let Some(resolver) = resolver {
+                resolver.swear(Err(error.clone()));
+            }
+        }
         Err(error)
     }
 
