@@ -15,8 +15,8 @@ use crate::{
     queue::Queue,
     queues::Queues,
     returned_messages::ReturnedMessages,
+    socket_state::SocketStateHandle,
     types::*,
-    waker::Waker,
     BasicProperties, CloseOnDrop, Configuration, ConfirmationPromise, Connection, ConnectionStatus,
     Error, ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
@@ -38,7 +38,7 @@ pub struct Channel {
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
     returned_messages: ReturnedMessages,
-    waker: Waker,
+    waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     executor: Arc<dyn Executor>,
@@ -55,7 +55,6 @@ impl fmt::Debug for Channel {
             .field("delivery_tag", &self.delivery_tag)
             .field("queues", &self.queues)
             .field("returned_messages", &self.returned_messages)
-            .field("waker", &self.waker)
             .field("frames", &self.frames)
             .field("executor", &self.executor)
             .finish()
@@ -68,7 +67,7 @@ impl Channel {
         channel_id: u16,
         configuration: Configuration,
         connection_status: ConnectionStatus,
-        waker: Waker,
+        waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -97,15 +96,17 @@ impl Channel {
     fn set_closed(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
-        self.cancel_consumers()
-            .and(self.internal_rpc.remove_channel(self.id, error))
+        let res = self.cancel_consumers();
+        self.internal_rpc.remove_channel(self.id, error);
+        res
     }
 
     fn set_error(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
-        self.error_consumers(error.clone())
-            .and(self.internal_rpc.remove_channel(self.id, error))
+        let res = self.error_consumers(error.clone());
+        self.internal_rpc.remove_channel(self.id, error);
+        res
     }
 
     fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
@@ -133,7 +134,7 @@ impl Channel {
         self.id
     }
 
-    fn wake(&self) -> Result<()> {
+    fn wake(&self) {
         trace!("channel {} wake", self.id);
         self.waker.wake()
     }
@@ -155,7 +156,7 @@ impl Channel {
                 error.get_message().to_string(),
                 class_id,
                 method_id,
-            )?;
+            );
             Err(Error::ProtocolError(error))
         }
     }
@@ -195,8 +196,8 @@ impl Channel {
         method: AMQPClass,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<()> {
-        self.send_frame(AMQPFrame::Method(self.id, method), resolver, expected_reply)
+    ) {
+        self.send_frame(AMQPFrame::Method(self.id, method), resolver, expected_reply);
     }
 
     pub(crate) fn send_frame(
@@ -204,10 +205,10 @@ impl Channel {
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
-    ) -> Result<()> {
+    ) {
         trace!("channel {} send_frame", self.id);
         self.frames.push(self.id, frame, resolver, expected_reply);
-        self.wake()
+        self.wake();
     }
 
     fn send_method_frame_with_body(
@@ -246,7 +247,7 @@ impl Channel {
 
         trace!("channel {} send_frames", self.id);
         let promise = self.frames.push_frames(frames);
-        self.wake()?;
+        self.wake();
         Ok(promise.traverse(move |res| {
             res.map(|()| {
                 let mut data = data.lock();
@@ -382,15 +383,17 @@ impl Channel {
     }
 
     fn on_connection_close_sent(&self) -> Result<()> {
-        self.internal_rpc.set_connection_closing()
+        self.internal_rpc.set_connection_closing();
+        Ok(())
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) -> Result<()> {
         if let Error::ProtocolError(_) = error {
-            self.internal_rpc.set_connection_error(error)
+            self.internal_rpc.set_connection_error(error);
         } else {
-            self.internal_rpc.set_connection_closed(error)
+            self.internal_rpc.set_connection_closed(error);
         }
+        Ok(())
     }
 
     fn before_channel_close(&self) {
@@ -533,7 +536,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
     }
@@ -551,7 +554,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
     }
@@ -584,7 +587,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
     }
@@ -604,7 +607,7 @@ impl Channel {
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone())?;
+            self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
     }
@@ -623,12 +626,13 @@ impl Channel {
                 info!("Connection closed on channel {}: {:?}", self.id, method);
                 Error::InvalidConnectionState(ConnectionState::Closed)
             });
-        self.internal_rpc.set_connection_closing()?;
+        self.internal_rpc.set_connection_closing();
         self.frames.drop_pending(error.clone());
         if let Some(resolver) = self.connection_status.connection_resolver() {
             resolver.swear(Err(error.clone()));
         }
-        self.internal_rpc.send_connection_close_ok(error)
+        self.internal_rpc.send_connection_close_ok(error);
+        Ok(())
     }
 
     fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
@@ -641,12 +645,14 @@ impl Channel {
         _method: protocol::connection::Unblocked,
     ) -> Result<()> {
         self.connection_status.unblock();
-        self.wake()
+        self.wake();
+        Ok(())
     }
 
     fn on_connection_close_ok_received(&self) -> Result<()> {
         self.internal_rpc
-            .set_connection_closed(Error::InvalidConnectionState(ConnectionState::Closed))
+            .set_connection_closed(Error::InvalidConnectionState(ConnectionState::Closed));
+        Ok(())
     }
 
     fn on_channel_open_ok_received(

@@ -9,11 +9,11 @@ use crate::{
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
-    waker::Waker,
     CloseOnDropPromise, Error, Promise, Result,
 };
 use amq_protocol::frame::AMQPFrame;
@@ -30,7 +30,7 @@ pub struct Connection {
 
 impl Connection {
     fn new(
-        waker: Waker,
+        waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -170,7 +170,8 @@ impl Connection {
                 .executor
                 .take()
                 .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
-            let waker = Waker::default();
+            let socket_state = SocketState::default();
+            let waker = socket_state.handle();
             let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
             let frames = Frames::default();
             let conn = Connection::new(
@@ -196,12 +197,8 @@ impl Connection {
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
-            if let Err(err) =
-                conn.channel0()
-                    .send_frame(AMQPFrame::ProtocolHeader, resolver.clone(), None)
-            {
-                resolver.swear(Err(err));
-            }
+            conn.channel0()
+                .send_frame(AMQPFrame::ProtocolHeader, resolver.clone(), None);
             let (promise, resolver) = CloseOnDropPromise::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
@@ -222,8 +219,8 @@ impl Connection {
                 channels,
                 internal_rpc,
                 frames,
+                socket_state,
                 io_loop_handle,
-                waker,
                 stream,
                 poll,
             )?
@@ -320,8 +317,9 @@ mod tests {
         use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
-        let waker = Waker::default();
         let executor = Arc::new(DefaultExecutor::default());
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
         let conn = Connection::new(
             waker.clone(),
             InternalRPC::new(executor.clone(), waker).handle(),
@@ -397,7 +395,8 @@ mod tests {
         use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
-        let waker = Waker::default();
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
         let executor = Arc::new(DefaultExecutor::default());
         let conn = Connection::new(
             waker.clone(),

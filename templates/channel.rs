@@ -124,13 +124,7 @@ impl Channel {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
-    if let Err(err) = self.send_method_frame(method, send_resolver.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(resolver.clone()))){{else}}None{{/if ~}}) {
-      {{#if method.synchronous ~}}
-      resolver.swear(Err(err.clone()));
-      {{/if ~}}
-      send_resolver.swear(Err(err));
-      return promise
-    }
+    self.send_method_frame(method, send_resolver.clone(), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#each method.metadata.state as |state| ~}}, {{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/each ~}}), Box::new(resolver.clone()))){{else}}None{{/if ~}});
     {{#if method.metadata.end_hook ~}}
     let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     if let Err(err) = end_hook_res {

@@ -1,11 +1,18 @@
 use crate::{
-    buffer::Buffer, channels::Channels, connection_status::ConnectionState, frames::Frames,
-    heartbeat::Heartbeat, internal_rpc::InternalRPC, thread::ThreadHandle, waker::Waker,
+    buffer::Buffer,
+    channels::Channels,
+    connection_status::ConnectionState,
+    frames::Frames,
+    heartbeat::Heartbeat,
+    internal_rpc::InternalRPC,
+    reactor::{Reactor, ReactorHandle},
+    socket_state::SocketState,
+    thread::ThreadHandle,
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
-use mio::{event::Source, Events, Interest, Poll, Token, Waker as MioWaker};
+use mio::{event::Source, Poll, Token};
 use std::{
     collections::VecDeque,
     io::{self, Read, Write},
@@ -15,7 +22,6 @@ use std::{
 };
 
 pub(crate) const SOCKET: Token = Token(1);
-const WAKER: Token = Token(2);
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -33,16 +39,15 @@ pub struct IoLoop<T> {
     internal_rpc: InternalRPC,
     frames: Frames,
     heartbeat: Heartbeat,
+    socket_state: SocketState,
+    reactor: ReactorHandle,
+    reactor_thread_handle: ThreadHandle,
     connection_io_loop_handle: ThreadHandle,
-    waker: Waker,
     socket: T,
     status: Status,
-    poll: Poll,
     frame_size: usize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
-    can_write: bool,
-    can_read: bool,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
 }
 
@@ -54,50 +59,40 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         channels: Channels,
         internal_rpc: InternalRPC,
         frames: Frames,
+        socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
-        waker: Waker,
-        socket: T,
+        mut socket: T,
         poll: Option<(Poll, Token)>,
     ) -> Result<Self> {
         let (poll, registered) = poll
             .map(|t| Ok((t.0, true)))
             .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
-        waker.set_waker(MioWaker::new(poll.registry(), WAKER)?);
         let heartbeat = Heartbeat::new(channels.clone());
+        let mut reactor = Reactor::new(poll, heartbeat.clone());
+        let reactor_handle = reactor.handle();
         let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
-        let mut inner = Self {
+
+        reactor.register(SOCKET, socket_state.handle(), &mut socket, registered)?;
+        let reactor_thread_handle = reactor.start()?;
+
+        Ok(Self {
             connection_status,
             configuration,
             channels,
             internal_rpc,
             frames,
             heartbeat,
+            socket_state,
+            reactor: reactor_handle,
+            reactor_thread_handle,
             connection_io_loop_handle,
-            waker,
             socket,
             status: Status::Initial,
-            poll,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
-            can_write: false,
-            can_read: false,
             serialized_frames: VecDeque::default(),
-        };
-        if registered {
-            inner.poll.registry().reregister(
-                &mut inner.socket,
-                SOCKET,
-                Interest::READABLE | Interest::WRITABLE,
-            )?;
-        } else {
-            inner.poll.registry().register(
-                &mut inner.socket,
-                SOCKET,
-                Interest::READABLE | Interest::WRITABLE,
-            )?;
-        }
-        Ok(inner)
+        })
     }
 
     fn ensure_setup(&mut self) {
@@ -121,12 +116,12 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             || !self.serialized_frames.is_empty()
     }
 
-    fn can_write(&self) -> bool {
-        self.can_write && self.has_data() && !self.connection_status.blocked()
+    fn can_write(&mut self) -> bool {
+        self.socket_state.writable() && self.has_data() && !self.connection_status.blocked()
     }
 
-    fn can_read(&self) -> bool {
-        self.can_read
+    fn can_read(&mut self) -> bool {
+        self.socket_state.readable()
     }
 
     fn can_parse(&self) -> bool {
@@ -142,114 +137,68 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     pub fn start(mut self) -> Result<()> {
-        let waker = self.waker.clone();
+        let waker = self.socket_state.handle();
         self.connection_io_loop_handle.clone().register(
             ThreadBuilder::new()
                 .name("io_loop".to_owned())
                 .spawn(move || {
-                    let mut events = Events::with_capacity(1024);
                     while self.should_continue() {
-                        if let Err(err) = self.run(&mut events) {
+                        if let Err(err) = self.run() {
                             self.critical_error(err)?;
                         }
                     }
-                    Ok(())
+                    self.reactor.shutdown();
+                    self.reactor_thread_handle.wait("reactor")
                 })?,
         );
-        waker.wake()
+        waker.wake();
+        Ok(())
     }
 
     fn poll_internal_rpc(&self) -> Result<()> {
         self.internal_rpc.poll(&self.channels)
     }
 
-    fn poll(&mut self, events: &mut Events) -> Result<()> {
-        trace!("io_loop poll");
-        self.poll.poll(events, self.heartbeat.poll_timeout()?)?;
-        trace!("io_loop poll done");
-        for event in events.iter() {
-            if event.token() == SOCKET {
-                trace!("Got mio event for socket: {:?}", event);
-                if event.is_error() {
-                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
-                }
-                if event.is_read_closed() || event.is_write_closed() {
-                    self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
-                }
-                // Due to a bug in epoll/mio, it doesn't seem like we can trust this, it's sometimes missing when it should be there
-                /*
-                if event.is_readable() {
-                    self.can_read = true;
-                }
-                */
-                self.can_read = true;
-                if event.is_writable() {
-                    self.can_write = true;
-                }
-            }
+    fn poll_socket_events(&mut self) -> Result<()> {
+        self.socket_state.poll_events();
+        if self.socket_state.error() {
+            self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
+        }
+        if self.socket_state.closed() {
+            self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
         }
         self.poll_internal_rpc()
     }
 
-    fn run(&mut self, events: &mut Events) -> Result<()> {
+    fn run(&mut self) -> Result<()> {
         trace!("io_loop run");
         self.ensure_setup();
-        self.poll(events)?;
-        self.do_run()
-    }
-
-    fn do_run(&mut self) -> Result<()> {
+        self.poll_socket_events()?;
         trace!(
             "io_loop do_run; can_read={}, can_write={}, has_data={}",
-            self.can_read,
-            self.can_write,
+            self.socket_state.readable(),
+            self.socket_state.writable(),
             self.has_data()
         );
-        loop {
-            self.write()?;
-            if self.connection_status.closed() {
-                self.status = Status::Stop;
-            }
-            if self.should_continue() {
-                self.read()?;
-            }
-            self.handle_frames()?;
-            if self.stop_looping() {
-                self.maybe_continue()?;
-                break;
-            }
+        if !self.can_read() && !self.can_write() {
+            self.socket_state.wait();
         }
+        self.poll_socket_events()?;
+        self.write()?;
+        if self.connection_status.closed() {
+            self.status = Status::Stop;
+        }
+        if self.should_continue() {
+            self.read()?;
+        }
+        self.handle_frames()?;
         trace!(
             "io_loop do_run done; can_read={}, can_write={}, has_data={}, status={:?}",
-            self.can_read,
-            self.can_write,
+            self.socket_state.readable(),
+            self.socket_state.writable(),
             self.has_data(),
             self.status
         );
-        self.poll_internal_rpc()
-    }
-
-    fn stop_looping(&self) -> bool {
-        !self.can_read()
-            || !self.can_write()
-            || self.status == Status::Stop
-            || self.connection_status.errored()
-    }
-
-    fn has_pending_operations(&self) -> bool {
-        self.status != Status::Stop && (self.can_read() || self.can_parse() || self.can_write())
-    }
-
-    fn maybe_continue(&mut self) -> Result<()> {
-        if self.has_pending_operations() {
-            trace!(
-                "io_loop send continue; can_read={}, can_write={}, has_data={}",
-                self.can_read,
-                self.can_write,
-                self.has_data()
-            );
-            self.send_continue()?;
-        }
         self.poll_internal_rpc()
     }
 
@@ -258,6 +207,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             resolver.swear(Err(error.clone()));
         }
         self.status = Status::Stop;
+        self.reactor.shutdown();
         self.channels.set_connection_error(error.clone())?;
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
@@ -268,35 +218,25 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn write(&mut self) -> Result<()> {
-        if self.can_write() {
-            if let Err(e) = self.write_to_stream() {
-                if e.wouldblock() {
-                    self.can_write = false
-                } else {
-                    error!("error writing: {:?}", e);
-                    self.critical_error(e)?;
-                }
+        while self.can_write() {
+            let res = self.write_to_stream();
+            if let Err(e) = self.socket_state.handle_write_result(res) {
+                error!("error writing: {:?}", e);
+                self.critical_error(e)?;
             }
         }
         self.poll_internal_rpc()
     }
 
     fn read(&mut self) -> Result<()> {
-        if self.can_read() {
-            if let Err(e) = self.read_from_stream() {
-                if e.wouldblock() {
-                    self.can_read = false
-                } else {
-                    error!("error reading: {:?}", e);
-                    self.critical_error(e)?;
-                }
+        while self.can_read() {
+            let res = self.read_from_stream();
+            if let Err(e) = self.socket_state.handle_read_result(res) {
+                error!("error reading: {:?}", e);
+                self.critical_error(e)?;
             }
         }
         self.poll_internal_rpc()
-    }
-
-    fn send_continue(&mut self) -> Result<()> {
-        self.waker.wake()
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
@@ -338,13 +278,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             if self.send_buffer.available_data() > 0 {
                 // We didn't write all the data yet
                 trace!("Still {} to write", self.send_buffer.available_data());
-                self.send_continue()?;
             }
 
             self.socket.flush()?;
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
-            self.can_write = false;
+            self.socket_state
+                .handle_write_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
         }
         self.poll_internal_rpc()
     }
@@ -364,7 +304,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn serialize(&mut self) -> Result<()> {
-        if let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
+        while let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
             trace!("will write to buffer: {}", next_msg);
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
@@ -376,7 +316,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
                             self.frames.retry((next_msg, resolver));
-                            self.send_continue()?;
+                            break;
                         }
                         e => {
                             error!("error generating frame: {:?}", e);
@@ -390,9 +330,11 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn handle_frames(&mut self) -> Result<()> {
-        if self.can_parse() {
+        while self.can_parse() {
             if let Some(frame) = self.parse()? {
                 self.channels.handle_frame(frame)?;
+            } else {
+                break;
             }
         }
         self.poll_internal_rpc()

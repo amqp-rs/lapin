@@ -5,7 +5,7 @@ use crate::{
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
-    waker::Waker,
+    socket_state::SocketStateHandle,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
@@ -28,7 +28,7 @@ impl Channels {
     pub(crate) fn new(
         configuration: Configuration,
         connection_status: ConnectionStatus,
-        waker: Waker,
+        waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -169,7 +169,7 @@ impl Channels {
                 promise.set_marker("Heartbeat".into());
             }
 
-            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None)?;
+            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
             self.register_internal_promise(promise)
         } else {
             Err(Error::InvalidConnectionState(
@@ -244,8 +244,7 @@ impl fmt::Debug for Channels {
             debug
                 .field("channels", &inner.channels.values())
                 .field("channel_id", &inner.channel_id)
-                .field("configuration", &inner.configuration)
-                .field("waker", &inner.waker);
+                .field("configuration", &inner.configuration);
         }
         debug
             .field("frames", &self.frames)
@@ -260,11 +259,11 @@ struct Inner {
     channels: HashMap<u16, Channel>,
     channel_id: IdSequence<u16>,
     configuration: Configuration,
-    waker: Waker,
+    waker: SocketStateHandle,
 }
 
 impl Inner {
-    fn new(configuration: Configuration, waker: Waker) -> Self {
+    fn new(configuration: Configuration, waker: SocketStateHandle) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
