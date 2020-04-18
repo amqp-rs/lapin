@@ -35,7 +35,7 @@ pub enum Error {
     ///
     /// The purpose of this variant is to let the `Error` enumeration grow more variants
     /// without it being a breaking change for users. It is planned for the language to provide
-    /// this functionnality out of the box, though it has not been [stabilized] yet.
+    /// this functionality out of the box, though it has not been [stabilized] yet.
     ///
     /// [stabilized]: https://github.com/rust-lang/rust/issues/44109
     #[doc(hidden)]

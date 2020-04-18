@@ -2,7 +2,7 @@
 
 //! lapin
 //!
-//! This project follows the AMQP 0.9.1 specifications, targetting especially RabbitMQ.
+//! This project follows the AMQP 0.9.1 specifications, targeting especially RabbitMQ.
 //!
 //! ## Feature switches
 //!

@@ -23,12 +23,12 @@ impl ConsumerDelegate for Subscriber {
 }
 
 async fn connect() -> Result<CloseOnDrop<Connection>> {
-    // You need to use amqp:// scheme here to handle the tls part manually as it's automatic when you use amqps
+    // You need to use amqp:// scheme here to handle the TLS part manually as it's automatic when you use amqps://
     std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
         .connect(|stream, uri, poll| {
             let tls_builder = NativeTlsConnector::builder();
-            // Perform here your custom tls setup, with tls_builder.identity or whatever else you need
+            // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
             let mut res = stream.into_native_tls(
                 tls_builder.build().expect("TLS configuration failed"),
                 &uri.authority.host,

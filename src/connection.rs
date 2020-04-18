@@ -148,7 +148,7 @@ impl Connection {
         }
     }
 
-    /// Update the secret used by some authentication module such as oauth2
+    /// Update the secret used by some authentication module such as OAuth2
     pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
         if let Some(channel0) = self.channels.get(0) {
             channel0.connection_update_secret(new_secret, reason)

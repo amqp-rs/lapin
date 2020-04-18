@@ -594,7 +594,7 @@
 #### Breaking changes
 
 * Method options are now generated. Hardcoded fields from AMQP omitted. Options are shared between async and futures
-* The way we handle `publisher_confirm` has changed. You now need to call `confirm_select` explicitely, and then
+* The way we handle `publisher_confirm` has changed. You now need to call `confirm_select` explicitly, and then
   `wait_for_confirms` to wait for all pending confirmations
 * **async**
   * Methods are now on the `Channel` object which is now returned instead of `channel_id` by `create_channel`
@@ -627,11 +627,11 @@
 
 #### Bug Fixes
 
-* Drop prefetched messages when speicific arguments are passed to `basic_{,n}ack` or `basic_cancel`
+* Drop prefetched messages when specific arguments are passed to `basic_{,n}ack` or `basic_cancel`
 
 #### Housekeeping
 
-* Drop sasl dependency, avoiding likage to LGPL-3 licensed code
+* Drop sasl dependency, avoiding linkage to LGPL-3 licensed code
 
 ### 0.16.0 (2019-02-01)
 
@@ -654,9 +654,9 @@
 #### Breaking Changes
 
 * **async:**
-  * Introduce a new `Error` type, replacing occurences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/147))
+  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/147))
 * **futures:**
-  * Introduce a new `Error` type, replacing occurences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/145))
+  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/145))
 
 ### 0.14.1 (2018-11-16)
 
@@ -688,7 +688,7 @@
 #### Bug Fixes
 
 * Fully rework how consumers are handled internally, should be way more robust now
-* Heartbeats are now preemptive and are sucessfully sent even under heavy load
+* Heartbeats are now preemptive and are successfully sent even under heavy load
 
 #### Breaking Changes
 
@@ -759,7 +759,7 @@
 #### Bug Fixes
 
 * Rework how the futures API is handled internally
-* Rework client-server parameters negociation at connection
+* Rework client-server parameters negotiation at connection
 
 #### Breaking Changes
 
@@ -775,7 +775,7 @@
 * Implement `access` methods
 * **async:**
   * Make errors more specific
-  * Do the `frame_max` negociation with the server
+  * Do the `frame_max` negotiation with the server
 * **futures:**
   * Implement missing exchange methods
 
@@ -819,7 +819,7 @@
 
 #### Features
 
-* Allow chosing the vhost
+* Allow choosing the vhost
 
 ### 0.5.0 (2017-03-28)
 
