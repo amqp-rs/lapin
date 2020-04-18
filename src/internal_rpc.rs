@@ -1,8 +1,8 @@
 use crate::{
     channels::Channels,
     executor::{Executor, ExecutorExt},
+    socket_state::SocketStateHandle,
     types::ShortUInt,
-    waker::Waker,
     Error, Promise, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -18,7 +18,7 @@ pub(crate) struct InternalRPC {
 #[derive(Clone)]
 pub(crate) struct InternalRPCHandle {
     sender: Sender<InternalCommand>,
-    waker: Waker,
+    waker: SocketStateHandle,
 }
 
 impl InternalRPCHandle {
@@ -28,36 +28,36 @@ impl InternalRPCHandle {
         reply_text: String,
         class_id: ShortUInt,
         method_id: ShortUInt,
-    ) -> Result<()> {
+    ) {
         self.send(InternalCommand::CloseConnection(
             reply_code, reply_text, class_id, method_id,
-        ))
+        ));
     }
 
-    pub(crate) fn send_connection_close_ok(&self, error: Error) -> Result<()> {
-        self.send(InternalCommand::SendConnectionCloseOk(error))
+    pub(crate) fn send_connection_close_ok(&self, error: Error) {
+        self.send(InternalCommand::SendConnectionCloseOk(error));
     }
 
-    pub(crate) fn remove_channel(&self, channel_id: u16, error: Error) -> Result<()> {
-        self.send(InternalCommand::RemoveChannel(channel_id, error))
+    pub(crate) fn remove_channel(&self, channel_id: u16, error: Error) {
+        self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
 
-    pub(crate) fn set_connection_closing(&self) -> Result<()> {
-        self.send(InternalCommand::SetConnectionClosing)
+    pub(crate) fn set_connection_closing(&self) {
+        self.send(InternalCommand::SetConnectionClosing);
     }
 
-    pub(crate) fn set_connection_closed(&self, error: Error) -> Result<()> {
-        self.send(InternalCommand::SetConnectionClosed(error))
+    pub(crate) fn set_connection_closed(&self, error: Error) {
+        self.send(InternalCommand::SetConnectionClosed(error));
     }
 
-    pub(crate) fn set_connection_error(&self, error: Error) -> Result<()> {
-        self.send(InternalCommand::SetConnectionError(error))
+    pub(crate) fn set_connection_error(&self, error: Error) {
+        self.send(InternalCommand::SetConnectionError(error));
     }
 
-    fn send(&self, command: InternalCommand) -> Result<()> {
+    fn send(&self, command: InternalCommand) {
         trace!("Queuing internal RPC command: {:?}", command);
         self.sender.send(command).expect("internal RPC failed");
-        self.waker.wake()
+        self.waker.wake();
     }
 }
 
@@ -72,7 +72,7 @@ enum InternalCommand {
 }
 
 impl InternalRPC {
-    pub(crate) fn new(executor: Arc<dyn Executor>, waker: Waker) -> Self {
+    pub(crate) fn new(executor: Arc<dyn Executor>, waker: SocketStateHandle) -> Self {
         let (sender, rpc) = crossbeam_channel::unbounded();
         let handle = InternalRPCHandle { sender, waker };
         Self {

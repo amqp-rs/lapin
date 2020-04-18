@@ -150,4 +150,3 @@ mod reactor;
 mod returned_messages;
 mod socket_state;
 mod thread;
-mod waker;

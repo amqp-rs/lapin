@@ -19,15 +19,13 @@ pub(crate) trait ExecutorExt: Executor {
     fn spawn_internal(&self, promise: Promise<()>, internal_rpc: InternalRPCHandle) -> Result<()> {
         if let Some(res) = promise.try_wait() {
             if let Err(err) = res.clone() {
-                internal_rpc.set_connection_error(err)?;
+                internal_rpc.set_connection_error(err);
             }
             res
         } else {
             self.spawn(Box::pin(async move {
                 if let Err(err) = promise.await {
-                    internal_rpc
-                        .set_connection_error(err)
-                        .expect("internal RPC error");
+                    internal_rpc.set_connection_error(err);
                 }
             }))
         }

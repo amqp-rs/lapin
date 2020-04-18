@@ -1,14 +1,18 @@
 use crate::{
     heartbeat::Heartbeat,
     socket_state::{SocketEvent, SocketStateHandle},
+    thread::ThreadHandle,
     Result,
 };
 use log::trace;
 use mio::{event::Source, Events, Interest, Poll, Token};
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::{AtomicBool, Ordering}},
-    thread::{Builder as ThreadBuilder, JoinHandle},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::Builder as ThreadBuilder,
 };
 
 pub(crate) struct Reactor {
@@ -59,16 +63,18 @@ impl Reactor {
         Ok(())
     }
 
-    pub(crate) fn start(mut self) -> Result<JoinHandle<Result<()>>> {
-        Ok(ThreadBuilder::new()
-            .name("lapin-reactor".into())
-            .spawn(move || {
-                let mut events = Events::with_capacity(16);
-                while self.should_run() {
-                    self.run(&mut events)?;
-                }
-                Ok(())
-            })?)
+    pub(crate) fn start(mut self) -> Result<ThreadHandle> {
+        Ok(ThreadHandle::new(
+            ThreadBuilder::new()
+                .name("lapin-reactor".into())
+                .spawn(move || {
+                    let mut events = Events::with_capacity(16);
+                    while self.should_run() {
+                        self.run(&mut events)?;
+                    }
+                    Ok(())
+                })?,
+        ))
     }
 
     fn should_run(&self) -> bool {

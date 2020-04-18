@@ -14,6 +14,10 @@ impl Default for ThreadHandle {
 }
 
 impl ThreadHandle {
+    pub(crate) fn new(handle: JoinHandle) -> Self {
+        Self(Arc::new(Mutex::new(Some(handle))))
+    }
+
     pub(crate) fn register(&self, handle: JoinHandle) {
         *self.0.lock() = Some(handle);
     }
