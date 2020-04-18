@@ -1,7 +1,7 @@
 use crate::{
     buffer::Buffer, channels::Channels, connection_status::ConnectionState, frames::Frames,
-    internal_rpc::InternalRPC, thread::ThreadHandle, waker::Waker, Configuration, ConnectionStatus,
-    Error, PromiseResolver, Result,
+    heartbeat::Heartbeat, internal_rpc::InternalRPC, thread::ThreadHandle, waker::Waker,
+    Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
@@ -11,7 +11,7 @@ use std::{
     io::{self, Read, Write},
     sync::Arc,
     thread::Builder as ThreadBuilder,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 pub(crate) const SOCKET: Token = Token(1);
@@ -32,6 +32,7 @@ pub struct IoLoop<T> {
     channels: Channels,
     internal_rpc: InternalRPC,
     frames: Frames,
+    heartbeat: Heartbeat,
     connection_io_loop_handle: ThreadHandle,
     waker: Waker,
     socket: T,
@@ -42,9 +43,7 @@ pub struct IoLoop<T> {
     send_buffer: Buffer,
     can_write: bool,
     can_read: bool,
-    poll_timeout: Option<Duration>,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
-    last_write: Instant,
 }
 
 impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
@@ -64,6 +63,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             .map(|t| Ok((t.0, true)))
             .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
         waker.set_waker(MioWaker::new(poll.registry(), WAKER)?);
+        let heartbeat = Heartbeat::new(channels.clone());
         let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
         let mut inner = Self {
             connection_status,
@@ -71,6 +71,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             channels,
             internal_rpc,
             frames,
+            heartbeat,
             connection_io_loop_handle,
             waker,
             socket,
@@ -81,9 +82,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             can_write: false,
             can_read: false,
-            poll_timeout: None,
             serialized_frames: VecDeque::default(),
-            last_write: Instant::now(),
         };
         if registered {
             inner.poll.registry().reregister(
@@ -110,7 +109,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
-                self.poll_timeout = Some(heartbeat);
+                self.heartbeat.set_timeout(heartbeat);
             }
             self.status = Status::Setup;
         }
@@ -160,21 +159,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         waker.wake()
     }
 
-    fn poll_timeout(&self) -> Option<Duration> {
-        self.poll_timeout.map(|timeout| {
-            timeout
-                .checked_sub(self.last_write.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0))
-        })
-    }
-
     fn poll_internal_rpc(&self) -> Result<()> {
         self.internal_rpc.poll(&self.channels)
     }
 
     fn poll(&mut self, events: &mut Events) -> Result<()> {
         trace!("io_loop poll");
-        self.poll.poll(events, self.poll_timeout())?;
+        self.poll.poll(events, self.heartbeat.poll_timeout()?)?;
         trace!("io_loop poll done");
         for event in events.iter() {
             if event.token() == SOCKET {
@@ -223,11 +214,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 self.read()?;
             }
             self.handle_frames()?;
-            if self.should_heartbeat() {
-                self.channels.send_heartbeat()?;
-                // Update last_write so that if we cannot write yet to the socket, we don't enqueue countless heartbeats
-                self.last_write = Instant::now();
-            }
             if self.stop_looping() {
                 self.maybe_continue()?;
                 break;
@@ -241,14 +227,6 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.status
         );
         self.poll_internal_rpc()
-    }
-
-    fn should_heartbeat(&self) -> bool {
-        if let Some(heartbeat_timeout) = self.poll_timeout {
-            self.last_write.elapsed() > heartbeat_timeout
-        } else {
-            false
-        }
     }
 
     fn stop_looping(&self) -> bool {
@@ -329,7 +307,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         let sz = self.send_buffer.write_to(&mut self.socket)?;
 
         if sz > 0 {
-            self.last_write = Instant::now();
+            self.heartbeat.update_last_write();
 
             trace!("wrote {} bytes", sz);
             self.send_buffer.consume(sz);
