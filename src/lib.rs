@@ -139,6 +139,7 @@ mod error;
 mod error_handler;
 mod exchange;
 mod frames;
+mod heartbeat;
 mod id_sequence;
 mod internal_rpc;
 mod io_loop;
