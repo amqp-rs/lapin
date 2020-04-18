@@ -146,6 +146,7 @@ mod io_loop;
 mod parsing;
 mod queue;
 mod queues;
+mod reactor;
 mod returned_messages;
 mod socket_state;
 mod thread;
