@@ -147,5 +147,6 @@ mod parsing;
 mod queue;
 mod queues;
 mod returned_messages;
+mod socket_state;
 mod thread;
 mod waker;
