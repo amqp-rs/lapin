@@ -73,7 +73,7 @@ impl Frames {
 }
 
 struct Inner {
-    /* Header frames must follow basic.publish frames directly, otherwise rabbitmq-server send us an UNEXPECTED_FRAME */
+    /* Header frames must follow basic.publish frames directly, otherwise RabbitMQ-server send us an UNEXPECTED_FRAME */
     header_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     priority_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,

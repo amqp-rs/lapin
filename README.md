@@ -16,7 +16,7 @@
 
 <br />
 
-This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf), targetting especially RabbitMQ.
+This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf), targeting especially RabbitMQ.
 
 ## Feature switches
 

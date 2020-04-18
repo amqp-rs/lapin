@@ -97,7 +97,7 @@ impl Future for PublisherConfirm {
             &mut this
                 .inner
                 .as_mut()
-                .expect("inner should only be None ater Drop"),
+                .expect("inner should only be None after Drop"),
         )
         .poll(cx);
         if res.is_ready() {
