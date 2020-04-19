@@ -217,13 +217,18 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         Err(error)
     }
 
+    fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
+        if let Err(e) = self.socket_state.handle_write_result(result) {
+            error!("error writing: {:?}", e);
+            self.critical_error(e)?;
+        }
+        self.poll_internal_rpc()
+    }
+
     fn write(&mut self) -> Result<()> {
         while self.can_write() {
             let res = self.write_to_stream();
-            if let Err(e) = self.socket_state.handle_write_result(res) {
-                error!("error writing: {:?}", e);
-                self.critical_error(e)?;
-            }
+            self.handle_write_result(res)?;
         }
         self.poll_internal_rpc()
     }
