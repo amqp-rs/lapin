@@ -225,7 +225,16 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         self.poll_internal_rpc()
     }
 
+    fn flush(&mut self) -> Result<()> {
+        self.socket.flush()?;
+        self.poll_internal_rpc()
+    }
+
     fn write(&mut self) -> Result<()> {
+        if self.socket_state.writable() {
+            let res = self.flush();
+            self.handle_write_result(res)?;
+        }
         while self.can_write() {
             let res = self.write_to_stream();
             self.handle_write_result(res)?;
@@ -245,8 +254,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
-        self.socket.flush()?;
-
+        self.flush()?;
         self.serialize()?;
 
         let sz = self.send_buffer.write_to(&mut self.socket)?;
@@ -285,7 +293,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
                 trace!("Still {} to write", self.send_buffer.available_data());
             }
 
-            self.socket.flush()?;
+            self.flush()?;
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
             self.socket_state
