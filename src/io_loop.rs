@@ -7,21 +7,19 @@ use crate::{
     internal_rpc::InternalRPC,
     reactor::{ReactorBuilder, ReactorHandle},
     socket_state::SocketState,
+    tcp::{HandshakeResult, MidHandshakeTlsStream, TcpStream},
     thread::ThreadHandle,
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{error, trace};
-use mio::{event::Source, Poll, Token};
 use std::{
     collections::VecDeque,
-    io::{self, Read, Write},
+    io::{self, Write},
     sync::Arc,
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-
-pub(crate) const SOCKET: Token = Token(1);
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -32,7 +30,7 @@ enum Status {
     Stop,
 }
 
-pub struct IoLoop<T> {
+pub struct IoLoop {
     connection_status: ConnectionStatus,
     configuration: Configuration,
     channels: Channels,
@@ -43,7 +41,8 @@ pub struct IoLoop<T> {
     reactor: Box<dyn ReactorHandle + Send>,
     reactor_thread_handle: ThreadHandle,
     connection_io_loop_handle: ThreadHandle,
-    socket: T,
+    handshake: Option<MidHandshakeTlsStream>,
+    stream: Option<TcpStream>,
     status: Status,
     frame_size: usize,
     receive_buffer: Buffer,
@@ -51,7 +50,7 @@ pub struct IoLoop<T> {
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
 }
 
-impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
+impl IoLoop {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
@@ -61,19 +60,22 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         frames: Frames,
         socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
-        mut socket: T,
-        poll: Option<(Poll, Token)>,
+        stream: HandshakeResult,
         reactor_builder: &dyn ReactorBuilder,
     ) -> Result<Self> {
-        let (poll, registered) = poll
-            .map(|t| Ok((t.0, true)))
-            .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
         let heartbeat = Heartbeat::new(channels.clone());
-        let mut reactor = reactor_builder.build(poll, heartbeat.clone());
+        let mut reactor = reactor_builder.build(heartbeat.clone())?;
         let reactor_handle = reactor.handle();
         let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
+        let (mut stream, mut handshake) = match stream {
+            Ok(stream) => (Some(stream), None),
+            Err(error) => (None, Some(error.into_mid_handshake_tls_stream()?)),
+        };
+        let source = stream
+            .as_deref_mut()
+            .unwrap_or_else(|| handshake.as_mut().unwrap().get_mut());
+        reactor.register(source, socket_state.handle())?;
 
-        reactor.register(SOCKET, socket_state.handle(), &mut socket, registered)?;
         let reactor_thread_handle = reactor.start()?;
 
         Ok(Self {
@@ -87,7 +89,8 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             reactor: reactor_handle,
             reactor_thread_handle,
             connection_io_loop_handle,
-            socket,
+            stream,
+            handshake,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
@@ -185,6 +188,16 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             self.socket_state.wait();
         }
         self.poll_socket_events()?;
+        if let Some(handshake) = self.handshake.take() {
+            match handshake.handshake() {
+                Ok(stream) => self.stream = Some(stream),
+                Err(error) => self.handshake = Some(error.into_mid_handshake_tls_stream()?),
+            }
+            if self.handshake.is_some() {
+                // We hit WOULDBLOCK while handshaking, wait for the next socket event
+                return Ok(());
+            }
+        }
         self.write()?;
         if self.connection_status.closed() {
             self.status = Status::Stop;
@@ -227,7 +240,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
     }
 
     fn flush(&mut self) -> Result<()> {
-        self.socket.flush()?;
+        self.stream.as_mut().unwrap().flush()?;
         self.poll_internal_rpc()
     }
 
@@ -258,7 +271,7 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         self.flush()?;
         self.serialize()?;
 
-        let sz = self.send_buffer.write_to(&mut self.socket)?;
+        let sz = self.send_buffer.write_to(self.stream.as_mut().unwrap())?;
 
         if sz > 0 {
             self.heartbeat.update_last_write();
@@ -308,10 +321,12 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer.read_from(&mut self.socket).map(|sz| {
-                    trace!("read {} bytes", sz);
-                    self.receive_buffer.fill(sz);
-                })?;
+                self.receive_buffer
+                    .read_from(self.stream.as_mut().unwrap())
+                    .map(|sz| {
+                        trace!("read {} bytes", sz);
+                        self.receive_buffer.fill(sz);
+                    })?;
                 self.poll_internal_rpc()
             }
         }

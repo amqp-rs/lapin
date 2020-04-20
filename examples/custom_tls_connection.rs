@@ -1,12 +1,12 @@
 use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, tcp::AMQPUriTcpExt,
-    types::FieldTable, BasicProperties, CloseOnDrop, Connection, ConnectionProperties,
-    ConsumerDelegate, Result,
+    types::FieldTable, uri::AMQPUri, BasicProperties, CloseOnDrop, Connection,
+    ConnectionProperties, ConsumerDelegate, Result,
 };
 use log::info;
 use std::{future::Future, pin::Pin};
-use tcp_stream::{HandshakeError, NativeTlsConnector};
+use tcp_stream::NativeTlsConnector;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Subscriber;
@@ -24,27 +24,19 @@ impl ConsumerDelegate for Subscriber {
 
 async fn connect() -> Result<CloseOnDrop<Connection>> {
     // You need to use amqp:// scheme here to handle the TLS part manually as it's automatic when you use amqps://
-    std::env::var("AMQP_ADDR")
+    let uri = std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
-        .connect(|stream, uri, poll| {
-            let tls_builder = NativeTlsConnector::builder();
-            // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
-            let mut res = stream.into_native_tls(
-                tls_builder.build().expect("TLS configuration failed"),
-                &uri.authority.host,
-            );
-            while let Err(error) = res {
-                match error {
-                    HandshakeError::Failure(io_err) => {
-                        panic!("TLS connection failed: {:?}", io_err)
-                    }
-                    HandshakeError::WouldBlock(mid) => res = mid.handshake(),
-                }
-            }
-            let stream = res.unwrap();
-            Connection::connector(ConnectionProperties::default())(stream, uri, poll)
-        })??
-        .await
+        .parse::<AMQPUri>()
+        .unwrap();
+    let res = uri.connect().and_then(|stream| {
+        let tls_builder = NativeTlsConnector::builder();
+        // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
+        stream.into_native_tls(
+            tls_builder.build().expect("TLS configuration failed"),
+            &uri.authority.host,
+        )
+    });
+    Connection::connector(ConnectionProperties::default())(uri, res).await
 }
 
 fn main() {
