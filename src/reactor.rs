@@ -8,6 +8,7 @@ use log::trace;
 use mio::{event::Source, Events, Interest, Poll, Token};
 use std::{
     collections::HashMap,
+    fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -15,31 +16,50 @@ use std::{
     thread::Builder as ThreadBuilder,
 };
 
-pub(crate) struct Reactor {
+pub trait ReactorBuilder: fmt::Debug + Send + Sync {
+    fn build(&self, poll: Poll, heartbeat: Heartbeat) -> Box<dyn Reactor + Send>;
+}
+
+pub trait Reactor: fmt::Debug + Send {
+    fn handle(&self) -> Box<dyn ReactorHandle + Send>;
+    fn register(
+        &mut self,
+        token: Token,
+        socket_state: SocketStateHandle,
+        socket: &mut dyn Source,
+        reregister: bool,
+    ) -> Result<()>;
+    fn start(self: Box<Self>) -> Result<ThreadHandle>;
+}
+
+pub trait ReactorHandle {
+    fn shutdown(&self);
+}
+
+pub(crate) struct DefaultReactorBuilder;
+
+impl ReactorBuilder for DefaultReactorBuilder {
+    fn build(&self, poll: Poll, heartbeat: Heartbeat) -> Box<dyn Reactor + Send> {
+        Box::new(DefaultReactor::new(poll, heartbeat))
+    }
+}
+
+pub(crate) struct DefaultReactor {
     poll: Poll,
     heartbeat: Heartbeat,
     slots: HashMap<Token, SocketStateHandle>,
-    handle: ReactorHandle,
+    handle: DefaultReactorHandle,
 }
 
 #[derive(Clone)]
-pub(crate) struct ReactorHandle(Arc<AtomicBool>);
+pub(crate) struct DefaultReactorHandle(Arc<AtomicBool>);
 
-impl Reactor {
-    pub(crate) fn new(poll: Poll, heartbeat: Heartbeat) -> Self {
-        Self {
-            poll,
-            heartbeat,
-            slots: HashMap::default(),
-            handle: ReactorHandle(Arc::new(AtomicBool::new(true))),
-        }
+impl Reactor for DefaultReactor {
+    fn handle(&self) -> Box<dyn ReactorHandle + Send> {
+        Box::new(self.handle.clone())
     }
 
-    pub(crate) fn handle(&self) -> ReactorHandle {
-        self.handle.clone()
-    }
-
-    pub(crate) fn register(
+    fn register(
         &mut self,
         token: Token,
         socket_state: SocketStateHandle,
@@ -63,7 +83,7 @@ impl Reactor {
         Ok(())
     }
 
-    pub(crate) fn start(mut self) -> Result<ThreadHandle> {
+    fn start(mut self: Box<Self>) -> Result<ThreadHandle> {
         Ok(ThreadHandle::new(
             ThreadBuilder::new()
                 .name("lapin-reactor".into())
@@ -75,6 +95,17 @@ impl Reactor {
                     Ok(())
                 })?,
         ))
+    }
+}
+
+impl DefaultReactor {
+    fn new(poll: Poll, heartbeat: Heartbeat) -> Self {
+        Self {
+            poll,
+            heartbeat,
+            slots: HashMap::default(),
+            handle: DefaultReactorHandle(Arc::new(AtomicBool::new(true))),
+        }
     }
 
     fn should_run(&self) -> bool {
@@ -105,8 +136,20 @@ impl Reactor {
     }
 }
 
-impl ReactorHandle {
-    pub(crate) fn shutdown(&self) {
+impl ReactorHandle for DefaultReactorHandle {
+    fn shutdown(&self) {
         self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+impl fmt::Debug for DefaultReactorBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DefaultReactorBuilder").finish()
+    }
+}
+
+impl fmt::Debug for DefaultReactor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DefaultReactor").finish()
     }
 }

@@ -2,10 +2,10 @@ use crate::Result;
 use parking_lot::Mutex;
 use std::{sync::Arc, thread};
 
-type JoinHandle = thread::JoinHandle<Result<()>>;
+pub type JoinHandle = thread::JoinHandle<Result<()>>;
 
 #[derive(Clone)]
-pub(crate) struct ThreadHandle(Arc<Mutex<Option<JoinHandle>>>);
+pub struct ThreadHandle(Arc<Mutex<Option<JoinHandle>>>);
 
 impl Default for ThreadHandle {
     fn default() -> Self {
@@ -14,7 +14,7 @@ impl Default for ThreadHandle {
 }
 
 impl ThreadHandle {
-    pub(crate) fn new(handle: JoinHandle) -> Self {
+    pub fn new(handle: JoinHandle) -> Self {
         Self(Arc::new(Mutex::new(Some(handle))))
     }
 
