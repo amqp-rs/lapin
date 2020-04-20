@@ -11,7 +11,7 @@ use crate::{
     io_loop::IoLoop,
     reactor::DefaultReactorBuilder,
     socket_state::{SocketState, SocketStateHandle},
-    tcp::{AMQPUriTcpExt, Identity, TcpStream},
+    tcp::{AMQPUriTcpExt, HandshakeResult, Identity},
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
@@ -19,8 +19,7 @@ use crate::{
 };
 use amq_protocol::frame::AMQPFrame;
 use log::{log_enabled, Level::Trace};
-use mio::{Poll, Token};
-use std::{fmt, sync::Arc};
+use std::{fmt, io, sync::Arc};
 
 pub struct Connection {
     configuration: Configuration,
@@ -160,13 +159,8 @@ impl Connection {
 
     pub fn connector(
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(
-        TcpStream,
-        AMQPUri,
-        Option<(Poll, Token)>,
-    ) -> Result<CloseOnDropPromise<Connection>>
-           + 'static {
-        move |stream, uri, poll| {
+    ) -> impl FnOnce(AMQPUri, HandshakeResult) -> CloseOnDropPromise<Connection> + 'static {
+        move |uri, handshake_result| {
             let executor = options
                 .executor
                 .take()
@@ -226,12 +220,12 @@ impl Connection {
                 frames,
                 socket_state,
                 io_loop_handle,
-                stream,
-                poll,
+                handshake_result,
                 &*reactor_builder,
-            )?
-            .start()?;
-            Ok(promise)
+            )
+            .and_then(IoLoop::start)
+            .map(|()| promise)
+            .unwrap_or_else(|err| CloseOnDropPromise::new_with_data(Err(err)))
         }
     }
 }
@@ -253,54 +247,34 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         identity: Option<Identity<'_, '_>>,
-    ) -> CloseOnDropPromise<Connection>
-    where
-        Self: Sized,
-    {
-        Poll::new()
-            .map_err(Error::from)
-            .and_then(|poll| self.connect_raw(options, Some(poll), identity))
-            .unwrap_or_else(|err| CloseOnDropPromise::new_with_data(Err(err)))
-    }
-
-    /// connect to an AMQP server, for internal use
-    fn connect_raw(
-        self,
-        options: ConnectionProperties,
-        poll: Option<Poll>,
-        identity: Option<Identity<'_, '_>>,
-    ) -> Result<CloseOnDropPromise<Connection>>;
+    ) -> CloseOnDropPromise<Connection>;
 }
 
 impl Connect for AMQPUri {
-    fn connect_raw(
+    fn connect(
         self,
         options: ConnectionProperties,
-        poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<CloseOnDropPromise<Connection>> {
-        AMQPUriTcpExt::connect_full(
-            self,
-            Connection::connector(options),
-            poll.map(|poll| (poll, crate::io_loop::SOCKET)),
-            identity,
-        )?
+    ) -> CloseOnDropPromise<Connection> {
+        let stream = AMQPUriTcpExt::connect_with_identity(&self, identity);
+        Connection::connector(options)(self, stream)
     }
 }
 
 impl Connect for &str {
-    fn connect_raw(
+    fn connect(
         self,
         options: ConnectionProperties,
-        poll: Option<Poll>,
         identity: Option<Identity<'_, '_>>,
-    ) -> Result<CloseOnDropPromise<Connection>> {
-        AMQPUriTcpExt::connect_full(
-            self,
-            Connection::connector(options),
-            poll.map(|poll| (poll, crate::io_loop::SOCKET)),
-            identity,
-        )?
+    ) -> CloseOnDropPromise<Connection> {
+        match self.parse::<AMQPUri>() {
+            Ok(uri) => Connect::connect(uri, options, identity),
+            Err(err) => {
+                CloseOnDropPromise::new_with_data(Err(
+                    io::Error::new(io::ErrorKind::Other, err).into()
+                ))
+            }
+        }
     }
 }
 

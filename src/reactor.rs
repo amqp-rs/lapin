@@ -5,31 +5,29 @@ use crate::{
     Result,
 };
 use log::trace;
-use mio::{event::Source, Events, Interest, Poll, Token};
+use mio::{Events, Interest, Poll, Token, net::TcpStream}; // FIXME: use our TcpStream instead
 use std::{
     collections::HashMap,
     fmt,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     thread::Builder as ThreadBuilder,
 };
 
 pub trait ReactorBuilder: fmt::Debug + Send + Sync {
-    fn build(&self, poll: Poll, heartbeat: Heartbeat) -> Box<dyn Reactor + Send>;
+    fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>>;
 }
 
 pub trait Reactor: fmt::Debug + Send {
-    fn handle(&self) -> Box<dyn ReactorHandle + Send>;
-    fn register(
-        &mut self,
-        token: Token,
-        socket_state: SocketStateHandle,
-        socket: &mut dyn Source,
-        reregister: bool,
-    ) -> Result<()>;
-    fn start(self: Box<Self>) -> Result<ThreadHandle>;
+    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<()>;
+    fn handle(&self) -> Box<dyn ReactorHandle + Send> {
+        Box::new(DummyHandle)
+    }
+    fn start(self: Box<Self>) -> Result<ThreadHandle> {
+        Ok(ThreadHandle::default())
+    }
 }
 
 pub trait ReactorHandle {
@@ -39,12 +37,13 @@ pub trait ReactorHandle {
 pub(crate) struct DefaultReactorBuilder;
 
 impl ReactorBuilder for DefaultReactorBuilder {
-    fn build(&self, poll: Poll, heartbeat: Heartbeat) -> Box<dyn Reactor + Send> {
-        Box::new(DefaultReactor::new(poll, heartbeat))
+    fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>> {
+        Ok(Box::new(DefaultReactor::new(heartbeat)?))
     }
 }
 
 pub(crate) struct DefaultReactor {
+    slot: AtomicUsize,
     poll: Poll,
     heartbeat: Heartbeat,
     slots: HashMap<Token, SocketStateHandle>,
@@ -59,26 +58,11 @@ impl Reactor for DefaultReactor {
         Box::new(self.handle.clone())
     }
 
-    fn register(
-        &mut self,
-        token: Token,
-        socket_state: SocketStateHandle,
-        socket: &mut dyn Source,
-        reregister: bool,
-    ) -> Result<()> {
-        if reregister {
-            self.poll.registry().reregister(
-                socket,
-                token,
-                Interest::READABLE | Interest::WRITABLE,
-            )?;
-        } else {
-            self.poll.registry().reregister(
-                socket,
-                token,
-                Interest::READABLE | Interest::WRITABLE,
-            )?;
-        }
+    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<()> {
+        let token = Token(self.slot.fetch_add(1, Ordering::SeqCst));
+        self.poll
+            .registry()
+            .register(socket, token, Interest::READABLE | Interest::WRITABLE)?;
         self.slots.insert(token, socket_state);
         Ok(())
     }
@@ -99,13 +83,14 @@ impl Reactor for DefaultReactor {
 }
 
 impl DefaultReactor {
-    fn new(poll: Poll, heartbeat: Heartbeat) -> Self {
-        Self {
-            poll,
+    fn new(heartbeat: Heartbeat) -> Result<Self> {
+        Ok(Self {
+            slot: AtomicUsize::new(1),
+            poll: Poll::new()?,
             heartbeat,
             slots: HashMap::default(),
             handle: DefaultReactorHandle(Arc::new(AtomicBool::new(true))),
-        }
+        })
     }
 
     fn should_run(&self) -> bool {
@@ -152,4 +137,11 @@ impl fmt::Debug for DefaultReactor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DefaultReactor").finish()
     }
+}
+
+#[derive(Clone)]
+struct DummyHandle;
+
+impl ReactorHandle for DummyHandle {
+    fn shutdown(&self) {}
 }
