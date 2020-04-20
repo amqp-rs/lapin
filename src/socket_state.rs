@@ -26,12 +26,12 @@ impl Default for SocketState {
 }
 
 #[derive(Clone)]
-pub(crate) struct SocketStateHandle {
+pub struct SocketStateHandle {
     sender: Sender<SocketEvent>,
 }
 
 #[derive(Debug)]
-pub(crate) enum SocketEvent {
+pub enum SocketEvent {
     Readable,
     Writable,
     Error,
@@ -105,13 +105,13 @@ impl SocketState {
 }
 
 impl SocketStateHandle {
-    pub(crate) fn send(&self, event: SocketEvent) {
+    pub fn send(&self, event: SocketEvent) {
         self.sender
             .send(event)
             .expect("forwarding soket event failed")
     }
 
-    pub(crate) fn wake(&self) {
+    pub fn wake(&self) {
         self.send(SocketEvent::Wake);
     }
 }

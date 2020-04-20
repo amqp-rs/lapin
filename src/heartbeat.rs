@@ -6,7 +6,7 @@ use std::{
 };
 
 #[derive(Clone)]
-pub(crate) struct Heartbeat {
+pub struct Heartbeat {
     channels: Channels,
     inner: Arc<Mutex<Inner>>,
 }
@@ -21,7 +21,7 @@ impl Heartbeat {
         self.inner.lock().timeout = Some(timeout);
     }
 
-    pub(crate) fn poll_timeout(&self) -> Result<Option<Duration>> {
+    pub fn poll_timeout(&self) -> Result<Option<Duration>> {
         self.inner.lock().poll_timeout(&self.channels)
     }
 
