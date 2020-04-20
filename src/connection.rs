@@ -9,6 +9,7 @@ use crate::{
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    reactor::DefaultReactorBuilder,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, Identity, TcpStream},
     thread::ThreadHandle,
@@ -170,6 +171,10 @@ impl Connection {
                 .executor
                 .take()
                 .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
+            let reactor_builder = options
+                .reactor_builder
+                .take()
+                .unwrap_or_else(|| Arc::new(DefaultReactorBuilder));
             let socket_state = SocketState::default();
             let waker = socket_state.handle();
             let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
@@ -223,6 +228,7 @@ impl Connection {
                 io_loop_handle,
                 stream,
                 poll,
+                &*reactor_builder,
             )?
             .start()?;
             Ok(promise)

@@ -1,5 +1,6 @@
 use crate::{
     executor::{DefaultExecutor, Executor},
+    reactor::ReactorBuilder,
     types::FieldTable,
 };
 use std::sync::Arc;
@@ -9,6 +10,7 @@ pub struct ConnectionProperties {
     pub locale: String,
     pub client_properties: FieldTable,
     pub executor: Option<Arc<dyn Executor>>,
+    pub reactor_builder: Option<Arc<dyn ReactorBuilder>>,
 }
 
 impl Default for ConnectionProperties {
@@ -17,6 +19,7 @@ impl Default for ConnectionProperties {
             locale: "en_US".into(),
             client_properties: FieldTable::default(),
             executor: None,
+            reactor_builder: None,
         }
     }
 }
@@ -29,5 +32,10 @@ impl ConnectionProperties {
 
     pub fn with_default_executor(self, max_threads: usize) -> Self {
         self.with_executor(DefaultExecutor::new(max_threads))
+    }
+
+    pub fn with_reactor<R: ReactorBuilder + 'static>(mut self, reactor_builder: R) -> Self {
+        self.reactor_builder = Some(Arc::new(reactor_builder));
+        self
     }
 }

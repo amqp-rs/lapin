@@ -5,7 +5,7 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPC,
-    reactor::{DefaultReactor, Reactor, ReactorHandle},
+    reactor::{ReactorBuilder, ReactorHandle},
     socket_state::SocketState,
     thread::ThreadHandle,
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
@@ -63,12 +63,13 @@ impl<T: Source + Read + Write + Send + 'static> IoLoop<T> {
         connection_io_loop_handle: ThreadHandle,
         mut socket: T,
         poll: Option<(Poll, Token)>,
+        reactor_builder: &dyn ReactorBuilder,
     ) -> Result<Self> {
         let (poll, registered) = poll
             .map(|t| Ok((t.0, true)))
             .unwrap_or_else(|| Poll::new().map(|poll| (poll, false)))?;
         let heartbeat = Heartbeat::new(channels.clone());
-        let mut reactor = DefaultReactor::new(poll, heartbeat.clone());
+        let mut reactor = reactor_builder.build(poll, heartbeat.clone());
         let reactor_handle = reactor.handle();
         let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
 
