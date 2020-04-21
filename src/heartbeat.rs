@@ -21,8 +21,16 @@ impl Heartbeat {
         self.inner.lock().timeout = Some(timeout);
     }
 
+    pub fn get_heartbeat(&self) -> Option<Duration> {
+        self.inner.lock().timeout
+    }
+
     pub fn poll_timeout(&self) -> Result<Option<Duration>> {
         self.inner.lock().poll_timeout(&self.channels)
+    }
+
+    pub fn send(&self) -> Result<()> {
+        self.channels.send_heartbeat()
     }
 
     pub(crate) fn update_last_write(&self) {
