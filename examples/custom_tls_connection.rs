@@ -1,12 +1,15 @@
 use futures_executor::LocalPool;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, tcp::AMQPUriTcpExt,
-    types::FieldTable, uri::AMQPUri, BasicProperties, CloseOnDrop, Connection,
-    ConnectionProperties, ConsumerDelegate, Result,
+    message::DeliveryResult,
+    options::*,
+    publisher_confirm::Confirmation,
+    tcp::{AMQPUriTcpExt, NativeTlsConnector},
+    types::FieldTable,
+    uri::AMQPUri,
+    BasicProperties, CloseOnDrop, Connection, ConnectionProperties, ConsumerDelegate, Result,
 };
 use log::info;
 use std::{future::Future, pin::Pin};
-use tcp_stream::NativeTlsConnector;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Subscriber;

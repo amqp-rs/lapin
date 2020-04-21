@@ -1,11 +1,12 @@
 use crate::{
     heartbeat::Heartbeat,
     socket_state::{SocketEvent, SocketStateHandle},
+    tcp::TcpStream,
     thread::ThreadHandle,
     Result,
 };
 use log::trace;
-use mio::{Events, Interest, Poll, Token, net::TcpStream}; // FIXME: use our TcpStream instead
+use mio::{Events, Interest, Poll, Token};
 use std::{
     collections::HashMap,
     fmt,

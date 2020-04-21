@@ -72,7 +72,7 @@ impl IoLoop {
             Err(error) => (None, Some(error.into_mid_handshake_tls_stream()?)),
         };
         let source = stream
-            .as_deref_mut()
+            .as_mut()
             .unwrap_or_else(|| handshake.as_mut().unwrap().get_mut());
         reactor.register(source, socket_state.handle())?;
 
