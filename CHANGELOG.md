@@ -5,6 +5,8 @@
 * Introduce tokio-amqp to use the tokio executor instead of the default one
 * Introduce async-amqp to use the async-std executor instead of the default one
 * Introduce lapinou to use the smol executor instead of the default one
+* New default Reactor
+* Reactor is now configurable
 
 #### Breaking changes
 
@@ -13,6 +15,7 @@
 * ConsumerDelegate is now built with futures.
 * The number of threads used by the default executor is now configured using `ConnectionProperties::with_default_executor`
 * `Connection` no longer implements `Clone`
+* `Connection::connect` has been reworked to properly handle mid handshake TLS streams
 
 #### Bug Fixes
 
