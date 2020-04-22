@@ -17,12 +17,14 @@ use std::{
     thread::Builder as ThreadBuilder,
 };
 
+pub type Slot = usize;
+
 pub trait ReactorBuilder: fmt::Debug + Send + Sync {
     fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>>;
 }
 
 pub trait Reactor: fmt::Debug + Send {
-    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<()>;
+    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<Slot>;
     fn handle(&self) -> Box<dyn ReactorHandle + Send> {
         Box::new(DummyHandle)
     }
@@ -34,8 +36,8 @@ pub trait Reactor: fmt::Debug + Send {
 pub trait ReactorHandle {
     fn shutdown(&self) {}
     fn start_heartbeat(&self) {}
-    fn poll_read(&self) {}
-    fn poll_write(&self) {}
+    fn poll_read(&self, _slot: Slot) {}
+    fn poll_write(&self, _slot: Slot) {}
 }
 
 pub(crate) struct DefaultReactorBuilder;
@@ -62,13 +64,13 @@ impl Reactor for DefaultReactor {
         Box::new(self.handle.clone())
     }
 
-    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<()> {
+    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<usize> {
         let token = Token(self.slot.fetch_add(1, Ordering::SeqCst));
         self.poll
             .registry()
             .register(socket, token, Interest::READABLE | Interest::WRITABLE)?;
         self.slots.insert(token, socket_state);
-        Ok(())
+        Ok(token.0)
     }
 
     fn start(mut self: Box<Self>) -> Result<ThreadHandle> {
