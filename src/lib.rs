@@ -111,8 +111,11 @@ pub use exchange::ExchangeKind;
 pub use queue::Queue;
 
 pub mod executor;
+pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;
+pub mod reactor;
+pub mod socket_state;
 
 pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
@@ -139,14 +142,11 @@ mod error;
 mod error_handler;
 mod exchange;
 mod frames;
-mod heartbeat;
 mod id_sequence;
 mod internal_rpc;
 mod io_loop;
 mod parsing;
 mod queue;
 mod queues;
-mod reactor;
 mod returned_messages;
-mod socket_state;
 mod thread;
