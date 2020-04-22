@@ -5,7 +5,7 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPC,
-    reactor::{ReactorBuilder, ReactorHandle},
+    reactor::{ReactorBuilder, ReactorHandle, Slot},
     socket_state::SocketState,
     tcp::{HandshakeResult, MidHandshakeTlsStream, TcpStream},
     thread::ThreadHandle,
@@ -43,6 +43,7 @@ pub struct IoLoop {
     connection_io_loop_handle: ThreadHandle,
     handshake: Option<MidHandshakeTlsStream>,
     stream: Option<TcpStream>,
+    slot: Slot,
     status: Status,
     frame_size: usize,
     receive_buffer: Buffer,
@@ -74,7 +75,7 @@ impl IoLoop {
         let source = stream
             .as_mut()
             .unwrap_or_else(|| handshake.as_mut().unwrap().get_mut());
-        reactor.register(source, socket_state.handle())?;
+        let slot = reactor.register(source, socket_state.handle())?;
 
         let reactor_thread_handle = reactor.start()?;
 
@@ -91,6 +92,7 @@ impl IoLoop {
             connection_io_loop_handle,
             stream,
             handshake,
+            slot,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
@@ -109,6 +111,7 @@ impl IoLoop {
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
                 self.heartbeat.set_timeout(heartbeat);
+                self.reactor.start_heartbeat();
             }
             self.status = Status::Setup;
         }
@@ -232,7 +235,7 @@ impl IoLoop {
     }
 
     fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
-        if let Err(e) = self.socket_state.handle_write_result(result) {
+        if let Err(e) = self.socket_state.handle_write_result(result, &*self.reactor, self.slot) {
             error!("error writing: {:?}", e);
             self.critical_error(e)?;
         }
@@ -259,7 +262,7 @@ impl IoLoop {
     fn read(&mut self) -> Result<()> {
         while self.can_read() {
             let res = self.read_from_stream();
-            if let Err(e) = self.socket_state.handle_read_result(res) {
+            if let Err(e) = self.socket_state.handle_read_result(res, &*self.reactor, self.slot) {
                 error!("error reading: {:?}", e);
                 self.critical_error(e)?;
             }
@@ -310,8 +313,7 @@ impl IoLoop {
             self.flush()?;
         } else {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
-            self.socket_state
-                .handle_write_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
+            self.handle_write_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
         }
         self.poll_internal_rpc()
     }
