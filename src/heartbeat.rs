@@ -1,6 +1,7 @@
 use crate::{channels::Channels, Result};
 use parking_lot::Mutex;
 use std::{
+    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -35,6 +36,12 @@ impl Heartbeat {
 
     pub(crate) fn update_last_write(&self) {
         self.inner.lock().update_last_write();
+    }
+}
+
+impl fmt::Debug for Heartbeat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Heartbeat").finish()
     }
 }
 
