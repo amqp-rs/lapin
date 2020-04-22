@@ -154,6 +154,7 @@ impl IoLoop {
                             self.critical_error(err)?;
                         }
                     }
+                    self.heartbeat.cancel();
                     self.reactor.shutdown();
                     self.reactor_thread_handle.wait("reactor")
                 })?,

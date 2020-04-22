@@ -37,6 +37,10 @@ impl Heartbeat {
     pub(crate) fn update_last_write(&self) {
         self.inner.lock().update_last_write();
     }
+
+    pub(crate) fn cancel(&self) {
+        self.inner.lock().timeout = None;
+    }
 }
 
 impl fmt::Debug for Heartbeat {
