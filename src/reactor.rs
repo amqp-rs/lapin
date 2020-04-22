@@ -32,7 +32,10 @@ pub trait Reactor: fmt::Debug + Send {
 }
 
 pub trait ReactorHandle {
-    fn shutdown(&self);
+    fn shutdown(&self) {}
+    fn start_heartbeat(&self) {}
+    fn poll_read(&self) {}
+    fn poll_write(&self) {}
 }
 
 pub(crate) struct DefaultReactorBuilder;
@@ -143,6 +146,4 @@ impl fmt::Debug for DefaultReactor {
 #[derive(Clone)]
 struct DummyHandle;
 
-impl ReactorHandle for DummyHandle {
-    fn shutdown(&self) {}
-}
+impl ReactorHandle for DummyHandle {}
