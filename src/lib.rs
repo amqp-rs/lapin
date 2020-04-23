@@ -15,7 +15,7 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use futures_executor::LocalPool;
+//! use futures_executor::{LocalPool, ThreadPool};
 //! use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
 //! use lapin::{
 //!     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
@@ -27,10 +27,9 @@
 //!     env_logger::init();
 //!
 //!     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-//!     let mut executor = LocalPool::new();
-//!     let spawner = executor.spawner();
+//!     let executor = ThreadPool::new()?;
 //!
-//!     executor.run_until(async {
+//!     LocalPool::new().run_until(async {
 //!         let conn = Connection::connect(
 //!             &addr,
 //!             ConnectionProperties::default().with_default_executor(8),
@@ -61,7 +60,7 @@
 //!                 FieldTable::default(),
 //!             )
 //!             .await?;
-//!         let _consumer = spawner.spawn_local(async move {
+//!         executor.spawn_ok(async move {
 //!             info!("will consume");
 //!             consumer
 //!                 .for_each(move |delivery| {

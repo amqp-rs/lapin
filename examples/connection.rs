@@ -11,9 +11,8 @@ fn main() {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let mut executor = LocalPool::new();
 
-    executor.run_until(async {
+    LocalPool::new().run_until(async {
         let conn = Connection::connect(&addr, ConnectionProperties::default())
             .await
             .expect("connection error");

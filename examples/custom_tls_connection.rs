@@ -47,9 +47,7 @@ fn main() {
 
     env_logger::init();
 
-    let mut executor = LocalPool::new();
-
-    executor.run_until(async {
+    LocalPool::new().run_until(async {
         let conn = connect().await.expect("connection error");
 
         info!("CONNECTED");

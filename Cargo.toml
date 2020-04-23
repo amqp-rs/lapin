@@ -43,9 +43,12 @@ log = "^0.4"
 parking_lot = "^0.10"
 pinky-swear = "^4.0"
 
+[dev-dependencies.futures-executor]
+version = "^0.3"
+features = ["thread-pool"]
+
 [dev-dependencies]
 env_logger = "^0.7"
-futures-executor = "^0.3"
 futures-test = "^0.3"
 futures-util = "^0.3"
 
