@@ -24,7 +24,8 @@ pub trait ReactorBuilder: fmt::Debug + Send + Sync {
 }
 
 pub trait Reactor: fmt::Debug + Send {
-    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<Slot>;
+    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle)
+        -> Result<Slot>;
     fn handle(&self) -> Box<dyn ReactorHandle + Send> {
         Box::new(DummyHandle)
     }
@@ -64,7 +65,11 @@ impl Reactor for DefaultReactor {
         Box::new(self.handle.clone())
     }
 
-    fn register(&mut self, socket: &mut TcpStream, socket_state: SocketStateHandle) -> Result<usize> {
+    fn register(
+        &mut self,
+        socket: &mut TcpStream,
+        socket_state: SocketStateHandle,
+    ) -> Result<usize> {
         let token = Token(self.slot.fetch_add(1, Ordering::SeqCst));
         self.poll
             .registry()

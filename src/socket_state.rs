@@ -1,4 +1,7 @@
-use crate::{reactor::{ReactorHandle, Slot}, Result};
+use crate::{
+    reactor::{ReactorHandle, Slot},
+    Result,
+};
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
 
@@ -60,7 +63,12 @@ impl SocketState {
         self.handle_event(self.events.recv().expect("waiting for socket event failed"))
     }
 
-    pub(crate) fn handle_read_result(&mut self, result: Result<()>, reactor: &dyn ReactorHandle, slot: Slot) -> Result<()> {
+    pub(crate) fn handle_read_result(
+        &mut self,
+        result: Result<()>,
+        reactor: &dyn ReactorHandle,
+        slot: Slot,
+    ) -> Result<()> {
         self.readable = Self::handle_io_result(result)?;
         if !self.readable {
             reactor.poll_read(slot);
@@ -68,7 +76,12 @@ impl SocketState {
         Ok(())
     }
 
-    pub(crate) fn handle_write_result(&mut self, result: Result<()>, reactor: &dyn ReactorHandle, slot: Slot) -> Result<()> {
+    pub(crate) fn handle_write_result(
+        &mut self,
+        result: Result<()>,
+        reactor: &dyn ReactorHandle,
+        slot: Slot,
+    ) -> Result<()> {
         self.writable = Self::handle_io_result(result)?;
         if !self.writable {
             reactor.poll_write(slot);

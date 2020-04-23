@@ -236,7 +236,10 @@ impl IoLoop {
     }
 
     fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
-        if let Err(e) = self.socket_state.handle_write_result(result, &*self.reactor, self.slot) {
+        if let Err(e) = self
+            .socket_state
+            .handle_write_result(result, &*self.reactor, self.slot)
+        {
             error!("error writing: {:?}", e);
             self.critical_error(e)?;
         }
@@ -263,7 +266,10 @@ impl IoLoop {
     fn read(&mut self) -> Result<()> {
         while self.can_read() {
             let res = self.read_from_stream();
-            if let Err(e) = self.socket_state.handle_read_result(res, &*self.reactor, self.slot) {
+            if let Err(e) = self
+                .socket_state
+                .handle_read_result(res, &*self.reactor, self.slot)
+            {
                 error!("error reading: {:?}", e);
                 self.critical_error(e)?;
             }
