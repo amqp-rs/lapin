@@ -5,6 +5,7 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPC,
+    protocol,
     reactor::{ReactorBuilder, ReactorHandle, Slot},
     socket_state::SocketState,
     tcp::{HandshakeResult, MidHandshakeTlsStream, TcpStream},
@@ -69,7 +70,7 @@ impl IoLoop {
         let heartbeat = Heartbeat::new(channels.clone());
         let mut reactor = reactor_builder.build(heartbeat.clone())?;
         let reactor_handle = reactor.handle();
-        let frame_size = std::cmp::max(8192, configuration.frame_max() as usize);
+        let frame_size = std::cmp::max(protocol::constants::FRAME_MIN_SIZE as usize, configuration.frame_max() as usize);
         let (mut stream, mut handshake) = match stream {
             Ok(stream) => (Some(stream), None),
             Err(error) => (None, Some(error.into_mid_handshake_tls_stream()?)),
