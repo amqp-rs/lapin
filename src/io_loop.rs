@@ -5,7 +5,7 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPC,
-    protocol,
+    protocol::{self, AMQPError, AMQPHardError},
     reactor::{ReactorBuilder, ReactorHandle, Slot},
     socket_state::SocketState,
     tcp::{HandshakeResult, MidHandshakeTlsStream, TcpStream},
@@ -449,6 +449,22 @@ impl IoLoop {
         match parse_frame(self.receive_buffer.parsing_context()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.offset(i);
+                let frame_max = self.configuration.frame_max() as usize;
+                if frame_max > 0 && consumed > frame_max {
+                    error!("received large ({} bytes) frame", consumed);
+                    let error = AMQPError::new(
+                        AMQPHardError::FRAMEERROR.into(),
+                        format!("frame too large: {} bytes", consumed).into(),
+                    );
+                    self.internal_rpc.handle().close_connection(
+                        error.get_id(),
+                        error.get_message().to_string(),
+                        0,
+                        0,
+                    );
+                    self.poll_internal_rpc()?;
+                    self.critical_error(Error::ProtocolError(error))?;
+                }
                 self.receive_buffer.consume(consumed);
                 Ok(Some(f))
             }
