@@ -320,19 +320,19 @@ mod tests {
         }
         // Now test the state machine behaviour
         {
-            let deliver_frame = AMQPFrame::Method(
-                channel.id(),
-                AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
-                    consumer_tag: consumer_tag.clone(),
-                    delivery_tag: 1,
-                    redelivered: false,
-                    exchange: "".into(),
-                    routing_key: queue_name.clone(),
-                })),
-            );
+            let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
+                consumer_tag: consumer_tag.clone(),
+                delivery_tag: 1,
+                redelivered: false,
+                exchange: "".into(),
+                routing_key: queue_name.clone(),
+            }));
+            let class_id = method.get_amqp_class_id();
+            let deliver_frame = AMQPFrame::Method(channel.id(), method);
             conn.channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::WillReceiveContent(
+                class_id,
                 Some(queue_name.clone()),
                 Some(consumer_tag.clone()),
             );
@@ -398,19 +398,19 @@ mod tests {
         });
         // Now test the state machine behaviour
         {
-            let deliver_frame = AMQPFrame::Method(
-                channel.id(),
-                AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
-                    consumer_tag: consumer_tag.clone(),
-                    delivery_tag: 1,
-                    redelivered: false,
-                    exchange: "".into(),
-                    routing_key: queue_name.clone(),
-                })),
-            );
+            let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
+                consumer_tag: consumer_tag.clone(),
+                delivery_tag: 1,
+                redelivered: false,
+                exchange: "".into(),
+                routing_key: queue_name.clone(),
+            }));
+            let class_id = method.get_amqp_class_id();
+            let deliver_frame = AMQPFrame::Method(channel.id(), method);
             conn.channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::WillReceiveContent(
+                class_id,
                 Some(queue_name.clone()),
                 Some(consumer_tag.clone()),
             );

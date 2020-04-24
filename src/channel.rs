@@ -260,12 +260,33 @@ impl Channel {
 
     pub(crate) fn handle_content_header_frame(
         &self,
+        class_id: u16,
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        if let ChannelState::WillReceiveContent(queue_name, request_id_or_consumer_tag) =
-            self.status.state()
+        if let ChannelState::WillReceiveContent(
+            expected_class_id,
+            queue_name,
+            request_id_or_consumer_tag,
+        ) = self.status.state()
         {
+            if class_id != expected_class_id {
+                error!(
+                    "received content header with class_id {} instead of expected {}",
+                    class_id, expected_class_id
+                );
+                let error = AMQPError::new(
+                        AMQPHardError::FRAMEERROR.into(),
+                        format!("content header frame with class_id {} instead of {} received on channel {}", class_id, expected_class_id, self.id).into(),
+                    );
+                self.internal_rpc.close_connection(
+                    error.get_id(),
+                    error.get_message().to_string(),
+                    class_id,
+                    0,
+                );
+                return self.set_error(Error::ProtocolError(error));
+            }
             if size > 0 {
                 self.set_state(ChannelState::ReceivingContent(
                     queue_name.clone(),
@@ -741,6 +762,7 @@ impl Channel {
         resolver: PromiseResolver<Option<BasicGetMessage>>,
         queue: ShortString,
     ) -> Result<()> {
+        let class_id = method.get_amqp_class_id();
         self.queues.start_basic_get_delivery(
             queue.as_str(),
             BasicGetMessage::new(
@@ -752,7 +774,11 @@ impl Channel {
             ),
             resolver,
         );
-        self.set_state(ChannelState::WillReceiveContent(Some(queue), None));
+        self.set_state(ChannelState::WillReceiveContent(
+            class_id,
+            Some(queue),
+            None,
+        ));
         Ok(())
     }
 
@@ -784,6 +810,7 @@ impl Channel {
     }
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
+        let class_id = method.get_amqp_class_id();
         if let Some(queue_name) = self.queues.start_consumer_delivery(
             method.consumer_tag.as_str(),
             Delivery::new(
@@ -794,6 +821,7 @@ impl Channel {
             ),
         ) {
             self.set_state(ChannelState::WillReceiveContent(
+                class_id,
                 Some(queue_name),
                 Some(method.consumer_tag),
             ));
@@ -879,6 +907,7 @@ impl Channel {
     }
 
     fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<()> {
+        let class_id = method.get_amqp_class_id();
         self.returned_messages
             .start_new_delivery(BasicReturnMessage::new(
                 method.exchange,
@@ -886,7 +915,7 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.set_state(ChannelState::WillReceiveContent(None, None));
+        self.set_state(ChannelState::WillReceiveContent(class_id, None, None));
         Ok(())
     }
 

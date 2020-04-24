@@ -89,11 +89,12 @@ impl Channels {
     pub(crate) fn handle_content_header_frame(
         &self,
         id: u16,
+        class_id: u16,
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
         if let Some(channel) = self.get(id) {
-            channel.handle_content_header_frame(size, properties)
+            channel.handle_content_header_frame(class_id, size, properties)
         } else {
             Err(Error::InvalidChannel(id))
         }
@@ -217,7 +218,7 @@ impl Channels {
                     return Err(Error::ProtocolError(error));
                 }
             }
-            AMQPFrame::Header(channel_id, _, header) => {
+            AMQPFrame::Header(channel_id, class_id, header) => {
                 if channel_id == 0 {
                     error!("received content header on channel {}", channel_id);
                     let error = AMQPError::new(
@@ -234,7 +235,12 @@ impl Channels {
                     }
                     return Err(Error::ProtocolError(error));
                 } else {
-                    self.handle_content_header_frame(channel_id, header.body_size, header.properties)?;
+                    self.handle_content_header_frame(
+                        channel_id,
+                        class_id,
+                        header.body_size,
+                        header.properties,
+                    )?;
                 }
             }
             AMQPFrame::Body(channel_id, payload) => {

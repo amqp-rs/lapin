@@ -1,4 +1,4 @@
-use crate::types::ShortString;
+use crate::types::{ShortString, ShortUInt};
 use log::trace;
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -61,7 +61,7 @@ pub enum ChannelState {
     Closed,
     Error,
     SendingContent(usize),
-    WillReceiveContent(Option<ShortString>, Option<ShortString>),
+    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
     ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
 }
 
