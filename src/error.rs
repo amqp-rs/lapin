@@ -1,7 +1,5 @@
 use crate::{
-    channel_status::ChannelState,
-    connection_status::ConnectionState,
-    protocol::{AMQPClass, AMQPError},
+    channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
 };
 use amq_protocol::frame::{GenError, ParserError};
 use std::{error, fmt, io, sync::Arc};
@@ -21,7 +19,6 @@ pub enum Error {
     InvalidChannel(u16),
     InvalidChannelState(ChannelState),
     InvalidConnectionState(ConnectionState),
-    InvalidMethod(AMQPClass),
 
     IOError(Arc<io::Error>),
     ParsingError(ParserError),
@@ -63,7 +60,6 @@ impl fmt::Display for Error {
             Error::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
             }
-            Error::InvalidMethod(method) => write!(f, "invalid protocol method: {:?}", method),
 
             Error::IOError(e) => write!(f, "IO error: {}", e),
             Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
@@ -112,7 +108,6 @@ impl PartialEq for Error {
             (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
                 left_inner == right_inner
             }
-            (InvalidMethod(left_inner), InvalidMethod(right_inner)) => left_inner == right_inner,
 
             (IOError(_), IOError(_)) => {
                 error!("Unable to compare lapin::Error::IOError");
