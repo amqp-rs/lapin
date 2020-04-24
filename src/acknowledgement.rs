@@ -1,7 +1,8 @@
 use crate::{
+    protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    ConfirmationBroadcaster, Error, Promise, Result,
+    ConfirmationBroadcaster, Error, Promise,
 };
 use parking_lot::Mutex;
 use std::{
@@ -36,12 +37,16 @@ impl Acknowledgements {
         self.inner.lock().last.take().map(|(_, promise)| promise)
     }
 
-    pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.inner.lock().drop_pending(delivery_tag, true)
+    pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
+        self.inner
+            .lock()
+            .drop_pending(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> Result<()> {
-        self.inner.lock().drop_pending(delivery_tag, false)
+    pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
+        self.inner
+            .lock()
+            .drop_pending(delivery_tag, false, channel_id)
     }
 
     pub(crate) fn ack_all_pending(&self) {
@@ -52,16 +57,24 @@ impl Acknowledgements {
         self.inner.lock().drop_all(false);
     }
 
-    pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
+    pub(crate) fn ack_all_before(
+        &self,
+        delivery_tag: DeliveryTag,
+        channel_id: u16,
+    ) -> Result<(), AMQPError> {
         self.inner
             .lock()
-            .complete_pending_before(delivery_tag, true)
+            .complete_pending_before(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> Result<()> {
+    pub(crate) fn nack_all_before(
+        &self,
+        delivery_tag: DeliveryTag,
+        channel_id: u16,
+    ) -> Result<(), AMQPError> {
         self.inner
             .lock()
-            .complete_pending_before(delivery_tag, false)
+            .complete_pending_before(delivery_tag, false, channel_id)
     }
 
     pub(crate) fn on_channel_error(&self, channel_id: u16, error: Error) {
@@ -130,16 +143,35 @@ impl Inner {
         }
     }
 
-    fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
+    fn drop_pending(
+        &mut self,
+        delivery_tag: DeliveryTag,
+        success: bool,
+        channel_id: u16,
+    ) -> Result<(), AMQPError> {
         if let Some((_, resolver)) = self.pending.remove(&delivery_tag) {
             self.complete_pending(success, resolver);
             Ok(())
         } else {
-            Err(Error::InvalidAck)
+            Err(AMQPError::new(
+                AMQPSoftError::PRECONDITIONFAILED.into(),
+                format!(
+                    "invalid {} recevied for inexistant delivery_tag {} on channel {}",
+                    if success { "ack" } else { "nack" },
+                    delivery_tag,
+                    channel_id
+                )
+                .into(),
+            ))
         }
     }
 
-    fn complete_pending_before(&mut self, delivery_tag: DeliveryTag, success: bool) -> Result<()> {
+    fn complete_pending_before(
+        &mut self,
+        delivery_tag: DeliveryTag,
+        success: bool,
+        channel_id: u16,
+    ) -> Result<(), AMQPError> {
         let mut res = Ok(());
         for tag in self
             .pending
@@ -148,7 +180,7 @@ impl Inner {
             .cloned()
             .collect::<HashSet<DeliveryTag>>()
         {
-            if let Err(err) = self.drop_pending(tag, success) {
+            if let Err(err) = self.drop_pending(tag, success, channel_id) {
                 res = Err(err);
             }
         }

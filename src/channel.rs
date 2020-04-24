@@ -10,7 +10,7 @@ use crate::{
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
-    protocol::{self, AMQPClass, AMQPError, AMQPHardError, AMQPSoftError},
+    protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
     queues::Queues,
@@ -401,15 +401,15 @@ impl Channel {
         }
     }
 
-    fn acknowledgement_error(&self, error: Error, class_id: u16, method_id: u16) -> Result<()> {
+    fn acknowledgement_error(&self, error: AMQPError, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
         self.register_internal_promise(self.do_channel_close(
-            AMQPSoftError::PRECONDITIONFAILED.get_id(),
-            "precondition failed",
+            error.get_id(),
+            error.get_message().as_str(),
             class_id,
             method_id,
         ))?;
-        Err(error)
+        Err(Error::ProtocolError(error))
     }
 
     fn on_connection_start_ok_sent(
@@ -878,7 +878,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .ack_all_before(method.delivery_tag)
+                        .ack_all_before(method.delivery_tag, self.id)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -891,7 +891,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .ack(method.delivery_tag)
+                    .ack(method.delivery_tag, self.id)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,
@@ -909,7 +909,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .nack_all_before(method.delivery_tag)
+                        .nack_all_before(method.delivery_tag, self.id)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -922,7 +922,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .nack(method.delivery_tag)
+                    .nack(method.delivery_tag, self.id)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,
