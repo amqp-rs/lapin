@@ -229,7 +229,7 @@ impl Channels {
                         self.register_internal_promise(channel0.connection_close(
                             error.get_id(),
                             error.get_message().as_str(),
-                            0,
+                            class_id,
                             0,
                         ))?;
                     }
