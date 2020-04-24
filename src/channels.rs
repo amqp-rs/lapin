@@ -218,7 +218,24 @@ impl Channels {
                 }
             }
             AMQPFrame::Header(channel_id, _, header) => {
-                self.handle_content_header_frame(channel_id, header.body_size, header.properties)?;
+                if channel_id == 0 {
+                    error!("received content header on channel {}", channel_id);
+                    let error = AMQPError::new(
+                        AMQPHardError::CHANNELERROR.into(),
+                        format!("content header frame received on channel {}", channel_id).into(),
+                    );
+                    if let Some(channel0) = self.get(0) {
+                        self.register_internal_promise(channel0.connection_close(
+                            error.get_id(),
+                            error.get_message().as_str(),
+                            0,
+                            0,
+                        ))?;
+                    }
+                    return Err(Error::ProtocolError(error));
+                } else {
+                    self.handle_content_header_frame(channel_id, header.body_size, header.properties)?;
+                }
             }
             AMQPFrame::Body(channel_id, payload) => {
                 self.handle_body_frame(channel_id, payload)?;
