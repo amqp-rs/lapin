@@ -107,13 +107,14 @@ impl IoLoop {
         })
     }
 
-    fn ensure_connected(&mut self) -> Result<bool> {
-        match self
-            .stream
+    fn stream(&self) -> &TcpStream {
+        self.stream
             .as_ref()
             .unwrap_or_else(|| self.handshake.as_ref().unwrap().get_ref())
-            .peer_addr()
-        {
+    }
+
+    fn ensure_connected(&mut self) -> Result<bool> {
+        match self.stream().peer_addr() {
             Ok(peer) => {
                 info!("Connected to {}", peer);
                 self.status = Status::SocketConnected;
@@ -130,12 +131,7 @@ impl IoLoop {
     }
 
     fn ensure_writable(&mut self) -> Result<bool> {
-        match self
-            .stream
-            .as_ref()
-            .unwrap_or_else(|| self.handshake.as_ref().unwrap().get_ref())
-            .is_writable()
-        {
+        match self.stream().is_writable() {
             Ok(()) => {
                 self.status = Status::SocketWritable;
                 Ok(true)
@@ -313,8 +309,8 @@ impl IoLoop {
         self.poll_internal_rpc()
     }
 
-    fn flush(&mut self) -> Result<()> {
-        self.stream.as_mut().unwrap().flush()?;
+    fn flush(&self) -> Result<()> {
+        self.stream().flush()?;
         self.poll_internal_rpc()
     }
 
@@ -348,7 +344,7 @@ impl IoLoop {
         self.flush()?;
         self.serialize()?;
 
-        let sz = self.send_buffer.write_to(self.stream.as_mut().unwrap())?;
+        let sz = self.send_buffer.write_to(&mut self.stream())?;
 
         if sz > 0 {
             self.heartbeat.update_last_write();
