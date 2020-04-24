@@ -1,3 +1,4 @@
+use crate::protocol;
 use parking_lot::RwLock;
 use std::{fmt, sync::Arc};
 
@@ -20,6 +21,7 @@ impl Configuration {
     }
 
     pub(crate) fn set_frame_max(&self, frame_max: u32) {
+        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE as u32);
         self.inner.write().frame_max = frame_max;
     }
 
