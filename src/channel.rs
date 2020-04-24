@@ -258,6 +258,18 @@ impl Channel {
         }))
     }
 
+    fn handle_invalid_contents(&self, error: String, class_id: u16) -> Result<()> {
+        error!("{}", error);
+        let error = AMQPError::new(AMQPHardError::UNEXPECTEDFRAME.into(), error.into());
+        self.internal_rpc.close_connection(
+            error.get_id(),
+            error.get_message().to_string(),
+            class_id,
+            0,
+        );
+        Err(Error::ProtocolError(error))
+    }
+
     pub(crate) fn handle_content_header_frame(
         &self,
         class_id: u16,
@@ -312,7 +324,13 @@ impl Channel {
             }
             Ok(())
         } else {
-            self.set_error(Error::InvalidChannelState(self.status.state()))
+            self.handle_invalid_contents(
+                format!(
+                    "unexpected content header frame received on channel {}",
+                    self.id
+                ),
+                class_id,
+            )
         }
     }
 
@@ -352,11 +370,22 @@ impl Channel {
                 }
                 Ok(())
             } else {
-                error!("body frame too large");
-                self.set_error(Error::InvalidBodyReceived)
+                self.handle_invalid_contents(
+                    format!(
+                        "unexpectedly large content body frame received on channel {} ({} bytes, expected {} bytes)",
+                        self.id, payload_size, remaining_size
+                    ),
+                    0,
+                )
             }
         } else {
-            self.set_error(Error::InvalidChannelState(self.status.state()))
+            self.handle_invalid_contents(
+                format!(
+                    "unexpected content body frame received on channel {}",
+                    self.id
+                ),
+                0,
+            )
         }
     }
 
