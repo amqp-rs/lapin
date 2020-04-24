@@ -17,7 +17,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     ChannelsLimitReached,
     InvalidFrameReceived,
-    UnexpectedReply,
 
     InvalidChannel(u16),
     InvalidChannelState(ChannelState),
@@ -58,7 +57,6 @@ impl fmt::Display for Error {
                 "the maximum number of channels for this connection has been reached"
             ),
             Error::InvalidFrameReceived => write!(f, "invalid frame received"),
-            Error::UnexpectedReply => write!(f, "unexpected reply"),
 
             Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
             Error::InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
@@ -106,7 +104,6 @@ impl PartialEq for Error {
         match (self, other) {
             (ChannelsLimitReached, ChannelsLimitReached) => true,
             (InvalidFrameReceived, InvalidFrameReceived) => true,
-            (UnexpectedReply, UnexpectedReply) => true,
 
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
             (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {

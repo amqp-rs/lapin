@@ -192,6 +192,7 @@ impl Channels {
         trace!("will handle frame: {:?}", f);
         match f {
             AMQPFrame::ProtocolHeader => {
+                // The only reason why we would receive this is if we sent an invalid one
                 error!("error: the client should not receive a protocol header");
                 return Err(Error::InvalidFrameReceived);
             }

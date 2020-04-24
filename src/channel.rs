@@ -258,14 +258,14 @@ impl Channel {
         }))
     }
 
-    fn handle_invalid_contents(&self, error: String, class_id: u16) -> Result<()> {
+    fn handle_invalid_contents(&self, error: String, class_id: u16, method_id: u16) -> Result<()> {
         error!("{}", error);
         let error = AMQPError::new(AMQPHardError::UNEXPECTEDFRAME.into(), error.into());
         self.internal_rpc.close_connection(
             error.get_id(),
             error.get_message().to_string(),
             class_id,
-            0,
+            method_id,
         );
         Err(Error::ProtocolError(error))
     }
@@ -330,6 +330,7 @@ impl Channel {
                     self.id
                 ),
                 class_id,
+                0,
             )
         }
     }
@@ -375,7 +376,7 @@ impl Channel {
                         "unexpectedly large content body frame received on channel {} ({} bytes, expected {} bytes)",
                         self.id, payload_size, remaining_size
                     ),
-                    0,
+                    0, 0,
                 )
             }
         } else {
@@ -384,6 +385,7 @@ impl Channel {
                     "unexpected content body frame received on channel {}",
                     self.id
                 ),
+                0,
                 0,
             )
         }
@@ -811,16 +813,17 @@ impl Channel {
         Ok(())
     }
 
-    fn on_basic_get_empty_received(&self, _: protocol::basic::GetEmpty) -> Result<()> {
+    fn on_basic_get_empty_received(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         match self.frames.next_expected_reply(self.id) {
             Some(Reply::BasicGetOk(resolver, _)) => {
                 resolver.swear(Ok(None));
                 Ok(())
             }
-            _ => {
-                self.set_error(Error::UnexpectedReply)?;
-                Err(Error::UnexpectedReply)
-            }
+            _ => self.handle_invalid_contents(
+                format!("unexpected basic get empty received on channel {}", self.id),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
         }
     }
 

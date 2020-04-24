@@ -150,7 +150,7 @@ impl Channel {
 
   {{#if method.s2c ~}}
   {{#if method.is_reply ~}}
-  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, {{#if class.metadata.channel0_only ~}}method{{else}}{{#if method.arguments ~}}method{{else}}_{{/if ~}}{{/if ~}}: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
+  fn receive_{{snake class.name false}}_{{snake method.name false}}(&self, method: protocol::{{snake class.name}}::{{camel method.name}}) -> Result<()> {
     {{#if class.metadata.channel0_only ~}}
     self.assert_channel0(
       method.get_amqp_class_id(),
@@ -187,8 +187,7 @@ impl Channel {
         {{/unless ~}}
       },
       _ => {
-        self.set_error(Error::UnexpectedReply)?;
-        Err(Error::UnexpectedReply)
+        self.handle_invalid_contents(format!("unexepcted {{class.name}} {{method.name}} received on channel {}", self.id), method.get_amqp_class_id(), method.get_amqp_method_id())
       },
     }
   }
