@@ -59,7 +59,6 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
         self.max = if max == self.zero { None } else { Some(max) };
     }
 
-    // FIXME: use Step trait once stable (https://github.com/rust-lang/rust/issues/42168)
     fn next(&mut self) -> T {
         if !self.allow_zero && self.id == self.zero {
             self.id += self.one;
