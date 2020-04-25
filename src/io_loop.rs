@@ -13,7 +13,7 @@ use crate::{
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
-use log::{error, info, trace};
+use log::{debug, error, trace};
 use std::{
     collections::VecDeque,
     io::{self, Write},
@@ -116,7 +116,7 @@ impl IoLoop {
     fn ensure_connected(&mut self) -> Result<bool> {
         match self.stream().peer_addr() {
             Ok(peer) => {
-                info!("Connected to {}", peer);
+                debug!("Connecting to {}", peer);
                 self.status = Status::SocketConnected;
                 Ok(true)
             }
