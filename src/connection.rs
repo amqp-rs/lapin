@@ -17,7 +17,7 @@ use crate::{
     uri::AMQPUri,
     CloseOnDropPromise, Error, Promise, Result,
 };
-use amq_protocol::frame::AMQPFrame;
+use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use log::{log_enabled, Level::Trace};
 use std::{fmt, io, sync::Arc};
 
@@ -196,8 +196,11 @@ impl Connection {
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
-            conn.channel0()
-                .send_frame(AMQPFrame::ProtocolHeader, resolver.clone(), None);
+            conn.channel0().send_frame(
+                AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
+                resolver.clone(),
+                None,
+            );
             let (promise, resolver) = CloseOnDropPromise::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());

@@ -9,7 +9,7 @@ use crate::{
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
-use amq_protocol::frame::AMQPFrame;
+use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use log::{debug, error, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -191,10 +191,17 @@ impl Channels {
     fn do_handle_frame(&self, f: AMQPFrame) -> Result<()> {
         trace!("will handle frame: {:?}", f);
         match f {
-            AMQPFrame::ProtocolHeader => {
-                // The only reason why we would receive this is if we sent an invalid one
-                error!("error: the client should not receive a protocol header");
-                return Err(Error::InvalidFrameReceived);
+            AMQPFrame::ProtocolHeader(version) => {
+                error!(
+                    "we asked for AMQP {} but the server only supports AMQP {}",
+                    ProtocolVersion::amqp_0_9_1(),
+                    version
+                );
+                let error = Error::InvalidProtocolVersion(version);
+                if let Some(resolver) = self.connection_status.connection_resolver() {
+                    resolver.swear(Err(error.clone()));
+                }
+                Err(error)?;
             }
             AMQPFrame::Method(channel_id, method) => {
                 self.receive_method(channel_id, method)?;
