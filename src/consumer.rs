@@ -299,12 +299,12 @@ mod futures_tests {
         assert_eq!(awoken_count.get(), 0);
         assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
 
-        consumer.set_error(Error::InvalidFrameReceived).unwrap();
+        consumer.set_error(Error::ChannelsLimitReached).unwrap();
 
         assert_eq!(awoken_count.get(), 1);
         assert_eq!(
             consumer.poll_next_unpin(&mut cx),
-            Poll::Ready(Some(Err(Error::InvalidFrameReceived)))
+            Poll::Ready(Some(Err(Error::ChannelsLimitReached)))
         );
     }
 }
