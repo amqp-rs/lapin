@@ -556,21 +556,15 @@ impl Channel {
                 .insert("platform".into(), AMQPValue::LongString("rust".into()));
 
             let mut capabilities = FieldTable::default();
-            capabilities.insert("publisher_confirms".into(), AMQPValue::Boolean(true));
-            capabilities.insert(
-                "exchange_exchange_bindings".into(),
-                AMQPValue::Boolean(true),
-            );
-            capabilities.insert("basic.nack".into(), AMQPValue::Boolean(true));
-            capabilities.insert("consumer_cancel_notify".into(), AMQPValue::Boolean(true));
-            capabilities.insert("connection.blocked".into(), AMQPValue::Boolean(true));
-            // FIXME: consumer_priorities
-            capabilities.insert(
-                "authentication_failure_close".into(),
-                AMQPValue::Boolean(true),
-            );
-            // FIXME: per_consumer_qos
-            // FIXME: direct_reply_to
+            capabilities.insert("publisher_confirms".into(), true.into());
+            capabilities.insert("exchange_exchange_bindings".into(), true.into());
+            capabilities.insert("basic.nack".into(), true.into());
+            capabilities.insert("consumer_cancel_notify".into(), true.into());
+            capabilities.insert("connection.blocked".into(), true.into());
+            capabilities.insert("consumer_priorities".into(), true.into());
+            capabilities.insert("authentication_failure_close".into(), true.into());
+            capabilities.insert("per_consumer_qos".into(), true.into());
+            capabilities.insert("direct_reply_to".into(), true.into());
 
             options
                 .client_properties
