@@ -54,6 +54,12 @@ pub struct IoLoop {
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
 }
 
+macro_rules! stream_mut {
+    ($self:ident) => {
+        $self.stream.as_mut().unwrap()
+    };
+}
+
 impl IoLoop {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -309,8 +315,8 @@ impl IoLoop {
         self.poll_internal_rpc()
     }
 
-    fn flush(&self) -> Result<()> {
-        self.stream().flush()?;
+    fn flush(&mut self) -> Result<()> {
+        stream_mut!(self).flush()?;
         self.poll_internal_rpc()
     }
 
@@ -344,7 +350,7 @@ impl IoLoop {
         self.flush()?;
         self.serialize()?;
 
-        let sz = self.send_buffer.write_to(&mut self.stream())?;
+        let sz = self.send_buffer.write_to(stream_mut!(self))?;
 
         if sz > 0 {
             self.heartbeat.update_last_write();
@@ -393,12 +399,10 @@ impl IoLoop {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer
-                    .read_from(self.stream.as_mut().unwrap())
-                    .map(|sz| {
-                        trace!("read {} bytes", sz);
-                        self.receive_buffer.fill(sz);
-                    })?;
+                self.receive_buffer.read_from(stream_mut!(self)).map(|sz| {
+                    trace!("read {} bytes", sz);
+                    self.receive_buffer.fill(sz);
+                })?;
                 self.poll_internal_rpc()
             }
         }
