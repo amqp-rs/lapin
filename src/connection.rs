@@ -94,7 +94,10 @@ impl Connection {
             )));
         }
         match self.channels.create() {
-            Ok(channel) => channel.channel_open(),
+            Ok(channel) => self
+                .channels
+                .with_channel(channel.id(), |c| c.channel_open(channel))
+                .expect("internal error creating channel"),
             Err(error) => CloseOnDropPromise::new_with_data(Err(error)),
         }
     }
@@ -118,43 +121,41 @@ impl Connection {
         &self.status
     }
 
-    fn channel0(&self) -> Channel {
-        self.channels.get(0).expect("channel 0")
-    }
-
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        if let Some(channel0) = self.channels.get(0) {
-            channel0.connection_close(reply_code, reply_text, 0, 0)
-        } else {
-            Promise::new_with_data(Ok(()))
-        }
+        self.channels
+            .with_channel(0, |channel0| {
+                channel0.connection_close(reply_code, reply_text, 0, 0)
+            })
+            .unwrap_or_else(|| Promise::new_with_data(Ok(())))
     }
 
     /// Block all consumers and publishers on this connection
     pub fn block(&self, reason: &str) -> Promise<()> {
-        if let Some(channel0) = self.channels.get(0) {
-            channel0.connection_blocked(reason)
-        } else {
-            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-        }
+        self.channels
+            .with_channel(0, |channel0| channel0.connection_blocked(reason))
+            .unwrap_or_else(|| {
+                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+            })
     }
 
     /// Unblock all consumers and publishers on this connection
     pub fn unblock(&self) -> Promise<()> {
-        if let Some(channel0) = self.channels.get(0) {
-            channel0.connection_unblocked()
-        } else {
-            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-        }
+        self.channels
+            .with_channel(0, |channel0| channel0.connection_unblocked())
+            .unwrap_or_else(|| {
+                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+            })
     }
 
     /// Update the secret used by some authentication module such as OAuth2
     pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
-        if let Some(channel0) = self.channels.get(0) {
-            channel0.connection_update_secret(new_secret, reason)
-        } else {
-            Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-        }
+        self.channels
+            .with_channel(0, |channel0| {
+                channel0.connection_update_secret(new_secret, reason)
+            })
+            .unwrap_or_else(|| {
+                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
+            })
     }
 
     pub fn connector(
@@ -191,16 +192,18 @@ impl Connection {
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader".into());
             }
-            conn.channel0().send_frame(
-                AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
-                resolver,
-                None,
-            );
+            let channels = conn.channels.clone();
+            channels.with_channel(0, |channel0| {
+                channel0.send_frame(
+                    AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
+                    resolver,
+                    None,
+                )
+            });
             let (promise, resolver) = CloseOnDropPromise::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
-            let channels = conn.channels.clone();
             let io_loop_handle = conn.io_loop.clone();
             status.set_state(ConnectionState::Connecting);
             status.set_connection_step(ConnectionStep::ProtocolHeader(
@@ -313,9 +316,8 @@ mod tests {
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
-        if let Some(c) = conn.channels.get(channel.id()) {
-            c.register_queue(queue);
-        }
+        conn.channels
+            .with_channel(channel.id(), |c| c.register_queue(queue));
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -391,9 +393,8 @@ mod tests {
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels.get(channel.id()).map(|c| {
-            c.register_queue(queue);
-        });
+        conn.channels
+            .with_channel(channel.id(), |c| c.register_queue(queue));
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {

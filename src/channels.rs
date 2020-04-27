@@ -65,8 +65,8 @@ impl Channels {
             .set_state(ChannelState::Connected);
     }
 
-    pub(crate) fn get(&self, id: u16) -> Option<Channel> {
-        self.inner.lock().channels.get(&id).cloned()
+    pub(crate) fn with_channel<R, F: FnOnce(&Channel) -> R>(&self, id: u16, f: F) -> Option<R> {
+        self.inner.lock().channels.get(&id).map(f)
     }
 
     pub(crate) fn remove(&self, id: u16, error: Error) -> Result<()> {
@@ -79,11 +79,8 @@ impl Channels {
     }
 
     pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<()> {
-        if let Some(channel) = self.get(id) {
-            channel.receive_method(method)
-        } else {
-            Err(Error::InvalidChannel(id))
-        }
+        self.with_channel(id, |channel| channel.receive_method(method))
+            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -93,19 +90,15 @@ impl Channels {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        if let Some(channel) = self.get(id) {
+        self.with_channel(id, |channel| {
             channel.handle_content_header_frame(class_id, size, properties)
-        } else {
-            Err(Error::InvalidChannel(id))
-        }
+        })
+        .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
     pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<()> {
-        if let Some(channel) = self.get(id) {
-            channel.handle_body_frame(payload)
-        } else {
-            Err(Error::InvalidChannel(id))
-        }
+        self.with_channel(id, |channel| channel.handle_body_frame(payload))
+            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
     pub(crate) fn set_connection_closing(&self) {
@@ -163,7 +156,7 @@ impl Channels {
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         debug!("send heartbeat");
 
-        if let Some(channel0) = self.get(0) {
+        self.with_channel(0, |channel0| {
             let (promise, resolver) = Promise::new();
 
             if log_enabled!(Trace) {
@@ -172,11 +165,12 @@ impl Channels {
 
             channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
             self.register_internal_promise(promise)
-        } else {
+        })
+        .unwrap_or_else(|| {
             Err(Error::InvalidConnectionState(
                 self.connection_status.state(),
             ))
-        }
+        })
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
@@ -215,13 +209,15 @@ impl Channels {
                         AMQPHardError::FRAMEERROR.into(),
                         format!("heartbeat frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(channel0) = self.get(0) {
+                    if let Some(Err(error)) = self.with_channel(0, |channel0| {
                         self.register_internal_promise(channel0.connection_close(
                             error.get_id(),
                             error.get_message().as_str(),
                             0,
                             0,
-                        ))?;
+                        ))
+                    }) {
+                        return Err(error.into());
                     }
                     return Err(Error::ProtocolError(error));
                 }
@@ -233,13 +229,15 @@ impl Channels {
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(channel0) = self.get(0) {
+                    if let Some(Err(error)) = self.with_channel(0, |channel0| {
                         self.register_internal_promise(channel0.connection_close(
                             error.get_id(),
                             error.get_message().as_str(),
                             class_id,
                             0,
-                        ))?;
+                        ))
+                    }) {
+                        return Err(error.into());
                     }
                     return Err(Error::ProtocolError(error));
                 } else {

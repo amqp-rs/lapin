@@ -4,6 +4,7 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
+use std::sync::Arc;
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
@@ -41,6 +42,7 @@ fn main() {
         info!("[{}] state: {:?}", line!(), conn.status().state());
         info!("[{}] declared queue: {:?}", line!(), queue);
 
+        let channel_b = Arc::new(channel_b);
         let chan = channel_b.clone();
         info!("will consume");
         channel_b

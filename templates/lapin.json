@@ -93,7 +93,19 @@
         "channel_init": true,
         "confirmation": {
           "type": "CloseOnDrop<Channel>"
-        }
+        },
+        "state": [
+          {
+            "name": "channel",
+            "type": "Channel"
+          }
+        ],
+        "extra_args": [
+          {
+            "name": "channel",
+            "type": "Channel"
+          }
+        ]
       }
     },
     "open-ok": {

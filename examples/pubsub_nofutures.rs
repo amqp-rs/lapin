@@ -3,11 +3,11 @@ use lapin::{
     BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
 };
 use log::info;
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 #[derive(Clone, Debug)]
 struct Subscriber {
-    channel: Channel,
+    channel: Arc<Channel>,
 }
 
 impl ConsumerDelegate for Subscriber {
@@ -40,7 +40,11 @@ fn main() {
     info!("CONNECTED");
 
     let channel_a = conn.create_channel().wait().expect("create_channel");
-    let channel_b = conn.create_channel().wait().expect("create_channel");
+    let channel_b = conn
+        .create_channel()
+        .wait()
+        .expect("create_channel")
+        .into_inner();
 
     let queue = channel_a
         .queue_declare(
@@ -54,6 +58,7 @@ fn main() {
     info!("Declared queue {:?}", queue);
 
     info!("will consume");
+    let channel_b = Arc::new(channel_b);
     channel_b
         .clone()
         .basic_consume(
@@ -64,9 +69,7 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Subscriber {
-            channel: channel_b.clone(),
-        });
+        .set_delegate(Subscriber { channel: channel_b });
 
     let payload = b"Hello world!";
 

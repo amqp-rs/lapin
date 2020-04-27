@@ -28,7 +28,6 @@ use std::{convert::TryFrom, fmt, sync::Arc};
 #[cfg(test)]
 use crate::queue::QueueState;
 
-#[derive(Clone)]
 pub struct Channel {
     id: u16,
     configuration: Configuration,
@@ -131,6 +130,24 @@ impl Channel {
 
     pub fn id(&self) -> u16 {
         self.id
+    }
+
+    // FIXME: store state in Channels, drop clone()
+    pub(crate) fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            configuration: self.configuration.clone(),
+            status: self.status.clone(),
+            connection_status: self.connection_status.clone(),
+            acknowledgements: self.acknowledgements.clone(),
+            delivery_tag: self.delivery_tag.clone(),
+            queues: self.queues.clone(),
+            returned_messages: self.returned_messages.clone(),
+            waker: self.waker.clone(),
+            internal_rpc: self.internal_rpc.clone(),
+            frames: self.frames.clone(),
+            executor: self.executor.clone(),
+        }
     }
 
     fn wake(&self) {
@@ -704,9 +721,10 @@ impl Channel {
         &self,
         _method: protocol::channel::OpenOk,
         resolver: PromiseResolver<CloseOnDrop<Channel>>,
+        channel: Channel,
     ) -> Result<()> {
         self.set_state(ChannelState::Connected);
-        resolver.swear(Ok(CloseOnDrop::new(self.clone())));
+        resolver.swear(Ok(CloseOnDrop::new(channel)));
         Ok(())
     }
 
