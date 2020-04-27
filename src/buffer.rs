@@ -31,7 +31,10 @@ impl Buffer {
     }
 
     pub(crate) fn checkpoint(&self) -> Checkpoint {
-        Checkpoint { end: self.end, backwards: true }
+        Checkpoint {
+            end: self.end,
+            backwards: true,
+        }
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {

@@ -34,15 +34,11 @@ impl Acknowledgements {
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
-        self.0
-            .lock()
-            .drop_pending(delivery_tag, true, channel_id)
+        self.0.lock().drop_pending(delivery_tag, true, channel_id)
     }
 
     pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
-        self.0
-            .lock()
-            .drop_pending(delivery_tag, false, channel_id)
+        self.0.lock().drop_pending(delivery_tag, false, channel_id)
     }
 
     pub(crate) fn ack_all_pending(&self) {
