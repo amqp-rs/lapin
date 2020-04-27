@@ -130,7 +130,7 @@ impl IoLoop {
                 if let io::ErrorKind::NotConnected = err.kind() {
                     Ok(false)
                 } else {
-                    Err(err)?
+                    Err(err.into())
                 }
             }
         }
@@ -146,7 +146,7 @@ impl IoLoop {
                 if let io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock = err.kind() {
                     Ok(false)
                 } else {
-                    Err(err)?
+                    Err(err.into())
                 }
             }
         }

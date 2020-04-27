@@ -29,6 +29,7 @@ pub trait Reactor: fmt::Debug + Send {
     fn handle(&self) -> Box<dyn ReactorHandle + Send> {
         Box::new(DummyHandle)
     }
+    #[allow(clippy::boxed_local)]
     fn start(self: Box<Self>) -> Result<ThreadHandle> {
         Ok(ThreadHandle::default())
     }

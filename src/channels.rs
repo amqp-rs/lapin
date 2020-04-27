@@ -201,7 +201,7 @@ impl Channels {
                 if let Some(resolver) = self.connection_status.connection_resolver() {
                     resolver.swear(Err(error.clone()));
                 }
-                Err(error)?;
+                return Err(error);
             }
             AMQPFrame::Method(channel_id, method) => {
                 self.receive_method(channel_id, method)?;

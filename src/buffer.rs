@@ -42,12 +42,10 @@ impl Buffer {
             } else {
                 self.available_data -= self.end + (self.capacity - checkpoint.0);
             }
+        } else if self.end > checkpoint.0 {
+            self.available_data += (self.capacity - self.end) + checkpoint.0;
         } else {
-            if self.end > checkpoint.0 {
-                self.available_data += (self.capacity - self.end) + checkpoint.0;
-            } else {
-                self.available_data += checkpoint.0 - self.end;
-            }
+            self.available_data += checkpoint.0 - self.end;
         }
         self.end = checkpoint.0;
     }
@@ -120,33 +118,29 @@ impl Buffer {
     pub(crate) fn write_to<T: io::Write>(&self, writer: &mut T) -> io::Result<usize> {
         if self.available_data() == 0 {
             Ok(0)
+        } else if self.end > self.position {
+            writer.write(&self.memory[self.position..self.end])
         } else {
-            if self.end > self.position {
-                writer.write(&self.memory[self.position..self.end])
-            } else {
-                writer.write_vectored(&[
-                    IoSlice::new(&self.memory[self.position..]),
-                    IoSlice::new(&self.memory[..self.end]),
-                ])
-            }
+            writer.write_vectored(&[
+                IoSlice::new(&self.memory[self.position..]),
+                IoSlice::new(&self.memory[..self.end]),
+            ])
         }
     }
 
     pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T) -> io::Result<usize> {
         if self.available_space() == 0 {
             Ok(0)
+        } else if self.end >= self.position {
+            let (start, end) = self.memory.split_at_mut(self.end);
+            reader.read_vectored(
+                &mut [
+                    IoSliceMut::new(&mut end[..]),
+                    IoSliceMut::new(&mut start[..self.position]),
+                ][..],
+            )
         } else {
-            if self.end >= self.position {
-                let (start, end) = self.memory.split_at_mut(self.end);
-                reader.read_vectored(
-                    &mut [
-                        IoSliceMut::new(&mut end[..]),
-                        IoSliceMut::new(&mut start[..self.position]),
-                    ][..],
-                )
-            } else {
-                reader.read(&mut self.memory[self.end..])
-            }
+            reader.read(&mut self.memory[self.end..])
         }
     }
 
@@ -172,12 +166,10 @@ impl Buffer {
     pub(crate) fn parsing_context(&self) -> ParsingContext<'_> {
         if self.available_data() == 0 {
             self.memory[self.end..self.end].into()
+        } else if self.end > self.position {
+            self.memory[self.position..self.end].into()
         } else {
-            if self.end > self.position {
-                self.memory[self.position..self.end].into()
-            } else {
-                [&self.memory[self.position..], &self.memory[..self.end]].into()
-            }
+            [&self.memory[self.position..], &self.memory[..self.end]].into()
         }
     }
 }
@@ -186,19 +178,17 @@ impl io::Write for &mut Buffer {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         let amt = if self.available_space() == 0 {
             0
-        } else {
-            if self.end >= self.position {
-                let mut space = &mut self.memory[self.end..];
-                let mut amt = space.write(data)?;
-                if amt == self.capacity - self.end {
-                    let mut space = &mut self.memory[..self.position];
-                    amt += space.write(&data[amt..])?;
-                }
-                amt
-            } else {
-                let mut space = &mut self.memory[self.end..self.position];
-                space.write(data)?
+        } else if self.end >= self.position {
+            let mut space = &mut self.memory[self.end..];
+            let mut amt = space.write(data)?;
+            if amt == self.capacity - self.end {
+                let mut space = &mut self.memory[..self.position];
+                amt += space.write(&data[amt..])?;
             }
+            amt
+        } else {
+            let mut space = &mut self.memory[self.end..self.position];
+            space.write(data)?
         };
         self.fill(amt);
         Ok(amt)

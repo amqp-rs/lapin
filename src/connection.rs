@@ -173,12 +173,7 @@ impl Connection {
             let waker = socket_state.handle();
             let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
             let frames = Frames::default();
-            let conn = Connection::new(
-                waker.clone(),
-                internal_rpc.handle(),
-                frames.clone(),
-                executor,
-            );
+            let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor);
             let status = conn.status.clone();
             let configuration = conn.configuration.clone();
             status.set_vhost(&uri.vhost);
@@ -198,7 +193,7 @@ impl Connection {
             }
             conn.channel0().send_frame(
                 AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
-                resolver.clone(),
+                resolver,
                 None,
             );
             let (promise, resolver) = CloseOnDropPromise::after(promise);
