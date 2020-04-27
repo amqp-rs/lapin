@@ -64,12 +64,12 @@ impl Channel {
   #[allow(clippy::too_many_arguments)]
   {{#unless method.metadata.require_wrapper ~}}{{#if method.is_reply ~}}{{#if method.metadata.internal ~}}pub(crate) {{/if ~}}{{else}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/if ~}}fn {{else}}fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}) -> Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
     {{#if method.metadata.channel_init ~}}
-    if !self.status.is_initializing() {
+    if !self.status.initializing() {
     {{else}}
     {{#if method.metadata.channel_deinit ~}}
-    if !self.status.is_closing() {
+    if !self.status.closing() {
     {{else}}
-    if !self.status.is_connected() {
+    if !self.status.connected() {
     {{/if ~}}
     {{/if ~}}
       return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
@@ -158,12 +158,12 @@ impl Channel {
     )?;
     {{/if ~}}
     {{#if method.metadata.channel_init ~}}
-    if !self.status.is_initializing() {
+    if !self.status.initializing() {
     {{else}}
     {{#if method.metadata.channel_deinit ~}}
-    if !self.status.is_closing() {
+    if !self.status.closing() {
     {{else}}
-    if !self.status.is_connected() {
+    if !self.status.connected() {
     {{/if ~}}
     {{/if ~}}
       return Err(Error::InvalidChannelState(self.status.state()));
@@ -199,7 +199,7 @@ impl Channel {
       method.get_amqp_method_id(),
     )?;
     {{/if ~}}
-    if !self.status.is_connected() {
+    if !self.status.connected() {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)

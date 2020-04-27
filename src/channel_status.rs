@@ -9,15 +9,15 @@ pub struct ChannelStatus {
 }
 
 impl ChannelStatus {
-    pub fn is_initializing(&self) -> bool {
+    pub fn initializing(&self) -> bool {
         self.inner.lock().state == ChannelState::Initial
     }
 
-    pub fn is_closing(&self) -> bool {
+    pub fn closing(&self) -> bool {
         self.inner.lock().state == ChannelState::Closing
     }
 
-    pub fn is_connected(&self) -> bool {
+    pub fn connected(&self) -> bool {
         !&[
             ChannelState::Initial,
             ChannelState::Closing,

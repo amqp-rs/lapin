@@ -959,7 +959,7 @@ impl Channel {
 
 impl close_on_drop::__private::Closable for Channel {
     fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        if self.status().is_connected() {
+        if self.status().connected() {
             Channel::close(self, reply_code, reply_text)
         } else {
             Promise::new_with_data(Ok(()))
