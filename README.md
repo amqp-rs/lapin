@@ -42,7 +42,7 @@ Integration with tokio is provided by the [tokio-amqp](https://crates.io/crates/
 
 ```rust
 use futures_executor::{LocalPool, ThreadPool};
-use futures_util::{future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
+use futures_util::{future::FutureExt, stream::StreamExt};
 use lapin::{
     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, Result,
