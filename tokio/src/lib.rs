@@ -6,10 +6,18 @@ pub trait LapinTokioExt {
     fn with_tokio(self) -> Self
     where
         Self: Sized;
+
+    fn with_tokio_executor(self) -> Self
+    where
+        Self: Sized;
 }
 
 impl LapinTokioExt for ConnectionProperties {
     fn with_tokio(self) -> Self {
+        self.with_tokio_executor()
+    }
+
+    fn with_tokio_executor(self) -> Self {
         self.with_executor(TokioExecutor(Handle::current()))
     }
 }

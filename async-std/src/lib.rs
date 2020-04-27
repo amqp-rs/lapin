@@ -5,10 +5,18 @@ pub trait LapinAsyncStdExt {
     fn with_async_std(self) -> Self
     where
         Self: Sized;
+
+    fn with_async_std_executor(self) -> Self
+    where
+        Self: Sized;
 }
 
 impl LapinAsyncStdExt for ConnectionProperties {
     fn with_async_std(self) -> Self {
+        self.with_async_std_executor()
+    }
+
+    fn with_async_std_executor(self) -> Self {
         self.with_executor(AsyncStdExecutor)
     }
 }
