@@ -14,15 +14,11 @@ use std::{
 pub type DeliveryTag = u64;
 
 #[derive(Clone)]
-pub(crate) struct Acknowledgements {
-    inner: Arc<Mutex<Inner>>,
-}
+pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);
 
 impl Acknowledgements {
     pub(crate) fn new(returned_messages: ReturnedMessages) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(Inner::new(returned_messages))),
-        }
+        Self(Arc::new(Mutex::new(Inner::new(returned_messages))))
     }
 
     pub(crate) fn register_pending(
@@ -30,31 +26,31 @@ impl Acknowledgements {
         delivery_tag: DeliveryTag,
         channel_id: u16,
     ) -> PublisherConfirm {
-        self.inner.lock().register_pending(delivery_tag, channel_id)
+        self.0.lock().register_pending(delivery_tag, channel_id)
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<Promise<Confirmation>> {
-        self.inner.lock().last.take().map(|(_, promise)| promise)
+        self.0.lock().last.take().map(|(_, promise)| promise)
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
-        self.inner
+        self.0
             .lock()
             .drop_pending(delivery_tag, true, channel_id)
     }
 
     pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
-        self.inner
+        self.0
             .lock()
             .drop_pending(delivery_tag, false, channel_id)
     }
 
     pub(crate) fn ack_all_pending(&self) {
-        self.inner.lock().drop_all(true);
+        self.0.lock().drop_all(true);
     }
 
     pub(crate) fn nack_all_pending(&self) {
-        self.inner.lock().drop_all(false);
+        self.0.lock().drop_all(false);
     }
 
     pub(crate) fn ack_all_before(
@@ -62,7 +58,7 @@ impl Acknowledgements {
         delivery_tag: DeliveryTag,
         channel_id: u16,
     ) -> Result<(), AMQPError> {
-        self.inner
+        self.0
             .lock()
             .complete_pending_before(delivery_tag, true, channel_id)
     }
@@ -72,20 +68,20 @@ impl Acknowledgements {
         delivery_tag: DeliveryTag,
         channel_id: u16,
     ) -> Result<(), AMQPError> {
-        self.inner
+        self.0
             .lock()
             .complete_pending_before(delivery_tag, false, channel_id)
     }
 
     pub(crate) fn on_channel_error(&self, channel_id: u16, error: Error) {
-        self.inner.lock().on_channel_error(channel_id, error);
+        self.0.lock().on_channel_error(channel_id, error);
     }
 }
 
 impl fmt::Debug for Acknowledgements {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Acknowledgements");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Some(inner) = self.0.try_lock() {
             debug
                 .field("returned_messages", &inner.returned_messages)
                 .field("pending", &inner.pending.keys());
