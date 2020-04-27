@@ -2,30 +2,26 @@ use parking_lot::Mutex;
 use std::{fmt, ops::AddAssign, sync::Arc};
 
 #[derive(Clone)]
-pub(crate) struct IdSequence<T> {
-    inner: Arc<Mutex<Inner<T>>>,
-}
+pub(crate) struct IdSequence<T>(Arc<Mutex<Inner<T>>>);
 
 impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
     pub(crate) fn new(allow_zero: bool) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(Inner::new(allow_zero))),
-        }
+        Self(Arc::new(Mutex::new(Inner::new(allow_zero))))
     }
 
     pub(crate) fn next(&self) -> T {
-        self.inner.lock().next()
+        self.0.lock().next()
     }
 
     pub(crate) fn set_max(&self, max: T) {
-        self.inner.lock().set_max(max)
+        self.0.lock().set_max(max)
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for IdSequence<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("IdSequence");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Some(inner) = self.0.try_lock() {
             debug
                 .field("allow_zero", &inner.allow_zero)
                 .field("max", &inner.max)
