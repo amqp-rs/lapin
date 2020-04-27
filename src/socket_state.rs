@@ -69,7 +69,7 @@ impl SocketState {
         reactor: &dyn ReactorHandle,
         slot: Slot,
     ) -> Result<()> {
-        self.readable = Self::handle_io_result(result)?;
+        self.readable = self.handle_io_result(result)?;
         if !self.readable {
             reactor.poll_read(slot);
         }
@@ -82,7 +82,7 @@ impl SocketState {
         reactor: &dyn ReactorHandle,
         slot: Slot,
     ) -> Result<()> {
-        self.writable = Self::handle_io_result(result)?;
+        self.writable = self.handle_io_result(result)?;
         if !self.writable {
             reactor.poll_write(slot);
         }
@@ -93,10 +93,13 @@ impl SocketState {
         self.handle.clone()
     }
 
-    fn handle_io_result(result: Result<()>) -> Result<bool> {
+    fn handle_io_result(&self, result: Result<()>) -> Result<bool> {
         if let Err(err) = result {
             if err.wouldblock() {
                 Ok(false)
+            } else if err.interrupted() {
+                self.handle.wake();
+                Ok(true)
             } else {
                 Err(err)
             }

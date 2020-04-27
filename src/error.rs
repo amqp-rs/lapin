@@ -44,6 +44,14 @@ impl Error {
             false
         }
     }
+
+    pub fn interrupted(&self) -> bool {
+        if let Error::IOError(e) = self {
+            e.kind() == io::ErrorKind::Interrupted
+        } else {
+            false
+        }
+    }
 }
 
 impl fmt::Display for Error {
