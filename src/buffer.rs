@@ -14,8 +14,10 @@ pub(crate) struct Buffer {
     available_data: usize,
 }
 
-// The bool is true when the checkpoint is to go backwards, false for forward
-pub(crate) struct Checkpoint(usize, bool);
+pub(crate) struct Checkpoint {
+    end: usize,
+    backwards: bool,
+}
 
 impl Buffer {
     pub(crate) fn with_capacity(capacity: usize) -> Buffer {
@@ -29,25 +31,25 @@ impl Buffer {
     }
 
     pub(crate) fn checkpoint(&self) -> Checkpoint {
-        Checkpoint(self.end, true)
+        Checkpoint { end: self.end, backwards: true }
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {
-        if checkpoint.0 == self.end {
+        if checkpoint.end == self.end {
             return;
         }
-        if checkpoint.1 {
-            if self.end > checkpoint.0 {
-                self.available_data -= self.end - checkpoint.0;
+        if checkpoint.backwards {
+            if self.end > checkpoint.end {
+                self.available_data -= self.end - checkpoint.end;
             } else {
-                self.available_data -= self.end + (self.capacity - checkpoint.0);
+                self.available_data -= self.end + (self.capacity - checkpoint.end);
             }
-        } else if self.end > checkpoint.0 {
-            self.available_data += (self.capacity - self.end) + checkpoint.0;
+        } else if self.end > checkpoint.end {
+            self.available_data += (self.capacity - self.end) + checkpoint.end;
         } else {
-            self.available_data += checkpoint.0 - self.end;
+            self.available_data += checkpoint.end - self.end;
         }
-        self.end = checkpoint.0;
+        self.end = checkpoint.end;
     }
 
     pub(crate) fn grow(&mut self, new_size: usize) -> bool {
@@ -219,7 +221,7 @@ impl BackToTheBuffer for &mut Buffer {
         s.write.fill(reserved);
         gen(s).and_then(|(s, tmp)| {
             let mut end = s.write.checkpoint();
-            end.1 = false;
+            end.backwards = false;
             s.write.rollback(start);
             before(s, tmp).and_then(|s| {
                 s.write.rollback(end);
