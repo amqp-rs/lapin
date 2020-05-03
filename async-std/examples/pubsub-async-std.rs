@@ -4,6 +4,7 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
+use std::sync::Arc;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -27,6 +28,7 @@ async fn main() -> Result<()> {
 
     info!("Declared queue {:?}", queue);
 
+    let channel_b = Arc::new(channel_b);
     let consumer = channel_b
         .clone()
         .basic_consume(
