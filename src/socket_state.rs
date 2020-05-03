@@ -128,9 +128,7 @@ impl SocketState {
 
 impl SocketStateHandle {
     pub fn send(&self, event: SocketEvent) {
-        self.sender
-            .send(event)
-            .expect("forwarding soket event failed")
+        let _ = self.sender.send(event);
     }
 
     pub fn wake(&self) {
