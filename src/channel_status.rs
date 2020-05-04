@@ -21,6 +21,10 @@ impl ChannelStatus {
         self.inner.lock().state == ChannelState::Connected
     }
 
+    pub(crate) fn can_receive_messages(&self) -> bool {
+        [ChannelState::Closing, ChannelState::Connected].contains(&self.inner.lock().state)
+    }
+
     pub fn confirm(&self) -> bool {
         self.inner.lock().confirm
     }

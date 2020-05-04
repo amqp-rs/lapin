@@ -160,11 +160,7 @@ impl Channel {
     {{#if method.metadata.channel_init ~}}
     if !self.status.initializing() {
     {{else}}
-    {{#if method.metadata.channel_deinit ~}}
-    if !self.status.closing() {
-    {{else}}
-    if !self.status.connected() {
-    {{/if ~}}
+    if !self.status.can_receive_messages() {
     {{/if ~}}
       return Err(Error::InvalidChannelState(self.status.state()));
     }
@@ -199,7 +195,7 @@ impl Channel {
       method.get_amqp_method_id(),
     )?;
     {{/if ~}}
-    if !self.status.connected() {
+    if !self.status.can_receive_messages() {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
