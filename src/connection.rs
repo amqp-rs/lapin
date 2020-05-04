@@ -284,7 +284,8 @@ mod tests {
     use env_logger;
 
     use super::*;
-    use crate::channel_status::{ChannelReceiverState, ChannelState};
+    use crate::channel_receiver_state::ChannelReceiverState;
+    use crate::channel_status::ChannelState;
     use crate::types::ShortString;
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;

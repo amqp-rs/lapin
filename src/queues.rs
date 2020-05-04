@@ -139,7 +139,6 @@ impl Queues {
         queue: &str,
         consumer_tag: Option<ShortString>,
         remaining_size: usize,
-        payload_size: usize,
         payload: Vec<u8>,
     ) -> Result<()> {
         self.with_queue(queue, |queue| {
@@ -147,14 +146,14 @@ impl Queues {
                 Some(consumer_tag) => {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
                         consumer.receive_delivery_content(payload);
-                        if remaining_size == payload_size {
+                        if remaining_size == 0 {
                             consumer.new_delivery_complete()?;
                         }
                     }
                 }
                 None => {
                     queue.receive_delivery_content(payload);
-                    if remaining_size == payload_size {
+                    if remaining_size == 0 {
                         queue.new_delivery_complete();
                     }
                 }

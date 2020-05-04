@@ -1,4 +1,8 @@
-use crate::types::{ShortString, ShortUInt};
+use crate::{
+    channel_receiver_state::ChannelReceiverStates,
+    types::{ShortString, ShortUInt},
+    Result,
+};
 use log::trace;
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -42,12 +46,61 @@ impl ChannelStatus {
         self.inner.lock().state = state
     }
 
-    pub fn receiver_state(&self) -> ChannelReceiverState {
-        self.inner.lock().receiver_state.clone()
+    #[cfg(test)]
+    pub(crate) fn receiver_state(&self) -> crate::channel_receiver_state::ChannelReceiverState {
+        self.inner.lock().receiver_state.receiver_state()
     }
 
-    pub(crate) fn set_receiver_state(&self, state: ChannelReceiverState) {
-        self.inner.lock().receiver_state = state
+    pub(crate) fn set_will_receive(
+        &self,
+        class_id: ShortUInt,
+        queue_name: Option<ShortString>,
+        request_id_or_consumer_tag: Option<ShortString>,
+    ) {
+        self.inner.lock().receiver_state.set_will_receive(
+            class_id,
+            queue_name,
+            request_id_or_consumer_tag,
+        );
+    }
+
+    pub(crate) fn set_content_length<
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>) -> Result<()>,
+        OnInvalidClass: FnOnce(String) -> Result<()>,
+        OnError: FnOnce(String) -> Result<()>,
+    >(
+        &self,
+        channel_id: u16,
+        class_id: ShortUInt,
+        length: usize,
+        handler: Handler,
+        invalid_class_hanlder: OnInvalidClass,
+        error_handler: OnError,
+    ) -> Result<()> {
+        self.inner.lock().receiver_state.set_content_length(
+            channel_id,
+            class_id,
+            length,
+            handler,
+            invalid_class_hanlder,
+            error_handler,
+        )
+    }
+
+    pub(crate) fn receive<
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize) -> Result<()>,
+        OnError: FnOnce(String) -> Result<()>,
+    >(
+        &self,
+        channel_id: u16,
+        length: usize,
+        handler: Handler,
+        error_handler: OnError,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .receiver_state
+            .receive(channel_id, length, handler, error_handler)
     }
 
     pub(crate) fn set_send_flow(&self, flow: bool) {
@@ -74,19 +127,6 @@ impl Default for ChannelState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ChannelReceiverState {
-    Idle,
-    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
-    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
-}
-
-impl Default for ChannelReceiverState {
-    fn default() -> Self {
-        ChannelReceiverState::Idle
-    }
-}
-
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ChannelStatus");
@@ -105,7 +145,7 @@ struct Inner {
     confirm: bool,
     send_flow: bool,
     state: ChannelState,
-    receiver_state: ChannelReceiverState,
+    receiver_state: ChannelReceiverStates,
 }
 
 impl Default for Inner {
@@ -114,7 +154,7 @@ impl Default for Inner {
             confirm: false,
             send_flow: true,
             state: ChannelState::default(),
-            receiver_state: ChannelReceiverState::default(),
+            receiver_state: ChannelReceiverStates::default(),
         }
     }
 }

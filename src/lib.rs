@@ -131,6 +131,7 @@ type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 mod acknowledgement;
 mod buffer;
 mod channel;
+mod channel_receiver_state;
 mod channel_status;
 mod channels;
 mod close_on_drop;

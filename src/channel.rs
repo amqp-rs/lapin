@@ -1,7 +1,7 @@
 use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
-    channel_status::{ChannelReceiverState, ChannelState, ChannelStatus},
+    channel_status::{ChannelState, ChannelStatus},
     close_on_drop,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
@@ -126,10 +126,6 @@ impl Channel {
 
     pub(crate) fn set_state(&self, state: ChannelState) {
         self.status.set_state(state);
-    }
-
-    pub(crate) fn set_receiver_state(&self, state: ChannelReceiverState) {
-        self.status.set_receiver_state(state);
     }
 
     pub fn id(&self) -> u16 {
@@ -296,119 +292,65 @@ impl Channel {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        if let ChannelReceiverState::WillReceiveContent(
-            expected_class_id,
-            queue_name,
-            request_id_or_consumer_tag,
-        ) = self.status.receiver_state()
-        {
-            if class_id != expected_class_id {
-                error!(
-                    "received content header with class_id {} instead of expected {}",
-                    class_id, expected_class_id
-                );
-                let error = AMQPError::new(
-                        AMQPHardError::FRAMEERROR.into(),
-                        format!("content header frame with class_id {} instead of {} received on channel {}", class_id, expected_class_id, self.id).into(),
-                    );
+        self.status.set_content_length(
+            self.id,
+            class_id,
+            size as usize,
+            |queue_name, request_id_or_consumer_tag| {
+                if let Some(queue_name) = queue_name {
+                    self.queues.handle_content_header_frame(
+                        queue_name.as_str(),
+                        request_id_or_consumer_tag.clone(),
+                        size,
+                        properties,
+                    )?;
+                } else {
+                    self.returned_messages.set_delivery_properties(properties);
+                    if size == 0 {
+                        self.returned_messages
+                            .new_delivery_complete(self.status.confirm());
+                    }
+                }
+                Ok(())
+            },
+            |msg| {
+                error!("{}", msg);
+                let error = AMQPError::new(AMQPHardError::FRAMEERROR.into(), msg.into());
                 self.internal_rpc.close_connection(
                     error.get_id(),
                     error.get_message().to_string(),
                     class_id,
                     0,
                 );
-                return self.set_error(Error::ProtocolError(error));
-            }
-            if size > 0 {
-                self.set_receiver_state(ChannelReceiverState::ReceivingContent(
-                    queue_name.clone(),
-                    request_id_or_consumer_tag.clone(),
-                    size as usize,
-                ));
-            } else {
-                self.set_receiver_state(ChannelReceiverState::Idle);
-            }
-            if let Some(queue_name) = queue_name {
-                self.queues.handle_content_header_frame(
-                    queue_name.as_str(),
-                    request_id_or_consumer_tag,
-                    size,
-                    properties,
-                )?;
-            } else {
-                self.returned_messages.set_delivery_properties(properties);
-                if size == 0 {
-                    self.returned_messages
-                        .new_delivery_complete(self.status.confirm());
-                }
-            }
-            Ok(())
-        } else {
-            self.handle_invalid_contents(
-                format!(
-                    "unexpected content header frame received on channel {}",
-                    self.id
-                ),
-                class_id,
-                0,
-            )
-        }
+                self.set_error(Error::ProtocolError(error))
+            },
+            |msg| self.handle_invalid_contents(msg, class_id, 0),
+        )
     }
 
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
-        let payload_size = payload.len();
-
-        if let ChannelReceiverState::ReceivingContent(
-            queue_name,
-            request_id_or_consumer_tag,
-            remaining_size,
-        ) = self.status.receiver_state()
-        {
-            if remaining_size >= payload_size {
-                if let Some(queue_name) = queue_name.as_ref() {
+        self.status.receive(
+            self.id,
+            payload.len(),
+            |queue_name, request_id_or_consumer_tag, remaining_size| {
+                if let Some(queue_name) = queue_name {
                     self.queues.handle_body_frame(
                         queue_name.as_str(),
                         request_id_or_consumer_tag.clone(),
                         remaining_size,
-                        payload_size,
                         payload,
                     )?;
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
-                    if remaining_size == payload_size {
+                    if remaining_size == 0 {
                         self.returned_messages
                             .new_delivery_complete(self.status.confirm());
                     }
                 }
-                if remaining_size == payload_size {
-                    self.set_receiver_state(ChannelReceiverState::Idle);
-                } else {
-                    self.set_receiver_state(ChannelReceiverState::ReceivingContent(
-                        queue_name,
-                        request_id_or_consumer_tag,
-                        remaining_size - payload_size,
-                    ));
-                }
                 Ok(())
-            } else {
-                self.handle_invalid_contents(
-                    format!(
-                        "unexpectedly large content body frame received on channel {} ({} bytes, expected {} bytes)",
-                        self.id, payload_size, remaining_size
-                    ),
-                    0, 0,
-                )
-            }
-        } else {
-            self.handle_invalid_contents(
-                format!(
-                    "unexpected content body frame received on channel {}",
-                    self.id
-                ),
-                0,
-                0,
-            )
-        }
+            },
+            |msg| self.handle_invalid_contents(msg, 0, 0),
+        )
     }
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
@@ -820,11 +762,7 @@ impl Channel {
             ),
             resolver,
         );
-        self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
-            class_id,
-            Some(queue),
-            None,
-        ));
+        self.status.set_will_receive(class_id, Some(queue), None);
         Ok(())
     }
 
@@ -866,11 +804,8 @@ impl Channel {
                 method.redelivered,
             ),
         ) {
-            self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
-                class_id,
-                Some(queue_name),
-                Some(method.consumer_tag),
-            ));
+            self.status
+                .set_will_receive(class_id, Some(queue_name), Some(method.consumer_tag));
         }
         Ok(())
     }
@@ -961,9 +896,7 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
-            class_id, None, None,
-        ));
+        self.status.set_will_receive(class_id, None, None);
         Ok(())
     }
 
