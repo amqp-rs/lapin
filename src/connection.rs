@@ -284,7 +284,7 @@ mod tests {
     use env_logger;
 
     use super::*;
-    use crate::channel_status::ChannelState;
+    use crate::channel_status::{ChannelReceiverState, ChannelState};
     use crate::types::ShortString;
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
@@ -330,8 +330,8 @@ mod tests {
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
             conn.channels.handle_frame(deliver_frame).unwrap();
-            let channel_state = channel.status().state();
-            let expected_state = ChannelState::WillReceiveContent(
+            let channel_state = channel.status().receiver_state();
+            let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
                 Some(queue_name.clone()),
                 Some(consumer_tag.clone()),
@@ -350,8 +350,8 @@ mod tests {
                 }),
             );
             conn.channels.handle_frame(header_frame).unwrap();
-            let channel_state = channel.status().state();
-            let expected_state = ChannelState::ReceivingContent(
+            let channel_state = channel.status().receiver_state();
+            let expected_state = ChannelReceiverState::ReceivingContent(
                 Some(queue_name.clone()),
                 Some(consumer_tag.clone()),
                 2,
@@ -407,8 +407,8 @@ mod tests {
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
             conn.channels.handle_frame(deliver_frame).unwrap();
-            let channel_state = channel.status().state();
-            let expected_state = ChannelState::WillReceiveContent(
+            let channel_state = channel.status().receiver_state();
+            let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
                 Some(queue_name.clone()),
                 Some(consumer_tag.clone()),

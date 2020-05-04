@@ -18,13 +18,7 @@ impl ChannelStatus {
     }
 
     pub fn connected(&self) -> bool {
-        !&[
-            ChannelState::Initial,
-            ChannelState::Closing,
-            ChannelState::Closed,
-            ChannelState::Error,
-        ]
-        .contains(&self.inner.lock().state)
+        self.inner.lock().state == ChannelState::Connected
     }
 
     pub fn confirm(&self) -> bool {
@@ -44,6 +38,14 @@ impl ChannelStatus {
         self.inner.lock().state = state
     }
 
+    pub fn receiver_state(&self) -> ChannelReceiverState {
+        self.inner.lock().receiver_state.clone()
+    }
+
+    pub(crate) fn set_receiver_state(&self, state: ChannelReceiverState) {
+        self.inner.lock().receiver_state = state
+    }
+
     pub(crate) fn set_send_flow(&self, flow: bool) {
         self.inner.lock().send_flow = flow;
     }
@@ -60,14 +62,24 @@ pub enum ChannelState {
     Closing,
     Closed,
     Error,
-    SendingContent(usize),
-    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
-    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
 }
 
 impl Default for ChannelState {
     fn default() -> Self {
         ChannelState::Initial
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChannelReceiverState {
+    Idle,
+    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
+    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
+}
+
+impl Default for ChannelReceiverState {
+    fn default() -> Self {
+        ChannelReceiverState::Idle
     }
 }
 
@@ -77,6 +89,7 @@ impl fmt::Debug for ChannelStatus {
         if let Some(inner) = self.inner.try_lock() {
             debug
                 .field("state", &inner.state)
+                .field("receiver_state", &inner.receiver_state)
                 .field("confirm", &inner.confirm)
                 .field("send_flow", &inner.send_flow);
         }
@@ -88,6 +101,7 @@ struct Inner {
     confirm: bool,
     send_flow: bool,
     state: ChannelState,
+    receiver_state: ChannelReceiverState,
 }
 
 impl Default for Inner {
@@ -96,6 +110,7 @@ impl Default for Inner {
             confirm: false,
             send_flow: true,
             state: ChannelState::default(),
+            receiver_state: ChannelReceiverState::default(),
         }
     }
 }

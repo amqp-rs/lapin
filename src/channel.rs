@@ -1,7 +1,7 @@
 use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
-    channel_status::{ChannelState, ChannelStatus},
+    channel_status::{ChannelReceiverState, ChannelState, ChannelStatus},
     close_on_drop,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
@@ -126,6 +126,10 @@ impl Channel {
 
     pub(crate) fn set_state(&self, state: ChannelState) {
         self.status.set_state(state);
+    }
+
+    pub(crate) fn set_receiver_state(&self, state: ChannelReceiverState) {
+        self.status.set_receiver_state(state);
     }
 
     pub fn id(&self) -> u16 {
@@ -292,11 +296,11 @@ impl Channel {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        if let ChannelState::WillReceiveContent(
+        if let ChannelReceiverState::WillReceiveContent(
             expected_class_id,
             queue_name,
             request_id_or_consumer_tag,
-        ) = self.status.state()
+        ) = self.status.receiver_state()
         {
             if class_id != expected_class_id {
                 error!(
@@ -316,13 +320,13 @@ impl Channel {
                 return self.set_error(Error::ProtocolError(error));
             }
             if size > 0 {
-                self.set_state(ChannelState::ReceivingContent(
+                self.set_receiver_state(ChannelReceiverState::ReceivingContent(
                     queue_name.clone(),
                     request_id_or_consumer_tag.clone(),
                     size as usize,
                 ));
             } else {
-                self.set_state(ChannelState::Connected);
+                self.set_receiver_state(ChannelReceiverState::Idle);
             }
             if let Some(queue_name) = queue_name {
                 self.queues.handle_content_header_frame(
@@ -354,11 +358,11 @@ impl Channel {
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
         let payload_size = payload.len();
 
-        if let ChannelState::ReceivingContent(
+        if let ChannelReceiverState::ReceivingContent(
             queue_name,
             request_id_or_consumer_tag,
             remaining_size,
-        ) = self.status.state()
+        ) = self.status.receiver_state()
         {
             if remaining_size >= payload_size {
                 if let Some(queue_name) = queue_name.as_ref() {
@@ -377,9 +381,9 @@ impl Channel {
                     }
                 }
                 if remaining_size == payload_size {
-                    self.set_state(ChannelState::Connected);
+                    self.set_receiver_state(ChannelReceiverState::Idle);
                 } else {
-                    self.set_state(ChannelState::ReceivingContent(
+                    self.set_receiver_state(ChannelReceiverState::ReceivingContent(
                         queue_name,
                         request_id_or_consumer_tag,
                         remaining_size - payload_size,
@@ -816,7 +820,7 @@ impl Channel {
             ),
             resolver,
         );
-        self.set_state(ChannelState::WillReceiveContent(
+        self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
             class_id,
             Some(queue),
             None,
@@ -862,7 +866,7 @@ impl Channel {
                 method.redelivered,
             ),
         ) {
-            self.set_state(ChannelState::WillReceiveContent(
+            self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
                 class_id,
                 Some(queue_name),
                 Some(method.consumer_tag),
@@ -957,7 +961,9 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.set_state(ChannelState::WillReceiveContent(class_id, None, None));
+        self.set_receiver_state(ChannelReceiverState::WillReceiveContent(
+            class_id, None, None,
+        ));
         Ok(())
     }
 
