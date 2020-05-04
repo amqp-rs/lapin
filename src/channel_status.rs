@@ -8,47 +8,45 @@ use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 
 #[derive(Clone, Default)]
-pub struct ChannelStatus {
-    inner: Arc<Mutex<Inner>>,
-}
+pub struct ChannelStatus(Arc<Mutex<Inner>>);
 
 impl ChannelStatus {
     pub fn initializing(&self) -> bool {
-        self.inner.lock().state == ChannelState::Initial
+        self.0.lock().state == ChannelState::Initial
     }
 
     pub fn closing(&self) -> bool {
-        self.inner.lock().state == ChannelState::Closing
+        self.0.lock().state == ChannelState::Closing
     }
 
     pub fn connected(&self) -> bool {
-        self.inner.lock().state == ChannelState::Connected
+        self.0.lock().state == ChannelState::Connected
     }
 
     pub(crate) fn can_receive_messages(&self) -> bool {
-        [ChannelState::Closing, ChannelState::Connected].contains(&self.inner.lock().state)
+        [ChannelState::Closing, ChannelState::Connected].contains(&self.0.lock().state)
     }
 
     pub fn confirm(&self) -> bool {
-        self.inner.lock().confirm
+        self.0.lock().confirm
     }
 
     pub(crate) fn set_confirm(&self) {
-        self.inner.lock().confirm = true;
+        self.0.lock().confirm = true;
         trace!("Publisher confirms activated");
     }
 
     pub fn state(&self) -> ChannelState {
-        self.inner.lock().state.clone()
+        self.0.lock().state.clone()
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
-        self.inner.lock().state = state
+        self.0.lock().state = state
     }
 
     #[cfg(test)]
     pub(crate) fn receiver_state(&self) -> crate::channel_receiver_state::ChannelReceiverState {
-        self.inner.lock().receiver_state.receiver_state()
+        self.0.lock().receiver_state.receiver_state()
     }
 
     pub(crate) fn set_will_receive(
@@ -57,7 +55,7 @@ impl ChannelStatus {
         queue_name: Option<ShortString>,
         request_id_or_consumer_tag: Option<ShortString>,
     ) {
-        self.inner.lock().receiver_state.set_will_receive(
+        self.0.lock().receiver_state.set_will_receive(
             class_id,
             queue_name,
             request_id_or_consumer_tag,
@@ -77,7 +75,7 @@ impl ChannelStatus {
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
     ) -> Result<()> {
-        self.inner.lock().receiver_state.set_content_length(
+        self.0.lock().receiver_state.set_content_length(
             channel_id,
             class_id,
             length,
@@ -97,18 +95,18 @@ impl ChannelStatus {
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {
-        self.inner
+        self.0
             .lock()
             .receiver_state
             .receive(channel_id, length, handler, error_handler)
     }
 
     pub(crate) fn set_send_flow(&self, flow: bool) {
-        self.inner.lock().send_flow = flow;
+        self.0.lock().send_flow = flow;
     }
 
     pub(crate) fn flow(&self) -> bool {
-        self.inner.lock().send_flow
+        self.0.lock().send_flow
     }
 }
 
@@ -130,7 +128,7 @@ impl Default for ChannelState {
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ChannelStatus");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Some(inner) = self.0.try_lock() {
             debug
                 .field("state", &inner.state)
                 .field("receiver_state", &inner.receiver_state)
