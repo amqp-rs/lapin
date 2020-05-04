@@ -301,9 +301,10 @@ mod tests {
         let executor = Arc::new(DefaultExecutor::default());
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let conn = Connection::new(
-            waker.clone(),
-            InternalRPC::new(executor.clone(), waker).handle(),
+            waker,
+            internal_rpc.handle(),
             Frames::default(),
             executor.clone(),
         );
@@ -378,9 +379,10 @@ mod tests {
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let executor = Arc::new(DefaultExecutor::default());
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let conn = Connection::new(
-            waker.clone(),
-            InternalRPC::new(executor.clone(), waker).handle(),
+            waker,
+            internal_rpc.handle(),
             Frames::default(),
             executor.clone(),
         );
