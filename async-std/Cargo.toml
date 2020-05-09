@@ -23,6 +23,11 @@ version = "=1.0.0-beta4"
 path = ".."
 default-features = false
 
+[dependencies.lapinou]
+version = "=0.1.0-beta4"
+path = "../lapinou"
+default-features = false
+
 [dev-dependencies]
 env_logger = "^0.7"
 log = "^0.4"
