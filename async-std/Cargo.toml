@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies.async-std]
-version = "^1.0"
+version = "1.6.0-beta.1"
 features = ["default"]
 
 [dependencies.lapin]
@@ -28,5 +28,5 @@ env_logger = "^0.7"
 log = "^0.4"
 
 [dev-dependencies.async-std]
-version = "^1.0"
+version = "1.6.0-beta.1"
 features = ["attributes", "default"]
