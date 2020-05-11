@@ -69,6 +69,7 @@ impl Inner {
             .map(|timeout| {
                 timeout
                     .checked_sub(self.last_write.elapsed())
+                    .map(|timeout| timeout.max(Duration::from_millis(1)))
                     .map(Ok)
                     .unwrap_or_else(|| {
                         // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
