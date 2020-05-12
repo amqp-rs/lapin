@@ -11,7 +11,7 @@ use crate::{
     io_loop::IoLoop,
     reactor::DefaultReactorBuilder,
     socket_state::{SocketState, SocketStateHandle},
-    tcp::{AMQPUriTcpExt, HandshakeResult, Identity},
+    tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
@@ -58,16 +58,16 @@ impl Connection {
 
     /// Connect to an AMQP Server
     pub fn connect(uri: &str, options: ConnectionProperties) -> CloseOnDropPromise<Connection> {
-        Connect::connect(uri, options, None)
+        Connect::connect(uri, options, TLSConfig::default())
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_with_identity(
+    pub fn connect_with_config(
         uri: &str,
         options: ConnectionProperties,
-        identity: Identity<'_, '_>,
+        config: TLSConfig<'_, '_, '_>,
     ) -> CloseOnDropPromise<Connection> {
-        Connect::connect(uri, options, Some(identity))
+        Connect::connect(uri, options, config)
     }
 
     /// Connect to an AMQP Server
@@ -75,16 +75,16 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> CloseOnDropPromise<Connection> {
-        Connect::connect(uri, options, None)
+        Connect::connect(uri, options, TLSConfig::default())
     }
 
     /// Connect to an AMQP Server
     pub fn connect_uri_with_identity(
         uri: AMQPUri,
         options: ConnectionProperties,
-        identity: Identity<'_, '_>,
+        config: TLSConfig<'_, '_, '_>,
     ) -> CloseOnDropPromise<Connection> {
-        Connect::connect(uri, options, Some(identity))
+        Connect::connect(uri, options, config)
     }
 
     pub fn create_channel(&self) -> CloseOnDropPromise<Channel> {
@@ -247,7 +247,7 @@ pub trait Connect {
     fn connect(
         self,
         options: ConnectionProperties,
-        identity: Option<Identity<'_, '_>>,
+        config: TLSConfig<'_, '_, '_>,
     ) -> CloseOnDropPromise<Connection>;
 }
 
@@ -255,9 +255,9 @@ impl Connect for AMQPUri {
     fn connect(
         self,
         options: ConnectionProperties,
-        identity: Option<Identity<'_, '_>>,
+        config: TLSConfig<'_, '_, '_>,
     ) -> CloseOnDropPromise<Connection> {
-        let stream = AMQPUriTcpExt::connect_with_identity(&self, identity);
+        let stream = AMQPUriTcpExt::connect_with_config(&self, config);
         Connection::connector(options)(self, stream)
     }
 }
@@ -266,10 +266,10 @@ impl Connect for &str {
     fn connect(
         self,
         options: ConnectionProperties,
-        identity: Option<Identity<'_, '_>>,
+        config: TLSConfig<'_, '_, '_>,
     ) -> CloseOnDropPromise<Connection> {
         match self.parse::<AMQPUri>() {
-            Ok(uri) => Connect::connect(uri, options, identity),
+            Ok(uri) => Connect::connect(uri, options, config),
             Err(err) => {
                 CloseOnDropPromise::new_with_data(Err(
                     io::Error::new(io::ErrorKind::Other, err).into()
