@@ -7,6 +7,7 @@
 * Introduce lapinou to use the smol executor instead of the default one
 * New default Reactor
 * Reactor is now configurable
+* Using self-signed certificates is now easie with `connect_with_config`
 
 #### Breaking changes
 
