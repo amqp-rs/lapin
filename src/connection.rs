@@ -2,6 +2,7 @@ use crate::{
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
+    connection_closer::ConnectionCloser,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
     executor::{DefaultExecutor, Executor},
@@ -25,6 +26,7 @@ pub struct Connection {
     status: ConnectionStatus,
     channels: Channels,
     io_loop: ThreadHandle,
+    closer: Arc<ConnectionCloser>,
 }
 
 impl Connection {
@@ -40,15 +42,17 @@ impl Connection {
             configuration.clone(),
             status.clone(),
             waker,
-            internal_rpc,
+            internal_rpc.clone(),
             frames,
             executor,
         );
+        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc));
         let connection = Self {
             configuration,
             status,
             channels,
             io_loop: ThreadHandle::default(),
+            closer,
         };
 
         connection.channels.create_zero();
@@ -89,7 +93,7 @@ impl Connection {
                 self.status.state(),
             )));
         }
-        match self.channels.create() {
+        match self.channels.create(self.closer.clone()) {
             Ok(channel) => self
                 .channels
                 .with_channel(channel.id(), |c| c.channel_open(channel))
@@ -305,7 +309,7 @@ mod tests {
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create().unwrap();
+        let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
@@ -383,7 +387,7 @@ mod tests {
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create().unwrap();
+        let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();

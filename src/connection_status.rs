@@ -14,7 +14,7 @@ impl ConnectionStatus {
     }
 
     pub(crate) fn set_state(&self, state: ConnectionState) {
-        self.0.lock().state = state
+        self.0.lock().state = state;
     }
 
     pub(crate) fn connection_step(&self) -> Option<ConnectionStep> {
@@ -71,6 +71,10 @@ impl ConnectionStatus {
 
     pub fn errored(&self) -> bool {
         self.0.lock().state == ConnectionState::Error
+    }
+
+    pub(crate) fn auto_close(&self) -> bool {
+        [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.0.lock().state)
     }
 }
 

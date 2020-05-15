@@ -2,6 +2,7 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
+    connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
     executor::{Executor, ExecutorExt},
@@ -40,6 +41,7 @@ pub struct Channel {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     executor: Arc<dyn Executor>,
+    connection_closer: Option<Arc<ConnectionCloser>>,
 }
 
 impl fmt::Debug for Channel {
@@ -68,6 +70,7 @@ impl Channel {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
+        connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
         Channel {
@@ -83,6 +86,7 @@ impl Channel {
             internal_rpc,
             frames,
             executor,
+            connection_closer,
         }
     }
 
@@ -145,6 +149,7 @@ impl Channel {
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
             executor: self.executor.clone(),
+            connection_closer: self.connection_closer.clone(),
         }
     }
 

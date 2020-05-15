@@ -1,4 +1,5 @@
 use crate::{
+    connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
     executor::{Executor, ExecutorExt},
     frames::Frames,
@@ -43,12 +44,13 @@ impl Channels {
         }
     }
 
-    pub(crate) fn create(&self) -> Result<Channel> {
+    pub(crate) fn create(&self, connection_closer: Arc<ConnectionCloser>) -> Result<Channel> {
         self.inner.lock().create(
             self.connection_status.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
             self.executor.clone(),
+            connection_closer,
         )
     }
 
@@ -61,6 +63,7 @@ impl Channels {
                 self.internal_rpc.clone(),
                 self.frames.clone(),
                 self.executor.clone(),
+                None,
             )
             .set_state(ChannelState::Connected);
     }
@@ -308,6 +311,7 @@ impl Inner {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
+        connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!("create channel with id {}", id);
         let channel = Channel::new(
@@ -318,6 +322,7 @@ impl Inner {
             internal_rpc,
             frames,
             executor,
+            connection_closer,
         );
         self.channels.insert(id, channel.clone());
         channel
@@ -329,6 +334,7 @@ impl Inner {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
+        connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");
         self.channel_id.set_max(self.configuration.channel_max());
@@ -346,6 +352,7 @@ impl Inner {
                     internal_rpc,
                     frames,
                     executor,
+                    Some(connection_closer),
                 ));
             }
             id = self.channel_id.next();

@@ -134,6 +134,7 @@ mod channel_status;
 mod channels;
 mod configuration;
 mod connection;
+mod connection_closer;
 mod connection_properties;
 mod connection_status;
 mod consumer;
