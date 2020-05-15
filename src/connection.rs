@@ -15,7 +15,7 @@ use crate::{
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
-    CloseOnDropPromise, Error, Promise, Result,
+    CloseOnDropPromise, Error, Promise, PromiseChain, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use log::{log_enabled, Level::Trace};
@@ -87,9 +87,9 @@ impl Connection {
         Connect::connect(uri, options, config)
     }
 
-    pub fn create_channel(&self) -> CloseOnDropPromise<Channel> {
+    pub fn create_channel(&self) -> PromiseChain<Channel> {
         if !self.status.connected() {
-            return CloseOnDropPromise::new_with_data(Err(Error::InvalidConnectionState(
+            return PromiseChain::new_with_data(Err(Error::InvalidConnectionState(
                 self.status.state(),
             )));
         }
@@ -98,7 +98,7 @@ impl Connection {
                 .channels
                 .with_channel(channel.id(), |c| c.channel_open(channel))
                 .expect("internal error creating channel"),
-            Err(error) => CloseOnDropPromise::new_with_data(Err(error)),
+            Err(error) => PromiseChain::new_with_data(Err(error)),
         }
     }
 

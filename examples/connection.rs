@@ -23,11 +23,7 @@ fn main() {
         //send channel
         let channel_a = conn.create_channel().await.expect("create_channel");
         //receive channel
-        let channel_b = conn
-            .create_channel()
-            .await
-            .expect("create_channel")
-            .into_inner();
+        let channel_b = conn.create_channel().await.expect("create_channel");
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         //create the hello queue

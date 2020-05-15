@@ -2,7 +2,6 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_status::{ChannelState, ChannelStatus},
-    close_on_drop,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
     executor::{Executor, ExecutorExt},
@@ -21,7 +20,7 @@ use crate::{
     Error, ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use log::{debug, error, info, log_enabled, trace, Level::Trace};
+use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
 use parking_lot::Mutex;
 use std::{convert::TryFrom, fmt, sync::Arc};
 
@@ -71,10 +70,14 @@ impl Channel {
         executor: Arc<dyn Executor>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
+        let status = ChannelStatus::default();
+        if channel_id == 0 {
+            status.set_zero();
+        }
         Channel {
             id: channel_id,
             configuration,
-            status: ChannelStatus::default(),
+            status,
             connection_status,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
@@ -132,7 +135,6 @@ impl Channel {
         self.id
     }
 
-    // FIXME: store state in Channels, drop clone()
     pub(crate) fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -666,11 +668,11 @@ impl Channel {
     fn on_channel_open_ok_received(
         &self,
         _method: protocol::channel::OpenOk,
-        resolver: PromiseResolver<CloseOnDrop<Channel>>,
+        resolver: PromiseResolver<Channel>,
         channel: Channel,
     ) -> Result<()> {
         self.set_state(ChannelState::Connected);
-        resolver.swear(Ok(CloseOnDrop::new(channel)));
+        resolver.swear(Ok(channel));
         Ok(())
     }
 
@@ -914,12 +916,14 @@ impl Channel {
     }
 }
 
-impl close_on_drop::__private::Closable for Channel {
-    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        if self.status().connected() {
-            Channel::close(self, reply_code, reply_text)
-        } else {
-            Promise::new_with_data(Ok(()))
+impl Drop for Channel {
+    fn drop(&mut self) {
+        if self.status.auto_close() {
+            if let Err(err) = self.register_internal_promise(
+                self.close(protocol::constants::REPLY_SUCCESS.into(), "OK"),
+            ) {
+                warn!("Failed to auto close channel {}: {}", self.id, err);
+            }
         }
     }
 }

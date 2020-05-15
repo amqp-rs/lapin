@@ -61,8 +61,7 @@ impl Channels {
                 self.internal_rpc.clone(),
                 self.frames.clone(),
                 self.executor.clone(),
-            )
-            .set_state(ChannelState::Connected);
+            );
     }
 
     pub(crate) fn with_channel<R, F: FnOnce(&Channel) -> R>(&self, id: u16, f: F) -> Option<R> {

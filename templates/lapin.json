@@ -92,7 +92,7 @@
         "internal": true,
         "channel_init": true,
         "confirmation": {
-          "type": "CloseOnDrop<Channel>"
+          "type": "Channel"
         },
         "state": [
           {

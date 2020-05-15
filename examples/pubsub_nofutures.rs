@@ -40,11 +40,7 @@ fn main() {
     info!("CONNECTED");
 
     let channel_a = conn.create_channel().wait().expect("create_channel");
-    let channel_b = conn
-        .create_channel()
-        .wait()
-        .expect("create_channel")
-        .into_inner();
+    let channel_b = conn.create_channel().wait().expect("create_channel");
 
     let queue = channel_a
         .queue_declare(
