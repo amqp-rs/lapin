@@ -101,7 +101,6 @@ pub use amq_protocol::{
 
 pub use channel::{options, Channel};
 pub use channel_status::{ChannelState, ChannelStatus};
-pub use close_on_drop::CloseOnDrop;
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
@@ -120,7 +119,6 @@ pub mod socket_state;
 
 pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
-pub type CloseOnDropPromise<T> = PromiseChain<CloseOnDrop<T>>;
 pub type ConfirmationPromise<T> =
     pinky_swear::PinkySwear<Result<T>, Result<publisher_confirm::Confirmation>>;
 
@@ -134,7 +132,6 @@ mod channel;
 mod channel_receiver_state;
 mod channel_status;
 mod channels;
-mod close_on_drop;
 mod configuration;
 mod connection;
 mod connection_properties;

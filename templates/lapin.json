@@ -8,7 +8,7 @@
         "extra_args": [
           {
             "name": "resolver",
-            "type": "PromiseResolver<CloseOnDrop<Connection>>"
+            "type": "PromiseResolver<Connection>"
           },
           {
             "name": "connection",
@@ -40,7 +40,7 @@
           },
           {
             "name": "conn_resolver",
-            "type": "PromiseResolver<CloseOnDrop<Connection>>"
+            "type": "PromiseResolver<Connection>"
           }
         ],
         "end_hook": {

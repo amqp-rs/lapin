@@ -6,7 +6,7 @@ use lapin::{
     tcp::{AMQPUriTcpExt, NativeTlsConnector},
     types::FieldTable,
     uri::AMQPUri,
-    BasicProperties, CloseOnDrop, Connection, ConnectionProperties, ConsumerDelegate, Result,
+    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
 };
 use log::info;
 use std::{future::Future, pin::Pin};
@@ -25,7 +25,7 @@ impl ConsumerDelegate for Subscriber {
     }
 }
 
-async fn connect() -> Result<CloseOnDrop<Connection>> {
+async fn connect() -> Result<Connection> {
     // You need to use amqp:// scheme here to handle the TLS part manually as it's automatic when you use amqps://
     let uri = std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())

@@ -1,7 +1,6 @@
 use crate::{
     channel::Channel,
     channels::Channels,
-    close_on_drop,
     configuration::Configuration,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
@@ -15,7 +14,7 @@ use crate::{
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
-    CloseOnDropPromise, Error, Promise, PromiseChain, Result,
+    Error, Promise, PromiseChain, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use log::{log_enabled, Level::Trace};
@@ -57,7 +56,7 @@ impl Connection {
     }
 
     /// Connect to an AMQP Server
-    pub fn connect(uri: &str, options: ConnectionProperties) -> CloseOnDropPromise<Connection> {
+    pub fn connect(uri: &str, options: ConnectionProperties) -> PromiseChain<Connection> {
         Connect::connect(uri, options, TLSConfig::default())
     }
 
@@ -66,15 +65,12 @@ impl Connection {
         uri: &str,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> CloseOnDropPromise<Connection> {
+    ) -> PromiseChain<Connection> {
         Connect::connect(uri, options, config)
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_uri(
-        uri: AMQPUri,
-        options: ConnectionProperties,
-    ) -> CloseOnDropPromise<Connection> {
+    pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> PromiseChain<Connection> {
         Connect::connect(uri, options, TLSConfig::default())
     }
 
@@ -83,7 +79,7 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> CloseOnDropPromise<Connection> {
+    ) -> PromiseChain<Connection> {
         Connect::connect(uri, options, config)
     }
 
@@ -160,7 +156,7 @@ impl Connection {
 
     pub fn connector(
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(AMQPUri, HandshakeResult) -> CloseOnDropPromise<Connection> + 'static {
+    ) -> impl FnOnce(AMQPUri, HandshakeResult) -> PromiseChain<Connection> + 'static {
         move |uri, handshake_result| {
             let executor = options
                 .executor
@@ -200,7 +196,7 @@ impl Connection {
                     None,
                 )
             });
-            let (promise, resolver) = CloseOnDropPromise::after(promise);
+            let (promise, resolver) = PromiseChain::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
             }
@@ -226,7 +222,7 @@ impl Connection {
             )
             .and_then(IoLoop::start)
             .map(|()| promise)
-            .unwrap_or_else(|err| CloseOnDropPromise::new_with_data(Err(err)))
+            .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
         }
     }
 }
@@ -248,7 +244,7 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> CloseOnDropPromise<Connection>;
+    ) -> PromiseChain<Connection>;
 }
 
 impl Connect for AMQPUri {
@@ -256,7 +252,7 @@ impl Connect for AMQPUri {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> CloseOnDropPromise<Connection> {
+    ) -> PromiseChain<Connection> {
         let stream = AMQPUriTcpExt::connect_with_config(&self, config);
         Connection::connector(options)(self, stream)
     }
@@ -267,13 +263,11 @@ impl Connect for &str {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> CloseOnDropPromise<Connection> {
+    ) -> PromiseChain<Connection> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => Connect::connect(uri, options, config),
             Err(err) => {
-                CloseOnDropPromise::new_with_data(Err(
-                    io::Error::new(io::ErrorKind::Other, err).into()
-                ))
+                PromiseChain::new_with_data(Err(io::Error::new(io::ErrorKind::Other, err).into()))
             }
         }
     }
@@ -433,16 +427,6 @@ mod tests {
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
             assert_eq!(channel_state, expected_state);
-        }
-    }
-}
-
-impl close_on_drop::__private::Closable for Connection {
-    fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        if self.status().connected() {
-            Connection::close(self, reply_code, reply_text)
-        } else {
-            Promise::new_with_data(Ok(()))
         }
     }
 }

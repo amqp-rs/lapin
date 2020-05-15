@@ -16,8 +16,8 @@ use crate::{
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
     types::*,
-    BasicProperties, CloseOnDrop, Configuration, ConfirmationPromise, Connection, ConnectionStatus,
-    Error, ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
+    BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
+    ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
@@ -376,7 +376,7 @@ impl Channel {
 
     fn on_connection_start_ok_sent(
         &self,
-        resolver: PromiseResolver<CloseOnDrop<Connection>>,
+        resolver: PromiseResolver<Connection>,
         connection: Connection,
         credentials: Credentials,
     ) -> Result<()> {
@@ -385,10 +385,7 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_open_sent(
-        &self,
-        resolver: PromiseResolver<CloseOnDrop<Connection>>,
-    ) -> Result<()> {
+    fn on_connection_open_sent(&self, resolver: PromiseResolver<Connection>) -> Result<()> {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
         Ok(())
@@ -608,7 +605,7 @@ impl Channel {
             (state.clone(), self.connection_status.connection_step())
         {
             self.connection_status.set_state(ConnectionState::Connected);
-            resolver.swear(Ok(CloseOnDrop::new(connection)));
+            resolver.swear(Ok(connection));
             Ok(())
         } else {
             error!("Invalid state: {:?}", state);

@@ -1,6 +1,6 @@
 use crate::{
     auth::{Credentials, SASLMechanism},
-    CloseOnDrop, Connection, ConnectionProperties, PromiseResolver,
+    Connection, ConnectionProperties, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -25,7 +25,7 @@ impl ConnectionStatus {
         self.0.lock().connection_step = Some(connection_step);
     }
 
-    pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<CloseOnDrop<Connection>>> {
+    pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
         self.0.lock().connection_resolver()
     }
 
@@ -77,18 +77,14 @@ impl ConnectionStatus {
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum ConnectionStep {
     ProtocolHeader(
-        PromiseResolver<CloseOnDrop<Connection>>,
+        PromiseResolver<Connection>,
         Connection,
         Credentials,
         SASLMechanism,
         ConnectionProperties,
     ),
-    StartOk(
-        PromiseResolver<CloseOnDrop<Connection>>,
-        Connection,
-        Credentials,
-    ),
-    Open(PromiseResolver<CloseOnDrop<Connection>>),
+    StartOk(PromiseResolver<Connection>, Connection, Credentials),
+    Open(PromiseResolver<Connection>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -142,7 +138,7 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn connection_resolver(&mut self) -> Option<PromiseResolver<CloseOnDrop<Connection>>> {
+    fn connection_resolver(&mut self) -> Option<PromiseResolver<Connection>> {
         if let ConnectionState::Connecting = self.state {
             self.connection_step
                 .take()
