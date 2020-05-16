@@ -70,14 +70,10 @@ impl Channel {
         executor: Arc<dyn Executor>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
-        let status = ChannelStatus::default();
-        if channel_id == 0 {
-            status.set_zero();
-        }
         Channel {
             id: channel_id,
             configuration,
-            status,
+            status: ChannelStatus::default(),
             connection_status,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
@@ -918,7 +914,7 @@ impl Channel {
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        if self.status.auto_close() {
+        if self.status.auto_close(self.id) {
             if let Err(err) = self.register_internal_promise(
                 self.close(protocol::constants::REPLY_SUCCESS.into(), "OK"),
             ) {

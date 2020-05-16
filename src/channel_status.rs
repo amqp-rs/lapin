@@ -41,11 +41,11 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
-        self.0.lock().set_state(state);
+        self.0.lock().state = state;
     }
 
-    pub(crate) fn auto_close(&self) -> bool {
-        self.0.lock().auto_close
+    pub(crate) fn auto_close(&self, id: u16) -> bool {
+        id != 0 && self.0.lock().state == ChannelState::Connected
     }
 
     #[cfg(test)]
@@ -112,10 +112,6 @@ impl ChannelStatus {
     pub(crate) fn flow(&self) -> bool {
         self.0.lock().send_flow
     }
-
-    pub(crate) fn set_zero(&self) {
-        self.0.lock().set_zero();
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,7 +136,6 @@ impl fmt::Debug for ChannelStatus {
             debug
                 .field("state", &inner.state)
                 .field("receiver_state", &inner.receiver_state)
-                .field("auto_close", &inner.auto_close)
                 .field("confirm", &inner.confirm)
                 .field("send_flow", &inner.send_flow);
         }
@@ -151,7 +146,6 @@ impl fmt::Debug for ChannelStatus {
 struct Inner {
     confirm: bool,
     send_flow: bool,
-    auto_close: bool,
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
 }
@@ -161,23 +155,8 @@ impl Default for Inner {
         Self {
             confirm: false,
             send_flow: true,
-            auto_close: true,
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
         }
-    }
-}
-
-impl Inner {
-    fn set_state(&mut self, state: ChannelState) {
-        self.state = state;
-        if self.state != ChannelState::Connected {
-            self.auto_close = false;
-        }
-    }
-
-    fn set_zero(&mut self) {
-        self.set_state(ChannelState::Connected);
-        self.auto_close = false;
     }
 }
