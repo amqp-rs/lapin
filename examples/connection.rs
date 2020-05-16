@@ -4,7 +4,7 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
@@ -58,6 +58,9 @@ fn main() {
                         chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                             .await
                             .expect("basic_ack");
+                        chan.basic_cancel("my_consumer", BasicCancelOptions::default())
+                            .await
+                            .expect("basic_cancel");
                     }
                 }
             });
@@ -79,5 +82,7 @@ fn main() {
             .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::NotRequested);
         info!("[{}] state: {:?}", line!(), conn.status().state());
-    })
+    });
+
+    std::thread::sleep(Duration::from_secs(2));
 }
