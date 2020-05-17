@@ -8,6 +8,8 @@
 * New default Reactor
 * Reactor is now configurable
 * Using self-signed certificates is now easie with `connect_with_config`
+* `Channel` gets closed once the last reference is dropped
+* `Connection` gets closed once the last reference and the last `Channel` are dropped
 
 #### Breaking changes
 
@@ -17,6 +19,7 @@
 * The number of threads used by the default executor is now configured using `ConnectionProperties::with_default_executor`
 * `Connection` no longer implements `Clone`
 * `Connection::connect` has been reworked to properly handle mid handshake TLS streams
+* `CloseOnDrop` is now gone
 
 #### Bug Fixes
 
