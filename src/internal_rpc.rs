@@ -22,6 +22,12 @@ pub(crate) struct InternalRPCHandle {
 }
 
 impl InternalRPCHandle {
+    pub(crate) fn close_channel(&self, channel_id: u16, reply_code: ShortUInt, reply_text: String) {
+        self.send(InternalCommand::CloseChannel(
+            channel_id, reply_code, reply_text,
+        ));
+    }
+
     pub(crate) fn close_connection(
         &self,
         reply_code: ShortUInt,
@@ -63,6 +69,7 @@ impl InternalRPCHandle {
 
 #[derive(Debug)]
 enum InternalCommand {
+    CloseChannel(u16, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
     SendConnectionCloseOk(Error),
     RemoveChannel(u16, Error),
@@ -98,6 +105,11 @@ impl InternalRPC {
 
         trace!("Handling internal RPC command: {:?}", command);
         match command {
+            CloseChannel(channel_id, reply_code, reply_text) => channels
+                .with_channel(channel_id, |channel| {
+                    self.register_internal_promise(channel.close(reply_code, &reply_text))
+                })
+                .unwrap_or(Ok(())),
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .with_channel(0, |channel0| {
                     self.register_internal_promise(channel0.connection_close(

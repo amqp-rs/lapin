@@ -324,7 +324,7 @@ impl Inner {
             executor,
             connection_closer,
         );
-        self.channels.insert(id, channel.clone());
+        self.channels.insert(id, channel.clone_internal());
         channel
     }
 

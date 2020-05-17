@@ -1,6 +1,7 @@
 use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
+    channel_closer::ChannelCloser,
     channel_status::{ChannelState, ChannelStatus},
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
@@ -21,7 +22,7 @@ use crate::{
     ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
+use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use std::{convert::TryFrom, fmt, sync::Arc};
 
@@ -41,6 +42,7 @@ pub struct Channel {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     executor: Arc<dyn Executor>,
+    _channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
 }
 
@@ -73,10 +75,20 @@ impl Channel {
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
+        let status = ChannelStatus::default();
+        let channel_closer = if channel_id == 0 {
+            None
+        } else {
+            Some(Arc::new(ChannelCloser::new(
+                channel_id,
+                status.clone(),
+                internal_rpc.clone(),
+            )))
+        };
         Channel {
             id: channel_id,
             configuration,
-            status: ChannelStatus::default(),
+            status,
             connection_status,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
@@ -86,6 +98,7 @@ impl Channel {
             internal_rpc,
             frames,
             executor,
+            _channel_closer: channel_closer,
             connection_closer,
         }
     }
@@ -135,7 +148,7 @@ impl Channel {
         self.id
     }
 
-    pub(crate) fn clone(&self) -> Self {
+    pub(crate) fn clone_internal(&self) -> Self {
         Self {
             id: self.id,
             configuration: self.configuration.clone(),
@@ -149,6 +162,7 @@ impl Channel {
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
             executor: self.executor.clone(),
+            _channel_closer: None,
             connection_closer: self.connection_closer.clone(),
         }
     }
@@ -911,18 +925,6 @@ impl Channel {
 
     fn on_access_request_ok_received(&self, _: protocol::access::RequestOk) -> Result<()> {
         Ok(())
-    }
-}
-
-impl Drop for Channel {
-    fn drop(&mut self) {
-        if self.status.auto_close(self.id) {
-            if let Err(err) = self.register_internal_promise(
-                self.close(protocol::constants::REPLY_SUCCESS.into(), "OK"),
-            ) {
-                warn!("Failed to auto close channel {}: {}", self.id, err);
-            }
-        }
     }
 }
 
