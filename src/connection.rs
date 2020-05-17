@@ -105,8 +105,10 @@ impl Connection {
     /// Block current thread while the connection is still active.
     /// This is useful when you only have a consumer and nothing else keeping your application
     /// "alive".
-    pub fn run(&self) -> Result<()> {
-        self.io_loop.wait("io loop")
+    pub fn run(self) -> Result<()> {
+        let io_loop = self.io_loop.clone();
+        drop(self);
+        io_loop.wait("io loop")
     }
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
