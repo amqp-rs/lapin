@@ -36,7 +36,9 @@ pub trait Reactor: fmt::Debug + Send {
 }
 
 pub trait ReactorHandle {
-    fn shutdown(&self) {}
+    fn shutdown(&self) -> Result<()> {
+        Ok(())
+    }
     fn start_heartbeat(&self) {}
     fn poll_read(&self, _slot: Slot) {}
     fn poll_write(&self, _slot: Slot) {}
@@ -59,7 +61,7 @@ pub(crate) struct DefaultReactor {
 }
 
 #[derive(Clone)]
-pub(crate) struct DefaultReactorHandle{
+pub(crate) struct DefaultReactorHandle {
     run: Arc<AtomicBool>,
     waker: Arc<Waker>,
 }
@@ -142,9 +144,10 @@ impl DefaultReactor {
 }
 
 impl ReactorHandle for DefaultReactorHandle {
-    fn shutdown(&self) {
+    fn shutdown(&self) -> Result<()> {
         self.run.store(false, Ordering::SeqCst);
-        self.waker.wake();
+        self.waker.wake()?;
+        Ok(())
     }
 }
 
