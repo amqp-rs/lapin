@@ -220,7 +220,7 @@ impl Channels {
                             0,
                         ))
                     }) {
-                        return Err(error.into());
+                        return Err(error);
                     }
                     return Err(Error::ProtocolError(error));
                 }
@@ -240,7 +240,7 @@ impl Channels {
                             0,
                         ))
                     }) {
-                        return Err(error.into());
+                        return Err(error);
                     }
                     return Err(Error::ProtocolError(error));
                 } else {

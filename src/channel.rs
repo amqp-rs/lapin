@@ -65,6 +65,7 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: u16,
         configuration: Configuration,
