@@ -16,7 +16,6 @@
 * ConsumerDelegate is now built with futures.
 * The number of threads used by the default executor is now configured using `ConnectionProperties::with_default_executor`
 * `Connection` no longer implements `Clone`
-* `Channel` no longer implements `Clone`
 * `Connection::connect` has been reworked to properly handle mid handshake TLS streams
 
 #### Bug Fixes

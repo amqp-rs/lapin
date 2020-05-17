@@ -29,6 +29,7 @@ use std::{convert::TryFrom, fmt, sync::Arc};
 #[cfg(test)]
 use crate::queue::QueueState;
 
+#[derive(Clone)]
 pub struct Channel {
     id: u16,
     configuration: Configuration,
