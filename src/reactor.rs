@@ -6,7 +6,7 @@ use crate::{
     Result,
 };
 use log::trace;
-use mio::{Events, Interest, Poll, Token};
+use mio::{Events, Interest, Poll, Token, Waker};
 use std::{
     collections::HashMap,
     fmt,
@@ -59,7 +59,10 @@ pub(crate) struct DefaultReactor {
 }
 
 #[derive(Clone)]
-pub(crate) struct DefaultReactorHandle(Arc<AtomicBool>);
+pub(crate) struct DefaultReactorHandle{
+    run: Arc<AtomicBool>,
+    waker: Arc<Waker>,
+}
 
 impl Reactor for DefaultReactor {
     fn handle(&self) -> Box<dyn ReactorHandle + Send> {
@@ -96,17 +99,22 @@ impl Reactor for DefaultReactor {
 
 impl DefaultReactor {
     fn new(heartbeat: Heartbeat) -> Result<Self> {
+        let poll = Poll::new()?;
+        let handle = DefaultReactorHandle {
+            run: Arc::new(AtomicBool::new(true)),
+            waker: Arc::new(Waker::new(poll.registry(), Token(0))?),
+        };
         Ok(Self {
             slot: AtomicUsize::new(1),
-            poll: Poll::new()?,
+            poll,
             heartbeat,
             slots: HashMap::default(),
-            handle: DefaultReactorHandle(Arc::new(AtomicBool::new(true))),
+            handle,
         })
     }
 
     fn should_run(&self) -> bool {
-        self.handle.0.load(Ordering::SeqCst)
+        self.handle.run.load(Ordering::SeqCst)
     }
 
     fn run(&mut self, events: &mut Events) -> Result<()> {
@@ -135,7 +143,8 @@ impl DefaultReactor {
 
 impl ReactorHandle for DefaultReactorHandle {
     fn shutdown(&self) {
-        self.0.store(false, Ordering::SeqCst);
+        self.run.store(false, Ordering::SeqCst);
+        self.waker.wake();
     }
 }
 
