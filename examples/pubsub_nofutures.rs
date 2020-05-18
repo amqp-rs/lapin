@@ -65,7 +65,7 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Subscriber { channel: channel_b });
+        .set_delegate(Subscriber { channel: channel_b }).expect("set_delegate");
 
     let payload = b"Hello world!";
 

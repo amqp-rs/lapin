@@ -90,7 +90,7 @@ fn connection() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(subscriber);
+        .set_delegate(subscriber).expect("set_delegate");
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     println!("will publish");

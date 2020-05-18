@@ -57,7 +57,7 @@ fn main() -> Result<()> {
                         .expect("failed to ack");
                 }
             }
-        });
+        }).expect("set_delegate");
 
         let payload = b"Hello world!";
 

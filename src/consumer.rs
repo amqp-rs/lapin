@@ -53,14 +53,13 @@ impl Consumer {
         self.inner.lock()
     }
 
-    pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
+    pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
         let mut inner = self.inner();
         while let Some(delivery) = inner.next_delivery() {
-            if let Err(err) = inner.executor.spawn(delegate.on_new_delivery(delivery)) {
-                trace!("Error trying to spawn in executor: {:?}", err)
-            }
+            inner.executor.spawn(delegate.on_new_delivery(delivery))?;
         }
         inner.delegate = Some(Arc::new(Box::new(delegate)));
+        Ok(())
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {

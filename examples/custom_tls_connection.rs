@@ -80,7 +80,7 @@ fn main() {
             )
             .await
             .expect("basic_consume")
-            .set_delegate(Subscriber);
+            .set_delegate(Subscriber).expect("set_delegate");
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         info!("will publish");
