@@ -56,7 +56,9 @@ impl Consumer {
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
         let mut inner = self.inner();
         while let Some(delivery) = inner.next_delivery() {
-            delegate.on_new_delivery(delivery);
+            if let Err(err) = inner.executor.spawn(delegate.on_new_delivery(delivery)) {
+                trace!("Error trying to spawn in executor: {:?}", err)
+            }
         }
         inner.delegate = Some(Arc::new(Box::new(delegate)));
     }
