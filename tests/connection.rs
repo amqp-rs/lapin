@@ -7,7 +7,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicU8, Ordering},
         Arc,
     },
     thread, time,
@@ -15,7 +15,7 @@ use std::{
 
 #[derive(Clone, Debug)]
 struct Subscriber {
-    hello_world: Arc<AtomicBool>,
+    hello_world: Arc<AtomicU8>,
 }
 
 impl ConsumerDelegate for Subscriber {
@@ -32,7 +32,7 @@ impl ConsumerDelegate for Subscriber {
 
                 assert_eq!(delivery.data, b"Hello world!");
 
-                subscriber.hello_world.store(true, Ordering::SeqCst);
+                subscriber.hello_world.fetch_add(1, Ordering::SeqCst);
             }
         })
     }
@@ -77,11 +77,11 @@ fn connection() {
     info!("Declared queue {:?}", queue);
 
     println!("will consume");
-    let hello_world = Arc::new(AtomicBool::new(false));
+    let hello_world = Arc::new(AtomicU8::new(0));
     let subscriber = Subscriber {
         hello_world: hello_world.clone(),
     };
-    channel_b
+    let consumer = channel_b
         .basic_consume(
             "hello-async",
             "my_consumer",
@@ -89,9 +89,7 @@ fn connection() {
             FieldTable::default(),
         )
         .wait()
-        .expect("basic_consume")
-        .set_delegate(subscriber).expect("set_delegate");
-    println!("[{}] state: {:?}", line!(), conn.status().state());
+        .expect("basic_consume");
 
     println!("will publish");
     let payload = b"Hello world!";
@@ -108,8 +106,26 @@ fn connection() {
         .wait()
         .expect("publisher-confirms");
     assert_eq!(confirm, Confirmation::NotRequested);
+
+    consumer.set_delegate(subscriber).expect("set_delegate");
+    println!("[{}] state: {:?}", line!(), conn.status().state());
+
+    println!("will publish");
+    let confirm = channel_a
+        .basic_publish(
+            "",
+            "hello-async",
+            BasicPublishOptions::default(),
+            payload.to_vec(),
+            BasicProperties::default(),
+        )
+        .wait()
+        .expect("basic_publish")
+        .wait()
+        .expect("publisher-confirms");
+    assert_eq!(confirm, Confirmation::NotRequested);
     println!("[{}] state: {:?}", line!(), conn.status().state());
 
     thread::sleep(time::Duration::from_millis(100));
-    assert!(hello_world.load(Ordering::SeqCst));
+    assert_eq!(hello_world.load(Ordering::SeqCst), 2);
 }
