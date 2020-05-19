@@ -24,7 +24,7 @@ fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
             der: client_cert_and_key,
             password: client_cert_and_key_password,
         }),
-        cert_chain,
+        cert_chain: Some(cert_chain),
     }
 }
 
