@@ -133,13 +133,11 @@ impl Channel {
     {{/if ~}}
 
     {{#if method.synchronous ~}}
-    {{#if (method_has_flag method "nowait") ~}}
+    {{#if method.metadata.nowait_hook ~}}
     if nowait {
-      {{#if method.metadata.nowait_hook ~}}
       if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#unless method.metadata.nowait_hook.exhaustive_args ~}}..Default::default(){{/unless ~}} }) {
         return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(err));
       }
-      {{/if ~}}
     }
     {{/if ~}}
     {{/if ~}}
