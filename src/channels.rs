@@ -1,7 +1,7 @@
 use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
-    executor::{Executor, ExecutorExt},
+    executor::Executor,
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -167,7 +167,7 @@ impl Channels {
             }
 
             channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
-            self.register_internal_promise(promise)
+            self.internal_rpc.register_internal_future(promise)
         })
         .unwrap_or_else(|| {
             Err(Error::InvalidConnectionState(
@@ -213,12 +213,13 @@ impl Channels {
                         format!("heartbeat frame received on channel {}", channel_id).into(),
                     );
                     if let Some(Err(error)) = self.with_channel(0, |channel0| {
-                        self.register_internal_promise(channel0.connection_close(
-                            error.get_id(),
-                            error.get_message().as_str(),
-                            0,
-                            0,
-                        ))
+                        self.internal_rpc
+                            .register_internal_future(channel0.connection_close(
+                                error.get_id(),
+                                error.get_message().as_str(),
+                                0,
+                                0,
+                            ))
                     }) {
                         return Err(error);
                     }
@@ -233,12 +234,13 @@ impl Channels {
                         format!("content header frame received on channel {}", channel_id).into(),
                     );
                     if let Some(Err(error)) = self.with_channel(0, |channel0| {
-                        self.register_internal_promise(channel0.connection_close(
-                            error.get_id(),
-                            error.get_message().as_str(),
-                            class_id,
-                            0,
-                        ))
+                        self.internal_rpc
+                            .register_internal_future(channel0.connection_close(
+                                error.get_id(),
+                                error.get_message().as_str(),
+                                class_id,
+                                0,
+                            ))
                     }) {
                         return Err(error);
                     }
@@ -261,11 +263,6 @@ impl Channels {
 
     pub(crate) fn set_error_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
-    }
-
-    fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.executor
-            .spawn_internal(promise, self.internal_rpc.clone())
     }
 }
 

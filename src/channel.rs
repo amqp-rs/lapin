@@ -6,7 +6,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
-    executor::{Executor, ExecutorExt},
+    executor::Executor,
     frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -123,11 +123,6 @@ impl Channel {
         let res = self.error_consumers(error.clone());
         self.internal_rpc.remove_channel(self.id, error);
         res
-    }
-
-    fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.executor
-            .spawn_internal(promise, self.internal_rpc.clone())
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
@@ -386,12 +381,13 @@ impl Channel {
 
     fn acknowledgement_error(&self, error: AMQPError, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
-        self.register_internal_promise(self.do_channel_close(
-            error.get_id(),
-            error.get_message().as_str(),
-            class_id,
-            method_id,
-        ))?;
+        self.internal_rpc
+            .register_internal_future(self.do_channel_close(
+                error.get_id(),
+                error.get_message().as_str(),
+                class_id,
+                method_id,
+            ))?;
         Err(Error::ProtocolError(error))
     }
 
@@ -548,15 +544,16 @@ impl Channel {
                 .client_properties
                 .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-            self.register_internal_promise(self.connection_start_ok(
-                options.client_properties,
-                &mechanism_str,
-                &credentials.sasl_auth_string(mechanism),
-                &locale,
-                resolver,
-                connection,
-                credentials,
-            ))
+            self.internal_rpc
+                .register_internal_future(self.connection_start_ok(
+                    options.client_properties,
+                    &mechanism_str,
+                    &credentials.sasl_auth_string(mechanism),
+                    &locale,
+                    resolver,
+                    connection,
+                    credentials,
+                ))
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -572,7 +569,7 @@ impl Channel {
         if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
             (state.clone(), self.connection_status.connection_step())
         {
-            self.register_internal_promise(
+            self.internal_rpc.register_internal_future(
                 self.connection_secure_ok(&credentials.rabbit_cr_demo_answer()),
             )
         } else {
@@ -598,16 +595,18 @@ impl Channel {
                 method.heartbeat,
             );
 
-            self.register_internal_promise(self.connection_tune_ok(
-                self.configuration.channel_max(),
-                self.configuration.frame_max(),
-                self.configuration.heartbeat(),
-            ))?;
-            self.register_internal_promise(self.connection_open(
-                &self.connection_status.vhost(),
-                connection,
-                resolver,
-            ))
+            self.internal_rpc
+                .register_internal_future(self.connection_tune_ok(
+                    self.configuration.channel_max(),
+                    self.configuration.frame_max(),
+                    self.configuration.heartbeat(),
+                ))?;
+            self.internal_rpc
+                .register_internal_future(self.connection_open(
+                    &self.connection_status.vhost(),
+                    connection,
+                    resolver,
+                ))
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -692,9 +691,10 @@ impl Channel {
 
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
-        self.register_internal_promise(self.channel_flow_ok(ChannelFlowOkOptions {
-            active: method.active,
-        }))
+        self.internal_rpc
+            .register_internal_future(self.channel_flow_ok(ChannelFlowOkOptions {
+                active: method.active,
+            }))
     }
 
     fn on_channel_flow_ok_received(
@@ -722,7 +722,8 @@ impl Channel {
                 Error::InvalidChannelState(ChannelState::Closing)
             });
         self.set_state(ChannelState::Closing);
-        self.register_internal_promise(self.channel_close_ok(error))
+        self.internal_rpc
+            .register_internal_future(self.channel_close_ok(error))
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
@@ -830,7 +831,8 @@ impl Channel {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
             .and(if !method.nowait {
-                self.register_internal_promise(self.basic_cancel_ok(method.consumer_tag.as_str()))
+                self.internal_rpc
+                    .register_internal_future(self.basic_cancel_ok(method.consumer_tag.as_str()))
             } else {
                 Ok(())
             })

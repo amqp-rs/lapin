@@ -3,15 +3,14 @@ use crate::{
     executor::{Executor, ExecutorExt},
     socket_state::SocketStateHandle,
     types::ShortUInt,
-    Error, Promise, Result,
+    Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<InternalCommand>,
-    executor: Arc<dyn Executor>,
     handle: InternalRPCHandle,
 }
 
@@ -19,6 +18,7 @@ pub(crate) struct InternalRPC {
 pub(crate) struct InternalRPCHandle {
     sender: Sender<InternalCommand>,
     waker: SocketStateHandle,
+    executor: Arc<dyn Executor>,
 }
 
 impl InternalRPCHandle {
@@ -65,6 +65,13 @@ impl InternalRPCHandle {
         self.sender.send(command).expect("internal RPC failed");
         self.waker.wake();
     }
+
+    pub(crate) fn register_internal_future(
+        &self,
+        f: impl Future<Output = Result<()>> + Send + 'static,
+    ) -> Result<()> {
+        self.executor.spawn_internal(f, self.clone())
+    }
 }
 
 #[derive(Debug)]
@@ -81,12 +88,12 @@ enum InternalCommand {
 impl InternalRPC {
     pub(crate) fn new(executor: Arc<dyn Executor>, waker: SocketStateHandle) -> Self {
         let (sender, rpc) = crossbeam_channel::unbounded();
-        let handle = InternalRPCHandle { sender, waker };
-        Self {
-            rpc,
+        let handle = InternalRPCHandle {
+            sender,
+            waker,
             executor,
-            handle,
-        }
+        };
+        Self { rpc, handle }
     }
 
     pub(crate) fn handle(&self) -> InternalRPCHandle {
@@ -107,22 +114,25 @@ impl InternalRPC {
         match command {
             CloseChannel(channel_id, reply_code, reply_text) => channels
                 .with_channel(channel_id, |channel| {
-                    self.register_internal_promise(channel.close(reply_code, &reply_text))
+                    self.handle
+                        .register_internal_future(channel.close(reply_code, &reply_text))
                 })
                 .unwrap_or(Ok(())),
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .with_channel(0, |channel0| {
-                    self.register_internal_promise(channel0.connection_close(
-                        reply_code,
-                        &reply_text,
-                        class_id,
-                        method_id,
-                    ))
+                    self.handle
+                        .register_internal_future(channel0.connection_close(
+                            reply_code,
+                            &reply_text,
+                            class_id,
+                            method_id,
+                        ))
                 })
                 .unwrap_or(Ok(())),
             SendConnectionCloseOk(error) => channels
                 .with_channel(0, |channel| {
-                    self.register_internal_promise(channel.connection_close_ok(error))
+                    self.handle
+                        .register_internal_future(channel.connection_close_ok(error))
                 })
                 .unwrap_or(Ok(())),
             RemoveChannel(channel_id, error) => channels.remove(channel_id, error),
@@ -133,9 +143,5 @@ impl InternalRPC {
             SetConnectionClosed(error) => channels.set_connection_closed(error),
             SetConnectionError(error) => channels.set_connection_error(error),
         }
-    }
-
-    fn register_internal_promise(&self, promise: Promise<()>) -> Result<()> {
-        self.executor.spawn_internal(promise, self.handle())
     }
 }
