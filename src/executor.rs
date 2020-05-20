@@ -1,4 +1,4 @@
-use crate::{internal_rpc::InternalRPCHandle, Promise, Result};
+use crate::{internal_rpc::InternalRPCHandle, Result};
 use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
@@ -16,19 +16,16 @@ pub trait Executor: std::fmt::Debug + Send + Sync {
 }
 
 pub(crate) trait ExecutorExt: Executor {
-    fn spawn_internal(&self, promise: Promise<()>, internal_rpc: InternalRPCHandle) -> Result<()> {
-        if let Some(res) = promise.try_wait() {
-            if let Err(err) = res.clone() {
+    fn spawn_internal(
+        &self,
+        f: impl Future<Output = Result<()>> + Send + 'static,
+        internal_rpc: InternalRPCHandle,
+    ) -> Result<()> {
+        self.spawn(Box::pin(async move {
+            if let Err(err) = f.await {
                 internal_rpc.set_connection_error(err);
             }
-            res
-        } else {
-            self.spawn(Box::pin(async move {
-                if let Err(err) = promise.await {
-                    internal_rpc.set_connection_error(err);
-                }
-            }))
-        }
+        }))
     }
 }
 
