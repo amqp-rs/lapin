@@ -64,7 +64,8 @@ fn main() {
                                 .expect("basic_cancel");
                         }
                     }
-                }).expect("set_delegate");
+                })
+                .expect("set_delegate");
             info!("[{}] state: {:?}", line!(), conn.status().state());
 
             info!("will publish");

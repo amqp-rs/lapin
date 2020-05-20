@@ -46,18 +46,20 @@ fn main() -> Result<()> {
             )
             .await?;
 
-        consumer.set_delegate(move |delivery: DeliveryResult| {
-            let channel_b = channel_b.clone();
-            async move {
-                let delivery = delivery.expect("error caught in in consumer");
-                if let Some(delivery) = delivery {
-                    channel_b
-                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                        .await
-                        .expect("failed to ack");
+        consumer
+            .set_delegate(move |delivery: DeliveryResult| {
+                let channel_b = channel_b.clone();
+                async move {
+                    let delivery = delivery.expect("error caught in in consumer");
+                    if let Some(delivery) = delivery {
+                        channel_b
+                            .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                            .await
+                            .expect("failed to ack");
+                    }
                 }
-            }
-        }).expect("set_delegate");
+            })
+            .expect("set_delegate");
 
         let payload = b"Hello world!";
 
