@@ -18,12 +18,11 @@ use crate::{
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
     types::*,
-    BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
-    ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
+    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ExchangeKind, Promise,
+    PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
-use parking_lot::Mutex;
 use std::{convert::TryFrom, fmt, sync::Arc};
 
 #[cfg(test)]
@@ -197,29 +196,34 @@ impl Channel {
         }
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        self.do_channel_close(reply_code, reply_text, 0, 0)
+    pub async fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Result<()> {
+        self.do_channel_close(reply_code, reply_text, 0, 0).await
     }
 
-    pub fn exchange_declare(
+    pub async fn exchange_declare(
         &self,
         exchange: &str,
         kind: ExchangeKind,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
-    ) -> Promise<()> {
+    ) -> Result<()> {
         self.do_exchange_declare(exchange, kind.kind(), options, arguments)
+            .await
     }
 
-    pub fn wait_for_confirms(&self) -> ConfirmationPromise<Vec<BasicReturnMessage>> {
-        if let Some(promise) = self.acknowledgements.get_last_pending() {
+    pub async fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>> {
+        if self
+            .acknowledgements
+            .get_last_pending()
+            .await
+            .transpose()?
+            .is_some()
+        {
             trace!("Waiting for pending confirms");
-            let returned_messages = self.returned_messages.clone();
-            promise.traverse(move |_| Ok(returned_messages.drain()))
         } else {
             trace!("No confirms to wait for");
-            ConfirmationPromise::new_with_data(Ok(Vec::default()))
         }
+        Ok(self.returned_messages.drain())
     }
 
     #[cfg(test)]
@@ -247,13 +251,13 @@ impl Channel {
         self.wake();
     }
 
-    fn send_method_frame_with_body(
+    async fn send_method_frame_with_body(
         &self,
         method: AMQPClass,
         payload: Vec<u8>,
         properties: BasicProperties,
         publisher_confirms_result: Option<PublisherConfirm>,
-    ) -> Result<PromiseChain<PublisherConfirm>> {
+    ) -> Result<PublisherConfirm> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
@@ -275,23 +279,12 @@ impl Channel {
                 .map(|chunk| AMQPFrame::Body(self.id, chunk.into())),
         );
 
-        // tweak to make rustc happy
-        let data = Arc::new(Mutex::new((
-            publisher_confirms_result,
-            self.returned_messages.clone(),
-        )));
-
         trace!("channel {} send_frames", self.id);
         let promise = self.frames.push_frames(frames);
         self.wake();
-        Ok(promise.traverse(move |res| {
-            res.map(|()| {
-                let mut data = data.lock();
-                data.0
-                    .take()
-                    .unwrap_or_else(|| PublisherConfirm::not_requested(data.1.clone()))
-            })
-        }))
+        promise.await?;
+        Ok(publisher_confirms_result
+            .unwrap_or_else(|| PublisherConfirm::not_requested(self.returned_messages.clone())))
     }
 
     fn handle_invalid_contents(&self, error: String, class_id: u16, method_id: u16) -> Result<()> {
@@ -389,14 +382,19 @@ impl Channel {
 
     fn acknowledgement_error(&self, error: AMQPError, class_id: u16, method_id: u16) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
-        self.internal_rpc
-            .register_internal_future(self.do_channel_close(
-                error.get_id(),
-                error.get_message().as_str(),
-                class_id,
-                method_id,
-            ))?;
-        Err(Error::ProtocolError(error))
+        let channel = self.clone();
+        let err = error.clone();
+        self.internal_rpc.register_internal_future(async move {
+            channel
+                .do_channel_close(
+                    error.get_id(),
+                    error.get_message().as_str(),
+                    class_id,
+                    method_id,
+                )
+                .await
+        })?;
+        Err(Error::ProtocolError(err))
     }
 
     fn on_connection_start_ok_sent(
@@ -552,16 +550,20 @@ impl Channel {
                 .client_properties
                 .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-            self.internal_rpc
-                .register_internal_future(self.connection_start_ok(
-                    options.client_properties,
-                    &mechanism_str,
-                    &credentials.sasl_auth_string(mechanism),
-                    &locale,
-                    resolver,
-                    connection,
-                    credentials,
-                ))
+            let channel = self.clone();
+            self.internal_rpc.register_internal_future(async move {
+                channel
+                    .connection_start_ok(
+                        options.client_properties,
+                        &mechanism_str,
+                        &credentials.sasl_auth_string(mechanism),
+                        &locale,
+                        resolver,
+                        connection,
+                        credentials,
+                    )
+                    .await
+            })
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -577,9 +579,12 @@ impl Channel {
         if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
             (state.clone(), self.connection_status.connection_step())
         {
-            self.internal_rpc.register_internal_future(
-                self.connection_secure_ok(&credentials.rabbit_cr_demo_answer()),
-            )
+            let channel = self.clone();
+            self.internal_rpc.register_internal_future(async move {
+                channel
+                    .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
+                    .await
+            })
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -603,18 +608,22 @@ impl Channel {
                 method.heartbeat,
             );
 
-            self.internal_rpc
-                .register_internal_future(self.connection_tune_ok(
-                    self.configuration.channel_max(),
-                    self.configuration.frame_max(),
-                    self.configuration.heartbeat(),
-                ))?;
-            self.internal_rpc
-                .register_internal_future(self.connection_open(
-                    &self.connection_status.vhost(),
-                    connection,
-                    resolver,
-                ))
+            let channel = self.clone();
+            let configuration = self.configuration.clone();
+            self.internal_rpc.register_internal_future(async move {
+                channel
+                    .connection_tune_ok(
+                        configuration.channel_max(),
+                        configuration.frame_max(),
+                        configuration.heartbeat(),
+                    )
+                    .await
+            })?;
+            let channel = self.clone();
+            let vhost = self.connection_status.vhost();
+            self.internal_rpc.register_internal_future(async move {
+                channel.connection_open(&vhost, connection, resolver).await
+            })
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -699,10 +708,14 @@ impl Channel {
 
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
-        self.internal_rpc
-            .register_internal_future(self.channel_flow_ok(ChannelFlowOkOptions {
-                active: method.active,
-            }))
+        let channel = self.clone();
+        self.internal_rpc.register_internal_future(async move {
+            channel
+                .channel_flow_ok(ChannelFlowOkOptions {
+                    active: method.active,
+                })
+                .await
+        })
     }
 
     fn on_channel_flow_ok_received(
@@ -730,8 +743,9 @@ impl Channel {
                 Error::InvalidChannelState(ChannelState::Closing)
             });
         self.set_state(ChannelState::Closing);
+        let channel = self.clone();
         self.internal_rpc
-            .register_internal_future(self.channel_close_ok(error))
+            .register_internal_future(async move { channel.channel_close_ok(error).await })
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
@@ -839,8 +853,10 @@ impl Channel {
         self.queues
             .deregister_consumer(method.consumer_tag.as_str())
             .and(if !method.nowait {
-                self.internal_rpc
-                    .register_internal_future(self.basic_cancel_ok(method.consumer_tag.as_str()))
+                let channel = self.clone();
+                self.internal_rpc.register_internal_future(async move {
+                    channel.basic_cancel_ok(method.consumer_tag.as_str()).await
+                })
             } else {
                 Ok(())
             })

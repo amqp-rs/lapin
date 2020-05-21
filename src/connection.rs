@@ -60,43 +60,39 @@ impl Connection {
     }
 
     /// Connect to an AMQP Server
-    pub fn connect(uri: &str, options: ConnectionProperties) -> PromiseChain<Connection> {
-        Connect::connect(uri, options, TLSConfig::default())
+    pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Connection> {
+        Connect::connect(uri, options, TLSConfig::default()).await
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_with_config(
+    pub async fn connect_with_config(
         uri: &str,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> PromiseChain<Connection> {
-        Connect::connect(uri, options, config)
+    ) -> Result<Connection> {
+        Connect::connect(uri, options, config).await
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> PromiseChain<Connection> {
-        Connect::connect(uri, options, TLSConfig::default())
+    pub async fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
+        Connect::connect(uri, options, TLSConfig::default()).await
     }
 
     /// Connect to an AMQP Server
-    pub fn connect_uri_with_identity(
+    pub async fn connect_uri_with_identity(
         uri: AMQPUri,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> PromiseChain<Connection> {
-        Connect::connect(uri, options, config)
+    ) -> Result<Connection> {
+        Connect::connect(uri, options, config).await
     }
 
-    pub fn create_channel(&self) -> PromiseChain<Channel> {
+    pub async fn create_channel(&self) -> Result<Channel> {
         if !self.status.connected() {
-            return PromiseChain::new_with_data(Err(Error::InvalidConnectionState(
-                self.status.state(),
-            )));
+            return Err(Error::InvalidConnectionState(self.status.state()));
         }
-        match self.channels.create(self.closer.clone()) {
-            Ok(channel) => channel.clone().channel_open(channel),
-            Err(error) => PromiseChain::new_with_data(Err(error)),
-        }
+        let channel = self.channels.create(self.closer.clone())?;
+        channel.clone().channel_open(channel).await
     }
 
     /// Block current thread while the connection is still active.
@@ -120,41 +116,41 @@ impl Connection {
         &self.status
     }
 
-    pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
-        self.channels
-            .get(0)
-            .map(|channel0| channel0.connection_close(reply_code, reply_text, 0, 0))
-            .unwrap_or_else(|| Promise::new_with_data(Ok(())))
+    pub async fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Result<()> {
+        if let Some(channel0) = self.channels.get(0) {
+            channel0
+                .connection_close(reply_code, reply_text, 0, 0)
+                .await
+        } else {
+            Ok(())
+        }
     }
 
     /// Block all consumers and publishers on this connection
-    pub fn block(&self, reason: &str) -> Promise<()> {
-        self.channels
-            .get(0)
-            .map(|channel0| channel0.connection_blocked(reason))
-            .unwrap_or_else(|| {
-                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-            })
+    pub async fn block(&self, reason: &str) -> Result<()> {
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_blocked(reason).await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
+        }
     }
 
     /// Unblock all consumers and publishers on this connection
-    pub fn unblock(&self) -> Promise<()> {
-        self.channels
-            .get(0)
-            .map(|channel0| channel0.connection_unblocked())
-            .unwrap_or_else(|| {
-                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-            })
+    pub async fn unblock(&self) -> Result<()> {
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_unblocked().await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
+        }
     }
 
     /// Update the secret used by some authentication module such as OAuth2
-    pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
-        self.channels
-            .get(0)
-            .map(|channel0| channel0.connection_update_secret(new_secret, reason))
-            .unwrap_or_else(|| {
-                Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
-            })
+    pub async fn update_secret(&self, new_secret: &str, reason: &str) -> Result<()> {
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_update_secret(new_secret, reason).await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
+        }
     }
 
     pub fn connector(

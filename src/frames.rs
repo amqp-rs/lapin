@@ -1,4 +1,4 @@
-use crate::{channel::Reply, Error, Promise, PromiseResolver};
+use crate::{channel::Reply, Error, Promise, PromiseResolver, Result};
 use amq_protocol::frame::AMQPFrame;
 use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
@@ -38,8 +38,9 @@ impl Frames {
             .push(channel_id, frame, resolver, expected_reply);
     }
 
-    pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
-        self.inner.lock().push_frames(frames)
+    pub(crate) async fn push_frames(&self, frames: Vec<AMQPFrame>) -> Result<()> {
+        let promise = self.inner.lock().push_frames(frames);
+        promise.await
     }
 
     pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
@@ -141,7 +142,6 @@ impl Inner {
         } else {
             resolver.swear(Ok(()));
         }
-
         promise
     }
 

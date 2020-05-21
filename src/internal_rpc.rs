@@ -118,27 +118,27 @@ impl InternalRPC {
             CloseChannel(channel_id, reply_code, reply_text) => channels
                 .get(channel_id)
                 .map(|channel| {
-                    self.handle
-                        .register_internal_future(channel.close(reply_code, &reply_text))
+                    self.handle.register_internal_future(async move {
+                        channel.close(reply_code, &reply_text).await
+                    })
                 })
                 .unwrap_or(Ok(())),
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .get(0)
-                .map(|channel0| {
-                    self.handle
-                        .register_internal_future(channel0.connection_close(
-                            reply_code,
-                            &reply_text,
-                            class_id,
-                            method_id,
-                        ))
+                .map(move |channel0| {
+                    self.handle.register_internal_future(async move {
+                        channel0
+                            .connection_close(reply_code, &reply_text, class_id, method_id)
+                            .await
+                    })
                 })
                 .unwrap_or(Ok(())),
             SendConnectionCloseOk(error) => channels
                 .get(0)
-                .map(|channel| {
-                    self.handle
-                        .register_internal_future(channel.connection_close_ok(error))
+                .map(move |channel| {
+                    self.handle.register_internal_future(async move {
+                        channel.connection_close_ok(error).await
+                    })
                 })
                 .unwrap_or(Ok(())),
             RemoveChannel(channel_id, error) => channels.remove(channel_id, error),

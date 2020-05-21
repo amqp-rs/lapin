@@ -119,8 +119,6 @@ pub mod socket_state;
 
 pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
-pub type ConfirmationPromise<T> =
-    pinky_swear::PinkySwear<Result<T>, Result<publisher_confirm::Confirmation>>;
 
 type ConfirmationBroadcaster =
     pinky_swear::PinkyBroadcaster<Result<publisher_confirm::Confirmation>>;
