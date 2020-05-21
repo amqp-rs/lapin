@@ -304,6 +304,17 @@ impl IoLoop {
         Err(error)
     }
 
+    fn handle_read_result(&mut self, result: Result<()>) -> Result<()> {
+        if let Err(e) = self
+            .socket_state
+            .handle_read_result(result, &*self.reactor, self.slot)
+        {
+            error!("error reading: {:?}", e);
+            self.critical_error(e)?;
+        }
+        self.poll_internal_rpc()
+    }
+
     fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
         if let Err(e) = self
             .socket_state
@@ -335,13 +346,7 @@ impl IoLoop {
     fn read(&mut self) -> Result<()> {
         while self.can_read() {
             let res = self.read_from_stream();
-            if let Err(e) = self
-                .socket_state
-                .handle_read_result(res, &*self.reactor, self.slot)
-            {
-                error!("error reading: {:?}", e);
-                self.critical_error(e)?;
-            }
+            self.handle_read_result(res)?;
         }
         self.poll_internal_rpc()
     }
@@ -399,10 +404,15 @@ impl IoLoop {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                self.receive_buffer.read_from(stream_mut!(self)).map(|sz| {
+                let sz = self.receive_buffer.read_from(stream_mut!(self))?;
+
+                if sz > 0 {
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
-                })?;
+                } else {
+                    error!("Socket was readable but we read 0, marking as wouldblock");
+                    self.handle_read_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
+                }
                 self.poll_internal_rpc()
             }
         }
