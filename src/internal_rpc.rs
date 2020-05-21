@@ -115,13 +115,15 @@ impl InternalRPC {
         trace!("Handling internal RPC command: {:?}", command);
         match command {
             CloseChannel(channel_id, reply_code, reply_text) => channels
-                .with_channel(channel_id, |channel| {
+                .get(channel_id)
+                .map(|channel| {
                     self.handle
                         .register_internal_future(channel.close(reply_code, &reply_text))
                 })
                 .unwrap_or(Ok(())),
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
-                .with_channel(0, |channel0| {
+                .get(0)
+                .map(|channel0| {
                     self.handle
                         .register_internal_future(channel0.connection_close(
                             reply_code,
@@ -132,7 +134,8 @@ impl InternalRPC {
                 })
                 .unwrap_or(Ok(())),
             SendConnectionCloseOk(error) => channels
-                .with_channel(0, |channel| {
+                .get(0)
+                .map(|channel| {
                     self.handle
                         .register_internal_future(channel.connection_close_ok(error))
                 })

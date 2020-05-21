@@ -68,8 +68,8 @@ impl Channels {
             .set_state(ChannelState::Connected);
     }
 
-    pub(crate) fn with_channel<R, F: FnOnce(&Channel) -> R>(&self, id: u16, f: F) -> Option<R> {
-        self.inner.lock().channels.get(&id).map(f)
+    pub(crate) fn get(&self, id: u16) -> Option<Channel> {
+        self.inner.lock().channels.get(&id).cloned()
     }
 
     pub(crate) fn remove(&self, id: u16, error: Error) -> Result<()> {
@@ -82,7 +82,8 @@ impl Channels {
     }
 
     pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<()> {
-        self.with_channel(id, |channel| channel.receive_method(method))
+        self.get(id)
+            .map(|channel| channel.receive_method(method))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
@@ -93,14 +94,14 @@ impl Channels {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        self.with_channel(id, |channel| {
-            channel.handle_content_header_frame(class_id, size, properties)
-        })
-        .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
+        self.get(id)
+            .map(|channel| channel.handle_content_header_frame(class_id, size, properties))
+            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
     pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<()> {
-        self.with_channel(id, |channel| channel.handle_body_frame(payload))
+        self.get(id)
+            .map(|channel| channel.handle_body_frame(payload))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
@@ -159,21 +160,22 @@ impl Channels {
     pub(crate) fn send_heartbeat(&self) -> Result<()> {
         debug!("send heartbeat");
 
-        self.with_channel(0, |channel0| {
-            let (promise, resolver) = Promise::new();
+        self.get(0)
+            .map(|channel0| {
+                let (promise, resolver) = Promise::new();
 
-            if log_enabled!(Trace) {
-                promise.set_marker("Heartbeat".into());
-            }
+                if log_enabled!(Trace) {
+                    promise.set_marker("Heartbeat".into());
+                }
 
-            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
-            self.internal_rpc.register_internal_future(promise)
-        })
-        .unwrap_or_else(|| {
-            Err(Error::InvalidConnectionState(
-                self.connection_status.state(),
-            ))
-        })
+                channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
+                self.internal_rpc.register_internal_future(promise)
+            })
+            .unwrap_or_else(|| {
+                Err(Error::InvalidConnectionState(
+                    self.connection_status.state(),
+                ))
+            })
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
@@ -212,7 +214,7 @@ impl Channels {
                         AMQPHardError::FRAMEERROR.into(),
                         format!("heartbeat frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(Err(error)) = self.with_channel(0, |channel0| {
+                    if let Some(Err(error)) = self.get(0).map(|channel0| {
                         self.internal_rpc
                             .register_internal_future(channel0.connection_close(
                                 error.get_id(),
@@ -233,7 +235,7 @@ impl Channels {
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(Err(error)) = self.with_channel(0, |channel0| {
+                    if let Some(Err(error)) = self.get(0).map(|channel0| {
                         self.internal_rpc
                             .register_internal_future(channel0.connection_close(
                                 error.get_id(),

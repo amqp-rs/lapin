@@ -96,8 +96,9 @@ impl Connection {
         match self.channels.create(self.closer.clone()) {
             Ok(channel) => self
                 .channels
-                .with_channel(channel.id(), |c| c.channel_open(channel))
-                .expect("internal error creating channel"),
+                .get(channel.id())
+                .map(|c| c.channel_open(channel))
+                .expect("internal error creating channel"), // FIXME: don't expect
             Err(error) => PromiseChain::new_with_data(Err(error)),
         }
     }
@@ -125,16 +126,16 @@ impl Connection {
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.channels
-            .with_channel(0, |channel0| {
-                channel0.connection_close(reply_code, reply_text, 0, 0)
-            })
+            .get(0)
+            .map(|channel0| channel0.connection_close(reply_code, reply_text, 0, 0))
             .unwrap_or_else(|| Promise::new_with_data(Ok(())))
     }
 
     /// Block all consumers and publishers on this connection
     pub fn block(&self, reason: &str) -> Promise<()> {
         self.channels
-            .with_channel(0, |channel0| channel0.connection_blocked(reason))
+            .get(0)
+            .map(|channel0| channel0.connection_blocked(reason))
             .unwrap_or_else(|| {
                 Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
             })
@@ -143,7 +144,8 @@ impl Connection {
     /// Unblock all consumers and publishers on this connection
     pub fn unblock(&self) -> Promise<()> {
         self.channels
-            .with_channel(0, |channel0| channel0.connection_unblocked())
+            .get(0)
+            .map(|channel0| channel0.connection_unblocked())
             .unwrap_or_else(|| {
                 Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
             })
@@ -152,9 +154,8 @@ impl Connection {
     /// Update the secret used by some authentication module such as OAuth2
     pub fn update_secret(&self, new_secret: &str, reason: &str) -> Promise<()> {
         self.channels
-            .with_channel(0, |channel0| {
-                channel0.connection_update_secret(new_secret, reason)
-            })
+            .get(0)
+            .map(|channel0| channel0.connection_update_secret(new_secret, reason))
             .unwrap_or_else(|| {
                 Promise::new_with_data(Err(Error::InvalidConnectionState(self.status.state())))
             })
@@ -195,7 +196,7 @@ impl Connection {
                 promise.set_marker("ProtocolHeader".into());
             }
             let channels = conn.channels.clone();
-            channels.with_channel(0, |channel0| {
+            channels.get(0).map(|channel0| {
                 channel0.send_frame(
                     AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
                     resolver,
@@ -319,7 +320,8 @@ mod tests {
         let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
-            .with_channel(channel.id(), |c| c.register_queue(queue));
+            .get(channel.id())
+            .map(|c| c.register_queue(queue));
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -397,7 +399,8 @@ mod tests {
         let consumer = Consumer::new(consumer_tag.clone(), executor);
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
-            .with_channel(channel.id(), |c| c.register_queue(queue));
+            .get(channel.id())
+            .map(|c| c.register_queue(queue));
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
