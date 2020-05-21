@@ -16,7 +16,7 @@ default = ["lapin/default"]
 
 [dependencies]
 parking_lot = "^0.10"
-smol = "^0.1"
+smol = "^0.1.8"
 
 [dependencies.lapin]
 version = "1.0.0-rc3"
