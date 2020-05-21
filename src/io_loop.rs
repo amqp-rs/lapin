@@ -195,7 +195,7 @@ impl IoLoop {
     }
 
     fn can_read(&mut self) -> bool {
-        self.socket_state.readable()
+        self.socket_state.readable() && self.receive_buffer.available_space() > 0
     }
 
     fn can_parse(&self) -> bool {

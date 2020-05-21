@@ -100,7 +100,7 @@ impl Buffer {
         self.available_data
     }
 
-    fn available_space(&self) -> usize {
+    pub(crate) fn available_space(&self) -> usize {
         self.capacity - self.available_data
     }
 
