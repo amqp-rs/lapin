@@ -1,8 +1,5 @@
 use crate::{
-    channels::Channels,
-    executor::{Executor, ExecutorExt},
-    socket_state::SocketStateHandle,
-    types::ShortUInt,
+    channels::Channels, executor::Executor, socket_state::SocketStateHandle, types::ShortUInt,
     Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -70,7 +67,12 @@ impl InternalRPCHandle {
         &self,
         f: impl Future<Output = Result<()>> + Send + 'static,
     ) -> Result<()> {
-        self.executor.spawn_internal(f, self.clone())
+        let internal_rpc = self.clone();
+        self.executor.spawn(Box::pin(async move {
+            if let Err(err) = f.await {
+                internal_rpc.set_connection_error(err);
+            }
+        }))
     }
 }
 
