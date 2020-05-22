@@ -59,7 +59,8 @@ impl InternalRPCHandle {
 
     fn send(&self, command: InternalCommand) {
         trace!("Queuing internal RPC command: {:?}", command);
-        self.sender.send(command).expect("internal RPC failed");
+        // The only scenario where this can fail if this is the IoLoop already exited
+        let _ = self.sender.send(command);
         self.waker.wake();
     }
 
