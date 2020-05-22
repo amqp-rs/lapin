@@ -1,6 +1,6 @@
 [package]
 name = "lapinou"
-version = "0.1.0-rc6"
+version = "0.1.0-rc7"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with smol"
