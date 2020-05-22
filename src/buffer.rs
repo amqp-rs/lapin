@@ -145,7 +145,7 @@ impl Buffer {
                 ][..],
             )
         } else {
-            reader.read(&mut self.memory[self.end..])
+            reader.read(&mut self.memory[self.end..self.position])
         }
     }
 
