@@ -158,7 +158,7 @@ impl Buffer {
             bufptr - dataptr
         } else {
             let start = &self.memory[..0];
-            let startptr = data.as_ptr() as usize;
+            let startptr = start.as_ptr() as usize;
             bufptr + self.capacity - self.position - startptr
         }
     }
