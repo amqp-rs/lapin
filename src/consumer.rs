@@ -37,6 +37,45 @@ impl<
     }
 }
 
+/// Continuously consumes message from a Queue
+///
+/// A consumer represents the [basic.consume](https://www.rabbitmq.com/amqp-0-9-1-quickref.html#basic.consume) AMQP command.
+/// It continuously receives messages from the queue, as opposed to the
+/// [basic.get](https://www.rabbitmq.com/amqp-0-9-1-quickref.html#basic.get) command, which
+/// retrieves only a single message.
+///
+/// A consumer is obtained by calling [`Channel::basic_consume`] with the queue name.
+/// New messages from this consumer can be accessed by obtaining the iterator from the consumer.
+/// This iterator returns new messages in the form of a
+/// [`Delivery`] for as long as the consumer is subscribed to the queue.
+///
+/// It is important to acknowledge each message if acknowledgments are not disabled by calling
+/// [`Channel::basic_ack`] with the delivery tag of the message.
+///
+/// ## Example
+/// ```rust,no_run
+/// let consumer = channel
+///     .clone()
+///     .basic_consume(
+///         "hello",
+///         "my_consumer",
+///         BasicConsumeOptions::default(),
+///         FieldTable::default(),
+///     )
+///     .await?;
+///
+/// consumer
+///      .for_each(move |delivery| {
+///         let delivery = delivery.expect("error caught in in consumer");
+///         channel
+///             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+///             .map(|_| ())
+///     })
+///     .await
+/// ```
+/// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
+/// [`Delivery`]: ./message/struct.Delivery.html
+/// [`Channel::basic_ack`]: ../struct.Channel.html#method.basic_ack
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
