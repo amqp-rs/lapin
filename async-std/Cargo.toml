@@ -1,6 +1,6 @@
 [package]
 name = "async-amqp"
-version = "0.1.0-rc7"
+version = "0.1.0-rc8"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-std"
