@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies.async-std]
-version = "^1.5"
+version = "^1.6"
 features = ["default"]
 
 [dependencies.lapin]
@@ -23,10 +23,10 @@ version = "=1.0.0-rc6"
 path = ".."
 default-features = false
 
-#[dependencies.lapinou]
-#version = "=0.1.0-rc6"
-#path = "../lapinou"
-#default-features = false
+[dependencies.lapinou]
+version = "=0.1.0-rc7"
+path = "../lapinou"
+default-features = false
 
 [dev-dependencies]
 env_logger = "^0.7"
