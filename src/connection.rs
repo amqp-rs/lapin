@@ -94,11 +94,7 @@ impl Connection {
             )));
         }
         match self.channels.create(self.closer.clone()) {
-            Ok(channel) => self
-                .channels
-                .get(channel.id())
-                .map(|c| c.channel_open(channel))
-                .expect("internal error creating channel"), // FIXME: don't expect
+            Ok(channel) => channel.clone().channel_open(channel),
             Err(error) => PromiseChain::new_with_data(Err(error)),
         }
     }
