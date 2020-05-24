@@ -411,7 +411,9 @@ impl IoLoop {
                     self.receive_buffer.fill(sz);
                 } else {
                     error!("Socket was readable but we read 0, marking as wouldblock");
-                    self.handle_read_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
+                    self.handle_read_result(
+                        Err(io::Error::from(io::ErrorKind::WouldBlock).into()),
+                    )?;
                 }
                 self.poll_internal_rpc()
             }
