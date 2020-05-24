@@ -1,15 +1,8 @@
-use crate::Result;
+use crate::{thread::ThreadHandle, Result};
 use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
-use std::{
-    fmt,
-    future::Future,
-    ops::Deref,
-    pin::Pin,
-    sync::Arc,
-    thread::{Builder as ThreadBuilder, JoinHandle},
-};
+use std::{fmt, future::Future, ops::Deref, pin::Pin, sync::Arc, thread::Builder as ThreadBuilder};
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
@@ -23,9 +16,9 @@ impl Executor for Arc<dyn Executor> {
 
 #[derive(Clone)]
 pub struct DefaultExecutor {
-    sender: Sender<Task<()>>,
-    receiver: Receiver<Task<()>>,
-    threads: Arc<Mutex<Vec<JoinHandle<()>>>>,
+    sender: Sender<Option<Task<()>>>,
+    receiver: Receiver<Option<Task<()>>>,
+    threads: Arc<Mutex<Vec<ThreadHandle>>>,
     max_threads: usize,
 }
 
@@ -46,15 +39,16 @@ impl DefaultExecutor {
         let id = threads.len() + 1;
         if id <= self.max_threads {
             let receiver = self.receiver.clone();
-            threads.push(
+            threads.push(ThreadHandle::new(
                 ThreadBuilder::new()
                     .name(format!("executor {}", id))
                     .spawn(move || {
-                        for task in receiver {
+                        while let Ok(Some(task)) = receiver.recv() {
                             task.run();
                         }
+                        Ok(())
                     })?,
-            );
+            ));
         }
         Ok(())
     }
@@ -78,9 +72,22 @@ impl Executor for DefaultExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         self.maybe_spawn_thread()?;
         let sender = self.sender.clone();
-        let schedule = move |task| sender.send(task).expect("executor failed");
+        let schedule = move |task| sender.send(Some(task)).expect("executor failed");
         let (task, _) = async_task::spawn(f, schedule, ());
         task.schedule();
         Ok(())
+    }
+}
+
+impl Drop for DefaultExecutor {
+    fn drop(&mut self) {
+        if let Some(threads) = self.threads.try_lock() {
+            for _ in threads.iter() {
+                let _ = self.sender.send(None);
+            }
+            for thread in threads.iter() {
+                let _ = thread.wait("executor");
+            }
+        }
     }
 }
