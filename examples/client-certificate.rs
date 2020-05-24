@@ -11,12 +11,12 @@ use log::info;
 use std::sync::Arc;
 
 fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
-    let cert_chain = include_str!(concat!(
+    let cert_chain = "" /* include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/path/to/ca_certificate.pem"
-    ));
-    let client_cert_and_key =
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/path/to/client.pfx"));
+    )) */;
+    let client_cert_and_key = b""
+        /* include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/path/to/client.pfx")) */;
     let client_cert_and_key_password = "bunnies";
 
     TLSConfig {
