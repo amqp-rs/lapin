@@ -22,8 +22,12 @@ impl ThreadHandle {
         *self.0.lock() = Some(handle);
     }
 
+    fn take(&self) -> Option<JoinHandle> {
+        self.0.lock().take()
+    }
+
     pub(crate) fn wait(&self, context: &'static str) -> Result<()> {
-        if let Some(handle) = self.0.lock().take() {
+        if let Some(handle) = self.take() {
             handle.join().expect(context)?
         }
         Ok(())
