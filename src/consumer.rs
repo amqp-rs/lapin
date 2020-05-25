@@ -37,24 +37,54 @@ impl<
     }
 }
 
-/// Continuously consumes message from a Queue
+/// Continuously consumes message from a Queue.
 ///
-/// A consumer represents the [basic.consume](https://www.rabbitmq.com/amqp-0-9-1-quickref.html#basic.consume) AMQP command.
+/// A consumer represents a stream of messages created from
+/// the [basic.consume](https://www.rabbitmq.com/amqp-0-9-1-quickref.html#basic.consume) AMQP command.
 /// It continuously receives messages from the queue, as opposed to the
 /// [basic.get](https://www.rabbitmq.com/amqp-0-9-1-quickref.html#basic.get) command, which
 /// retrieves only a single message.
 ///
 /// A consumer is obtained by calling [`Channel::basic_consume`] with the queue name.
+///
 /// New messages from this consumer can be accessed by obtaining the iterator from the consumer.
 /// This iterator returns new messages in the form of a
 /// [`Delivery`] for as long as the consumer is subscribed to the queue.
 ///
-/// It is important to acknowledge each message if acknowledgments are not disabled by calling
-/// [`Channel::basic_ack`] with the delivery tag of the message.
+/// It is also possible to set a delegate to be spawned via [`set_delegate`].
+///
+/// ## Message acknowledgment
+///
+/// There are two ways for acknowledging a message:
+///
+/// * If the flag [`BasicConsumeOptions::no_ack`] is set to `true` while obtaining the consumer from
+///   [`Channel::basic_consume`], the server implicitely acknowledges each message after it has been
+///   sent.
+/// * If the flag [`BasicConsumeOptions::no_ack`] is set to `false`, a message has to be explicitely
+///   acknowledged or rejected with [`Channel::basic_ack`],
+///   [`Channel::basic_reject`] or [`Channel::basic_nack`]. See the documentation at [`Delivery`]
+///   for further information.
+///
+/// Also see the RabbitMQ documentation concerning
+/// [Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/confirms.html).
+///
+/// ## Consumer Prefetch
+///
+/// To limit the maximum number of unacknowledged messages arriving, you can call [`Channel::basic_qos`]
+/// before creating the consumer.
+///
+/// Also see the RabbitMQ documentation concerning
+/// [Consumer Prefetch](https://www.rabbitmq.com/consumer-prefetch.html).
+///
+/// ## Cancel subscription
+///
+/// To stop receiving messages, call [`Channel::basic_cancel`] with the consumer tag of this
+/// consumer.
+///
 ///
 /// ## Example
 /// ```rust,no_run
-/// let consumer = channel
+/// let mut consumer = channel
 ///     .clone()
 ///     .basic_consume(
 ///         "hello",
@@ -64,18 +94,24 @@ impl<
 ///     )
 ///     .await?;
 ///
-/// consumer
-///      .for_each(move |delivery| {
-///         let delivery = delivery.expect("error caught in in consumer");
-///         channel
-///             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-///             .map(|_| ())
-///     })
-///     .await
+/// while let Some(delivery) = consumer.next().await {
+///     let delivery = delivery.expect("error in consumer");
+///     channel
+///         .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+///         .await
+///      .expect("ack");
+/// }
 /// ```
+///
 /// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
+/// [`Channel::basic_qos`]: ./struct.Channel.html#method.basic_qos
+/// [`Channel::basic_ack`]: ./struct.Channel.html#method.basic_ack
+/// [`Channel::basic_reject`]: ./struct.Channel.html#method.basic_reject
+/// [`Channel::basic_nack`]: ./struct.Channel.html#method.basic_nack
+/// [`Channel::basic_cancel`]: ./struct.Channel.html#method.basic_cancel
 /// [`Delivery`]: ./message/struct.Delivery.html
-/// [`Channel::basic_ack`]: ../struct.Channel.html#method.basic_ack
+/// [`BasicConsumeOptions::no_ack`]: ./options/struct.BasicConsumeOptions.html#structfield.no_ack
+/// [`set_delegate`]: #method.set_delegate
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
@@ -92,6 +128,9 @@ impl Consumer {
         self.inner.lock().tag.clone()
     }
 
+    /// Automatically spawns the delegate on the executor for each message.
+    ///
+    /// Enables parallel handling of the messages.
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
         let mut inner = self.inner.lock();
         while let Some(delivery) = inner.next_delivery() {
