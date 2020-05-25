@@ -42,7 +42,7 @@ Integration with tokio is provided by the [tokio-amqp](https://crates.io/crates/
 
 ```rust
 use futures_executor::{LocalPool, ThreadPool};
-use futures_util::{future::FutureExt, stream::StreamExt};
+use futures_util::stream::StreamExt;
 use lapin::{
     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, Result,
@@ -79,7 +79,7 @@ fn main() -> Result<()> {
         info!("Declared queue {:?}", queue);
 
         let channel_b = Arc::new(channel_b);
-        let consumer = channel_b
+        let mut consumer = channel_b
             .clone()
             .basic_consume(
                 "hello",
@@ -90,14 +90,13 @@ fn main() -> Result<()> {
             .await?;
         executor.spawn_ok(async move {
             info!("will consume");
-            consumer
-                .for_each(move |delivery| {
-                    let delivery = delivery.expect("error caught in in consumer");
-                    channel_b
-                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                        .map(|_| ())
-                })
-                .await
+            while let Some(delivery) = consumer.next().await {
+                let delivery = delivery.expect("error in consumer");
+                channel_b
+                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .await
+                    .expect("ack");
+            }
         });
 
         let payload = b"Hello world!";
