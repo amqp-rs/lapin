@@ -29,6 +29,10 @@ fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
 }
 
 fn main() {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
+
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR")

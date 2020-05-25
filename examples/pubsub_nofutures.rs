@@ -28,7 +28,9 @@ impl ConsumerDelegate for Subscriber {
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
 
     env_logger::init();
 

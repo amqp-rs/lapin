@@ -8,7 +8,9 @@ use log::info;
 use std::sync::Arc;
 
 fn main() -> Result<()> {
-    std::env::set_var("RUST_LOG", "info");
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
 
     env_logger::init();
 
