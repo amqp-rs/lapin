@@ -5,7 +5,6 @@ use lapin::{
 };
 use lapinou::*;
 use log::info;
-use std::sync::Arc;
 
 fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
@@ -39,9 +38,7 @@ fn main() -> Result<()> {
 
         info!("Declared queue {:?}", queue);
 
-        let channel_b = Arc::new(channel_b);
         let consumer = channel_b
-            .clone()
             .basic_consume(
                 "hello",
                 "my_consumer",
@@ -52,11 +49,10 @@ fn main() -> Result<()> {
 
         consumer
             .set_delegate(move |delivery: DeliveryResult| {
-                let channel_b = channel_b.clone();
                 async move {
                     let delivery = delivery.expect("error caught in in consumer");
-                    if let Some(delivery) = delivery {
-                        channel_b
+                    if let Some((channel, delivery)) = delivery {
+                        channel
                             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                             .await
                             .expect("failed to ack");
