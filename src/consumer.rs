@@ -48,8 +48,8 @@ impl<
 /// A consumer is obtained by calling [`Channel::basic_consume`] with the queue name.
 ///
 /// New messages from this consumer can be accessed by obtaining the iterator from the consumer.
-/// This iterator returns new messages in the form of a
-/// [`Delivery`] for as long as the consumer is subscribed to the queue.
+/// This iterator returns new messages and the associated channel in the form of a
+/// [`DeliveryResult`] for as long as the consumer is subscribed to the queue.
 ///
 /// It is also possible to set a delegate to be spawned via [`set_delegate`].
 ///
@@ -65,15 +65,15 @@ impl<
 ///   [`Channel::basic_reject`] or [`Channel::basic_nack`]. See the documentation at [`Delivery`]
 ///   for further information.
 ///
-/// Also see the RabbitMQ documentation concerning
-/// [Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/confirms.html).
+/// Also see the RabbitMQ documentation about
+/// [Acknowledgement Modes](https://www.rabbitmq.com/consumers.html#acknowledgement-modes).
 ///
 /// ## Consumer Prefetch
 ///
 /// To limit the maximum number of unacknowledged messages arriving, you can call [`Channel::basic_qos`]
 /// before creating the consumer.
 ///
-/// Also see the RabbitMQ documentation concerning
+/// Also see the RabbitMQ documentation about
 /// [Consumer Prefetch](https://www.rabbitmq.com/consumer-prefetch.html).
 ///
 /// ## Cancel subscription
@@ -85,7 +85,6 @@ impl<
 /// ## Example
 /// ```rust,no_run
 /// let mut consumer = channel
-///     .clone()
 ///     .basic_consume(
 ///         "hello",
 ///         "my_consumer",
@@ -94,7 +93,7 @@ impl<
 ///     )
 ///     .await?;
 ///
-/// while let Some(delivery) = consumer.next().await {
+/// while let Some((channel, delivery)) = consumer.next().await {
 ///     let delivery = delivery.expect("error in consumer");
 ///     channel
 ///         .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
@@ -109,7 +108,7 @@ impl<
 /// [`Channel::basic_reject`]: ./struct.Channel.html#method.basic_reject
 /// [`Channel::basic_nack`]: ./struct.Channel.html#method.basic_nack
 /// [`Channel::basic_cancel`]: ./struct.Channel.html#method.basic_cancel
-/// [`Delivery`]: ./message/struct.Delivery.html
+/// [`DeliveryResult`]: ./message/type.DeliveryResult.html
 /// [`BasicConsumeOptions::no_ack`]: ./options/struct.BasicConsumeOptions.html#structfield.no_ack
 /// [`set_delegate`]: #method.set_delegate
 #[derive(Clone)]
@@ -124,6 +123,10 @@ impl Consumer {
         }
     }
 
+    /// Gets the consumer tag.
+    ///
+    /// If no consumer tag was specified when obtaining the consumer from the channel,
+    /// this contains the server generated consumer tag.
     pub fn tag(&self) -> ShortString {
         self.inner.lock().tag.clone()
     }
