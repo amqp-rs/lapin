@@ -4,6 +4,10 @@
 //!
 //! This project follows the AMQP 0.9.1 specifications, targeting especially RabbitMQ.
 //!
+//! The main access point is the [`Channel`], which contains the individual
+//! AMQP methods. As to the AMQP specification, one TCP [`Connection`] can contain
+//! multiple channels.
+//!
 //! ## Feature switches
 //!
 //! * `native-tls` (*default*): enable amqps support through native-tls
@@ -92,6 +96,8 @@
 //!     })
 //! }
 //! ```
+//! [`Channel`]: ./struct.Channel.html
+//! [`Connection`]: ./struct.Connection.html
 
 pub use amq_protocol::{
     auth,

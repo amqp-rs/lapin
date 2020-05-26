@@ -10,13 +10,40 @@ use crate::{
 /// - Err(error) carries the error and is always followed by Ok(None)
 pub type DeliveryResult = Result<Option<(Channel, Delivery)>>;
 
+
+/// A received AMQP message.
+///
+/// The message has to be acknowledged after processing by calling
+/// [`Channel::basic_ack`], [`Channel::basic_reject`] or [`Channel::basic_nack`] with the delivery tag.
+/// (Multiple acknowledgments are also possible).
+///
+/// It is important to acknowledge on the same channel where the message was received.
+///
+/// [`Channel::basic_ack`]: ../struct.Channel.html#method.basic_ack
+/// [`Channel::basic_reject`]: ../struct.Channel.html#method.basic_reject
+/// [`Channel::basic_nack`]: ../struct.Channel.html#method.basic_nack
 #[derive(Clone, Debug, PartialEq)]
 pub struct Delivery {
+    /// The delivery tag of the message. Use this for
+    /// acknowledging the message.
     pub delivery_tag: LongLongUInt,
+
+    /// The exchange of the message. May be an empty string
+    /// if the default exchange is used.
     pub exchange: ShortString,
+
+    /// The routing key of the message. May be an empty string
+    /// if no routing key is specified.
     pub routing_key: ShortString,
+
+    /// Whether this message was redelivered
     pub redelivered: bool,
+
+    /// Contains the properties and the headers of the
+    /// message.
     pub properties: BasicProperties,
+
+    /// The payload of the message in binary format.
     pub data: Vec<u8>,
 }
 
