@@ -49,6 +49,10 @@ impl Consumer {
         }
     }
 
+    pub fn tag(&self) -> ShortString {
+        self.inner.lock().tag.clone()
+    }
+
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
         let mut inner = self.inner.lock();
         while let Some(delivery) = inner.next_delivery() {
