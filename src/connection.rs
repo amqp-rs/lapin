@@ -192,13 +192,13 @@ impl Connection {
                 promise.set_marker("ProtocolHeader".into());
             }
             let channels = conn.channels.clone();
-            channels.get(0).map(|channel0| {
+            if let Some(channel0) = channels.get(0) {
                 channel0.send_frame(
                     AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
                     resolver,
                     None,
                 )
-            });
+            };
             let (promise, resolver) = PromiseChain::after(promise);
             if log_enabled!(Trace) {
                 promise.set_marker("ProtocolHeader.Ok".into());
