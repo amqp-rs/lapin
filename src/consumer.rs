@@ -84,22 +84,37 @@ impl<
 ///
 /// ## Example
 /// ```rust,no_run
-/// let mut consumer = channel
-///     .basic_consume(
-///         "hello",
-///         "my_consumer",
-///         BasicConsumeOptions::default(),
-///         FieldTable::default(),
+/// use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties, Result};
+/// use futures_executor::LocalPool;
+/// use futures_util::stream::StreamExt;
+/// use std::future::Future;
+///
+/// let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+///
+/// let res: Result<()> = LocalPool::new().run_until(async {
+///     let conn = Connection::connect(
+///         &addr,
+///         ConnectionProperties::default().with_default_executor(8),
 ///     )
 ///     .await?;
+///     let channel = conn.create_channel().await?;
+///     let mut consumer = channel
+///         .basic_consume(
+///             "hello",
+///             "my_consumer",
+///             BasicConsumeOptions::default(),
+///             FieldTable::default(),
+///         )
+///         .await?;
 ///
-/// while let Some((channel, delivery)) = consumer.next().await {
-///     let delivery = delivery.expect("error in consumer");
-///     channel
-///         .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-///         .await
-///      .expect("ack");
-/// }
+///     while let Some(delivery) = consumer.next().await {
+///         let (channel, delivery) = delivery.expect("error in consumer");
+///         channel
+///             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+///             .await?;
+///     }
+///     Ok(())
+/// });
 /// ```
 ///
 /// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
