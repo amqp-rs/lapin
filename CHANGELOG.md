@@ -662,9 +662,9 @@
 #### Breaking Changes
 
 * **async:**
-  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/147))
+  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/CleverCloud/lapin/pull/147))
 * **futures:**
-  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/sozu-proxy/lapin/pull/145))
+  * Introduce a new `Error` type, replacing occurrences of `io::Error` in public APIs ([#145](https://github.com/CleverCloud/lapin/pull/145))
 
 ### 0.14.1 (2018-11-16)
 

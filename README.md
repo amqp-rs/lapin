@@ -2,10 +2,10 @@
 <img src="logo.jpg" width="30%"></img>
 
 [![API Docs](https://docs.rs/lapin/badge.svg)](https://docs.rs/lapin)
-[![Build Status](https://travis-ci.org/sozu-proxy/lapin.svg?branch=master)](https://travis-ci.org/sozu-proxy/lapin)
+[![Build Status](https://travis-ci.org/CleverCloud/lapin.svg?branch=master)](https://travis-ci.org/CleverCloud/lapin)
 [![Downloads](https://img.shields.io/crates/d/lapin.svg)](https://crates.io/crates/lapin)
-[![Coverage Status](https://coveralls.io/repos/github/sozu-proxy/lapin/badge.svg?branch=master)](https://coveralls.io/github/sozu-proxy/lapin?branch=master)
-[![Dependency Status](https://deps.rs/repo/github/sozu-proxy/lapin/status.svg)](https://deps.rs/repo/github/sozu-proxy/lapin)
+[![Coverage Status](https://coveralls.io/repos/github/CleverCloud/lapin/badge.svg?branch=master)](https://coveralls.io/github/CleverCloud/lapin?branch=master)
+[![Dependency Status](https://deps.rs/repo/github/CleverCloud/lapin/status.svg)](https://deps.rs/repo/github/CleverCloud/lapin)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
  <strong>
