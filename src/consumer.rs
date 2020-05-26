@@ -7,7 +7,7 @@ use crate::{
 use crossbeam_channel::{Receiver, Sender};
 use futures_core::stream::Stream;
 use log::trace;
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::Mutex;
 use std::{
     fmt,
     future::Future,
@@ -49,12 +49,8 @@ impl Consumer {
         }
     }
 
-    pub fn inner(&self) -> MutexGuard<'_, ConsumerInner> {
-        self.inner.lock()
-    }
-
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
-        let mut inner = self.inner();
+        let mut inner = self.inner.lock();
         while let Some(delivery) = inner.next_delivery() {
             inner.executor.spawn(delegate.on_new_delivery(delivery))?;
         }
@@ -63,23 +59,23 @@ impl Consumer {
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
-        self.inner().current_message = Some(delivery)
+        self.inner.lock().current_message = Some(delivery)
     }
 
     pub(crate) fn set_delivery_properties(&mut self, properties: BasicProperties) {
-        if let Some(delivery) = self.inner().current_message.as_mut() {
+        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
             delivery.properties = properties;
         }
     }
 
     pub(crate) fn receive_delivery_content(&mut self, payload: Vec<u8>) {
-        if let Some(delivery) = self.inner().current_message.as_mut() {
+        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
             delivery.receive_content(payload);
         }
     }
 
     pub(crate) fn new_delivery_complete(&mut self) -> Result<()> {
-        let mut inner = self.inner();
+        let mut inner = self.inner.lock();
         if let Some(delivery) = inner.current_message.take() {
             inner.new_delivery(delivery)?;
         }
@@ -87,19 +83,19 @@ impl Consumer {
     }
 
     pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
-        self.inner().drop_prefetched_messages()
+        self.inner.lock().drop_prefetched_messages()
     }
 
     pub(crate) fn cancel(&self) -> Result<()> {
-        self.inner().cancel()
+        self.inner.lock().cancel()
     }
 
     pub(crate) fn set_error(&self, error: Error) -> Result<()> {
-        self.inner().set_error(error)
+        self.inner.lock().set_error(error)
     }
 }
 
-pub struct ConsumerInner {
+struct ConsumerInner {
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
@@ -127,7 +123,7 @@ impl IntoIterator for Consumer {
 
     fn into_iter(self) -> Self::IntoIter {
         ConsumerIterator {
-            receiver: self.inner().deliveries_out.clone(),
+            receiver: self.inner.lock().deliveries_out.clone(),
         }
     }
 }
@@ -159,12 +155,8 @@ impl ConsumerInner {
         }
     }
 
-    pub fn next_delivery(&mut self) -> Option<DeliveryResult> {
+    fn next_delivery(&mut self) -> Option<DeliveryResult> {
         self.deliveries_out.try_recv().ok()
-    }
-
-    pub fn tag(&self) -> &ShortString {
-        &self.tag
     }
 
     fn new_delivery(&mut self, delivery: Delivery) -> Result<()> {
@@ -210,7 +202,7 @@ impl ConsumerInner {
         Ok(())
     }
 
-    pub fn set_error(&mut self, error: Error) -> Result<()> {
+    fn set_error(&mut self, error: Error) -> Result<()> {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -229,10 +221,10 @@ impl Stream for Consumer {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("consumer poll_next");
-        let mut inner = self.inner();
+        let mut inner = self.inner.lock();
         trace!(
             "consumer poll; acquired inner lock, consumer_tag={}",
-            inner.tag()
+            inner.tag
         );
         inner.task = Some(cx.waker().clone());
         if let Some(delivery) = inner.next_delivery() {
@@ -240,19 +232,19 @@ impl Stream for Consumer {
                 Ok(Some(delivery)) => {
                     trace!(
                         "delivery; consumer_tag={}, delivery_tag={:?}",
-                        inner.tag(),
+                        inner.tag,
                         delivery.delivery_tag
                     );
                     Poll::Ready(Some(Ok(delivery)))
                 }
                 Ok(None) => {
-                    trace!("consumer canceled; consumer_tag={}", inner.tag());
+                    trace!("consumer canceled; consumer_tag={}", inner.tag);
                     Poll::Ready(None)
                 }
                 Err(error) => Poll::Ready(Some(Err(error))),
             }
         } else {
-            trace!("delivery; status=NotReady, consumer_tag={}", inner.tag());
+            trace!("delivery; status=NotReady, consumer_tag={}", inner.tag);
             Poll::Pending
         }
     }
