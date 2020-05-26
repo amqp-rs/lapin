@@ -26,7 +26,9 @@ impl ConnectionStatus {
     }
 
     pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
-        self.0.lock().connection_resolver()
+        let resolver = self.0.lock().connection_resolver();
+        // We carry the Connection here to drop the lock() above before dropping the Connection
+        resolver.map(|(resolver, _connection)| resolver)
     }
 
     pub fn vhost(&self) -> String {
@@ -142,14 +144,14 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn connection_resolver(&mut self) -> Option<PromiseResolver<Connection>> {
+    fn connection_resolver(&mut self) -> Option<(PromiseResolver<Connection>, Option<Connection>)> {
         if let ConnectionState::Connecting = self.state {
             self.connection_step
                 .take()
                 .map(|connection_step| match connection_step {
-                    ConnectionStep::ProtocolHeader(resolver, ..) => resolver,
-                    ConnectionStep::StartOk(resolver, ..) => resolver,
-                    ConnectionStep::Open(resolver, ..) => resolver,
+                    ConnectionStep::ProtocolHeader(resolver, connection, ..) => (resolver, Some(connection)),
+                    ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
+                    ConnectionStep::Open(resolver, ..) => (resolver, None),
                 })
         } else {
             None
