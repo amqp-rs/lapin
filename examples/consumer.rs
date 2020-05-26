@@ -47,7 +47,7 @@ fn main() {
 
         for delivery in consumer {
             info!("received message: {:?}", delivery);
-            if let Ok(delivery) = delivery {
+            if let Ok((channel, delivery)) = delivery {
                 channel
                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                     .await

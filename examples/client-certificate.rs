@@ -8,7 +8,6 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
-use std::sync::Arc;
 
 fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
     let cert_chain = "" /* include_str!(concat!(
@@ -67,8 +66,6 @@ fn main() {
         info!("[{}] state: {:?}", line!(), conn.status().state());
         info!("[{}] declared queue: {:?}", line!(), queue);
 
-        let channel_b = Arc::new(channel_b);
-        let chan = channel_b.clone();
         info!("will consume");
         channel_b
             .basic_consume(
@@ -79,15 +76,13 @@ fn main() {
             )
             .await
             .expect("basic_consume")
-            .set_delegate(move |delivery: DeliveryResult| {
-                let chan = chan.clone();
-                async move {
-                    info!("received message: {:?}", delivery);
-                    if let Ok(Some(delivery)) = delivery {
-                        chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                            .await
-                            .expect("basic_ack");
-                    }
+            .set_delegate(move |delivery: DeliveryResult| async move {
+                info!("received message: {:?}", delivery);
+                if let Ok(Some((channel, delivery))) = delivery {
+                    channel
+                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                        .await
+                        .expect("basic_ack");
                 }
             })
             .expect("set_delegate");

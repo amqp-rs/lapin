@@ -1,14 +1,14 @@
 use crate::{
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
-    BasicProperties, Result,
+    BasicProperties, Channel, Result,
 };
 
 /// Type wrapping the output of a consumer
 ///
-/// - Ok(Some(delivery)) carries the delivery
+/// - Ok(Some((channel, delivery))) carries the delivery alongside its channel
 /// - Ok(None) means that the consumer got canceled
 /// - Err(error) carries the error and is always followed by Ok(None)
-pub type DeliveryResult = Result<Option<Delivery>>;
+pub type DeliveryResult = Result<Option<(Channel, Delivery)>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Delivery {

@@ -6,7 +6,6 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
-use std::sync::Arc;
 
 fn main() {
     if std::env::var("RUST_LOG").is_err() {
@@ -49,8 +48,6 @@ fn main() {
         info!("[{}] state: {:?}", line!(), conn.status().state());
         info!("Enabled publisher-confirms");
 
-        let channel_b = Arc::new(channel_b);
-        let chan = channel_b.clone();
         info!("will consume");
         channel_b
             .basic_consume(
@@ -61,15 +58,13 @@ fn main() {
             )
             .await
             .expect("basic_consume")
-            .set_delegate(move |delivery: DeliveryResult| {
-                let chan = chan.clone();
-                async move {
-                    info!("received message: {:?}", delivery);
-                    if let Ok(Some(delivery)) = delivery {
-                        chan.basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                            .await
-                            .expect("basic_ack");
-                    }
+            .set_delegate(move |delivery: DeliveryResult| async move {
+                info!("received message: {:?}", delivery);
+                if let Ok(Some((channel, delivery))) = delivery {
+                    channel
+                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                        .await
+                        .expect("basic_ack");
                 }
             })
             .expect("set_delegate");

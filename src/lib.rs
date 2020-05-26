@@ -22,7 +22,6 @@
 //!     ConnectionProperties, Result,
 //! };
 //! use log::info;
-//! use std::sync::Arc;
 //!
 //! fn main() -> Result<()> {
 //!     if std::env::var("RUST_LOG").is_err() {
@@ -56,9 +55,7 @@
 //!
 //!         info!("Declared queue {:?}", queue);
 //!
-//!         let channel_b = Arc::new(channel_b);
 //!         let mut consumer = channel_b
-//!             .clone()
 //!             .basic_consume(
 //!                 "hello",
 //!                 "my_consumer",
@@ -69,8 +66,8 @@
 //!         executor.spawn_ok(async move {
 //!             info!("will consume");
 //!             while let Some(delivery) = consumer.next().await {
-//!                 let delivery = delivery.expect("error in consumer");
-//!                 channel_b
+//!                 let (channel, delivery) = delivery.expect("error in consumer");
+//!                 channel
 //!                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
 //!                     .await
 //!                     .expect("ack");

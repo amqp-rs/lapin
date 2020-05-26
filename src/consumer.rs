@@ -2,7 +2,7 @@ use crate::{
     executor::Executor,
     message::{Delivery, DeliveryResult},
     types::ShortString,
-    BasicProperties, Error, Result,
+    BasicProperties, Channel, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use futures_core::stream::Stream;
@@ -78,10 +78,10 @@ impl Consumer {
         }
     }
 
-    pub(crate) fn new_delivery_complete(&mut self) -> Result<()> {
+    pub(crate) fn new_delivery_complete(&mut self, channel: Channel) -> Result<()> {
         let mut inner = self.inner.lock();
         if let Some(delivery) = inner.current_message.take() {
-            inner.new_delivery(delivery)?;
+            inner.new_delivery(channel, delivery)?;
         }
         Ok(())
     }
@@ -114,7 +114,7 @@ pub struct ConsumerIterator {
 }
 
 impl Iterator for ConsumerIterator {
-    type Item = Result<Delivery>;
+    type Item = Result<(Channel, Delivery)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.receiver.recv().ok().and_then(Result::transpose)
@@ -122,7 +122,7 @@ impl Iterator for ConsumerIterator {
 }
 
 impl IntoIterator for Consumer {
-    type Item = Result<Delivery>;
+    type Item = Result<(Channel, Delivery)>;
     type IntoIter = ConsumerIterator;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -163,15 +163,15 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn new_delivery(&mut self, delivery: Delivery) -> Result<()> {
+    fn new_delivery(&mut self, channel: Channel, delivery: Delivery) -> Result<()> {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .spawn(delegate.on_new_delivery(Ok(Some(delivery))))?;
+                .spawn(delegate.on_new_delivery(Ok(Some((channel, delivery)))))?;
         } else {
             self.deliveries_in
-                .send(Ok(Some(delivery)))
+                .send(Ok(Some((channel, delivery))))
                 .expect("failed to send delivery to consumer");
         }
         if let Some(task) = self.task.as_ref() {
@@ -221,7 +221,7 @@ impl ConsumerInner {
 }
 
 impl Stream for Consumer {
-    type Item = Result<Delivery>;
+    type Item = Result<(Channel, Delivery)>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("consumer poll_next");
@@ -233,13 +233,14 @@ impl Stream for Consumer {
         inner.task = Some(cx.waker().clone());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
-                Ok(Some(delivery)) => {
+                Ok(Some((channel, delivery))) => {
                     trace!(
-                        "delivery; consumer_tag={}, delivery_tag={:?}",
+                        "delivery; channel={}, consumer_tag={}, delivery_tag={:?}",
+                        channel.id(),
                         inner.tag,
                         delivery.delivery_tag
                     );
-                    Poll::Ready(Some(Ok(delivery)))
+                    Poll::Ready(Some(Ok((channel, delivery))))
                 }
                 Ok(None) => {
                     trace!("consumer canceled; consumer_tag={}", inner.tag);

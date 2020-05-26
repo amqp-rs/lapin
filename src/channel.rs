@@ -47,6 +47,12 @@ pub struct Channel {
     connection_closer: Option<Arc<ConnectionCloser>>,
 }
 
+impl PartialEq for Channel {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 impl fmt::Debug for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Channel")
@@ -313,6 +319,7 @@ impl Channel {
             |queue_name, request_id_or_consumer_tag| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_content_header_frame(
+                        &self,
                         queue_name.as_str(),
                         request_id_or_consumer_tag.clone(),
                         size,
@@ -349,6 +356,7 @@ impl Channel {
             |queue_name, request_id_or_consumer_tag, remaining_size| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_body_frame(
+                        &self,
                         queue_name.as_str(),
                         request_id_or_consumer_tag.clone(),
                         remaining_size,

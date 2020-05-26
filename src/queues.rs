@@ -3,7 +3,7 @@ use crate::{
     message::{BasicGetMessage, Delivery},
     queue::{Queue, QueueState},
     types::ShortString,
-    BasicProperties, Error, PromiseResolver, Result,
+    BasicProperties, Channel, Error, PromiseResolver, Result,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -108,6 +108,7 @@ impl Queues {
 
     pub(crate) fn handle_content_header_frame(
         &self,
+        channel: &Channel,
         queue: &str,
         consumer_tag: Option<ShortString>,
         size: u64,
@@ -119,7 +120,7 @@ impl Queues {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
                         consumer.set_delivery_properties(properties);
                         if size == 0 {
-                            consumer.new_delivery_complete()?;
+                            consumer.new_delivery_complete(channel.clone())?;
                         }
                     }
                 }
@@ -136,6 +137,7 @@ impl Queues {
 
     pub(crate) fn handle_body_frame(
         &self,
+        channel: &Channel,
         queue: &str,
         consumer_tag: Option<ShortString>,
         remaining_size: usize,
@@ -147,7 +149,7 @@ impl Queues {
                     if let Some(consumer) = queue.get_consumer(&consumer_tag) {
                         consumer.receive_delivery_content(payload);
                         if remaining_size == 0 {
-                            consumer.new_delivery_complete()?;
+                            consumer.new_delivery_complete(channel.clone())?;
                         }
                     }
                 }

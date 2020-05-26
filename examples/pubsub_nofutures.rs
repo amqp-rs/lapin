@@ -1,23 +1,20 @@
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Channel, Connection, ConnectionProperties, ConsumerDelegate,
+    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate,
 };
 use log::info;
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 #[derive(Clone, Debug)]
-struct Subscriber {
-    channel: Arc<Channel>,
-}
+struct Subscriber;
 
 impl ConsumerDelegate for Subscriber {
     fn on_new_delivery(
         &self,
         delivery: DeliveryResult,
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-        let channel = self.channel.clone();
         Box::pin(async move {
-            if let Ok(Some(delivery)) = delivery {
+            if let Ok(Some((channel, delivery))) = delivery {
                 channel
                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                     .await
@@ -56,9 +53,7 @@ fn main() {
     info!("Declared queue {:?}", queue);
 
     info!("will consume");
-    let channel_b = Arc::new(channel_b);
     channel_b
-        .clone()
         .basic_consume(
             "hello",
             "my_consumer",
@@ -67,7 +62,7 @@ fn main() {
         )
         .wait()
         .expect("basic_consume")
-        .set_delegate(Subscriber { channel: channel_b })
+        .set_delegate(Subscriber)
         .expect("set_delegate");
 
     let payload = b"Hello world!";
