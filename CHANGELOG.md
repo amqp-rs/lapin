@@ -10,6 +10,7 @@
 * Using self-signed certificates is now easie with `connect_with_config`
 * `Channel` gets closed once the last reference is dropped
 * `Connection` gets closed once the last reference and the last `Channel` are dropped
+* `Consumer::tag` gives you access to the consumer's tag
 
 #### Breaking changes
 
@@ -20,11 +21,13 @@
 * `Connection` no longer implements `Clone`
 * `Connection::connect` has been reworked to properly handle mid handshake TLS streams
 * `CloseOnDrop` is now gone
+* `DeliveryResult` now also carries the corresponding `Channel`
 
 #### Bug Fixes
 
 * Follow the specifications in being stricter about receiving invalid frames
 * Don't consider interrupted IO signals as failures
+* Threads are correctly cleaned up
 
 #### Misc
 
