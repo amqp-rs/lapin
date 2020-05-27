@@ -1,6 +1,6 @@
 [package]
 name = "async-amqp"
-version = "0.1.0-rc8"
+version = "0.1.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-std"
@@ -19,12 +19,12 @@ version = "^1.6"
 features = ["default"]
 
 [dependencies.lapin]
-version = "=1.0.0-rc6"
+version = "^1.0"
 path = ".."
 default-features = false
 
 [dependencies.lapinou]
-version = "=0.1.0-rc7"
+version = "^0.1"
 path = "../lapinou"
 default-features = false
 

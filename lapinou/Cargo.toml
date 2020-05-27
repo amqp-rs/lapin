@@ -1,6 +1,6 @@
 [package]
 name = "lapinou"
-version = "0.1.0-rc7"
+version = "0.1.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with smol"
@@ -16,10 +16,10 @@ default = ["lapin/default"]
 
 [dependencies]
 parking_lot = "^0.10"
-smol = "^0.1.9"
+smol = "^0.1.10"
 
 [dependencies.lapin]
-version = "1.0.0-rc6"
+version = "^1.0"
 path = ".."
 default-features = false
 
