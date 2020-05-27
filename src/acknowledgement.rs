@@ -29,8 +29,9 @@ impl Acknowledgements {
         self.0.lock().register_pending(delivery_tag, channel_id)
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<Promise<Confirmation>> {
-        self.0.lock().last.take().map(|(_, promise)| promise)
+    pub(crate) async fn get_last_pending(&self) -> Option<crate::Result<Confirmation>> {
+        let (_, promise) = self.0.lock().last.take()?;
+        Some(promise.await)
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {

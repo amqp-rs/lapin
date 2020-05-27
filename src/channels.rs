@@ -215,13 +215,17 @@ impl Channels {
                         format!("heartbeat frame received on channel {}", channel_id).into(),
                     );
                     if let Some(Err(error)) = self.get(0).map(|channel0| {
-                        self.internal_rpc
-                            .register_internal_future(channel0.connection_close(
-                                error.get_id(),
-                                error.get_message().as_str(),
-                                0,
-                                0,
-                            ))
+                        let error = error.clone();
+                        self.internal_rpc.register_internal_future(async move {
+                            channel0
+                                .connection_close(
+                                    error.get_id(),
+                                    error.get_message().as_str(),
+                                    0,
+                                    0,
+                                )
+                                .await
+                        })
                     }) {
                         return Err(error);
                     }
@@ -236,13 +240,17 @@ impl Channels {
                         format!("content header frame received on channel {}", channel_id).into(),
                     );
                     if let Some(Err(error)) = self.get(0).map(|channel0| {
-                        self.internal_rpc
-                            .register_internal_future(channel0.connection_close(
-                                error.get_id(),
-                                error.get_message().as_str(),
-                                class_id,
-                                0,
-                            ))
+                        let error = error.clone();
+                        self.internal_rpc.register_internal_future(async move {
+                            channel0
+                                .connection_close(
+                                    error.get_id(),
+                                    error.get_message().as_str(),
+                                    class_id,
+                                    0,
+                                )
+                                .await
+                        })
                     }) {
                         return Err(error);
                     }
