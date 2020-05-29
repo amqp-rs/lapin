@@ -10,7 +10,6 @@ use std::{
 pub struct PublisherConfirm {
     inner: Option<Promise<Confirmation>>,
     returned_messages: ReturnedMessages,
-    used: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -51,7 +50,6 @@ impl PublisherConfirm {
         Self {
             inner: Some(inner),
             returned_messages,
-            used: false,
         }
     }
 
@@ -59,26 +57,7 @@ impl PublisherConfirm {
         Self {
             inner: Some(Promise::new_with_data(Ok(Confirmation::NotRequested))),
             returned_messages,
-            used: false,
         }
-    }
-
-    pub fn try_wait(&mut self) -> Option<Result<Confirmation>> {
-        let confirmation = self
-            .inner
-            .as_ref()
-            .expect("inner should only be None after Drop")
-            .try_wait()?;
-        self.used = true;
-        Some(confirmation)
-    }
-
-    pub fn wait(&mut self) -> Result<Confirmation> {
-        self.used = true;
-        self.inner
-            .as_ref()
-            .expect("inner should only be None after Drop")
-            .wait()
     }
 }
 
@@ -97,11 +76,11 @@ impl Future for PublisherConfirm {
             &mut this
                 .inner
                 .as_mut()
-                .expect("inner should only be None after Drop"),
+                .expect("PublisherConfirm polled after completion"),
         )
         .poll(cx);
         if res.is_ready() {
-            this.used = true;
+            this.inner.take();
         }
         res
     }
@@ -109,13 +88,11 @@ impl Future for PublisherConfirm {
 
 impl Drop for PublisherConfirm {
     fn drop(&mut self) {
-        if !self.used {
-            if let Some(promise) = self.inner.take() {
-                trace!(
-                    "PublisherConfirm dropped without use, registering it for wait_for_confirms"
-                );
-                self.returned_messages.register_dropped_confirm(promise);
-            }
+        if let Some(promise) = self.inner.take() {
+            trace!(
+                "PublisherConfirm dropped without use, registering it for wait_for_confirms"
+            );
+            self.returned_messages.register_dropped_confirm(promise);
         }
     }
 }
