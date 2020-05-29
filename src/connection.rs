@@ -15,11 +15,11 @@ use crate::{
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
-    Error, Promise, PromiseChain, Result,
+    Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use log::{log_enabled, Level::Trace};
-use std::{fmt, io, sync::Arc};
+use std::{fmt, future::Future, io, pin::Pin, sync::Arc};
 
 pub struct Connection {
     configuration: Configuration,
@@ -153,11 +153,11 @@ impl Connection {
         }
     }
 
-    pub fn connector(
+    pub async fn connector(
         uri: AMQPUri,
         handshake_result: HandshakeResult,
         mut options: ConnectionProperties,
-    ) -> PromiseChain<Connection> {
+    ) -> Result<Connection> {
         let executor = options
             .executor
             .take()
@@ -184,9 +184,9 @@ impl Connection {
         if let Some(heartbeat) = uri.query.heartbeat {
             configuration.set_heartbeat(heartbeat);
         }
-        let (promise, resolver) = Promise::new();
+        let (promise_out, resolver) = Promise::new();
         if log_enabled!(Trace) {
-            promise.set_marker("ProtocolHeader".into());
+            promise_out.set_marker("ProtocolHeader".into());
         }
         let channels = conn.channels.clone();
         if let Some(channel0) = channels.get(0) {
@@ -196,9 +196,9 @@ impl Connection {
                 None,
             )
         };
-        let (promise, resolver) = PromiseChain::after(promise);
+        let (promise_in, resolver) = Promise::new();
         if log_enabled!(Trace) {
-            promise.set_marker("ProtocolHeader.Ok".into());
+            promise_in.set_marker("ProtocolHeader.Ok".into());
         }
         let io_loop_handle = conn.io_loop.clone();
         status.set_state(ConnectionState::Connecting);
@@ -220,9 +220,9 @@ impl Connection {
             handshake_result,
             &*reactor_builder,
         )
-        .and_then(IoLoop::start)
-        .map(|()| promise)
-        .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
+        .and_then(IoLoop::start)?;
+        promise_out.await?;
+        promise_in.await
     }
 }
 
@@ -243,7 +243,7 @@ pub trait Connect {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> PromiseChain<Connection>;
+    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>>;
 }
 
 impl Connect for AMQPUri {
@@ -251,9 +251,9 @@ impl Connect for AMQPUri {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> PromiseChain<Connection> {
+    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>> {
         let stream = AMQPUriTcpExt::connect_with_config(&self, config);
-        Connection::connector(self, stream, options)
+        Box::pin(Connection::connector(self, stream, options))
     }
 }
 
@@ -262,12 +262,10 @@ impl Connect for &str {
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> PromiseChain<Connection> {
+    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => Connect::connect(uri, options, config),
-            Err(err) => {
-                PromiseChain::new_with_data(Err(io::Error::new(io::ErrorKind::Other, err).into()))
-            }
+            Err(err) => Box::pin(async { Err(io::Error::new(io::ErrorKind::Other, err).into()) }),
         }
     }
 }
