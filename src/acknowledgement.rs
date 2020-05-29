@@ -2,7 +2,7 @@ use crate::{
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    ConfirmationBroadcaster, Error, Promise,
+    Error, Promise, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -15,6 +15,9 @@ pub type DeliveryTag = u64;
 
 #[derive(Clone)]
 pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);
+
+type AMQPResult = std::result::Result<(), AMQPError>;
+type ConfirmationBroadcaster = pinky_swear::PinkyBroadcaster<Result<Confirmation>>;
 
 impl Acknowledgements {
     pub(crate) fn new(returned_messages: ReturnedMessages) -> Self {
@@ -34,11 +37,11 @@ impl Acknowledgements {
         Some(promise.await)
     }
 
-    pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
+    pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
         self.0.lock().drop_pending(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> Result<(), AMQPError> {
+    pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
         self.0.lock().drop_pending(delivery_tag, false, channel_id)
     }
 
@@ -50,21 +53,13 @@ impl Acknowledgements {
         self.0.lock().drop_all(false);
     }
 
-    pub(crate) fn ack_all_before(
-        &self,
-        delivery_tag: DeliveryTag,
-        channel_id: u16,
-    ) -> Result<(), AMQPError> {
+    pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
         self.0
             .lock()
             .complete_pending_before(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack_all_before(
-        &self,
-        delivery_tag: DeliveryTag,
-        channel_id: u16,
-    ) -> Result<(), AMQPError> {
+    pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
         self.0
             .lock()
             .complete_pending_before(delivery_tag, false, channel_id)
@@ -141,7 +136,7 @@ impl Inner {
         delivery_tag: DeliveryTag,
         success: bool,
         channel_id: u16,
-    ) -> Result<(), AMQPError> {
+    ) -> AMQPResult {
         if let Some((_, resolver)) = self.pending.remove(&delivery_tag) {
             self.complete_pending(success, resolver);
             Ok(())
@@ -164,7 +159,7 @@ impl Inner {
         delivery_tag: DeliveryTag,
         success: bool,
         channel_id: u16,
-    ) -> Result<(), AMQPError> {
+    ) -> AMQPResult {
         let mut res = Ok(());
         for tag in self
             .pending

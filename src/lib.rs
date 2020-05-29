@@ -126,9 +126,6 @@ pub mod socket_state;
 type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
-type ConfirmationBroadcaster =
-    pinky_swear::PinkyBroadcaster<Result<publisher_confirm::Confirmation>>;
-
 mod acknowledgement;
 mod buffer;
 mod channel;
