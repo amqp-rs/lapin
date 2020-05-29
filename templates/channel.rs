@@ -119,7 +119,7 @@ impl Channel {
       promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
     {{#if method.synchronous ~}}
-    let (promise, resolver) = Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::after(promise);
+    let ((promise, resolver), promise_out) = (Promise::new(), promise);
     if log_enabled!(Trace) {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
@@ -135,6 +135,9 @@ impl Channel {
       self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#unless method.metadata.nowait_hook.exhaustive_args ~}}..Default::default(){{/unless ~}} })?;
     }
     {{/if ~}}
+    {{/if ~}}
+    {{#if method.synchronous ~}}
+    promise_out.await?;
     {{/if ~}}
     promise.await
     {{/if ~}}

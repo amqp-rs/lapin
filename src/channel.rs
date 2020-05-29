@@ -19,7 +19,7 @@ use crate::{
     socket_state::SocketStateHandle,
     types::*,
     BasicProperties, Configuration, Connection, ConnectionStatus, Error, ExchangeKind, Promise,
-    PromiseChain, PromiseResolver, Result,
+    PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};

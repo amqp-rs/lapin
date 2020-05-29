@@ -123,12 +123,11 @@ pub mod publisher_confirm;
 pub mod reactor;
 pub mod socket_state;
 
-pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
-pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
+type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
+type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
 type ConfirmationBroadcaster =
     pinky_swear::PinkyBroadcaster<Result<publisher_confirm::Confirmation>>;
-type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
 mod acknowledgement;
 mod buffer;
