@@ -64,7 +64,10 @@ fn connection() {
         //receive channel
         let channel_b = conn.create_channel().await.expect("create_channel");
 
-        channel_a.confirm_select(ConfirmSelectOptions::default()).await.expect("confirm_select");
+        channel_a
+            .confirm_select(ConfirmSelectOptions::default())
+            .await
+            .expect("confirm_select");
 
         //create the hello queue
         let queue = channel_a

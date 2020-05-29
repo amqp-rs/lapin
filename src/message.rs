@@ -10,7 +10,6 @@ use crate::{
 /// - Err(error) carries the error and is always followed by Ok(None)
 pub type DeliveryResult = Result<Option<(Channel, Delivery)>>;
 
-
 /// A received AMQP message.
 ///
 /// The message has to be acknowledged after processing by calling
