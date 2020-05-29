@@ -154,75 +154,75 @@ impl Connection {
     }
 
     pub fn connector(
+        uri: AMQPUri,
+        handshake_result: HandshakeResult,
         mut options: ConnectionProperties,
-    ) -> impl FnOnce(AMQPUri, HandshakeResult) -> PromiseChain<Connection> + 'static {
-        move |uri, handshake_result| {
-            let executor = options
-                .executor
-                .take()
-                .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
-            let reactor_builder = options
-                .reactor_builder
-                .take()
-                .unwrap_or_else(|| Arc::new(DefaultReactorBuilder));
-            let socket_state = SocketState::default();
-            let waker = socket_state.handle();
-            let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
-            let frames = Frames::default();
-            let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor);
-            let status = conn.status.clone();
-            let configuration = conn.configuration.clone();
-            status.set_vhost(&uri.vhost);
-            status.set_username(&uri.authority.userinfo.username);
-            if let Some(frame_max) = uri.query.frame_max {
-                configuration.set_frame_max(frame_max);
-            }
-            if let Some(channel_max) = uri.query.channel_max {
-                configuration.set_channel_max(channel_max);
-            }
-            if let Some(heartbeat) = uri.query.heartbeat {
-                configuration.set_heartbeat(heartbeat);
-            }
-            let (promise, resolver) = Promise::new();
-            if log_enabled!(Trace) {
-                promise.set_marker("ProtocolHeader".into());
-            }
-            let channels = conn.channels.clone();
-            if let Some(channel0) = channels.get(0) {
-                channel0.send_frame(
-                    AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
-                    resolver,
-                    None,
-                )
-            };
-            let (promise, resolver) = PromiseChain::after(promise);
-            if log_enabled!(Trace) {
-                promise.set_marker("ProtocolHeader.Ok".into());
-            }
-            let io_loop_handle = conn.io_loop.clone();
-            status.set_state(ConnectionState::Connecting);
-            status.set_connection_step(ConnectionStep::ProtocolHeader(
-                resolver,
-                conn,
-                uri.authority.userinfo.into(),
-                uri.query.auth_mechanism.unwrap_or_default(),
-                options,
-            ));
-            IoLoop::new(
-                status,
-                configuration,
-                channels,
-                internal_rpc,
-                frames,
-                socket_state,
-                io_loop_handle,
-                handshake_result,
-                &*reactor_builder,
-            )
-            .and_then(IoLoop::start)
-            .map(|()| promise)
-            .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
+    ) -> PromiseChain<Connection> {
+        let executor = options
+            .executor
+            .take()
+            .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
+        let reactor_builder = options
+            .reactor_builder
+            .take()
+            .unwrap_or_else(|| Arc::new(DefaultReactorBuilder));
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let frames = Frames::default();
+        let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor);
+        let status = conn.status.clone();
+        let configuration = conn.configuration.clone();
+        status.set_vhost(&uri.vhost);
+        status.set_username(&uri.authority.userinfo.username);
+        if let Some(frame_max) = uri.query.frame_max {
+            configuration.set_frame_max(frame_max);
         }
+        if let Some(channel_max) = uri.query.channel_max {
+            configuration.set_channel_max(channel_max);
+        }
+        if let Some(heartbeat) = uri.query.heartbeat {
+            configuration.set_heartbeat(heartbeat);
+        }
+        let (promise, resolver) = Promise::new();
+        if log_enabled!(Trace) {
+            promise.set_marker("ProtocolHeader".into());
+        }
+        let channels = conn.channels.clone();
+        if let Some(channel0) = channels.get(0) {
+            channel0.send_frame(
+                AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
+                resolver,
+                None,
+            )
+        };
+        let (promise, resolver) = PromiseChain::after(promise);
+        if log_enabled!(Trace) {
+            promise.set_marker("ProtocolHeader.Ok".into());
+        }
+        let io_loop_handle = conn.io_loop.clone();
+        status.set_state(ConnectionState::Connecting);
+        status.set_connection_step(ConnectionStep::ProtocolHeader(
+            resolver,
+            conn,
+            uri.authority.userinfo.into(),
+            uri.query.auth_mechanism.unwrap_or_default(),
+            options,
+        ));
+        IoLoop::new(
+            status,
+            configuration,
+            channels,
+            internal_rpc,
+            frames,
+            socket_state,
+            io_loop_handle,
+            handshake_result,
+            &*reactor_builder,
+        )
+        .and_then(IoLoop::start)
+        .map(|()| promise)
+        .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
     }
 }
 
@@ -253,7 +253,7 @@ impl Connect for AMQPUri {
         config: TLSConfig<'_, '_, '_>,
     ) -> PromiseChain<Connection> {
         let stream = AMQPUriTcpExt::connect_with_config(&self, config);
-        Connection::connector(options)(self, stream)
+        Connection::connector(self, stream, options)
     }
 }
 

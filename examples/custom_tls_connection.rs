@@ -39,7 +39,7 @@ async fn connect() -> Result<Connection> {
             &uri.authority.host,
         )
     });
-    Connection::connector(ConnectionProperties::default())(uri, res).await
+    Connection::connector(uri, res, ConnectionProperties::default()).await
 }
 
 fn main() {
