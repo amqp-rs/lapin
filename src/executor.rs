@@ -28,60 +28,50 @@ pub struct DefaultExecutor {
     sender: Sender<Option<Task<()>>>,
     receiver: Receiver<Option<Task<()>>>,
     threads: Arc<Mutex<Vec<ThreadHandle>>>,
-    max_threads: usize,
 }
 
 impl DefaultExecutor {
-    pub fn new(max_threads: usize) -> Self {
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let threads = Default::default();
-        Self {
+    pub fn new(max_threads: usize) -> Result<Self> {
+        let (sender, receiver) = crossbeam_channel::unbounded::<Option<Task<()>>>();
+        let threads = Arc::new(Mutex::new(
+            (1..=max_threads)
+                .map(|id| {
+                    let receiver = receiver.clone();
+                    Ok(ThreadHandle::new(
+                        ThreadBuilder::new()
+                            .name(format!("executor {}", id))
+                            .spawn(move || {
+                                LAPIN_EXECUTOR_THREAD
+                                    .with(|executor_thread| *executor_thread.borrow_mut() = true);
+                                while let Ok(Some(task)) = receiver.recv() {
+                                    task.run();
+                                }
+                                Ok(())
+                            })?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?,
+        ));
+        Ok(Self {
             sender,
             receiver,
             threads,
-            max_threads,
-        }
+        })
     }
 
-    pub(crate) fn maybe_spawn_thread(&self) -> Result<()> {
-        let mut threads = self.threads.lock();
-        let id = threads.len() + 1;
-        if id <= self.max_threads {
-            let receiver = self.receiver.clone();
-            threads.push(ThreadHandle::new(
-                ThreadBuilder::new()
-                    .name(format!("executor {}", id))
-                    .spawn(move || {
-                        LAPIN_EXECUTOR_THREAD
-                            .with(|executor_thread| *executor_thread.borrow_mut() = true);
-                        while let Ok(Some(task)) = receiver.recv() {
-                            task.run();
-                        }
-                        Ok(())
-                    })?,
-            ));
-        }
-        Ok(())
-    }
-}
-
-impl Default for DefaultExecutor {
-    fn default() -> Self {
-        Self::new(1)
+    pub(crate) fn default() -> Result<Arc<dyn Executor>> {
+        Ok(Arc::new(Self::new(1)?))
     }
 }
 
 impl fmt::Debug for DefaultExecutor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DefaultExecutor")
-            .field("max_threads", &self.max_threads)
-            .finish()
+        f.debug_struct("DefaultExecutor").finish()
     }
 }
 
 impl Executor for DefaultExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
-        self.maybe_spawn_thread()?;
         let sender = self.sender.clone();
         let schedule = move |task| sender.send(Some(task)).expect("executor failed");
         let (task, _) = async_task::spawn(f, schedule, ());

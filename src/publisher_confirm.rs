@@ -89,9 +89,7 @@ impl Future for PublisherConfirm {
 impl Drop for PublisherConfirm {
     fn drop(&mut self) {
         if let Some(promise) = self.inner.take() {
-            trace!(
-                "PublisherConfirm dropped without use, registering it for wait_for_confirms"
-            );
+            trace!("PublisherConfirm dropped without use, registering it for wait_for_confirms");
             self.returned_messages.register_dropped_confirm(promise);
         }
     }

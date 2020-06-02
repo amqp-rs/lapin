@@ -2,6 +2,7 @@ use crate::{
     executor::{DefaultExecutor, Executor},
     reactor::ReactorBuilder,
     types::FieldTable,
+    Result,
 };
 use std::sync::Arc;
 
@@ -30,8 +31,8 @@ impl ConnectionProperties {
         self
     }
 
-    pub fn with_default_executor(self, max_threads: usize) -> Self {
-        self.with_executor(DefaultExecutor::new(max_threads))
+    pub fn with_default_executor(self, max_threads: usize) -> Result<Self> {
+        Ok(self.with_executor(DefaultExecutor::new(max_threads)?))
     }
 
     pub fn with_reactor<R: ReactorBuilder + 'static>(mut self, reactor_builder: R) -> Self {

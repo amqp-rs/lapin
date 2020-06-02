@@ -167,7 +167,8 @@ impl Connection {
         let executor = options
             .executor
             .take()
-            .unwrap_or_else(|| Arc::new(DefaultExecutor::default()));
+            .map(Ok)
+            .unwrap_or_else(|| DefaultExecutor::default())?;
         let reactor_builder = options
             .reactor_builder
             .take()
@@ -296,7 +297,7 @@ mod tests {
         use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
-        let executor = Arc::new(DefaultExecutor::default());
+        let executor = DefaultExecutor::default().unwrap();
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
@@ -377,7 +378,7 @@ mod tests {
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
-        let executor = Arc::new(DefaultExecutor::default());
+        let executor = DefaultExecutor::default().unwrap();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let conn = Connection::new(
             waker,

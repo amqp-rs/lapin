@@ -94,7 +94,7 @@ impl<
 /// let res: Result<()> = LocalPool::new().run_until(async {
 ///     let conn = Connection::connect(
 ///         &addr,
-///         ConnectionProperties::default().with_default_executor(8),
+///         ConnectionProperties::default().with_default_executor(8)?,
 ///     )
 ///     .await?;
 ///     let channel = conn.create_channel().await?;
@@ -368,7 +368,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            Arc::new(DefaultExecutor::default()),
+            DefaultExecutor::default().unwrap(),
         );
 
         assert_eq!(awoken_count.get(), 0);
@@ -387,7 +387,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            Arc::new(DefaultExecutor::default()),
+            DefaultExecutor::default().unwrap(),
         );
 
         assert_eq!(awoken_count.get(), 0);
