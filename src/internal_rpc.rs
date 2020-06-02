@@ -67,13 +67,13 @@ impl InternalRPCHandle {
     pub(crate) fn register_internal_future(
         &self,
         f: impl Future<Output = Result<()>> + Send + 'static,
-    ) -> Result<()> {
+    ) {
         let internal_rpc = self.clone();
         self.executor.spawn(Box::pin(async move {
             if let Err(err) = f.await {
                 internal_rpc.set_connection_error(err);
             }
-        }))
+        }));
     }
 }
 
@@ -122,7 +122,7 @@ impl InternalRPC {
                         channel.close(reply_code, &reply_text).await
                     })
                 })
-                .unwrap_or(Ok(())),
+                .unwrap_or_default(),
             CloseConnection(reply_code, reply_text, class_id, method_id) => channels
                 .get(0)
                 .map(move |channel0| {
@@ -132,7 +132,7 @@ impl InternalRPC {
                             .await
                     })
                 })
-                .unwrap_or(Ok(())),
+                .unwrap_or_default(),
             SendConnectionCloseOk(error) => channels
                 .get(0)
                 .map(move |channel| {
@@ -140,14 +140,12 @@ impl InternalRPC {
                         channel.connection_close_ok(error).await
                     })
                 })
-                .unwrap_or(Ok(())),
-            RemoveChannel(channel_id, error) => channels.remove(channel_id, error),
-            SetConnectionClosing => {
-                channels.set_connection_closing();
-                Ok(())
-            }
+                .unwrap_or_default(),
+            RemoveChannel(channel_id, error) => channels.remove(channel_id, error)?,
+            SetConnectionClosing => channels.set_connection_closing(),
             SetConnectionClosed(error) => channels.set_connection_closed(error),
             SetConnectionError(error) => channels.set_connection_error(error),
         }
+        Ok(())
     }
 }

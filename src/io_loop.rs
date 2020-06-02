@@ -294,7 +294,7 @@ impl IoLoop {
             resolver.swear(Err(error.clone()));
         }
         self.status = Status::Stop;
-        self.channels.set_connection_error(error.clone())?;
+        self.channels.set_connection_error(error.clone());
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
                 resolver.swear(Err(error.clone()));

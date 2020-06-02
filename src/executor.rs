@@ -14,11 +14,11 @@ pub(crate) fn within_executor() -> bool {
 }
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>);
 }
 
 impl Executor for Arc<dyn Executor> {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         self.deref().spawn(f)
     }
 }
@@ -71,12 +71,11 @@ impl fmt::Debug for DefaultExecutor {
 }
 
 impl Executor for DefaultExecutor {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         let sender = self.sender.clone();
         let schedule = move |task| sender.send(Some(task)).expect("executor failed");
         let (task, _) = async_task::spawn(f, schedule, ());
         task.schedule();
-        Ok(())
     }
 }
 

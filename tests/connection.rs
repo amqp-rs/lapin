@@ -120,7 +120,7 @@ fn connection() {
             .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::Ack(None));
 
-        consumer.set_delegate(subscriber).expect("set_delegate");
+        consumer.set_delegate(subscriber);
         println!("[{}] state: {:?}", line!(), conn.status().state());
 
         println!("will publish");

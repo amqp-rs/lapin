@@ -1,4 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 use tokio::runtime::Handle;
 
@@ -26,8 +26,7 @@ impl LapinTokioExt for ConnectionProperties {
 struct TokioExecutor(Handle);
 
 impl Executor for TokioExecutor {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         self.0.spawn(f);
-        Ok(())
     }
 }

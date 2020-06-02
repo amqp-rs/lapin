@@ -46,9 +46,8 @@ impl LapinSmolExt for ConnectionProperties {
 struct SmolExecutor;
 
 impl Executor for SmolExecutor {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         Task::spawn(f).detach();
-        Ok(())
     }
 }
 
@@ -141,7 +140,7 @@ impl ReactorHandle for SmolReactorHandle {
 }
 
 async fn heartbeat(heartbeat: Heartbeat) {
-    while let Ok(Some(timeout)) = heartbeat.poll_timeout() {
+    while let Some(timeout) = heartbeat.poll_timeout() {
         Timer::after(timeout).await;
     }
 }

@@ -3,7 +3,7 @@ use crate::{
     message::{BasicGetMessage, Delivery},
     queue::{Queue, QueueState},
     types::ShortString,
-    BasicProperties, Channel, Error, PromiseResolver, Result,
+    BasicProperties, Channel, Error, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -22,11 +22,7 @@ impl Queues {
         self.queues.lock().remove(queue);
     }
 
-    fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(
-        &self,
-        queue: &str,
-        f: F,
-    ) -> Result<()> {
+    fn with_queue<F: FnOnce(&mut QueueState)>(&self, queue: &str, f: F) {
         f(self
             .queues
             .lock()
@@ -42,41 +38,31 @@ impl Queues {
     ) {
         self.with_queue(queue, |queue| {
             queue.register_consumer(consumer_tag, consumer);
-            Ok(())
-        })
-        .expect("register_consumer cannot fail");
+        });
     }
 
-    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
-        self.queues
-            .lock()
-            .values_mut()
-            .map(|queue| queue.deregister_consumer(consumer_tag))
-            .fold(Ok(()), Result::and)
+    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) {
+        for queue in self.queues.lock().values_mut() {
+            queue.deregister_consumer(consumer_tag);
+        }
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
-        self.queues
-            .lock()
-            .values_mut()
-            .map(QueueState::drop_prefetched_messages)
-            .fold(Ok(()), Result::and)
+    pub(crate) fn drop_prefetched_messages(&self) {
+        for queue in self.queues.lock().values() {
+            queue.drop_prefetched_messages();
+        }
     }
 
-    pub(crate) fn cancel_consumers(&self) -> Result<()> {
-        self.queues
-            .lock()
-            .values_mut()
-            .map(QueueState::cancel_consumers)
-            .fold(Ok(()), Result::and)
+    pub(crate) fn cancel_consumers(&self) {
+        for queue in self.queues.lock().values() {
+            queue.cancel_consumers();
+        }
     }
 
-    pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
-        self.queues
-            .lock()
-            .values_mut()
-            .map(|queue| queue.error_consumers(error.clone()))
-            .fold(Ok(()), Result::and)
+    pub(crate) fn error_consumers(&self, error: Error) {
+        for queue in self.queues.lock().values() {
+            queue.error_consumers(error.clone());
+        }
     }
 
     pub(crate) fn start_consumer_delivery(
@@ -101,9 +87,7 @@ impl Queues {
     ) {
         self.with_queue(queue, |queue| {
             queue.start_new_delivery(message, resolver);
-            Ok(())
-        })
-        .expect("start_basic_get_delivery cannot fail");
+        });
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -113,25 +97,22 @@ impl Queues {
         consumer_tag: Option<ShortString>,
         size: u64,
         properties: BasicProperties,
-    ) -> Result<()> {
-        self.with_queue(queue, |queue| {
-            match consumer_tag {
-                Some(consumer_tag) => {
-                    if let Some(consumer) = queue.get_consumer(&consumer_tag) {
-                        consumer.set_delivery_properties(properties);
-                        if size == 0 {
-                            consumer.new_delivery_complete(channel.clone())?;
-                        }
-                    }
-                }
-                None => {
-                    queue.set_delivery_properties(properties);
+    ) {
+        self.with_queue(queue, |queue| match consumer_tag {
+            Some(consumer_tag) => {
+                if let Some(consumer) = queue.get_consumer(&consumer_tag) {
+                    consumer.set_delivery_properties(properties);
                     if size == 0 {
-                        queue.new_delivery_complete();
+                        consumer.new_delivery_complete(channel.clone());
                     }
                 }
             }
-            Ok(())
+            None => {
+                queue.set_delivery_properties(properties);
+                if size == 0 {
+                    queue.new_delivery_complete();
+                }
+            }
         })
     }
 
@@ -142,26 +123,23 @@ impl Queues {
         consumer_tag: Option<ShortString>,
         remaining_size: usize,
         payload: Vec<u8>,
-    ) -> Result<()> {
-        self.with_queue(queue, |queue| {
-            match consumer_tag {
-                Some(consumer_tag) => {
-                    if let Some(consumer) = queue.get_consumer(&consumer_tag) {
-                        consumer.receive_delivery_content(payload);
-                        if remaining_size == 0 {
-                            consumer.new_delivery_complete(channel.clone())?;
-                        }
-                    }
-                }
-                None => {
-                    queue.receive_delivery_content(payload);
+    ) {
+        self.with_queue(queue, |queue| match consumer_tag {
+            Some(consumer_tag) => {
+                if let Some(consumer) = queue.get_consumer(&consumer_tag) {
+                    consumer.receive_delivery_content(payload);
                     if remaining_size == 0 {
-                        queue.new_delivery_complete();
+                        consumer.new_delivery_complete(channel.clone());
                     }
                 }
             }
-            Ok(())
-        })
+            None => {
+                queue.receive_delivery_content(payload);
+                if remaining_size == 0 {
+                    queue.new_delivery_complete();
+                }
+            }
+        });
     }
 }
 

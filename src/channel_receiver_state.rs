@@ -27,7 +27,7 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>),
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -46,7 +46,7 @@ impl ChannelReceiverStates {
         )) = self.0.pop_front()
         {
             if expected_class_id == class_id {
-                let res = handler(&queue_name, &request_id_or_consumer_tag);
+                handler(&queue_name, &request_id_or_consumer_tag);
                 if length > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,
@@ -54,7 +54,7 @@ impl ChannelReceiverStates {
                         length,
                     ));
                 }
-                res
+                Ok(())
             } else {
                 invalid_class_hanlder(format!(
                     "content header frame with class id {} instead of {} received on channel {}",
@@ -70,7 +70,7 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
@@ -86,7 +86,7 @@ impl ChannelReceiverStates {
         )) = self.0.pop_front()
         {
             if let Some(remaining) = len.checked_sub(length) {
-                let res = handler(&queue_name, &request_id_or_consumer_tag, remaining);
+                handler(&queue_name, &request_id_or_consumer_tag, remaining);
                 if remaining > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,
@@ -94,7 +94,7 @@ impl ChannelReceiverStates {
                         remaining,
                     ));
                 }
-                res
+                Ok(())
             } else {
                 error_handler(format!("unexpectedly large content body frame received on channel {} ({} ybtes, expected {} bytes)", channel_id, length, len))
             }

@@ -67,7 +67,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>),
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -90,7 +90,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,

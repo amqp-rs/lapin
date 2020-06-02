@@ -121,7 +121,7 @@ impl DefaultReactor {
 
     fn run(&mut self, events: &mut Events) -> Result<()> {
         trace!("reactor poll");
-        self.poll.poll(events, self.heartbeat.poll_timeout()?)?;
+        self.poll.poll(events, self.heartbeat.poll_timeout())?;
         trace!("reactor poll done");
         for event in events.iter() {
             if let Some(socket) = self.slots.get(&event.token()) {

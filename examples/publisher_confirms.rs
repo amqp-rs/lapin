@@ -66,8 +66,7 @@ fn main() {
                         .await
                         .expect("basic_ack");
                 }
-            })
-            .expect("set_delegate");
+            });
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
         info!("will publish");

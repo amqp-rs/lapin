@@ -149,13 +149,12 @@ impl Consumer {
     /// Automatically spawns the delegate on the executor for each message.
     ///
     /// Enables parallel handling of the messages.
-    pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
+    pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
         let mut inner = self.inner.lock();
         while let Some(delivery) = inner.next_delivery() {
-            inner.executor.spawn(delegate.on_new_delivery(delivery))?;
+            inner.executor.spawn(delegate.on_new_delivery(delivery));
         }
         inner.delegate = Some(Arc::new(Box::new(delegate)));
-        Ok(())
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
@@ -174,24 +173,23 @@ impl Consumer {
         }
     }
 
-    pub(crate) fn new_delivery_complete(&mut self, channel: Channel) -> Result<()> {
+    pub(crate) fn new_delivery_complete(&mut self, channel: Channel) {
         let mut inner = self.inner.lock();
         if let Some(delivery) = inner.current_message.take() {
-            inner.new_delivery(channel, delivery)?;
+            inner.new_delivery(channel, delivery);
         }
-        Ok(())
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
-        self.inner.lock().drop_prefetched_messages()
+    pub(crate) fn drop_prefetched_messages(&self) {
+        self.inner.lock().drop_prefetched_messages();
     }
 
-    pub(crate) fn cancel(&self) -> Result<()> {
-        self.inner.lock().cancel()
+    pub(crate) fn cancel(&self) {
+        self.inner.lock().cancel();
     }
 
-    pub(crate) fn set_error(&self, error: Error) -> Result<()> {
-        self.inner.lock().set_error(error)
+    pub(crate) fn set_error(&self, error: Error) {
+        self.inner.lock().set_error(error);
     }
 }
 
@@ -259,12 +257,12 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn new_delivery(&mut self, channel: Channel, delivery: Delivery) -> Result<()> {
+    fn new_delivery(&mut self, channel: Channel, delivery: Delivery) {
         trace!("new_delivery; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
-                .spawn(delegate.on_new_delivery(Ok(Some((channel, delivery)))))?;
+                .spawn(delegate.on_new_delivery(Ok(Some((channel, delivery)))));
         } else {
             self.deliveries_in
                 .send(Ok(Some((channel, delivery))))
@@ -273,24 +271,22 @@ impl ConsumerInner {
         if let Some(task) = self.task.as_ref() {
             task.wake_by_ref();
         }
-        Ok(())
     }
 
-    fn drop_prefetched_messages(&mut self) -> Result<()> {
+    fn drop_prefetched_messages(&mut self) {
         trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.spawn(delegate.drop_prefetched_messages())?;
+            self.executor.spawn(delegate.drop_prefetched_messages());
         }
         while let Some(_) = self.next_delivery() {}
-        Ok(())
     }
 
-    fn cancel(&mut self) -> Result<()> {
+    fn cancel(&mut self) {
         trace!("cancel; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Ok(None)))?;
+            self.executor.spawn(delegate.on_new_delivery(Ok(None)));
         } else {
             self.deliveries_in
                 .send(Ok(None))
@@ -299,20 +295,19 @@ impl ConsumerInner {
         if let Some(task) = self.task.take() {
             task.wake();
         }
-        Ok(())
     }
 
-    fn set_error(&mut self, error: Error) -> Result<()> {
+    fn set_error(&mut self, error: Error) {
         trace!("set_error; consumer_tag={}", self.tag);
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Err(error)))?;
+            self.executor.spawn(delegate.on_new_delivery(Err(error)));
         } else {
             self.deliveries_in
                 .send(Err(error))
                 .expect("failed to send error to consumer");
         }
-        self.cancel()
+        self.cancel();
     }
 }
 
@@ -374,7 +369,7 @@ mod futures_tests {
         assert_eq!(awoken_count.get(), 0);
         assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
 
-        consumer.cancel().unwrap();
+        consumer.cancel();
 
         assert_eq!(awoken_count.get(), 1);
         assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Ready(None));
@@ -393,7 +388,7 @@ mod futures_tests {
         assert_eq!(awoken_count.get(), 0);
         assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
 
-        consumer.set_error(Error::ChannelsLimitReached).unwrap();
+        consumer.set_error(Error::ChannelsLimitReached);
 
         assert_eq!(awoken_count.get(), 1);
         assert_eq!(

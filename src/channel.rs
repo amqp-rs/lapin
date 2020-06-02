@@ -114,32 +114,30 @@ impl Channel {
         &self.status
     }
 
-    fn set_closed(&self, error: Error) -> Result<()> {
+    fn set_closed(&self, error: Error) {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
-        let res = self.cancel_consumers();
+        self.cancel_consumers();
         self.internal_rpc.remove_channel(self.id, error);
-        res
     }
 
-    fn set_error(&self, error: Error) -> Result<()> {
+    fn set_error(&self, error: Error) {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
-        let res = self.error_consumers(error.clone());
+        self.error_consumers(error.clone());
         self.internal_rpc.remove_channel(self.id, error);
-        res
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
         self.acknowledgements.on_channel_error(self.id, error);
     }
 
-    pub(crate) fn cancel_consumers(&self) -> Result<()> {
-        self.queues.cancel_consumers()
+    pub(crate) fn cancel_consumers(&self) {
+        self.queues.cancel_consumers();
     }
 
-    pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
-        self.queues.error_consumers(error)
+    pub(crate) fn error_consumers(&self, error: Error) {
+        self.queues.error_consumers(error);
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -317,7 +315,7 @@ impl Channel {
                         request_id_or_consumer_tag.clone(),
                         size,
                         properties,
-                    )?;
+                    );
                 } else {
                     self.returned_messages.set_delivery_properties(properties);
                     if size == 0 {
@@ -325,7 +323,6 @@ impl Channel {
                             .new_delivery_complete(self.status.confirm());
                     }
                 }
-                Ok(())
             },
             |msg| {
                 error!("{}", msg);
@@ -336,7 +333,9 @@ impl Channel {
                     class_id,
                     0,
                 );
-                self.set_error(Error::ProtocolError(error))
+                let error = Error::ProtocolError(error);
+                self.set_error(error.clone());
+                Err(error)
             },
             |msg| self.handle_invalid_contents(msg, class_id, 0),
         )
@@ -354,7 +353,7 @@ impl Channel {
                         request_id_or_consumer_tag.clone(),
                         remaining_size,
                         payload,
-                    )?;
+                    );
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == 0 {
@@ -362,7 +361,6 @@ impl Channel {
                             .new_delivery_complete(self.status.confirm());
                     }
                 }
-                Ok(())
             },
             |msg| self.handle_invalid_contents(msg, 0, 0),
         )
@@ -393,7 +391,7 @@ impl Channel {
                     method_id,
                 )
                 .await
-        })?;
+        });
         Err(Error::ProtocolError(err))
     }
 
@@ -402,57 +400,49 @@ impl Channel {
         resolver: PromiseResolver<Connection>,
         connection: Connection,
         credentials: Credentials,
-    ) -> Result<()> {
+    ) {
         self.connection_status
             .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
-        Ok(())
     }
 
-    fn on_connection_open_sent(&self, resolver: PromiseResolver<Connection>) -> Result<()> {
+    fn on_connection_open_sent(&self, resolver: PromiseResolver<Connection>) {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
-        Ok(())
     }
 
-    fn on_connection_close_sent(&self) -> Result<()> {
+    fn on_connection_close_sent(&self) {
         self.internal_rpc.set_connection_closing();
-        Ok(())
     }
 
-    fn on_connection_close_ok_sent(&self, error: Error) -> Result<()> {
+    fn on_connection_close_ok_sent(&self, error: Error) {
         if let Error::ProtocolError(_) = error {
             self.internal_rpc.set_connection_error(error);
         } else {
             self.internal_rpc.set_connection_closed(error);
         }
-        Ok(())
     }
 
     fn before_channel_close(&self) {
         self.set_state(ChannelState::Closing);
     }
 
-    fn on_channel_close_ok_sent(&self, error: Error) -> Result<()> {
-        self.set_closed(error)
+    fn on_channel_close_ok_sent(&self, error: Error) {
+        self.set_closed(error);
     }
 
-    fn on_basic_recover_async_sent(&self) -> Result<()> {
-        self.queues.drop_prefetched_messages()
+    fn on_basic_recover_async_sent(&self) {
+        self.queues.drop_prefetched_messages();
     }
 
-    fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
+    fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages()
-        } else {
-            Ok(())
+            self.queues.drop_prefetched_messages();
         }
     }
 
-    fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
+    fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages()
-        } else {
-            Ok(())
+            self.queues.drop_prefetched_messages();
         }
     }
 
@@ -563,7 +553,8 @@ impl Channel {
                         credentials,
                     )
                     .await
-            })
+            });
+            Ok(())
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -584,7 +575,8 @@ impl Channel {
                 channel
                     .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
                     .await
-            })
+            });
+            Ok(())
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -618,12 +610,13 @@ impl Channel {
                         configuration.heartbeat(),
                     )
                     .await
-            })?;
+            });
             let channel = self.clone();
             let vhost = self.connection_status.vhost();
             self.internal_rpc.register_internal_future(async move {
                 channel.connection_open(&vhost, connection, resolver).await
-            })
+            });
+            Ok(())
         } else {
             error!("Invalid state: {:?}", state);
             let error = Error::InvalidConnectionState(state);
@@ -715,7 +708,8 @@ impl Channel {
                     active: method.active,
                 })
                 .await
-        })
+        });
+        Ok(())
     }
 
     fn on_channel_flow_ok_received(
@@ -745,11 +739,13 @@ impl Channel {
         self.set_state(ChannelState::Closing);
         let channel = self.clone();
         self.internal_rpc
-            .register_internal_future(async move { channel.channel_close_ok(error).await })
+            .register_internal_future(async move { channel.channel_close_ok(error).await });
+        Ok(())
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
-        self.set_closed(Error::InvalidChannelState(ChannelState::Closed))
+        self.set_closed(Error::InvalidChannelState(ChannelState::Closed));
+        Ok(())
     }
 
     fn on_queue_delete_ok_received(
@@ -851,20 +847,20 @@ impl Channel {
 
     fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<()> {
         self.queues
-            .deregister_consumer(method.consumer_tag.as_str())
-            .and(if !method.nowait {
-                let channel = self.clone();
-                self.internal_rpc.register_internal_future(async move {
-                    channel.basic_cancel_ok(method.consumer_tag.as_str()).await
-                })
-            } else {
-                Ok(())
-            })
+            .deregister_consumer(method.consumer_tag.as_str());
+        if !method.nowait {
+            let channel = self.clone();
+            self.internal_rpc.register_internal_future(async move {
+                channel.basic_cancel_ok(method.consumer_tag.as_str()).await
+            });
+        }
+        Ok(())
     }
 
     fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<()> {
         self.queues
-            .deregister_consumer(method.consumer_tag.as_str())
+            .deregister_consumer(method.consumer_tag.as_str());
+        Ok(())
     }
 
     fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<()> {
@@ -943,7 +939,8 @@ impl Channel {
     }
 
     fn on_basic_recover_ok_received(&self) -> Result<()> {
-        self.queues.drop_prefetched_messages()
+        self.queues.drop_prefetched_messages();
+        Ok(())
     }
 
     fn on_confirm_select_ok_received(&self) -> Result<()> {

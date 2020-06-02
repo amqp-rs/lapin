@@ -112,41 +112,31 @@ impl Channels {
         }
     }
 
-    pub(crate) fn set_connection_closed(&self, error: Error) -> Result<()> {
+    pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        self.inner
-            .lock()
-            .channels
-            .drain()
-            .map(|(id, channel)| {
-                self.frames.clear_expected_replies(id, error.clone());
-                channel.set_state(ChannelState::Closed);
-                channel.error_publisher_confirms(error.clone());
-                channel.cancel_consumers()
-            })
-            .fold(Ok(()), Result::and)
+        for (id, channel) in self.inner.lock().channels.drain() {
+            self.frames.clear_expected_replies(id, error.clone());
+            channel.set_state(ChannelState::Closed);
+            channel.error_publisher_confirms(error.clone());
+            channel.cancel_consumers();
+        }
     }
 
-    pub(crate) fn set_connection_error(&self, error: Error) -> Result<()> {
+    pub(crate) fn set_connection_error(&self, error: Error) {
         if let ConnectionState::Error = self.connection_status.state() {
-            return Ok(());
+            return;
         }
 
         error!("Connection error");
         self.connection_status.set_state(ConnectionState::Error);
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
-        self.inner
-            .lock()
-            .channels
-            .drain()
-            .map(|(id, channel)| {
-                self.frames.clear_expected_replies(id, error.clone());
-                channel.set_state(ChannelState::Error);
-                channel.error_publisher_confirms(error.clone());
-                channel.error_consumers(error.clone())
-            })
-            .fold(Ok(()), Result::and)
+        for (id, channel) in self.inner.lock().channels.drain() {
+            self.frames.clear_expected_replies(id, error.clone());
+            channel.set_state(ChannelState::Error);
+            channel.error_publisher_confirms(error.clone());
+            channel.error_consumers(error.clone());
+        }
     }
 
     pub(crate) fn flow(&self) -> bool {
@@ -157,30 +147,24 @@ impl Channels {
             .all(|c| c.status().flow())
     }
 
-    pub(crate) fn send_heartbeat(&self) -> Result<()> {
+    pub(crate) fn send_heartbeat(&self) {
         debug!("send heartbeat");
 
-        self.get(0)
-            .map(|channel0| {
-                let (promise, resolver) = Promise::new();
+        if let Some(channel0) = self.get(0) {
+            let (promise, resolver) = Promise::new();
 
-                if log_enabled!(Trace) {
-                    promise.set_marker("Heartbeat".into());
-                }
+            if log_enabled!(Trace) {
+                promise.set_marker("Heartbeat".into());
+            }
 
-                channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
-                self.internal_rpc.register_internal_future(promise)
-            })
-            .unwrap_or_else(|| {
-                Err(Error::InvalidConnectionState(
-                    self.connection_status.state(),
-                ))
-            })
+            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
+            self.internal_rpc.register_internal_future(promise);
+        }
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
         if let Err(err) = self.do_handle_frame(f) {
-            self.set_connection_error(err.clone())?;
+            self.set_connection_error(err.clone());
             Err(err)
         } else {
             Ok(())
@@ -214,7 +198,7 @@ impl Channels {
                         AMQPHardError::FRAMEERROR.into(),
                         format!("heartbeat frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(Err(error)) = self.get(0).map(|channel0| {
+                    if let Some(channel0) = self.get(0) {
                         let error = error.clone();
                         self.internal_rpc.register_internal_future(async move {
                             channel0
@@ -225,9 +209,7 @@ impl Channels {
                                     0,
                                 )
                                 .await
-                        })
-                    }) {
-                        return Err(error);
+                        });
                     }
                     return Err(Error::ProtocolError(error));
                 }
@@ -239,7 +221,7 @@ impl Channels {
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {}", channel_id).into(),
                     );
-                    if let Some(Err(error)) = self.get(0).map(|channel0| {
+                    if let Some(channel0) = self.get(0) {
                         let error = error.clone();
                         self.internal_rpc.register_internal_future(async move {
                             channel0
@@ -250,9 +232,7 @@ impl Channels {
                                     0,
                                 )
                                 .await
-                        })
-                    }) {
-                        return Err(error);
+                        });
                     }
                     return Err(Error::ProtocolError(error));
                 } else {

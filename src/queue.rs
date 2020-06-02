@@ -1,6 +1,6 @@
 use crate::{
     consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
-    PromiseResolver, Result,
+    PromiseResolver,
 };
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
 
@@ -61,17 +61,13 @@ impl QueueState {
         self.consumers.insert(consumer_tag, consumer);
     }
 
-    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(
-        &mut self,
-        consumer_tag: &S,
-    ) -> Result<()>
+    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(&mut self, consumer_tag: &S)
     where
         ShortString: Borrow<S>,
     {
         if let Some(consumer) = self.consumers.remove(consumer_tag) {
-            consumer.cancel()?;
+            consumer.cancel();
         }
-        Ok(())
     }
 
     pub(crate) fn get_consumer<S: Hash + Eq + ?Sized>(
@@ -84,29 +80,26 @@ impl QueueState {
         self.consumers.get_mut(consumer_tag.borrow())
     }
 
-    pub(crate) fn cancel_consumers(&mut self) -> Result<()> {
-        self.consumers
-            .drain()
-            .map(|(_, consumer)| consumer.cancel())
-            .fold(Ok(()), Result::and)
+    pub(crate) fn cancel_consumers(&self) {
+        for consumer in self.consumers.values() {
+            consumer.cancel();
+        }
     }
 
-    pub(crate) fn error_consumers(&mut self, error: Error) -> Result<()> {
-        self.consumers
-            .drain()
-            .map(|(_, consumer)| consumer.set_error(error.clone()))
-            .fold(Ok(()), Result::and)
+    pub(crate) fn error_consumers(&self, error: Error) {
+        for consumer in self.consumers.values() {
+            consumer.set_error(error.clone());
+        }
     }
 
     pub(crate) fn name(&self) -> ShortString {
         self.name.clone()
     }
 
-    pub(crate) fn drop_prefetched_messages(&mut self) -> Result<()> {
-        self.consumers
-            .values()
-            .map(Consumer::drop_prefetched_messages)
-            .fold(Ok(()), Result::and)
+    pub(crate) fn drop_prefetched_messages(&self) {
+        for consumer in self.consumers.values() {
+            consumer.drop_prefetched_messages();
+        }
     }
 
     pub(crate) fn start_new_delivery(
