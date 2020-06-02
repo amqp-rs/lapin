@@ -27,11 +27,16 @@ fn spawn_thread(
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>);
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()>;
 }
 
 impl Executor for Arc<dyn Executor> {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        self.deref().spawn(f)
+        self.deref().spawn(f);
+    }
+
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+        self.deref().spawn_blocking(f)
     }
 }
 
@@ -49,7 +54,7 @@ impl DefaultExecutor {
             (1..=max_threads)
                 .map(|id| {
                     let receiver = receiver.clone();
-                    spawn_thread(format!("executor {}", id), move || {
+                    spawn_thread(format!("lapin-executor-{}", id), move || {
                         while let Ok(Some(task)) = receiver.recv() {
                             task.run();
                         }
@@ -76,12 +81,39 @@ impl fmt::Debug for DefaultExecutor {
     }
 }
 
+fn schedule(sender: Sender<Option<Task<()>>>, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
+    let schedule = move |task| sender.send(Some(task)).expect("executor failed");
+    let (task, _) = async_task::spawn(f, schedule, ());
+    task.schedule();
+}
+
 impl Executor for DefaultExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        let sender = self.sender.clone();
-        let schedule = move |task| sender.send(Some(task)).expect("executor failed");
-        let (task, _) = async_task::spawn(f, schedule, ());
-        task.schedule();
+        schedule(self.sender.clone(), f);
+    }
+
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+        let exe_sender = self.sender.clone();
+        let (sender, receiver) = crossbeam_channel::bounded::<Option<Task<()>>>(1);
+        let handle = spawn_thread("lapin-blocking-runner".to_string(), move || {
+            if let Ok(Some(task)) = receiver.recv() {
+                task.run();
+            }
+            Ok(())
+        })?;
+        schedule(
+            sender,
+            Box::pin(async move {
+                f();
+                schedule(
+                    exe_sender,
+                    Box::pin(async move {
+                        let _ = handle.wait("blocking runner");
+                    }),
+                );
+            }),
+        );
+        Ok(())
     }
 }
 

@@ -1,4 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties};
+use lapin::{executor::Executor, ConnectionProperties, Result};
 use lapinou::LapinSmolExt;
 use std::{future::Future, pin::Pin};
 
@@ -37,5 +37,10 @@ struct AsyncStdExecutor;
 impl Executor for AsyncStdExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         async_std::task::spawn(f);
+    }
+
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+        async_std::task::spawn_blocking(f);
+        Ok(())
     }
 }

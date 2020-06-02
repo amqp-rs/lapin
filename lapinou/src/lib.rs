@@ -49,6 +49,11 @@ impl Executor for SmolExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
         Task::spawn(f).detach();
     }
+
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+        Task::blocking(Box::pin(async move { f() })).detach();
+        Ok(())
+    }
 }
 
 // Reactor
