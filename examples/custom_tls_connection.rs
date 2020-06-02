@@ -31,15 +31,17 @@ async fn connect() -> Result<Connection> {
         .unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into())
         .parse::<AMQPUri>()
         .unwrap();
-    let res = uri.connect().and_then(|stream| {
-        let tls_builder = NativeTlsConnector::builder();
-        // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
-        stream.into_native_tls(
-            tls_builder.build().expect("TLS configuration failed"),
-            &uri.authority.host,
-        )
-    });
-    Connection::connector(uri, res, ConnectionProperties::default()).await
+    let connect = move |uri: &AMQPUri| {
+        uri.connect().and_then(|stream| {
+            let tls_builder = NativeTlsConnector::builder();
+            // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
+            stream.into_native_tls(
+                tls_builder.build().expect("TLS configuration failed"),
+                &uri.authority.host,
+            )
+        })
+    };
+    Connection::connector(uri, Box::new(connect), ConnectionProperties::default()).await
 }
 
 fn main() {

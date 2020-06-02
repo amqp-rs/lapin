@@ -11,7 +11,7 @@ use crate::{
     io_loop::IoLoop,
     reactor::DefaultReactorBuilder,
     socket_state::{SocketState, SocketStateHandle},
-    tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
+    tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
     types::ShortUInt,
     uri::AMQPUri,
@@ -62,28 +62,28 @@ impl Connection {
 
     /// Connect to an AMQP Server
     pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Connection> {
-        Connect::connect(uri, options, TLSConfig::default()).await
+        Connect::connect(uri, options, OwnedTLSConfig::default()).await
     }
 
     /// Connect to an AMQP Server
     pub async fn connect_with_config(
         uri: &str,
         options: ConnectionProperties,
-        config: TLSConfig<'_, '_, '_>,
+        config: OwnedTLSConfig,
     ) -> Result<Connection> {
         Connect::connect(uri, options, config).await
     }
 
     /// Connect to an AMQP Server
     pub async fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
-        Connect::connect(uri, options, TLSConfig::default()).await
+        Connect::connect(uri, options, OwnedTLSConfig::default()).await
     }
 
     /// Connect to an AMQP Server
     pub async fn connect_uri_with_identity(
         uri: AMQPUri,
         options: ConnectionProperties,
-        config: TLSConfig<'_, '_, '_>,
+        config: OwnedTLSConfig,
     ) -> Result<Connection> {
         Connect::connect(uri, options, config).await
     }
@@ -162,7 +162,7 @@ impl Connection {
 
     pub async fn connector(
         uri: AMQPUri,
-        handshake_result: HandshakeResult,
+        connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
         mut options: ConnectionProperties,
     ) -> Result<Connection> {
         let executor = options
@@ -170,6 +170,13 @@ impl Connection {
             .take()
             .map(Ok)
             .unwrap_or_else(|| DefaultExecutor::default())?;
+
+        let (connect_promise, resolver) = pinky_swear::PinkySwear::<HandshakeResult>::new();
+        let connect_uri = uri.clone();
+        executor.spawn_blocking(Box::new(move || {
+            resolver.swear(connect(&connect_uri));
+        }))?;
+
         let reactor_builder = options
             .reactor_builder
             .take()
@@ -217,6 +224,7 @@ impl Connection {
             uri.query.auth_mechanism.unwrap_or_default(),
             options,
         ));
+        let handshake_result = connect_promise.await;
         IoLoop::new(
             status,
             configuration,
@@ -251,7 +259,7 @@ pub trait Connect {
     async fn connect(
         self,
         options: ConnectionProperties,
-        config: TLSConfig<'_, '_, '_>,
+        config: OwnedTLSConfig,
     ) -> Result<Connection>;
 }
 
@@ -260,10 +268,14 @@ impl Connect for AMQPUri {
     async fn connect(
         self,
         options: ConnectionProperties,
-        config: TLSConfig<'_, '_, '_>,
+        config: OwnedTLSConfig
     ) -> Result<Connection> {
-        let stream = AMQPUriTcpExt::connect_with_config(&self, config);
-        Connection::connector(self, stream, options).await
+        Connection::connector(
+            self,
+            Box::new(move |uri| AMQPUriTcpExt::connect_with_config(uri, config.as_ref())),
+            options,
+        )
+        .await
     }
 }
 
@@ -272,7 +284,7 @@ impl Connect for &str {
     async fn connect(
         self,
         options: ConnectionProperties,
-        config: TLSConfig<'_, '_, '_>,
+        config: OwnedTLSConfig
     ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => Connect::connect(uri, options, config).await,

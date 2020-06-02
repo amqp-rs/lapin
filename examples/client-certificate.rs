@@ -3,13 +3,13 @@ use lapin::{
     message::DeliveryResult,
     options::*,
     publisher_confirm::Confirmation,
-    tcp::{Identity, TLSConfig},
+    tcp::{OwnedIdentity, OwnedTLSConfig},
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
 use log::info;
 
-fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
+fn get_tls_config() -> OwnedTLSConfig {
     let cert_chain = "" /* include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/path/to/ca_certificate.pem"
@@ -18,12 +18,12 @@ fn get_tls_config() -> TLSConfig<'static, 'static, 'static> {
         /* include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/path/to/client.pfx")) */;
     let client_cert_and_key_password = "bunnies";
 
-    TLSConfig {
-        identity: Some(Identity {
-            der: client_cert_and_key,
-            password: client_cert_and_key_password,
+    OwnedTLSConfig {
+        identity: Some(OwnedIdentity {
+            der: client_cert_and_key.to_vec(),
+            password: client_cert_and_key_password.to_string(),
         }),
-        cert_chain: Some(cert_chain),
+        cert_chain: Some(cert_chain.to_string()),
     }
 }
 
