@@ -18,8 +18,9 @@ use crate::{
     Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
+use async_trait::async_trait;
 use log::{log_enabled, Level::Trace};
-use std::{fmt, future::Future, io, pin::Pin, sync::Arc};
+use std::{fmt, io, sync::Arc};
 
 pub struct Connection {
     configuration: Configuration,
@@ -244,35 +245,38 @@ impl fmt::Debug for Connection {
 }
 
 /// Trait providing a method to connect to an AMQP server
+#[async_trait]
 pub trait Connect {
     /// connect to an AMQP server
-    fn connect(
+    async fn connect(
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>>;
+    ) -> Result<Connection>;
 }
 
+#[async_trait]
 impl Connect for AMQPUri {
-    fn connect(
+    async fn connect(
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>> {
+    ) -> Result<Connection> {
         let stream = AMQPUriTcpExt::connect_with_config(&self, config);
-        Box::pin(Connection::connector(self, stream, options))
+        Connection::connector(self, stream, options).await
     }
 }
 
+#[async_trait]
 impl Connect for &str {
-    fn connect(
+    async fn connect(
         self,
         options: ConnectionProperties,
         config: TLSConfig<'_, '_, '_>,
-    ) -> Pin<Box<dyn Future<Output = Result<Connection>>>> {
+    ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
-            Ok(uri) => Connect::connect(uri, options, config),
-            Err(err) => Box::pin(async { Err(io::Error::new(io::ErrorKind::Other, err).into()) }),
+            Ok(uri) => Connect::connect(uri, options, config).await,
+            Err(err) => Err(io::Error::new(io::ErrorKind::Other, err).into()),
         }
     }
 }

@@ -38,6 +38,7 @@ features = ["os-poll", "tcp"]
 
 [dependencies]
 async-task = "^3.0"
+async-trait = "^0.1"
 crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
