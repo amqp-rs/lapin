@@ -13,6 +13,18 @@ pub(crate) fn within_executor() -> bool {
     LAPIN_EXECUTOR_THREAD.with(|executor_thread| *executor_thread.borrow())
 }
 
+fn spawn_thread(
+    name: String,
+    work: impl FnOnce() -> Result<()> + Send + 'static,
+) -> Result<ThreadHandle> {
+    Ok(ThreadHandle::new(ThreadBuilder::new().name(name).spawn(
+        move || {
+            LAPIN_EXECUTOR_THREAD.with(|executor_thread| *executor_thread.borrow_mut() = true);
+            work()
+        },
+    )?))
+}
+
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>);
 }
@@ -37,18 +49,12 @@ impl DefaultExecutor {
             (1..=max_threads)
                 .map(|id| {
                     let receiver = receiver.clone();
-                    Ok(ThreadHandle::new(
-                        ThreadBuilder::new()
-                            .name(format!("executor {}", id))
-                            .spawn(move || {
-                                LAPIN_EXECUTOR_THREAD
-                                    .with(|executor_thread| *executor_thread.borrow_mut() = true);
-                                while let Ok(Some(task)) = receiver.recv() {
-                                    task.run();
-                                }
-                                Ok(())
-                            })?,
-                    ))
+                    spawn_thread(format!("executor {}", id), move || {
+                        while let Ok(Some(task)) = receiver.recv() {
+                            task.run();
+                        }
+                        Ok(())
+                    })
                 })
                 .collect::<Result<Vec<_>>>()?,
         ));
