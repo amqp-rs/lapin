@@ -32,4 +32,12 @@ impl ThreadHandle {
         }
         Ok(())
     }
+
+    pub(crate) fn is_current(&self) -> bool {
+        self.0
+            .lock()
+            .as_ref()
+            .map(|handle| handle.thread().id() == thread::current().id())
+            .unwrap_or_default()
+    }
 }

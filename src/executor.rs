@@ -86,7 +86,9 @@ impl Drop for DefaultExecutor {
                 let _ = self.sender.send(None);
             }
             for thread in threads.iter() {
-                let _ = thread.wait("executor");
+                if !thread.is_current() {
+                    let _ = thread.wait("executor");
+                }
             }
         }
     }
