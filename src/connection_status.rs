@@ -149,8 +149,12 @@ impl Inner {
             self.connection_step
                 .take()
                 .map(|connection_step| match connection_step {
-                    ConnectionStep::ProtocolHeader(resolver, connection, ..) => (resolver, Some(connection)),
-                    ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
+                    ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
+                        (resolver, Some(connection))
+                    }
+                    ConnectionStep::StartOk(resolver, connection, ..) => {
+                        (resolver, Some(connection))
+                    }
                     ConnectionStep::Open(resolver, ..) => (resolver, None),
                 })
         } else {
