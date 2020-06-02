@@ -2,7 +2,16 @@ use crate::{thread::ThreadHandle, Result};
 use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
-use std::{fmt, future::Future, ops::Deref, pin::Pin, sync::Arc, thread::Builder as ThreadBuilder};
+use std::{
+    cell::RefCell, fmt, future::Future, ops::Deref, pin::Pin, sync::Arc,
+    thread::Builder as ThreadBuilder,
+};
+
+thread_local!(static LAPIN_EXECUTOR_THREAD: RefCell<bool> = RefCell::new(false));
+
+pub(crate) fn within_executor() -> bool {
+    LAPIN_EXECUTOR_THREAD.with(|executor_thread| *executor_thread.borrow())
+}
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
@@ -43,6 +52,8 @@ impl DefaultExecutor {
                 ThreadBuilder::new()
                     .name(format!("executor {}", id))
                     .spawn(move || {
+                        LAPIN_EXECUTOR_THREAD
+                            .with(|executor_thread| *executor_thread.borrow_mut() = true);
                         while let Ok(Some(task)) = receiver.recv() {
                             task.run();
                         }
