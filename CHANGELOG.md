@@ -1,3 +1,9 @@
+### 1.0.1 (2020-06-02)
+
+#### Bug Fixes
+
+* `DefaultExecutor` cleanups
+
 ### 1.0.0 (2020-05-27)
 
 #### Features
