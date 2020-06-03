@@ -214,7 +214,7 @@ impl IoLoop {
         let waker = self.socket_state.handle();
         self.connection_io_loop_handle.clone().register(
             ThreadBuilder::new()
-                .name("io_loop".to_owned())
+                .name("lapin-io-loop".to_owned())
                 .spawn(move || {
                     while self.should_continue() {
                         if let Err(err) = self.run() {
