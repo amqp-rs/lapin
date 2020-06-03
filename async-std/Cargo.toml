@@ -33,5 +33,5 @@ env_logger = "^0.7"
 log = "^0.4"
 
 [dev-dependencies.async-std]
-version = "^1.5"
-features = ["attributes", "default"]
+version = "^1.6"
+features = ["attributes", "default", "unstable"]
