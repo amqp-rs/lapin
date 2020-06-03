@@ -28,16 +28,10 @@ impl ThreadHandle {
 
     pub(crate) fn wait(&self, context: &'static str) -> Result<()> {
         if let Some(handle) = self.take() {
-            handle.join().expect(context)?
+            if handle.thread().id() != thread::current().id() {
+                handle.join().expect(context)?;
+            }
         }
         Ok(())
-    }
-
-    pub(crate) fn is_current(&self) -> bool {
-        self.0
-            .lock()
-            .as_ref()
-            .map(|handle| handle.thread().id() == thread::current().id())
-            .unwrap_or_default()
     }
 }

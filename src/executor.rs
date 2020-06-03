@@ -1,7 +1,6 @@
 use crate::{thread::ThreadHandle, Result};
 use async_task::Task;
 use crossbeam_channel::{Receiver, Sender};
-use parking_lot::Mutex;
 use std::{
     cell::RefCell, fmt, future::Future, ops::Deref, pin::Pin, sync::Arc,
     thread::Builder as ThreadBuilder,
@@ -28,6 +27,9 @@ fn spawn_thread(
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>);
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()>;
+    fn stop(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Executor for Arc<dyn Executor> {
@@ -38,19 +40,23 @@ impl Executor for Arc<dyn Executor> {
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
         self.deref().spawn_blocking(f)
     }
+
+    fn stop(&self) -> Result<()> {
+        self.deref().stop()
+    }
 }
 
 #[derive(Clone)]
 pub struct DefaultExecutor {
     sender: Sender<Option<Task<()>>>,
     receiver: Receiver<Option<Task<()>>>,
-    threads: Arc<Mutex<Vec<ThreadHandle>>>,
+    threads: Arc<Vec<ThreadHandle>>,
 }
 
 impl DefaultExecutor {
     pub fn new(max_threads: usize) -> Result<Self> {
         let (sender, receiver) = crossbeam_channel::unbounded::<Option<Task<()>>>();
-        let threads = Arc::new(Mutex::new(
+        let threads = Arc::new(
             (1..=max_threads)
                 .map(|id| {
                     let receiver = receiver.clone();
@@ -62,7 +68,7 @@ impl DefaultExecutor {
                     })
                 })
                 .collect::<Result<Vec<_>>>()?,
-        ));
+        );
         Ok(Self {
             sender,
             receiver,
@@ -115,19 +121,20 @@ impl Executor for DefaultExecutor {
         );
         Ok(())
     }
+
+    fn stop(&self) -> Result<()> {
+        for _ in self.threads.iter() {
+            let _ = self.sender.send(None);
+        }
+        self.threads
+            .iter()
+            .map(|thread| thread.wait("lapin-executor"))
+            .fold(Ok(()), Result::and)
+    }
 }
 
 impl Drop for DefaultExecutor {
     fn drop(&mut self) {
-        if let Some(threads) = self.threads.try_lock() {
-            for _ in threads.iter() {
-                let _ = self.sender.send(None);
-            }
-            for thread in threads.iter() {
-                if !thread.is_current() {
-                    let _ = thread.wait("executor");
-                }
-            }
-        }
+        let _ = self.stop();
     }
 }

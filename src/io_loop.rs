@@ -223,7 +223,8 @@ impl IoLoop {
                     }
                     self.heartbeat.cancel();
                     self.reactor.shutdown()?;
-                    self.reactor_thread_handle.wait("reactor")
+                    self.reactor_thread_handle.wait("reactor")?;
+                    self.internal_rpc.stop_executor()
                 })?,
         );
         waker.wake();
