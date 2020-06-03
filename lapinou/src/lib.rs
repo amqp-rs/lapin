@@ -6,7 +6,7 @@ use lapin::{
     tcp::{TcpStream, TcpStreamWrapper},
     ConnectionProperties, Result,
 };
-use parking_lot::Mutex;
+use simple_mutex::Mutex;
 use smol::{Async, Task, Timer};
 use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc};
 

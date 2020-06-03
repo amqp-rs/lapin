@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-parking_lot = "^0.10"
+simple-mutex = "^1.0"
 smol = "^0.1.10"
 
 [dependencies.lapin]
