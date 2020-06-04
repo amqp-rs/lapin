@@ -268,7 +268,7 @@ impl Connect for AMQPUri {
     async fn connect(
         self,
         options: ConnectionProperties,
-        config: OwnedTLSConfig
+        config: OwnedTLSConfig,
     ) -> Result<Connection> {
         Connection::connector(
             self,
@@ -284,7 +284,7 @@ impl Connect for &str {
     async fn connect(
         self,
         options: ConnectionProperties,
-        config: OwnedTLSConfig
+        config: OwnedTLSConfig,
     ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => Connect::connect(uri, options, config).await,
