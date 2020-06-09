@@ -1,3 +1,15 @@
+### 1.1.0 (2020-06-09)
+
+#### Features
+
+* Make codegen optional
+
+### 1.0.2 (2020-06-04)
+
+#### Bug Fixes
+
+* update amq-protocol
+
 ### 1.0.1 (2020-06-02)
 
 #### Bug Fixes

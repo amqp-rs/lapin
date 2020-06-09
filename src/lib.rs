@@ -10,6 +10,7 @@
 //!
 //! ## Feature switches
 //!
+//! * `codegen`: generate code instead of using pregenerated one
 //! * `native-tls` (*default*): enable amqps support through native-tls
 //! * `openssl`: enable amqps support through openssl (preferred over native-tls when set)
 //! * `rustls`: enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
