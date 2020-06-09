@@ -115,6 +115,7 @@ pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
 pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
+pub use stream::TcpStream;
 
 pub mod executor;
 pub mod heartbeat;
@@ -156,4 +157,5 @@ mod parsing;
 mod queue;
 mod queues;
 mod returned_messages;
+mod stream;
 mod thread;

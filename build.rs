@@ -14,8 +14,7 @@ fn codegen() {
     let out_dir = std::env::var("LAPIN_CODEGEN_DIR")
         .or(std::env::var("OUT_DIR"))
         .expect("OUT_DIR is not defined");
-    let out_file =
-        std::env::var("LAPIN_CODEGEN_FILE").unwrap_or_else(|_| "channel".to_string());
+    let out_file = std::env::var("LAPIN_CODEGEN_FILE").unwrap_or_else(|_| "channel".to_string());
     let template = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/channel.rs"));
     let extra = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/lapin.json"));
     let data = from_str::<Value>(extra).expect("Failed to parse extra file");
