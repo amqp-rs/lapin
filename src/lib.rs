@@ -10,6 +10,7 @@
 //!
 //! ## Feature switches
 //!
+//! * `codegen`: generate code instead of using pregenerated one
 //! * `native-tls` (*default*): enable amqps support through native-tls
 //! * `openssl`: enable amqps support through openssl (preferred over native-tls when set)
 //! * `rustls`: enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
@@ -115,6 +116,7 @@ pub use consumer::{Consumer, ConsumerDelegate, ConsumerIterator};
 pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
+pub use stream::TcpStream;
 
 pub mod executor;
 pub mod heartbeat;
@@ -150,4 +152,5 @@ mod parsing;
 mod queue;
 mod queues;
 mod returned_messages;
+mod stream;
 mod thread;

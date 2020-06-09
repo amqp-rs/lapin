@@ -8,14 +8,15 @@ use crate::{
     protocol::{self, AMQPError, AMQPHardError},
     reactor::{ReactorBuilder, ReactorHandle, Slot},
     socket_state::SocketState,
-    tcp::{HandshakeResult, MidHandshakeTlsStream, TcpStream},
+    tcp::HandshakeResult,
     thread::ThreadHandle,
-    Configuration, ConnectionStatus, Error, PromiseResolver, Result,
+    Configuration, ConnectionStatus, Error, PromiseResolver, Result, TcpStream,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use log::{debug, error, trace};
 use std::{
     collections::VecDeque,
+    convert::TryFrom,
     io::{self, Write},
     sync::Arc,
     thread::Builder as ThreadBuilder,
@@ -44,20 +45,13 @@ pub struct IoLoop {
     reactor: Box<dyn ReactorHandle + Send>,
     reactor_thread_handle: ThreadHandle,
     connection_io_loop_handle: ThreadHandle,
-    handshake: Option<MidHandshakeTlsStream>,
-    stream: Option<TcpStream>,
+    stream: TcpStream,
     slot: Slot,
     status: Status,
     frame_size: usize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
-}
-
-macro_rules! stream_mut {
-    ($self:ident) => {
-        $self.stream.as_mut().unwrap()
-    };
 }
 
 impl IoLoop {
@@ -73,6 +67,7 @@ impl IoLoop {
         stream: HandshakeResult,
         reactor_builder: &dyn ReactorBuilder,
     ) -> Result<Self> {
+        let mut stream = TcpStream::try_from(stream)?;
         let heartbeat = Heartbeat::new(channels.clone());
         let mut reactor = reactor_builder.build(heartbeat.clone())?;
         let reactor_handle = reactor.handle();
@@ -80,14 +75,7 @@ impl IoLoop {
             protocol::constants::FRAME_MIN_SIZE as usize,
             configuration.frame_max() as usize,
         );
-        let (mut stream, mut handshake) = match stream {
-            Ok(stream) => (Some(stream), None),
-            Err(error) => (None, Some(error.into_mid_handshake_tls_stream()?)),
-        };
-        let source = stream
-            .as_mut()
-            .unwrap_or_else(|| handshake.as_mut().unwrap().get_mut());
-        let slot = reactor.register(source, socket_state.handle())?;
+        let slot = reactor.register(stream.inner_mut(), socket_state.handle())?;
 
         let reactor_thread_handle = reactor.start()?;
 
@@ -103,7 +91,6 @@ impl IoLoop {
             reactor_thread_handle,
             connection_io_loop_handle,
             stream,
-            handshake,
             slot,
             status: Status::Initial,
             frame_size,
@@ -113,14 +100,8 @@ impl IoLoop {
         })
     }
 
-    fn stream(&self) -> &TcpStream {
-        self.stream
-            .as_ref()
-            .unwrap_or_else(|| self.handshake.as_ref().unwrap().get_ref())
-    }
-
     fn ensure_connected(&mut self) -> Result<bool> {
-        match self.stream().peer_addr() {
+        match self.stream.inner().peer_addr() {
             Ok(peer) => {
                 debug!("Connecting to {}", peer);
                 self.status = Status::SocketConnected;
@@ -137,7 +118,7 @@ impl IoLoop {
     }
 
     fn ensure_writable(&mut self) -> Result<bool> {
-        match self.stream().is_writable() {
+        match self.stream.inner().is_writable() {
             Ok(()) => {
                 self.status = Status::SocketWritable;
                 Ok(true)
@@ -262,12 +243,9 @@ impl IoLoop {
             self.socket_state.wait();
         }
         self.poll_socket_events()?;
-        if let Some(handshake) = self.handshake.take() {
-            match handshake.handshake() {
-                Ok(stream) => self.stream = Some(stream),
-                Err(error) => self.handshake = Some(error.into_mid_handshake_tls_stream()?),
-            }
-            if self.handshake.is_some() {
+        if self.stream.is_handshaking() {
+            self.stream.handshake()?;
+            if self.stream.is_handshaking() {
                 // We hit WOULDBLOCK while handshaking, wait for the next socket event
                 return Ok(());
             }
@@ -328,7 +306,7 @@ impl IoLoop {
     }
 
     fn flush(&mut self) -> Result<()> {
-        stream_mut!(self).flush()?;
+        self.stream.flush()?;
         self.poll_internal_rpc()
     }
 
@@ -356,7 +334,7 @@ impl IoLoop {
         self.flush()?;
         self.serialize()?;
 
-        let sz = self.send_buffer.write_to(stream_mut!(self))?;
+        let sz = self.send_buffer.write_to(&mut self.stream)?;
 
         if sz > 0 {
             self.heartbeat.update_last_write();
@@ -405,7 +383,7 @@ impl IoLoop {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                let sz = self.receive_buffer.read_from(stream_mut!(self))?;
+                let sz = self.receive_buffer.read_from(&mut self.stream)?;
 
                 if sz > 0 {
                     trace!("read {} bytes", sz);

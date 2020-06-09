@@ -8,7 +8,7 @@ addons:
             - libssl-dev
 
 rust:
-    - 1.40.0
+    - 1.43.0
     - stable
     - beta
     - nightly
