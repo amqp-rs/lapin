@@ -940,4 +940,7 @@ impl Channel {
     }
 }
 
+#[cfg(feature = "codegen")]
 include!(concat!(env!("OUT_DIR"), "/channel.rs"));
+#[cfg(not(feature = "codegen"))]
+include!("generated.rs");
