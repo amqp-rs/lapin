@@ -80,7 +80,7 @@ impl Connection {
     }
 
     /// Connect to an AMQP Server
-    pub async fn connect_uri_with_identity(
+    pub async fn connect_uri_with_config(
         uri: AMQPUri,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
