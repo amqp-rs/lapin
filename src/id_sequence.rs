@@ -71,7 +71,7 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
 
     fn check_max(&self) -> bool {
         if let Some(max) = self.max {
-            self.id < max
+            self.id <= max
         } else {
             true
         }
