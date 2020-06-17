@@ -307,7 +307,7 @@ impl Channel {
             self.id,
             class_id,
             size as usize,
-            |queue_name, request_id_or_consumer_tag| {
+            |queue_name, request_id_or_consumer_tag, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_content_header_frame(
                         &self,
@@ -319,8 +319,7 @@ impl Channel {
                 } else {
                     self.returned_messages.set_delivery_properties(properties);
                     if size == 0 {
-                        self.returned_messages
-                            .new_delivery_complete(self.status.confirm());
+                        self.returned_messages.new_delivery_complete(confirm_mode);
                     }
                 }
             },
@@ -345,7 +344,7 @@ impl Channel {
         self.status.receive(
             self.id,
             payload.len(),
-            |queue_name, request_id_or_consumer_tag, remaining_size| {
+            |queue_name, request_id_or_consumer_tag, remaining_size, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_body_frame(
                         &self,
@@ -357,8 +356,7 @@ impl Channel {
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == 0 {
-                        self.returned_messages
-                            .new_delivery_complete(self.status.confirm());
+                        self.returned_messages.new_delivery_complete(confirm_mode);
                     }
                 }
             },

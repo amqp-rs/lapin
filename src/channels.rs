@@ -326,11 +326,14 @@ impl Inner {
         debug!("create channel");
         self.channel_id.set_max(self.configuration.channel_max());
         let first_id = self.channel_id.next();
-        let mut looped = false;
         let mut id = first_id;
-        while !looped || id < first_id {
-            if id == 1 {
-                looped = true;
+        let mut met_first_id = false;
+        loop {
+            if id == first_id {
+                if met_first_id {
+                    break;
+                }
+                met_first_id = true;
             }
             if !self.channels.contains_key(&id) {
                 return Ok(self.create_channel(

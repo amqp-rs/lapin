@@ -67,7 +67,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>),
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool),
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -79,18 +79,21 @@ impl ChannelStatus {
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
     ) -> Result<()> {
-        self.0.lock().receiver_state.set_content_length(
+        let mut inner = self.0.lock();
+        let confirm_mode = inner.confirm;
+        inner.receiver_state.set_content_length(
             channel_id,
             class_id,
             length,
             handler,
             invalid_class_hanlder,
             error_handler,
+            confirm_mode,
         )
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize),
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
@@ -99,10 +102,11 @@ impl ChannelStatus {
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {
-        self.0
-            .lock()
+        let mut inner = self.0.lock();
+        let confirm_mode = inner.confirm;
+        inner
             .receiver_state
-            .receive(channel_id, length, handler, error_handler)
+            .receive(channel_id, length, handler, error_handler, confirm_mode)
     }
 
     pub(crate) fn set_send_flow(&self, flow: bool) {
