@@ -1,3 +1,10 @@
+### 1.1.1 (2020-06-17)
+
+#### Bug Fixes
+
+* Properly handle recycling channels ids when we reached the channel limit
+* Fix receiving returned messages from the AMQP server
+
 ### 1.1.0 (2020-06-09)
 
 #### Features
