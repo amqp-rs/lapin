@@ -27,7 +27,7 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool) -> Result<()>,
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -38,6 +38,7 @@ impl ChannelReceiverStates {
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
+        confirm_mode: bool,
     ) -> Result<()> {
         if let Some(ChannelReceiverState::WillReceiveContent(
             expected_class_id,
@@ -46,7 +47,7 @@ impl ChannelReceiverStates {
         )) = self.0.pop_front()
         {
             if expected_class_id == class_id {
-                let res = handler(&queue_name, &request_id_or_consumer_tag);
+                let res = handler(&queue_name, &request_id_or_consumer_tag, confirm_mode);
                 if length > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,
@@ -70,7 +71,7 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize) -> Result<()>,
+        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
@@ -78,6 +79,7 @@ impl ChannelReceiverStates {
         length: usize,
         handler: Handler,
         error_handler: OnError,
+        confirm_mode: bool,
     ) -> Result<()> {
         if let Some(ChannelReceiverState::ReceivingContent(
             queue_name,
@@ -86,7 +88,12 @@ impl ChannelReceiverStates {
         )) = self.0.pop_front()
         {
             if let Some(remaining) = len.checked_sub(length) {
-                let res = handler(&queue_name, &request_id_or_consumer_tag, remaining);
+                let res = handler(
+                    &queue_name,
+                    &request_id_or_consumer_tag,
+                    remaining,
+                    confirm_mode,
+                );
                 if remaining > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,

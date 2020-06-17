@@ -312,12 +312,11 @@ impl Channel {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
-        let confirm = self.status.confirm();
         self.status.set_content_length(
             self.id,
             class_id,
             size as usize,
-            |queue_name, request_id_or_consumer_tag| {
+            |queue_name, request_id_or_consumer_tag, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_content_header_frame(
                         &self,
@@ -329,8 +328,7 @@ impl Channel {
                 } else {
                     self.returned_messages.set_delivery_properties(properties);
                     if size == 0 {
-                        self.returned_messages
-                            .new_delivery_complete(confirm);
+                        self.returned_messages.new_delivery_complete(confirm_mode);
                     }
                 }
                 Ok(())
@@ -351,11 +349,10 @@ impl Channel {
     }
 
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
-        let confirm = self.status.confirm();
         self.status.receive(
             self.id,
             payload.len(),
-            |queue_name, request_id_or_consumer_tag, remaining_size| {
+            |queue_name, request_id_or_consumer_tag, remaining_size, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_body_frame(
                         &self,
@@ -367,8 +364,7 @@ impl Channel {
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == 0 {
-                        self.returned_messages
-                            .new_delivery_complete(confirm);
+                        self.returned_messages.new_delivery_complete(confirm_mode);
                     }
                 }
                 Ok(())
