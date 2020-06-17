@@ -312,6 +312,7 @@ impl Channel {
         size: u64,
         properties: BasicProperties,
     ) -> Result<()> {
+        let confirm = self.status.confirm();
         self.status.set_content_length(
             self.id,
             class_id,
@@ -329,7 +330,7 @@ impl Channel {
                     self.returned_messages.set_delivery_properties(properties);
                     if size == 0 {
                         self.returned_messages
-                            .new_delivery_complete(self.status.confirm());
+                            .new_delivery_complete(confirm);
                     }
                 }
                 Ok(())
@@ -350,6 +351,7 @@ impl Channel {
     }
 
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
+        let confirm = self.status.confirm();
         self.status.receive(
             self.id,
             payload.len(),
@@ -366,7 +368,7 @@ impl Channel {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == 0 {
                         self.returned_messages
-                            .new_delivery_complete(self.status.confirm());
+                            .new_delivery_complete(confirm);
                     }
                 }
                 Ok(())
