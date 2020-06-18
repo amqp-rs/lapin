@@ -1,3 +1,9 @@
+### 1.1.2 (2020-06-18)
+
+#### Features
+
+* Add `BasicReturnMessage::error`
+
 ### 1.1.1 (2020-06-17)
 
 #### Bug Fixes
