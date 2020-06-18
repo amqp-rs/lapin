@@ -2,6 +2,7 @@ use futures_executor::LocalPool;
 use lapin::{
     message::{BasicReturnMessage, Delivery, DeliveryResult},
     options::*,
+    protocol::{AMQPErrorKind, AMQPSoftError},
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
@@ -124,9 +125,10 @@ fn main() {
             .await // Wait for this specific ack/nack
             .expect("publisher-confirms");
         assert!(confirm.is_ack());
+        let message = confirm.take_message().unwrap();
         assert_eq!(
-            confirm.take_message(),
-            Some(BasicReturnMessage {
+            message,
+            BasicReturnMessage {
                 delivery: Delivery {
                     delivery_tag: 0,
                     exchange: "".into(),
@@ -137,8 +139,10 @@ fn main() {
                 },
                 reply_code: 312,
                 reply_text: "NO_ROUTE".into(),
-            })
+            }
         );
+        let error = message.error().unwrap();
+        assert_eq!(error.kind(), &AMQPErrorKind::Soft(AMQPSoftError::NOROUTE));
 
         let _ = channel_a;
     })

@@ -1,4 +1,5 @@
 use crate::{
+    protocol::AMQPError,
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
     BasicProperties, Channel, Result,
 };
@@ -108,5 +109,9 @@ impl BasicReturnMessage {
             reply_code,
             reply_text,
         }
+    }
+
+    pub fn error(&self) -> Option<AMQPError> {
+        AMQPError::from_id(self.reply_code, self.reply_text.clone())
     }
 }
