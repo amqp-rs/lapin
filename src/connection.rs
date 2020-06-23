@@ -73,8 +73,14 @@ impl Connection {
 
     /// Connect to an AMQP Server.
     ///
-    /// The URI must be in the format `amqp://127.0.0.1:5672/%2f`,
-    /// where the default virtual host (`/`) has to be ecaped to URL encoding.
+    /// The URI must be in the following format:
+    ///
+    /// * `amqp://127.0.0.1:5672` will connect to the default virtual host `/`.
+    /// * `amqp://127.0.0.1:5672/` will connect to the virtual host `""` (empty string).
+    /// * `amqp://127.0.0.1:5672/%2f` will connect to the default virtual host `/`.
+    ///
+    /// Note that the virtual host has to be escaped with
+    /// [URL encoding](https://en.wikipedia.org/wiki/Percent-encoding).
     pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Connection> {
         Connect::connect(uri, options, OwnedTLSConfig::default()).await
     }
