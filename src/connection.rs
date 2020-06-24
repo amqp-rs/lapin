@@ -22,6 +22,17 @@ use async_trait::async_trait;
 use log::{log_enabled, Level::Trace};
 use std::{fmt, io, sync::Arc};
 
+/// A TCP connection to the AMQP server.
+///
+/// To connect to the server, one of the [`connect`] methods has to be called.
+///
+/// Afterwards, create a [`Channel`] by calling [`create_channel`].
+///
+/// Also see the RabbitMQ documentation on [connections](https://www.rabbitmq.com/connections.html).
+///
+/// [`connect`]: ./struct.Connection.html#method.connect
+/// [`Channel`]: ./struct.Channel.html
+/// [`create_channel`]: ./struct.Connection.html#method.create_channel
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
@@ -60,12 +71,21 @@ impl Connection {
         connection
     }
 
-    /// Connect to an AMQP Server
+    /// Connect to an AMQP Server.
+    ///
+    /// The URI must be in the following format:
+    ///
+    /// * `amqp://127.0.0.1:5672` will connect to the default virtual host `/`.
+    /// * `amqp://127.0.0.1:5672/` will connect to the virtual host `""` (empty string).
+    /// * `amqp://127.0.0.1:5672/%2f` will connect to the default virtual host `/`.
+    ///
+    /// Note that the virtual host has to be escaped with
+    /// [URL encoding](https://en.wikipedia.org/wiki/Percent-encoding).
     pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Connection> {
         Connect::connect(uri, options, OwnedTLSConfig::default()).await
     }
 
-    /// Connect to an AMQP Server
+    /// Connect to an AMQP Server.
     pub async fn connect_with_config(
         uri: &str,
         options: ConnectionProperties,
@@ -74,7 +94,7 @@ impl Connection {
         Connect::connect(uri, options, config).await
     }
 
-    /// Connect to an AMQP Server
+    /// Connect to an AMQP Server.
     pub async fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
         Connect::connect(uri, options, OwnedTLSConfig::default()).await
     }
@@ -88,6 +108,13 @@ impl Connection {
         Connect::connect(uri, options, config).await
     }
 
+    /// Creates a new [`Channel`] on this connection.
+    ///
+    /// This method is only successful if the client is connected.
+    /// Otherwise, [`InvalidConnectionState`] error is returned.
+    ///
+    /// [`Channel`]: ./struct.Channel.html
+    /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn create_channel(&self) -> Result<Channel> {
         if !self.status.connected() {
             return Err(Error::InvalidConnectionState(self.status.state()));

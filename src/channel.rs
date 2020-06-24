@@ -28,6 +28,15 @@ use std::{convert::TryFrom, fmt, sync::Arc};
 #[cfg(test)]
 use crate::queue::QueueState;
 
+/// Main entry point for most AMQP operations.
+///
+/// It serves as a lightweight connection and can be obtained from a
+///  [`Connection`] by calling [`Connection::create_channel`].
+///
+/// See also the RabbitMQ documentation on [channels](https://www.rabbitmq.com/channels.html).
+///
+/// [`Connection`]: ./struct.Connection.html
+/// [`Connection::create_channel`]: ./struct.Connection.html#method.create_channel
 #[derive(Clone)]
 pub struct Channel {
     id: u16,
