@@ -154,7 +154,7 @@ async fn poll_read(
     socket: Arc<Async<TcpStreamWrapper>>,
     socket_state: SocketStateHandle,
 ) -> Result<()> {
-    socket.read_with(|stream| stream.is_readable()).await?;
+    socket.readable().await?;
     socket_state.send(SocketEvent::Readable);
     Ok(())
 }
@@ -163,7 +163,7 @@ async fn poll_write(
     socket: Arc<Async<TcpStreamWrapper>>,
     socket_state: SocketStateHandle,
 ) -> Result<()> {
-    socket.write_with(|stream| stream.is_writable()).await?;
+    socket.writable().await?;
     socket_state.send(SocketEvent::Writable);
     Ok(())
 }
