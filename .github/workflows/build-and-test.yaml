@@ -10,7 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+#        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         rust: [nightly, beta, stable, 1.40.0]
     steps:
       - uses: actions/checkout@v2
@@ -22,6 +23,13 @@ jobs:
       - name: Set current week of the year in environnement
         if: startsWith(matrix.os, 'windows')
         run: echo "::set-env name=CURRENT_WEEK::$(Get-Date -UFormat %V)"
+
+      - name: Start RabbitMQ
+        uses: getong/rabbitmq-action@v1.2
+        with:
+          rabbitmq user: 'guest'
+          rabbitmq password: 'guest'
+          rabbitmq vhost: '/'
 
       - name: Install latest ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
