@@ -27,7 +27,7 @@ vendored-openssl          = ["amq-protocol/vendored-openssl"]
 members = [".", "async-std", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
-version = "=6.0.0-rc11"
+version = "=6.0.0-rc12"
 optional = true
 
 [build-dependencies.serde_json]
@@ -35,7 +35,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "=6.0.0-rc11"
+version = "=6.0.0-rc12"
 default-features = false
 
 [dependencies.mio]
