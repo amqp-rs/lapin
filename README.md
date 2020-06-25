@@ -2,7 +2,7 @@
 <img src="logo.jpg" width="30%"></img>
 
 [![API Docs](https://docs.rs/lapin/badge.svg)](https://docs.rs/lapin)
-[![Build Status](https://travis-ci.org/CleverCloud/lapin.svg?branch=master)](https://travis-ci.org/CleverCloud/lapin)
+[![Build status](https://github.com/CleverCloud/lapin/workflows/Build%20and%20test/badge.svg)](https://github.com/CleverCloud/lapin/actions)
 [![Downloads](https://img.shields.io/crates/d/lapin.svg)](https://crates.io/crates/lapin)
 [![Coverage Status](https://coveralls.io/repos/github/CleverCloud/lapin/badge.svg?branch=master)](https://coveralls.io/github/CleverCloud/lapin?branch=master)
 [![Dependency Status](https://deps.rs/repo/github/CleverCloud/lapin/status.svg)](https://deps.rs/repo/github/CleverCloud/lapin)
