@@ -23,6 +23,13 @@ jobs:
         if: startsWith(matrix.os, 'windows')
         run: echo "::set-env name=CURRENT_WEEK::$(Get-Date -UFormat %V)"
 
+      - name: Start RabbitMQ
+        uses: getong/rabbitmq-action@v1.2
+        with:
+          rabbitmq user: 'guest'
+          rabbitmq password: 'guest'
+          rabbitmq vhost: '/'
+
       - name: Install latest ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
         with:
