@@ -28,8 +28,6 @@ const FRAMES_STORAGE: usize = 32;
 #[derive(Debug, PartialEq)]
 enum Status {
     Initial,
-    SocketConnected,
-    SocketWritable,
     Connected,
     Stop,
 }
@@ -100,39 +98,6 @@ impl IoLoop {
         })
     }
 
-    fn ensure_connected(&mut self) -> Result<bool> {
-        match self.stream.inner().peer_addr() {
-            Ok(peer) => {
-                debug!("Connecting to {}", peer);
-                self.status = Status::SocketConnected;
-                Ok(true)
-            }
-            Err(err) => {
-                if let io::ErrorKind::NotConnected = err.kind() {
-                    Ok(false)
-                } else {
-                    Err(err.into())
-                }
-            }
-        }
-    }
-
-    fn ensure_writable(&mut self) -> Result<bool> {
-        match self.stream.inner().is_writable() {
-            Ok(()) => {
-                self.status = Status::SocketWritable;
-                Ok(true)
-            }
-            Err(err) => {
-                if let io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock = err.kind() {
-                    Ok(false)
-                } else {
-                    Err(err.into())
-                }
-            }
-        }
-    }
-
     fn finish_setup(&mut self) -> Result<bool> {
         if self.connection_status.connected() {
             let frame_max = self.configuration.frame_max() as usize;
@@ -145,23 +110,18 @@ impl IoLoop {
                 self.heartbeat.set_timeout(heartbeat);
                 self.reactor.start_heartbeat();
             }
+            let peer = self.stream.inner().peer_addr()?;
+            debug!("Connected to {}", peer);
             self.status = Status::Connected;
         }
         Ok(true)
     }
 
     fn ensure_setup(&mut self) -> Result<bool> {
-        loop {
-            let success = match self.status {
-                Status::Initial => self.ensure_connected(),
-                Status::SocketConnected => self.ensure_writable(),
-                Status::SocketWritable => return self.finish_setup(),
-                Status::Connected => return Ok(true),
-                Status::Stop => return Ok(false),
-            }?;
-            if !success {
-                return Ok(false);
-            }
+        match self.status {
+            Status::Initial => self.finish_setup(),
+            Status::Connected => Ok(true),
+            Status::Stop => Ok(false),
         }
     }
 
