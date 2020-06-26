@@ -17,7 +17,8 @@ impl TryFrom<tcp::HandshakeResult> for TcpStream {
 
     fn try_from(result: tcp::HandshakeResult) -> Result<Self> {
         Ok(Self(match result {
-            Ok(stream) => Inner::Connected(stream),
+            Ok(stream) if stream.is_connected() => Inner::Connected(stream),
+            Ok(stream) => Inner::Handshaking(Some(stream.into())),
             Err(handshaker) => {
                 Inner::Handshaking(Some(handshaker.into_mid_handshake_tls_stream()?))
             }
