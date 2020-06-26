@@ -5,7 +5,10 @@ use std::{future::Future, pin::Pin};
 pub trait LapinAsyncStdExt {
     fn with_async_std(self) -> Self
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_async_std_executor().with_async_std_reactor()
+    }
 
     fn with_async_std_executor(self) -> Self
     where
