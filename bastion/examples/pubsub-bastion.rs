@@ -1,11 +1,11 @@
+use bastion::spawn;
+use bastion::Bastion;
+use bastion_amqp::BastionExt;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
-use bastion::Bastion;
-use bastion::{spawn};
-use bastion_amqp::BastionExt;
 
 pub async fn consume() -> Result<()> {
     info!("CONNECTING");
@@ -36,16 +36,18 @@ pub async fn consume() -> Result<()> {
         )
         .await?;
 
-    consumer.set_delegate(move |delivery: DeliveryResult| async move {
-        let delivery = delivery.expect("error caught in in consumer");
-        if let Some((channel, delivery)) = delivery {
-            channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                .await
-                .expect("failed to ack");
-            info!("Acknowledge message: {}", delivery.delivery_tag);
-        }
-    }).expect("Failed to register delegate");
+    consumer
+        .set_delegate(move |delivery: DeliveryResult| async move {
+            let delivery = delivery.expect("error caught in in consumer");
+            if let Some((channel, delivery)) = delivery {
+                channel
+                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .await
+                    .expect("failed to ack");
+                info!("Acknowledge message: {}", delivery.delivery_tag);
+            }
+        })
+        .expect("Failed to register delegate");
 
     let payload = b"Hello world!";
 

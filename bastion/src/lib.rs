@@ -1,11 +1,11 @@
+use bastion::spawn;
 use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
-use bastion::{spawn};
 
 pub trait BastionExt {
     fn with_bastion(self) -> Self
-        where
-            Self: Sized;
+    where
+        Self: Sized;
 }
 
 impl BastionExt for ConnectionProperties {
