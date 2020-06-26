@@ -1,3 +1,15 @@
+### 1.2.0 (2020-06-25)
+
+#### Misc
+
+* Update amq-protocol
+
+### 1.1.3 (2020-06-23)
+
+#### Misc
+
+* Update dependencies
+
 ### 1.1.2 (2020-06-18)
 
 #### Features
