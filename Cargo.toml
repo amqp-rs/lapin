@@ -24,7 +24,7 @@ rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 vendored-openssl          = ["amq-protocol/vendored-openssl"]
 
 [workspace]
-members = [".", "async-std", "lapinou", "tokio"]
+members = [".", "async-std", "bastion", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
 version = "=6.0.0-rc12"
