@@ -39,6 +39,10 @@ Integration with smol is provided by the [lapinou](https://crates.io/crates/lapi
 
 Integration with tokio is provided by the [tokio-amqp](https://crates.io/crates/tokio-amqp) crate.
 
+## Integration with bastion 
+
+Integration with bastion is provided by the [bastion-amqp](https://crates.io/crates/bastion-amqp) crate.
+
 ## Example
 
 ```rust
