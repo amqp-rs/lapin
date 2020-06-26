@@ -1,3 +1,13 @@
+### 1.2.1 (2020-06-26)
+
+#### Features
+
+* Introduce bastion-amqp to use the bastion executor instead of the default one
+
+#### Bug Fixes
+
+* Properly wait for plain stream to be connected on windows
+
 ### 1.2.0 (2020-06-25)
 
 #### Misc
