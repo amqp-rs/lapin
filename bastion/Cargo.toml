@@ -1,6 +1,6 @@
 [package]
 name = "bastion-amqp"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
 edition = "2018"
 description = "lapin integration with bastion"
