@@ -1,4 +1,3 @@
-use bastion::spawn;
 use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 
@@ -26,7 +25,7 @@ struct BastionExecutor;
 
 impl Executor for BastionExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<(), lapin::Error> {
-        spawn!(f);
+        bastion_executor::pool::spawn(f, lightproc::proc_stack::ProcStack::default());
         Ok(())
     }
 }

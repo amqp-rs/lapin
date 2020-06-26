@@ -20,10 +20,10 @@ path = ".."
 default-features = false
 
 [dependencies]
-bastion = "0.3.4"
-lightproc = "0.3.4"
-bastion-executor = "0.3.4"
+lightproc = "^0.3"
+bastion-executor = "^0.3"
 
 [dev-dependencies]
+bastion = "^0.3"
 env_logger = "^0.7"
 log = "^0.4"

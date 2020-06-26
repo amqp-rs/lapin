@@ -1,6 +1,5 @@
-use bastion::run;
 use bastion::Bastion;
-use bastion_amqp::BastionExt;
+use bastion_amqp::*;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
@@ -77,5 +76,5 @@ fn main() -> Result<()> {
     Bastion::init();
     Bastion::start();
 
-    run!(consume())
+    bastion::run!(consume())
 }
