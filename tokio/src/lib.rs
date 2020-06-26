@@ -5,7 +5,10 @@ use tokio::runtime::Handle;
 pub trait LapinTokioExt {
     fn with_tokio(self) -> Self
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_tokio_executor()
+    }
 
     fn with_tokio_executor(self) -> Self
     where
@@ -13,10 +16,6 @@ pub trait LapinTokioExt {
 }
 
 impl LapinTokioExt for ConnectionProperties {
-    fn with_tokio(self) -> Self {
-        self.with_tokio_executor()
-    }
-
     fn with_tokio_executor(self) -> Self {
         self.with_executor(TokioExecutor(Handle::current()))
     }

@@ -15,7 +15,10 @@ use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc};
 pub trait LapinSmolExt {
     fn with_smol(self) -> Self
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_smol_executor().with_smol_reactor()
+    }
 
     fn with_smol_executor(self) -> Self
     where
@@ -27,10 +30,6 @@ pub trait LapinSmolExt {
 }
 
 impl LapinSmolExt for ConnectionProperties {
-    fn with_smol(self) -> Self {
-        self.with_smol_executor().with_smol_reactor()
-    }
-
     fn with_smol_executor(self) -> Self {
         self.with_executor(SmolExecutor)
     }
