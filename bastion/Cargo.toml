@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-lapin = { version = "^1.0", path = "..", default-features = false }
+lapin = { version = "^1.2", path = "..", default-features = false }
 bastion = "0.3.4"
 lightproc = "0.3.4"
 bastion-executor = "0.3.4"
