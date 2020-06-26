@@ -1,4 +1,4 @@
-use bastion::spawn;
+use bastion::run;
 use bastion::Bastion;
 use bastion_amqp::BastionExt;
 use lapin::{
@@ -77,7 +77,5 @@ fn main() -> Result<()> {
     Bastion::init();
     Bastion::start();
 
-    spawn!(consume());
-    Bastion::block_until_stopped();
-    Ok(())
+    run!(consume())
 }

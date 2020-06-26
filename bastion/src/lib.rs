@@ -6,10 +6,18 @@ pub trait BastionExt {
     fn with_bastion(self) -> Self
     where
         Self: Sized;
+
+    fn with_bastion_executor(self) -> Self
+    where
+        Self: Sized;
 }
 
 impl BastionExt for ConnectionProperties {
     fn with_bastion(self) -> Self {
+        self.with_bastion_executor()
+    }
+
+    fn with_bastion_executor(self) -> Self {
         self.with_executor(BastionExecutor)
     }
 }
