@@ -76,5 +76,6 @@ fn main() -> Result<()> {
     Bastion::init();
     Bastion::start();
 
-    bastion::run!(consume())
+    // FIXME: bastion::run once self-contained
+    bastion_executor::run::run(consume(), Default::default())
 }

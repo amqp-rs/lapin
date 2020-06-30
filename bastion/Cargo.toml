@@ -20,7 +20,6 @@ path = ".."
 default-features = false
 
 [dependencies]
-lightproc = "^0.3"
 bastion-executor = "^0.3"
 
 [dev-dependencies]

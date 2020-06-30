@@ -25,7 +25,7 @@ struct BastionExecutor;
 
 impl Executor for BastionExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<(), lapin::Error> {
-        bastion_executor::pool::spawn(f, lightproc::proc_stack::ProcStack::default());
+        bastion_executor::pool::spawn(f, Default::default());
         Ok(())
     }
 }
