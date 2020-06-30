@@ -45,8 +45,7 @@ pub async fn consume() -> Result<()> {
                     .expect("failed to ack");
                 info!("Acknowledge message: {}", delivery.delivery_tag);
             }
-        })
-        .expect("Failed to register delegate");
+        });
 
     let payload = b"Hello world!";
 
