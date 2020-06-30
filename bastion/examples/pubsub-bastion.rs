@@ -35,17 +35,16 @@ pub async fn consume() -> Result<()> {
         )
         .await?;
 
-    consumer
-        .set_delegate(move |delivery: DeliveryResult| async move {
-            let delivery = delivery.expect("error caught in in consumer");
-            if let Some((channel, delivery)) = delivery {
-                channel
-                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                    .await
-                    .expect("failed to ack");
-                info!("Acknowledge message: {}", delivery.delivery_tag);
-            }
-        });
+    consumer.set_delegate(move |delivery: DeliveryResult| async move {
+        let delivery = delivery.expect("error caught in in consumer");
+        if let Some((channel, delivery)) = delivery {
+            channel
+                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                .await
+                .expect("failed to ack");
+            info!("Acknowledge message: {}", delivery.delivery_tag);
+        }
+    });
 
     let payload = b"Hello world!";
 
@@ -75,5 +74,6 @@ fn main() -> Result<()> {
     Bastion::init();
     Bastion::start();
 
-    bastion::run!(consume())
+    // FIXME: bastion::run once self-contained
+    bastion_executor::run::run(consume(), Default::default())
 }

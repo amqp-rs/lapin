@@ -25,11 +25,11 @@ struct BastionExecutor;
 
 impl Executor for BastionExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        bastion_executor::pool::spawn(f, lightproc::proc_stack::ProcStack::default());
+        bastion_executor::pool::spawn(f, Default::default());
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        bastion_executor::blocking::spawn_blocking(async move { f() }, lightproc::proc_stack::ProcStack::default());
+        bastion_executor::blocking::spawn_blocking(async move { f() }, Default::default());
         Ok(())
     }
 }
