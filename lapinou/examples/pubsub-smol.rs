@@ -1,4 +1,3 @@
-use futures_util::future;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
@@ -15,12 +14,7 @@ fn main() -> Result<()> {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    // spawn a thread pool
-    for _ in 0..5 {
-        std::thread::spawn(|| smol::run(future::pending::<()>()));
-    }
-
-    smol::run(async {
+    blocking::block_on(async {
         let conn = Connection::connect(&addr, ConnectionProperties::default().with_smol()).await?;
 
         info!("CONNECTED");
