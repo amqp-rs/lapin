@@ -24,7 +24,7 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
+blocking = "^0.4.7"
 env_logger = "^0.7"
-futures-util = "^0.3"
 log = "^0.4"
-smol = "^0.1.18"
+smol = "^0.2"
