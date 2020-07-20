@@ -12,20 +12,20 @@ categories = ["database"]
 license = "MIT"
 
 [features]
-default = ["lapin/default"]
+default = ["async-lapin/default"]
 
 [dependencies.async-std]
 version = "^1.6.2"
 features = ["default"]
 
+[dependencies.async-lapin]
+version = "^0.1"
+path = "../async-lapin"
+default-features = false
+
 [dependencies.lapin]
 version = "^1.2.1"
 path = ".."
-default-features = false
-
-[dependencies.lapinou]
-version = "^0.1.4"
-path = "../lapinou"
 default-features = false
 
 [dev-dependencies]
