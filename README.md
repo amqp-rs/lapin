@@ -27,11 +27,15 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 * `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
 * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
 
+## Integration with async-io
+
+Integration with async-io is provided by the [async-lapin](https://crates.io/crates/async-lapin) crate.
+
 ## Integration with async-std
 
 Integration with async-std is provided by the [async-amqp](https://crates.io/crates/async-amqp) crate.
 
-## Integration with bastion 
+## Integration with bastion
 
 Integration with bastion is provided by the [bastion-amqp](https://crates.io/crates/bastion-amqp) crate.
 
