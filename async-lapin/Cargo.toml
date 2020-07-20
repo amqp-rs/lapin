@@ -1,0 +1,30 @@
+[package]
+name = "async-lapin"
+version = "0.1.0"
+edition = "2018"
+authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
+description = "lapin integration with async-io"
+repository = "https://github.com/CleverCloud/lapin"
+readme = "README.md"
+documentation = "https://docs.rs/async-lapin"
+keywords = ["amqp", "rabbitmq", "mio", "futures", "async-io"]
+categories = ["database"]
+license = "MIT"
+
+[features]
+default = ["lapin/default"]
+
+[dependencies]
+async-io = "^0.1.4"
+simple-mutex = "^1.0"
+
+[dependencies.lapin]
+version = "^1.2.1"
+path = ".."
+default-features = false
+
+[dev-dependencies]
+env_logger = "^0.7"
+futures-util = "^0.3"
+log = "^0.4"
+smol = "^0.1.18"
