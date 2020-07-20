@@ -7,7 +7,7 @@ use async_lapin::*;
 use lapin::{Connection, ConnectionProperties, Result};
 
 fn main() -> Result<()> {
-    smol::run(async {
+    blocking::block_on(async {
         let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
         let conn = Connection::connect(
             &addr,
