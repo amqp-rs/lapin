@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    blocking::block_on(async {
+    smol::run(async {
         let conn = Connection::connect(&addr, ConnectionProperties::default().with_smol()).await?;
 
         info!("CONNECTED");
