@@ -1,9 +1,20 @@
 use async_lapin::*;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, Result,
+    executor::Executor, message::DeliveryResult, options::*, publisher_confirm::Confirmation,
+    types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
+use std::{future::Future, pin::Pin};
+
+#[derive(Debug)]
+struct SmolExecutor;
+
+impl Executor for SmolExecutor {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        smol::Task::spawn(f).detach();
+        Ok(())
+    }
+}
 
 fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
@@ -17,7 +28,7 @@ fn main() -> Result<()> {
     smol::run(async {
         let conn = Connection::connect(
             &addr,
-            ConnectionProperties::default().with_async_io(|fut| smol::Task::spawn(fut).detach()),
+            ConnectionProperties::default().with_async_io(SmolExecutor),
         )
         .await?;
 

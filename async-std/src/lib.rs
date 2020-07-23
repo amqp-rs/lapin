@@ -22,17 +22,13 @@ pub trait LapinAsyncStdExt {
 }
 
 impl LapinAsyncStdExt for ConnectionProperties {
-    fn with_async_std(self) -> Self {
-        self.with_async_std_executor().with_async_std_reactor()
-    }
-
     fn with_async_std_executor(self) -> Self {
         self.with_executor(AsyncStdExecutor)
     }
 
     fn with_async_std_reactor(self) -> Self {
         // async-std uses async-io underneath, use async-io reactor until async-std exposes its own API
-        self.with_async_io_reactor(|fut| drop(async_std::task::spawn(fut)))
+        self.with_async_io_reactor(AsyncStdExecutor)
     }
 }
 
