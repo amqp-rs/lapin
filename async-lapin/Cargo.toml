@@ -1,6 +1,6 @@
 [package]
 name = "async-lapin"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-io"
