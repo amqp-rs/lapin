@@ -24,6 +24,7 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
+async-executor = "^0.1.2"
 env_logger = "^0.7"
 log = "^0.4"
 smol = "^0.3"

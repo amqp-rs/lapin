@@ -1,6 +1,6 @@
+use async_executor::Spawner;
 use async_lapin::*;
 use lapin::{executor::Executor, ConnectionProperties, Result};
-use smol::Task;
 use std::{future::Future, pin::Pin};
 
 // ConnectionProperties extension
@@ -24,22 +24,22 @@ pub trait LapinSmolExt {
 
 impl LapinSmolExt for ConnectionProperties {
     fn with_smol_executor(self) -> Self {
-        self.with_executor(SmolExecutor)
+        self.with_executor(SmolExecutor(Spawner::current()))
     }
 
     fn with_smol_reactor(self) -> Self {
-        self.with_async_io_reactor(SmolExecutor)
+        self.with_async_io_reactor(SmolExecutor(Spawner::current()))
     }
 }
 
 // Executor
 
 #[derive(Debug)]
-struct SmolExecutor;
+struct SmolExecutor(Spawner);
 
 impl Executor for SmolExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
-        Task::spawn(f).detach();
+        self.0.spawn(f).detach();
         Ok(())
     }
 }
