@@ -7,7 +7,7 @@ use lapin::{
     tcp::{TcpStream, TcpStreamWrapper},
     ConnectionProperties, Result,
 };
-use simple_mutex::Mutex;
+use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 // ConnectionProperties extension
