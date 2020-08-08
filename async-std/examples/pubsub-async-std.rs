@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
                 .await
                 .expect("failed to ack");
         }
-    });
+    })?;
 
     let payload = b"Hello world!";
 
