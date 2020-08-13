@@ -1,27 +1,22 @@
 [package]
-name = "lapinou"
-version = "0.3.1"
+name = "async-lapin"
+version = "0.2.1"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
-description = "lapin integration with smol"
+description = "lapin integration with async-io"
 repository = "https://github.com/CleverCloud/lapin"
 readme = "README.md"
-documentation = "https://docs.rs/lapinou"
-keywords = ["amqp", "rabbitmq", "mio", "futures", "smol"]
+documentation = "https://docs.rs/async-lapin"
+keywords = ["amqp", "rabbitmq", "mio", "futures", "async-io"]
 categories = ["database"]
 license = "MIT"
 
 [features]
-default = ["async-lapin/default"]
+default = ["lapin/default"]
 
 [dependencies]
-async-executor = "^0.1.2"
-blocking = "^0.5"
-
-[dependencies.async-lapin]
-version = "^0.2"
-path = "../async-lapin"
-default-features = false
+async-io = "^0.1.4"
+parking_lot = "^0.11"
 
 [dependencies.lapin]
 version = "^1.2.1"
@@ -29,6 +24,8 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
+async-executor = "^0.1.2"
+blocking = "^0.5"
 env_logger = "^0.7"
 log = "^0.4"
 smol = "^0.3"

@@ -1,9 +1,26 @@
+use async_lapin::*;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, Result,
+    executor::Executor, message::DeliveryResult, options::*, publisher_confirm::Confirmation,
+    types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
 };
-use lapinou::*;
 use log::info;
+use std::{future::Future, pin::Pin};
+
+#[derive(Debug)]
+struct SmolExecutor(async_executor::Spawner);
+
+impl Executor for SmolExecutor {
+    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        self.0.spawn(f).detach();
+    }
+
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+        self.0
+            .spawn(async move { blocking::unblock!(f()) })
+            .detach();
+        Ok(())
+    }
+}
 
 fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
@@ -15,7 +32,12 @@ fn main() -> Result<()> {
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
     smol::run(async {
-        let conn = Connection::connect(&addr, ConnectionProperties::default().with_smol()).await?;
+        let conn = Connection::connect(
+            &addr,
+            ConnectionProperties::default()
+                .with_async_io(SmolExecutor(async_executor::Spawner::current())),
+        )
+        .await?;
 
         info!("CONNECTED");
 
