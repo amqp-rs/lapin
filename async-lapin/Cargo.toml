@@ -25,7 +25,7 @@ default-features = false
 
 [dev-dependencies]
 async-executor = "^0.1.2"
-blocking = "^0.5"
+blocking = "^0.5.1"
 env_logger = "^0.7"
 log = "^0.4"
 smol = "^0.3"

@@ -16,7 +16,7 @@ default = ["async-lapin/default"]
 
 [dependencies]
 async-executor = "^0.1.2"
-blocking = "^0.5"
+blocking = "^0.5.1"
 
 [dependencies.async-lapin]
 version = "^0.2"

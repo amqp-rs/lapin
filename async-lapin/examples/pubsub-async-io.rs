@@ -15,9 +15,7 @@ impl Executor for SmolExecutor {
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        self.0
-            .spawn(async move { blocking::unblock!(f()) })
-            .detach();
+        self.0.spawn(blocking::unblock(f)).detach();
         Ok(())
     }
 }
