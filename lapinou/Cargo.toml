@@ -18,7 +18,7 @@ default = ["async-lapin/default"]
 async-executor = "^0.1.2"
 
 [dependencies.async-lapin]
-version = "^0.2"
+version = "^0.3"
 path = "../async-lapin"
 default-features = false
 
