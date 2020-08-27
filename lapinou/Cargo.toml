@@ -15,7 +15,8 @@ license = "MIT"
 default = ["async-lapin/default"]
 
 [dependencies]
-async-executor = "^0.1.2"
+async-executor = "^0.2"
+smol = "^0.4"
 
 [dependencies.async-lapin]
 version = "^0.3"
@@ -23,11 +24,10 @@ path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "^1.2.1"
+version = "^1.2.2"
 path = ".."
 default-features = false
 
 [dev-dependencies]
 env_logger = "^0.7"
 log = "^0.4"
-smol = "^0.3"
