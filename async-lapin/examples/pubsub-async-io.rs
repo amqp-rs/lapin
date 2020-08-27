@@ -28,8 +28,7 @@ fn main() -> Result<()> {
     smol::block_on(async {
         let conn = Connection::connect(
             &addr,
-            ConnectionProperties::default()
-                .with_async_io(SmolExecutor),
+            ConnectionProperties::default().with_async_io(SmolExecutor),
         )
         .await?;
 
