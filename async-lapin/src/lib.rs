@@ -130,7 +130,7 @@ impl ReactorHandle for AsyncIoReactorHandle {
 
 async fn heartbeat(heartbeat: Heartbeat) {
     while let Ok(Some(timeout)) = heartbeat.poll_timeout() {
-        Timer::new(timeout).await;
+        Timer::after(timeout).await;
     }
 }
 

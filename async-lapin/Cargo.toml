@@ -15,16 +15,16 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-async-io = "^0.1.4"
+async-io = "^0.2"
 parking_lot = "^0.11"
 
 [dependencies.lapin]
-version = "^1.2.1"
+version = "^1.2.2"
 path = ".."
 default-features = false
 
 [dev-dependencies]
-async-executor = "^0.1.2"
+async-executor = "^0.2"
 env_logger = "^0.7"
 log = "^0.4"
-smol = "^0.3"
+smol = "^0.4"
