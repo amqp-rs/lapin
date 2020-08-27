@@ -19,7 +19,7 @@ version = "^1.6.3"
 features = ["default", "unstable"]
 
 [dependencies.async-lapin]
-version = "^0.2"
+version = "^0.3"
 path = "../async-lapin"
 default-features = false
 

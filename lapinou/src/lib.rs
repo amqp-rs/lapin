@@ -1,4 +1,3 @@
-use async_executor::Spawner;
 use async_lapin::*;
 use lapin::{executor::Executor, ConnectionProperties, Result};
 use std::{future::Future, pin::Pin};
@@ -24,26 +23,26 @@ pub trait LapinSmolExt {
 
 impl LapinSmolExt for ConnectionProperties {
     fn with_smol_executor(self) -> Self {
-        self.with_executor(SmolExecutor(Spawner::current()))
+        self.with_executor(SmolExecutor)
     }
 
     fn with_smol_reactor(self) -> Self {
-        self.with_async_io_reactor(SmolExecutor(Spawner::current()))
+        self.with_async_io_reactor(SmolExecutor)
     }
 }
 
 // Executor
 
 #[derive(Debug)]
-struct SmolExecutor(Spawner);
+struct SmolExecutor;
 
 impl Executor for SmolExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        self.0.spawn(f).detach();
+        smol::spawn(f).detach();
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        self.0.spawn(blocking::unblock(f)).detach();
+        smol::spawn(blocking::unblock(f)).detach();
         Ok(())
     }
 }

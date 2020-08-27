@@ -1,3 +1,9 @@
+### 1.2.2 (2020-08-21)
+
+#### Misc
+
+* Improve logging on connection error
+
 ### 1.2.1 (2020-06-26)
 
 #### Features

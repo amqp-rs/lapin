@@ -1,6 +1,6 @@
 [package]
 name = "lapinou"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with smol"
@@ -15,20 +15,20 @@ license = "MIT"
 default = ["async-lapin/default"]
 
 [dependencies]
-async-executor = "^0.1.2"
-blocking = "^0.5.1"
+async-executor = "^0.2"
+blocking = "^0.6"
+smol = "^0.4"
 
 [dependencies.async-lapin]
-version = "^0.2"
+version = "^0.3"
 path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "^1.2.1"
+version = "^1.2.2"
 path = ".."
 default-features = false
 
 [dev-dependencies]
 env_logger = "^0.7"
 log = "^0.4"
-smol = "^0.3"

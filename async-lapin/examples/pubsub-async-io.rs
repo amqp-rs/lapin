@@ -7,15 +7,15 @@ use log::info;
 use std::{future::Future, pin::Pin};
 
 #[derive(Debug)]
-struct SmolExecutor(async_executor::Spawner);
+struct SmolExecutor;
 
 impl Executor for SmolExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        self.0.spawn(f).detach();
+        smol::spawn(f).detach();
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        self.0.spawn(blocking::unblock(f)).detach();
+        smol::spawn(blocking::unblock(f)).detach();
         Ok(())
     }
 }
@@ -29,11 +29,10 @@ fn main() -> Result<()> {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    smol::run(async {
+    smol::block_on(async {
         let conn = Connection::connect(
             &addr,
-            ConnectionProperties::default()
-                .with_async_io(SmolExecutor(async_executor::Spawner::current())),
+            ConnectionProperties::default().with_async_io(SmolExecutor),
         )
         .await?;
 
