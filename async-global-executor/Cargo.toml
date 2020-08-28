@@ -15,7 +15,7 @@ license = "MIT"
 default = ["async-lapin/default"]
 
 [dependencies]
-async-global-executor = "^0.1"
+async-global-executor = "^0.2"
 
 [dependencies.async-lapin]
 version = "^0.3"

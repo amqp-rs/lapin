@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    async_global_executor::run(async {
+    async_global_executor::block_on(async {
         let conn = Connection::connect(
             &addr,
             ConnectionProperties::default().with_async_global_executor(),
