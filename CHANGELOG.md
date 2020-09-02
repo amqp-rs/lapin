@@ -1,3 +1,9 @@
+### 1.2.3 (2020-09-02)
+
+#### Bug Fixes
+
+* Fix an issue when redeclaring a queue
+
 ### 1.2.2 (2020-08-21)
 
 #### Misc
