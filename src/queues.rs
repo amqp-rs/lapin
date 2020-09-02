@@ -15,7 +15,15 @@ pub(crate) struct Queues {
 
 impl Queues {
     pub(crate) fn register(&self, queue: QueueState) {
-        self.queues.lock().insert(queue.name(), queue);
+        // QueueState tracks the consumers associated with a queue.
+        //
+        // If a queue is re-declared (e.g. to get the number of outstanding messages)
+        // we do not want to _replace_ the entry in the `queues` hashmap.
+        // If we do replace it we lose track of what consumers are associated with that queue:
+        // we have no way to error/cancel them, we have no way to send them incoming messages.
+        //
+        // This can be avoided with an "insert-if-missing" operation.
+        self.queues.lock().entry(queue.name()).or_insert(queue);
     }
 
     pub(crate) fn deregister(&self, queue: &str) {
