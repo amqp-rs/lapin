@@ -1,6 +1,6 @@
 [package]
 name = "lapin-async-global-executor"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-global-executor"
