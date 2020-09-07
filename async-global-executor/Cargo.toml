@@ -12,18 +12,15 @@ categories = ["database"]
 license = "MIT"
 
 [features]
-default = ["async-lapin/default"]
+default = ["lapin/default", "async-io"]
+async-io = ["async-global-executor/async-io"]
 
-[dependencies]
-async-global-executor = "^0.2"
-
-[dependencies.async-lapin]
-version = "^0.3"
-path = "../async-lapin"
+[dependencies.async-global-executor]
+version = "^1.0"
 default-features = false
 
 [dependencies.lapin]
-version = "^1.2.2"
+version = "^1.2.3"
 path = ".."
 default-features = false
 
