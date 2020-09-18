@@ -1,3 +1,9 @@
+### 1.2.7 (2020-09-18)
+
+#### Bug Fixes
+
+* Make frame ordering more robust
+
 ### 1.2.6 (2020-09-18)
 
 #### Bug Fixes
