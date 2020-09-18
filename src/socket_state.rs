@@ -8,8 +8,6 @@ use log::trace;
 pub(crate) struct SocketState {
     readable: bool,
     writable: bool,
-    error: bool,
-    closed: bool,
     events: Receiver<SocketEvent>,
     handle: SocketStateHandle,
 }
@@ -20,8 +18,6 @@ impl Default for SocketState {
         Self {
             readable: true,
             writable: true,
-            error: false,
-            closed: false,
             events: receiver,
             handle: SocketStateHandle { sender },
         }
@@ -37,8 +33,6 @@ pub struct SocketStateHandle {
 pub enum SocketEvent {
     Readable,
     Writable,
-    Error,
-    Closed,
     Wake,
 }
 
@@ -49,14 +43,6 @@ impl SocketState {
 
     pub(crate) fn writable(&mut self) -> bool {
         self.writable
-    }
-
-    pub(crate) fn error(&mut self) -> bool {
-        self.error
-    }
-
-    pub(crate) fn closed(&mut self) -> bool {
-        self.closed
     }
 
     pub(crate) fn wait(&mut self) {
@@ -119,8 +105,6 @@ impl SocketState {
         match event {
             SocketEvent::Readable => self.readable = true,
             SocketEvent::Writable => self.writable = true,
-            SocketEvent::Error => self.error = true,
-            SocketEvent::Closed => self.closed = true,
             SocketEvent::Wake => {}
         }
     }

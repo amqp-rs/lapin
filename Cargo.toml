@@ -38,12 +38,12 @@ optional = true
 version = "=6.0.0-rc12"
 default-features = false
 
-[dependencies.mio]
-version  = "^0.7"
-features = ["os-poll", "tcp"]
+[dependencies.async-global-executor]
+version = "^1.0.2"
+features = ["async-io"]
 
 [dependencies]
-async-global-executor = "^1.0.2"
+async-io = "^1.0"
 async-trait = "^0.1"
 blocking = "^1.0"
 crossbeam-channel = "^0.4"

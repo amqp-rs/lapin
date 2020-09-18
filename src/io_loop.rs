@@ -42,7 +42,6 @@ pub struct IoLoop {
     heartbeat: Heartbeat,
     socket_state: SocketState,
     reactor: Box<dyn ReactorHandle + Send>,
-    reactor_thread_handle: ThreadHandle,
     connection_io_loop_handle: ThreadHandle,
     stream: TcpStream,
     slot: Slot,
@@ -69,15 +68,13 @@ impl IoLoop {
     ) -> Result<Self> {
         let mut stream = TcpStream::try_from(stream)?;
         let heartbeat = Heartbeat::new(channels.clone());
-        let mut reactor = reactor_builder.build(heartbeat.clone(), executor)?;
+        let mut reactor = reactor_builder.build(heartbeat.clone(), executor);
         let reactor_handle = reactor.handle();
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE as usize,
             configuration.frame_max() as usize,
         );
         let slot = reactor.register(stream.inner_mut(), socket_state.handle())?;
-
-        let reactor_thread_handle = reactor.start()?;
 
         Ok(Self {
             connection_status,
@@ -88,7 +85,6 @@ impl IoLoop {
             heartbeat,
             socket_state,
             reactor: reactor_handle,
-            reactor_thread_handle,
             connection_io_loop_handle,
             stream,
             slot,
@@ -165,8 +161,7 @@ impl IoLoop {
                         }
                     }
                     self.heartbeat.cancel();
-                    self.reactor.shutdown()?;
-                    self.reactor_thread_handle.wait("reactor")
+                    Ok(())
                 })?,
         );
         waker.wake();
@@ -179,12 +174,6 @@ impl IoLoop {
 
     fn poll_socket_events(&mut self) -> Result<()> {
         self.socket_state.poll_events();
-        if self.socket_state.error() {
-            self.critical_error(io::Error::from(io::ErrorKind::ConnectionAborted).into())?;
-        }
-        if self.socket_state.closed() {
-            self.critical_error(io::Error::from(io::ErrorKind::ConnectionReset).into())?;
-        }
         self.poll_internal_rpc()
     }
 
@@ -240,7 +229,6 @@ impl IoLoop {
                 resolver.swear(Err(error.clone()));
             }
         }
-        self.reactor.shutdown()?;
         Err(error)
     }
 
