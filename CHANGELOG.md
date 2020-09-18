@@ -1,3 +1,9 @@
+### 1.2.6 (2020-09-18)
+
+#### Bug Fixes
+
+* Fix a bug in the frame ordering when doing lots of publishing
+
 ### 1.2.5 (2020-09-18)
 
 #### Misc
