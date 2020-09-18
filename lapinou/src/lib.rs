@@ -27,7 +27,7 @@ impl LapinSmolExt for ConnectionProperties {
     }
 
     fn with_smol_reactor(self) -> Self {
-        self.with_async_io_reactor(SmolExecutor)
+        self.with_async_io_reactor()
     }
 }
 

@@ -212,7 +212,7 @@ impl Connection {
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let frames = Frames::default();
-        let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor);
+        let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor.clone());
         let status = conn.status.clone();
         let configuration = conn.configuration.clone();
         status.set_vhost(&uri.vhost);
@@ -262,6 +262,7 @@ impl Connection {
             io_loop_handle,
             handshake_result,
             &*reactor_builder,
+            executor,
         )
         .and_then(IoLoop::start)?;
         promise_out.await?;

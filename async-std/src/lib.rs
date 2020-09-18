@@ -28,7 +28,7 @@ impl LapinAsyncStdExt for ConnectionProperties {
 
     fn with_async_std_reactor(self) -> Self {
         // async-std uses async-io underneath, use async-io reactor until async-std exposes its own API
-        self.with_async_io_reactor(AsyncStdExecutor)
+        self.with_async_io_reactor()
     }
 }
 

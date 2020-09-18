@@ -13,27 +13,27 @@ use std::{collections::HashMap, fmt, sync::Arc};
 // ConnectionProperties extension
 
 pub trait LapinAsyncIoExt {
-    fn with_async_io(self, executor: impl Executor + 'static) -> Self
+    fn with_async_io(self) -> Self
     where
         Self: Sized,
     {
-        self.with_async_io_reactor(executor)
+        self.with_async_io_reactor()
     }
 
-    fn with_async_io_reactor(self, executor: impl Executor + 'static) -> Self
+    fn with_async_io_reactor(self) -> Self
     where
         Self: Sized;
 }
 
 impl LapinAsyncIoExt for ConnectionProperties {
-    fn with_async_io_reactor(self, executor: impl Executor + 'static) -> Self {
-        self.with_reactor(AsyncIoReactorBuilder(Arc::new(executor)))
+    fn with_async_io_reactor(self) -> Self {
+        self.with_reactor(AsyncIoReactorBuilder)
     }
 }
 
 // Reactor
 
-struct AsyncIoReactorBuilder(Arc<dyn Executor>);
+struct AsyncIoReactorBuilder;
 
 impl fmt::Debug for AsyncIoReactorBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -77,10 +77,10 @@ impl Inner {
 }
 
 impl ReactorBuilder for AsyncIoReactorBuilder {
-    fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>> {
+    fn build(&self, heartbeat: Heartbeat, executor: Arc<dyn Executor>) -> Result<Box<dyn Reactor + Send>> {
         Ok(Box::new(AsyncIoReactor(AsyncIoReactorHandle {
             heartbeat,
-            executor: self.0.clone(),
+            executor,
             inner: Arc::new(Mutex::new(Default::default())),
         })))
     }

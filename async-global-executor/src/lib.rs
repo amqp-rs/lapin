@@ -18,8 +18,7 @@ impl LapinAsyncGlobalExecutorExt for ConnectionProperties {
 // Executor
 
 #[derive(Debug)]
-// this needs to be public until lapin passes the executor itself to reactors
-pub struct AsyncGlobalExecutorExecutor;
+struct AsyncGlobalExecutorExecutor;
 
 impl Executor for AsyncGlobalExecutorExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {

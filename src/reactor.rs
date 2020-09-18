@@ -1,4 +1,5 @@
 use crate::{
+    executor::Executor,
     heartbeat::Heartbeat,
     socket_state::{SocketEvent, SocketStateHandle},
     tcp::TcpStream,
@@ -20,7 +21,7 @@ use std::{
 pub type Slot = usize;
 
 pub trait ReactorBuilder: fmt::Debug + Send + Sync {
-    fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>>;
+    fn build(&self, heartbeat: Heartbeat, executor: Arc<dyn Executor>) -> Result<Box<dyn Reactor + Send>>;
 }
 
 pub trait Reactor: fmt::Debug + Send {
@@ -47,7 +48,7 @@ pub trait ReactorHandle {
 pub(crate) struct DefaultReactorBuilder;
 
 impl ReactorBuilder for DefaultReactorBuilder {
-    fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>> {
+    fn build(&self, heartbeat: Heartbeat, _executor: Arc<dyn Executor>) -> Result<Box<dyn Reactor + Send>> {
         Ok(Box::new(DefaultReactor::new(heartbeat)?))
     }
 }

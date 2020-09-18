@@ -2,6 +2,7 @@ use crate::{
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
+    executor::Executor,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPC,
@@ -64,10 +65,11 @@ impl IoLoop {
         connection_io_loop_handle: ThreadHandle,
         stream: HandshakeResult,
         reactor_builder: &dyn ReactorBuilder,
+        executor: Arc<dyn Executor>,
     ) -> Result<Self> {
         let mut stream = TcpStream::try_from(stream)?;
         let heartbeat = Heartbeat::new(channels.clone());
-        let mut reactor = reactor_builder.build(heartbeat.clone())?;
+        let mut reactor = reactor_builder.build(heartbeat.clone(), executor)?;
         let reactor_handle = reactor.handle();
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE as usize,
