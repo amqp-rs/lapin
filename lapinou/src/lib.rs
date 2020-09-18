@@ -1,5 +1,5 @@
 use async_lapin::*;
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 
 // ConnectionProperties extension
@@ -41,8 +41,7 @@ impl Executor for SmolExecutor {
         smol::spawn(f).detach();
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
         smol::spawn(blocking::unblock(f)).detach();
-        Ok(())
     }
 }

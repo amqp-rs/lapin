@@ -1,4 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 use tokio::runtime::Handle;
 
@@ -29,8 +29,7 @@ impl Executor for TokioExecutor {
         self.0.spawn(f);
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
         self.0.spawn_blocking(f);
-        Ok(())
     }
 }

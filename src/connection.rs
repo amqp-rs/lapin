@@ -5,7 +5,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
-    executor::{within_executor, DefaultExecutor, Executor},
+    executor::{DefaultExecutor, Executor},
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
@@ -129,13 +129,7 @@ impl Connection {
     pub fn run(self) -> Result<()> {
         let io_loop = self.io_loop.clone();
         drop(self);
-        if within_executor() {
-            // io_loop waits for the executor to shutdown, do not deadlock in the
-            // unlikely case where run is called from within it
-            Ok(())
-        } else {
-            io_loop.wait("io loop")
-        }
+        io_loop.wait("io loop")
     }
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
@@ -202,7 +196,7 @@ impl Connection {
         let connect_uri = uri.clone();
         executor.spawn_blocking(Box::new(move || {
             resolver.swear(connect(&connect_uri));
-        }))?;
+        }));
 
         let reactor_builder = options
             .reactor_builder

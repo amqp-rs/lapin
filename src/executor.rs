@@ -1,35 +1,9 @@
-use crate::{thread::ThreadHandle, Result};
-use async_task::Task;
-use crossbeam_channel::{Receiver, Sender};
-use std::{
-    cell::RefCell, fmt, future::Future, ops::Deref, pin::Pin, sync::Arc,
-    thread::Builder as ThreadBuilder,
-};
-
-thread_local!(static LAPIN_EXECUTOR_THREAD: RefCell<bool> = RefCell::new(false));
-
-pub(crate) fn within_executor() -> bool {
-    LAPIN_EXECUTOR_THREAD.with(|executor_thread| *executor_thread.borrow())
-}
-
-fn spawn_thread(
-    name: String,
-    work: impl FnOnce() -> Result<()> + Send + 'static,
-) -> Result<ThreadHandle> {
-    Ok(ThreadHandle::new(ThreadBuilder::new().name(name).spawn(
-        move || {
-            LAPIN_EXECUTOR_THREAD.with(|executor_thread| *executor_thread.borrow_mut() = true);
-            work()
-        },
-    )?))
-}
+use crate::Result;
+use std::{fmt, future::Future, ops::Deref, pin::Pin, sync::Arc};
 
 pub trait Executor: std::fmt::Debug + Send + Sync {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>);
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()>;
-    fn stop(&self) -> Result<()> {
-        Ok(())
-    }
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>);
 }
 
 impl Executor for Arc<dyn Executor> {
@@ -37,47 +11,17 @@ impl Executor for Arc<dyn Executor> {
         self.deref().spawn(f);
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
         self.deref().spawn_blocking(f)
-    }
-
-    fn stop(&self) -> Result<()> {
-        self.deref().stop()
     }
 }
 
 #[derive(Clone)]
-pub struct DefaultExecutor {
-    sender: Sender<Option<Task<()>>>,
-    receiver: Receiver<Option<Task<()>>>,
-    threads: Arc<Vec<ThreadHandle>>,
-}
+pub struct DefaultExecutor;
 
 impl DefaultExecutor {
-    pub fn new(max_threads: usize) -> Result<Self> {
-        let (sender, receiver) = crossbeam_channel::unbounded::<Option<Task<()>>>();
-        let threads = Arc::new(
-            (1..=max_threads)
-                .map(|id| {
-                    let receiver = receiver.clone();
-                    spawn_thread(format!("lapin-executor-{}", id), move || {
-                        while let Ok(Some(task)) = receiver.recv() {
-                            task.run();
-                        }
-                        Ok(())
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?,
-        );
-        Ok(Self {
-            sender,
-            receiver,
-            threads,
-        })
-    }
-
     pub(crate) fn default() -> Result<Arc<dyn Executor>> {
-        Ok(Arc::new(Self::new(1)?))
+        Ok(Arc::new(Self))
     }
 }
 
@@ -87,54 +31,12 @@ impl fmt::Debug for DefaultExecutor {
     }
 }
 
-fn schedule(sender: Sender<Option<Task<()>>>, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-    let schedule = move |task| sender.send(Some(task)).expect("executor failed");
-    let (task, _) = async_task::spawn(f, schedule, ());
-    task.schedule();
-}
-
 impl Executor for DefaultExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        schedule(self.sender.clone(), f);
+        async_global_executor::spawn(f).detach();
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
-        let exe_sender = self.sender.clone();
-        let (sender, receiver) = crossbeam_channel::bounded::<Option<Task<()>>>(1);
-        let handle = spawn_thread("lapin-blocking-runner".to_string(), move || {
-            if let Ok(Some(task)) = receiver.recv() {
-                task.run();
-            }
-            Ok(())
-        })?;
-        schedule(
-            sender,
-            Box::pin(async move {
-                f();
-                schedule(
-                    exe_sender,
-                    Box::pin(async move {
-                        let _ = handle.wait("blocking runner");
-                    }),
-                );
-            }),
-        );
-        Ok(())
-    }
-
-    fn stop(&self) -> Result<()> {
-        for _ in self.threads.iter() {
-            let _ = self.sender.send(None);
-        }
-        self.threads
-            .iter()
-            .map(|thread| thread.wait("lapin-executor"))
-            .fold(Ok(()), Result::and)
-    }
-}
-
-impl Drop for DefaultExecutor {
-    fn drop(&mut self) {
-        let _ = self.stop();
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
+        async_global_executor::spawn(blocking::unblock(f)).detach();
     }
 }

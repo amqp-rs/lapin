@@ -1,9 +1,4 @@
-use crate::{
-    executor::{DefaultExecutor, Executor},
-    reactor::ReactorBuilder,
-    types::FieldTable,
-    Result,
-};
+use crate::{executor::Executor, reactor::ReactorBuilder, types::FieldTable};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -29,10 +24,6 @@ impl ConnectionProperties {
     pub fn with_executor<E: Executor + 'static>(mut self, executor: E) -> Self {
         self.executor = Some(Arc::new(executor));
         self
-    }
-
-    pub fn with_default_executor(self, max_threads: usize) -> Result<Self> {
-        Ok(self.with_executor(DefaultExecutor::new(max_threads)?))
     }
 
     pub fn with_reactor<R: ReactorBuilder + 'static>(mut self, reactor_builder: R) -> Self {

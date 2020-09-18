@@ -23,13 +23,7 @@ fn try_rabbit_stuff(addr: String, executor: Arc<ThreadPool>) {
 }
 
 async fn rabbit_stuff(addr: String, executor: Arc<ThreadPool>) -> Result<()> {
-    let conn = Connection::connect(
-        &addr,
-        ConnectionProperties::default()
-            .with_default_executor(8)
-            .expect("default executor"),
-    )
-    .await?;
+    let conn = Connection::connect(&addr, ConnectionProperties::default()).await?;
 
     info!("CONNECTED");
 

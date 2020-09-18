@@ -94,7 +94,7 @@ impl<
 /// let res: Result<()> = LocalPool::new().run_until(async {
 ///     let conn = Connection::connect(
 ///         &addr,
-///         ConnectionProperties::default().with_default_executor(8)?,
+///         ConnectionProperties::default(),
 ///     )
 ///     .await?;
 ///     let channel = conn.create_channel().await?;

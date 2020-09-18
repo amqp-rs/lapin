@@ -1,4 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 
 pub trait BastionExt {
@@ -28,8 +28,7 @@ impl Executor for BastionExecutor {
         bastion_executor::pool::spawn(f, Default::default());
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
         bastion_executor::blocking::spawn_blocking(async move { f() }, Default::default());
-        Ok(())
     }
 }

@@ -103,10 +103,6 @@ impl InternalRPC {
         self.handle.clone()
     }
 
-    pub(crate) fn stop_executor(&self) -> Result<()> {
-        self.handle.executor.stop()
-    }
-
     pub(crate) fn poll(&self, channels: &Channels) -> Result<()> {
         while let Ok(command) = self.rpc.try_recv() {
             self.run(command, channels)?;

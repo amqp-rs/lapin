@@ -1,5 +1,5 @@
 use async_lapin::*;
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 
 // ConnectionProperties extension
@@ -42,8 +42,7 @@ impl Executor for AsyncStdExecutor {
         async_std::task::spawn(f);
     }
 
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) -> Result<()> {
+    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
         async_std::task::spawn_blocking(f);
-        Ok(())
     }
 }

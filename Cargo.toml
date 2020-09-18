@@ -43,8 +43,9 @@ version  = "^0.7"
 features = ["os-poll", "tcp"]
 
 [dependencies]
-async-task = "^3.0"
+async-global-executor = "^1.0.2"
 async-trait = "^0.1"
+blocking = "^1.0"
 crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
