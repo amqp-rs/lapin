@@ -350,14 +350,24 @@ mod futures_tests {
     use super::*;
     use crate::executor::DefaultExecutor;
 
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
     use std::task::{Context, Poll};
 
     use futures_lite::stream::StreamExt;
-    use futures_test::task::new_count_waker;
+    use waker_fn::waker_fn;
 
     #[test]
     fn stream_on_cancel() {
-        let (waker, awoken_count) = new_count_waker();
+        let awoken_count = Arc::new(AtomicUsize::new(0));
+        let waker = {
+            let awoken_count = awoken_count.clone();
+            waker_fn(move || {
+                awoken_count.fetch_add(1, Ordering::SeqCst);
+            })
+        };
         let mut cx = Context::from_waker(&waker);
 
         let mut consumer = Consumer::new(
@@ -367,7 +377,7 @@ mod futures_tests {
         {
             let mut next = consumer.next();
 
-            assert_eq!(awoken_count.get(), 0);
+            assert_eq!(awoken_count.load(Ordering::SeqCst), 0);
             assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Pending);
         }
 
@@ -376,14 +386,20 @@ mod futures_tests {
         {
             let mut next = consumer.next();
 
-            assert_eq!(awoken_count.get(), 1);
+            assert_eq!(awoken_count.load(Ordering::SeqCst), 1);
             assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Ready(None));
         }
     }
 
     #[test]
     fn stream_on_error() {
-        let (waker, awoken_count) = new_count_waker();
+        let awoken_count = Arc::new(AtomicUsize::new(0));
+        let waker = {
+            let awoken_count = awoken_count.clone();
+            waker_fn(move || {
+                awoken_count.fetch_add(1, Ordering::SeqCst);
+            })
+        };
         let mut cx = Context::from_waker(&waker);
 
         let mut consumer = Consumer::new(
@@ -393,7 +409,7 @@ mod futures_tests {
         {
             let mut next = consumer.next();
 
-            assert_eq!(awoken_count.get(), 0);
+            assert_eq!(awoken_count.load(Ordering::SeqCst), 0);
             assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Pending);
         }
 
@@ -402,7 +418,7 @@ mod futures_tests {
         {
             let mut next = consumer.next();
 
-            assert_eq!(awoken_count.get(), 1);
+            assert_eq!(awoken_count.load(Ordering::SeqCst), 1);
             assert_eq!(
                 Pin::new(&mut next).poll(&mut cx),
                 Poll::Ready(Some(Err(Error::ChannelsLimitReached)))
