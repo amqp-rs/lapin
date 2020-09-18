@@ -75,6 +75,8 @@ impl Frames {
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise RabbitMQ-server send us an UNEXPECTED_FRAME */
     header_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    /* Body frames must be sent after the header frame but before the next publish */
+    body_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     priority_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
@@ -85,6 +87,7 @@ impl Default for Inner {
     fn default() -> Self {
         Self {
             header_frames: VecDeque::default(),
+            body_frames: VecDeque::default(),
             priority_frames: VecDeque::default(),
             frames: VecDeque::default(),
             low_prio_frames: VecDeque::default(),
@@ -149,6 +152,7 @@ impl Inner {
         if let Some(frame) = self
             .header_frames
             .pop_front()
+            .or_else(|| self.body_frames.pop_front())
             .or_else(|| self.priority_frames.pop_front())
             .or_else(|| self.frames.pop_front())
         {
@@ -169,6 +173,17 @@ impl Inner {
                     // Yes, this will always be Some(), but let's keep our unwrap() count low
                     if let Some(next_frame) = self.low_prio_frames.pop_front() {
                         self.header_frames.push_back(next_frame);
+                    }
+                    while let Some(next_frame) = self.low_prio_frames.pop_front() {
+                        match next_frame.0 {
+                            AMQPFrame::Body(..) => {
+                                self.body_frames.push_back(next_frame);
+                            }
+                            _ => {
+                                self.low_prio_frames.push_front(next_frame);
+                                break;
+                            }
+                        }
                     }
                 }
                 return Some(frame);
