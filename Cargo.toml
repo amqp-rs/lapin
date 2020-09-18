@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "1.2.2"
+version = "1.2.5"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -24,7 +24,7 @@ rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 vendored-openssl          = ["amq-protocol/vendored-openssl"]
 
 [workspace]
-members = [".", "async-lapin", "async-std", "bastion", "lapinou", "tokio"]
+members = [".", "async-global-executor", "async-lapin", "async-std", "bastion", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
 version = "=6.0.0-rc12"
@@ -49,7 +49,7 @@ crossbeam-channel = "^0.4"
 futures-core = "^0.3"
 log = "^0.4"
 parking_lot = "^0.11"
-pinky-swear = "^4.0"
+pinky-swear = "^4.4"
 
 [dev-dependencies.futures-executor]
 version = "^0.3"

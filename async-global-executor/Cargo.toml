@@ -1,27 +1,25 @@
 [package]
-name = "lapinou"
-version = "0.5.0"
+name = "lapin-async-global-executor"
+version = "0.3.1"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
-description = "lapin integration with smol"
+description = "lapin integration with async-global-executor"
 repository = "https://github.com/CleverCloud/lapin"
 readme = "README.md"
-documentation = "https://docs.rs/lapinou"
-keywords = ["amqp", "rabbitmq", "mio", "futures", "smol"]
+documentation = "https://docs.rs/lapin-async-global-executor"
+keywords = ["amqp", "rabbitmq", "mio", "futures"]
 categories = ["database"]
 license = "MIT"
 
 [features]
-default = ["async-lapin/default"]
+default = ["lapin/default", "async-io"]
+async-io = ["async-global-executor/async-io"]
 
 [dependencies]
-async-executor = "^1.0"
 blocking = "^1.0"
-smol = "^1.0"
 
-[dependencies.async-lapin]
-version = "^0.4"
-path = "../async-lapin"
+[dependencies.async-global-executor]
+version = "^1.0"
 default-features = false
 
 [dependencies.lapin]
