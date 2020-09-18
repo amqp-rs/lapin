@@ -202,6 +202,7 @@ impl Inner {
 
     fn has_pending(&self) -> bool {
         !(self.header_frames.is_empty()
+            && self.body_frames.is_empty()
             && self.priority_frames.is_empty()
             && self.frames.is_empty()
             && self.low_prio_frames.is_empty())
@@ -209,6 +210,7 @@ impl Inner {
 
     fn drop_pending(&mut self, error: Error) {
         Self::drop_pending_frames(&mut self.header_frames, error.clone());
+        Self::drop_pending_frames(&mut self.body_frames, error.clone());
         Self::drop_pending_frames(&mut self.priority_frames, error.clone());
         Self::drop_pending_frames(&mut self.frames, error.clone());
         Self::drop_pending_frames(&mut self.low_prio_frames, error.clone());
