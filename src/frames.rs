@@ -150,10 +150,10 @@ impl Inner {
 
     fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         if let Some(frame) = self
-            .header_frames
+            .priority_frames
             .pop_front()
+            .or_else(|| self.header_frames.pop_front())
             .or_else(|| self.body_frames.pop_front())
-            .or_else(|| self.priority_frames.pop_front())
             .or_else(|| self.frames.pop_front())
         {
             return Some(frame);
