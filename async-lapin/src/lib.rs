@@ -77,7 +77,11 @@ impl Inner {
 }
 
 impl ReactorBuilder for AsyncIoReactorBuilder {
-    fn build(&self, heartbeat: Heartbeat, executor: Arc<dyn Executor>) -> Result<Box<dyn Reactor + Send>> {
+    fn build(
+        &self,
+        heartbeat: Heartbeat,
+        executor: Arc<dyn Executor>,
+    ) -> Result<Box<dyn Reactor + Send>> {
         Ok(Box::new(AsyncIoReactor(AsyncIoReactorHandle {
             heartbeat,
             executor,

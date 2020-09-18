@@ -212,7 +212,12 @@ impl Connection {
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let frames = Frames::default();
-        let conn = Connection::new(waker, internal_rpc.handle(), frames.clone(), executor.clone());
+        let conn = Connection::new(
+            waker,
+            internal_rpc.handle(),
+            frames.clone(),
+            executor.clone(),
+        );
         let status = conn.status.clone();
         let configuration = conn.configuration.clone();
         status.set_vhost(&uri.vhost);

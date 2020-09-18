@@ -1,7 +1,7 @@
 use async_lapin::*;
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation,
-    types::FieldTable, BasicProperties, Connection, ConnectionProperties, Result,
+    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
+    BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
 
@@ -15,11 +15,8 @@ fn main() -> Result<()> {
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
     smol::block_on(async {
-        let conn = Connection::connect(
-            &addr,
-            ConnectionProperties::default().with_async_io(),
-        )
-        .await?;
+        let conn =
+            Connection::connect(&addr, ConnectionProperties::default().with_async_io()).await?;
 
         info!("CONNECTED");
 

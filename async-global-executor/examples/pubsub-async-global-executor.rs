@@ -45,16 +45,15 @@ fn main() -> Result<()> {
             )
             .await?;
 
-        consumer
-            .set_delegate(move |delivery: DeliveryResult| async move {
-                let delivery = delivery.expect("error caught in in consumer");
-                if let Some((channel, delivery)) = delivery {
-                    channel
-                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                        .await
-                        .expect("failed to ack");
-                }
-            });
+        consumer.set_delegate(move |delivery: DeliveryResult| async move {
+            let delivery = delivery.expect("error caught in in consumer");
+            if let Some((channel, delivery)) = delivery {
+                channel
+                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                    .await
+                    .expect("failed to ack");
+            }
+        });
 
         let payload = b"Hello world!";
 
