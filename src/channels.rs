@@ -11,9 +11,9 @@ use crate::{
     Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
-use log::{debug, error, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
+use tracing::{debug, error, level_enabled, trace, Level};
 
 #[derive(Clone)]
 pub(crate) struct Channels {
@@ -153,7 +153,7 @@ impl Channels {
         if let Some(channel0) = self.get(0) {
             let (promise, resolver) = Promise::new();
 
-            if log_enabled!(Trace) {
+            if level_enabled!(Level::TRACE) {
                 promise.set_marker("Heartbeat".into());
             }
 

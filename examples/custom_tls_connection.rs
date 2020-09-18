@@ -7,8 +7,8 @@ use lapin::{
     uri::AMQPUri,
     BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
 };
-use log::info;
 use std::{future::Future, pin::Pin};
+use tracing::info;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Subscriber;

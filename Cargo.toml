@@ -48,9 +48,9 @@ async-trait = "^0.1"
 blocking = "^1.0"
 crossbeam-channel = "^0.4"
 futures-lite = "^1.7"
-log = "^0.4"
 parking_lot = "^0.11"
 pinky-swear = "^4.4"
+tracing = "^0.1"
 
 [dev-dependencies]
 waker-fn = "^1.1"

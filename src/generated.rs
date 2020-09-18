@@ -325,7 +325,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.start-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -353,7 +353,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.secure-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -387,7 +387,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.tune-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -411,11 +411,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.open".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.open.Ok".into());
         }
         self.send_method_frame(
@@ -475,11 +475,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close.Ok".into());
         }
         self.send_method_frame(
@@ -513,7 +513,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -556,7 +556,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.blocked".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -581,7 +581,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.unblocked".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -613,11 +613,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.update-secret".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.update-secret.Ok".into());
         }
         self.send_method_frame(
@@ -668,11 +668,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.open".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.open.Ok".into());
         }
         self.send_method_frame(
@@ -714,11 +714,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.flow".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.flow.Ok".into());
         }
         self.send_method_frame(
@@ -751,7 +751,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.flow-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -796,11 +796,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close.Ok".into());
         }
         self.send_method_frame(
@@ -832,7 +832,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -886,11 +886,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("access.request".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("access.request.Ok".into());
         }
         self.send_method_frame(
@@ -959,11 +959,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.declare".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.declare.Ok".into());
         }
         self.send_method_frame(
@@ -1020,11 +1020,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.delete".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.delete.Ok".into());
         }
         self.send_method_frame(
@@ -1085,11 +1085,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.bind".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.bind.Ok".into());
         }
         self.send_method_frame(
@@ -1150,11 +1150,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.unbind".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.unbind.Ok".into());
         }
         self.send_method_frame(
@@ -1221,11 +1221,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.declare".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.declare.Ok".into());
         }
         self.send_method_frame(
@@ -1288,11 +1288,11 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.bind".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.bind.Ok".into());
         }
         self.send_method_frame(
@@ -1338,11 +1338,11 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.purge".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.purge.Ok".into());
         }
         self.send_method_frame(
@@ -1394,11 +1394,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.delete".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.delete.Ok".into());
         }
         self.send_method_frame(
@@ -1455,11 +1455,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.unbind".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.unbind.Ok".into());
         }
         self.send_method_frame(
@@ -1509,11 +1509,11 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.qos".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.qos.Ok".into());
         }
         self.send_method_frame(
@@ -1577,11 +1577,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.consume".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.consume.Ok".into());
         }
         self.send_method_frame(
@@ -1639,11 +1639,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.cancel".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.cancel.Ok".into());
         }
         self.send_method_frame(
@@ -1682,7 +1682,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.cancel-ok".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -1769,11 +1769,11 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.get".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.get.Ok".into());
         }
         self.send_method_frame(
@@ -1828,7 +1828,7 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.ack".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -1862,7 +1862,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.reject".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -1880,7 +1880,7 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover-async".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -1899,11 +1899,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover.Ok".into());
         }
         self.send_method_frame(
@@ -1957,7 +1957,7 @@ impl Channel {
         }));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.nack".into());
         }
         self.send_method_frame(method, send_resolver, None);
@@ -1980,11 +1980,11 @@ impl Channel {
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Select(protocol::tx::Select {}));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.select".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.select.Ok".into());
         }
         self.send_method_frame(
@@ -2025,11 +2025,11 @@ impl Channel {
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Commit(protocol::tx::Commit {}));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.commit".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.commit.Ok".into());
         }
         self.send_method_frame(
@@ -2072,11 +2072,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.rollback".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.rollback.Ok".into());
         }
         self.send_method_frame(
@@ -2120,11 +2120,11 @@ impl Channel {
         ));
 
         let (promise, send_resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("confirm.select".into());
         }
         let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("confirm.select.Ok".into());
         }
         self.send_method_frame(

@@ -22,8 +22,8 @@ use crate::{
     PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use std::{convert::TryFrom, fmt, sync::Arc};
+use tracing::{debug, error, info, level_enabled, trace, Level};
 
 #[cfg(test)]
 use crate::queue::QueueState;

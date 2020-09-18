@@ -6,7 +6,7 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
-use log::info;
+use tracing::info;
 
 fn get_tls_config() -> OwnedTLSConfig {
     let cert_chain = "" /* include_str!(concat!(

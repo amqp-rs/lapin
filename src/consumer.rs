@@ -6,7 +6,6 @@ use crate::{
 };
 use crossbeam_channel::{Receiver, Sender};
 use futures_lite::Stream;
-use log::trace;
 use parking_lot::Mutex;
 use std::{
     fmt,
@@ -15,6 +14,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll, Waker},
 };
+use tracing::trace;
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult)

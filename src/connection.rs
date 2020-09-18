@@ -19,8 +19,8 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
-use log::{log_enabled, Level::Trace};
 use std::{fmt, io, sync::Arc};
+use tracing::{level_enabled, Level};
 
 /// A TCP connection to the AMQP server.
 ///
@@ -226,7 +226,7 @@ impl Connection {
             configuration.set_heartbeat(heartbeat);
         }
         let (promise_out, resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise_out.set_marker("ProtocolHeader".into());
         }
         let channels = conn.channels.clone();
@@ -238,7 +238,7 @@ impl Connection {
             )
         };
         let (promise_in, resolver) = Promise::new();
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise_in.set_marker("ProtocolHeader.Ok".into());
         }
         let io_loop_handle = conn.io_loop.clone();

@@ -3,7 +3,7 @@ use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
 };
-use log::info;
+use tracing::info;
 
 fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    smol::block_on(async {
+    async_io::block_on(async {
         let conn =
             Connection::connect(&addr, ConnectionProperties::default().with_async_io()).await?;
 

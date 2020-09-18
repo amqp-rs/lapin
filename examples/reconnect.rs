@@ -3,18 +3,18 @@ use lapin::{
     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, Result,
 };
-use log::info;
+use tracing::info;
 
 fn retry_rabbit_stuff(addr: String) {
     std::thread::sleep(std::time::Duration::from_millis(2000));
-    log::debug!("Reconnecting to rabbitmq");
+    tracing::debug!("Reconnecting to rabbitmq");
     try_rabbit_stuff(addr);
 }
 
 fn try_rabbit_stuff(addr: String) {
     async_global_executor::spawn(async move {
         if let Err(err) = rabbit_stuff(addr.clone()).await {
-            log::error!("Error: {}", err);
+            tracing::error!("Error: {}", err);
             retry_rabbit_stuff(addr);
         }
     })

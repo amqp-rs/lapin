@@ -4,7 +4,7 @@ use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
 };
-use log::info;
+use tracing::info;
 
 pub async fn consume() -> Result<()> {
     info!("CONNECTING");

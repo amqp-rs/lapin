@@ -1,11 +1,11 @@
 use crate::{message::BasicReturnMessage, returned_messages::ReturnedMessages, Promise, Result};
-use log::trace;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
+use tracing::trace;
 
 pub struct PublisherConfirm {
     inner: Option<Promise<Confirmation>>,

@@ -104,7 +104,7 @@ impl From<io::Error> for Error {
 
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
-        use log::error;
+        use tracing::error;
         use Error::*;
 
         match (self, other) {

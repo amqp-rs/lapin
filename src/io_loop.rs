@@ -14,7 +14,6 @@ use crate::{
     Configuration, ConnectionStatus, Error, PromiseResolver, Result, TcpStream,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
-use log::{debug, error, trace};
 use std::{
     collections::VecDeque,
     convert::TryFrom,
@@ -23,6 +22,7 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
+use tracing::{debug, error, trace};
 
 const FRAMES_STORAGE: usize = 32;
 

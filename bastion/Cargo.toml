@@ -24,7 +24,7 @@ bastion-executor = "^0.3"
 
 [dev-dependencies]
 bastion = "^0.4"
-log = "^0.4"
+tracing = "^0.1"
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"

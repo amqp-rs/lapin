@@ -2,7 +2,6 @@ use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, ConsumerDelegate,
 };
-use log::info;
 use std::{
     future::Future,
     pin::Pin,
@@ -12,6 +11,7 @@ use std::{
     },
     thread, time,
 };
+use tracing::info;
 
 #[derive(Clone, Debug)]
 struct Subscriber {

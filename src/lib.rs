@@ -25,7 +25,7 @@
 //!     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
 //!     ConnectionProperties, Result,
 //! };
-//! use log::info;
+//! use tracing::info;
 //!
 //! fn main() -> Result<()> {
 //!     if std::env::var("RUST_LOG").is_err() {

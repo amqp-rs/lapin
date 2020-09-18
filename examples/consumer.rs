@@ -1,5 +1,5 @@
 use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
-use log::info;
+use tracing::info;
 
 fn main() {
     if std::env::var("RUST_LOG").is_err() {

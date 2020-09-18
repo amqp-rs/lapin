@@ -1,6 +1,5 @@
 use crate::{channel::Reply, Error, Promise, PromiseResolver, Result};
 use amq_protocol::frame::AMQPFrame;
-use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use pinky_swear::Cancellable;
 use std::{
@@ -8,6 +7,7 @@ use std::{
     fmt,
     sync::Arc,
 };
+use tracing::{level_enabled, trace, Level};
 
 pub(crate) struct ExpectedReply(
     pub(crate) Reply,
@@ -130,7 +130,7 @@ impl Inner {
         let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
-        if log_enabled!(Trace) {
+        if level_enabled!(Level::TRACE) {
             promise.set_marker("Frames".into());
         }
 

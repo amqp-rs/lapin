@@ -3,8 +3,8 @@ use crate::{
     Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
-use log::trace;
 use std::{future::Future, sync::Arc};
+use tracing::trace;
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<InternalCommand>,

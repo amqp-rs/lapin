@@ -2,8 +2,8 @@ use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
 };
-use log::info;
 use tokio_amqp::*;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {

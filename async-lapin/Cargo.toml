@@ -24,10 +24,7 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
-async-executor = "^1.0"
-blocking = "^1.0"
-log = "^0.4"
-smol = "^1.0"
+tracing = "^0.1"
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"

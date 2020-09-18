@@ -3,9 +3,9 @@ use crate::{
     types::{ShortString, ShortUInt},
     Result,
 };
-use log::trace;
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
+use tracing::trace;
 
 #[derive(Clone, Default)]
 pub struct ChannelStatus(Arc<Mutex<Inner>>);

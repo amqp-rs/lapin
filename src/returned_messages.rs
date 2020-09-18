@@ -1,9 +1,9 @@
 use crate::{
     message::BasicReturnMessage, publisher_confirm::Confirmation, BasicProperties, Promise,
 };
-use log::{trace, warn};
 use parking_lot::Mutex;
 use std::{collections::VecDeque, fmt, sync::Arc};
+use tracing::{trace, warn};
 
 #[derive(Clone, Default)]
 pub(crate) struct ReturnedMessages {

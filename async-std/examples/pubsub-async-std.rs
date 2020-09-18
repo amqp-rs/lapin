@@ -3,7 +3,7 @@ use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Result,
 };
-use log::info;
+use tracing::info;
 
 #[async_std::main]
 async fn main() -> Result<()> {

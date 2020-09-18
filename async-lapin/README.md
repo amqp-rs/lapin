@@ -7,18 +7,8 @@ use async_lapin::*;
 use lapin::{executor::Executor, Connection, ConnectionProperties, Result};
 use std::{future::Future, pin::Pin};
 
-#[derive(Debug)]
-struct SmolExecutor;
-
-impl Executor for SmolExecutor {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
-        smol::spawn(f).detach();
-        Ok(())
-    }
-}
-
 fn main() -> Result<()> {
-    smol::block_on(async {
+    async_global_executor::block_on(async {
         let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
         let conn = Connection::connect(
             &addr,

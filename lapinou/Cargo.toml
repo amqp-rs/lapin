@@ -30,7 +30,7 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
-log = "^0.4"
+tracing = "^0.1"
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"

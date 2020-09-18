@@ -3,7 +3,7 @@ use crate::{
     Result,
 };
 use crossbeam_channel::{Receiver, Sender};
-use log::trace;
+use tracing::trace;
 
 pub(crate) struct SocketState {
     readable: bool,
