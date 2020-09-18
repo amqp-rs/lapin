@@ -42,6 +42,10 @@ default-features = false
 version = "^1.0.2"
 features = ["async-io"]
 
+[dependencies.tracing]
+version = "^0.1"
+default-features = false
+
 [dependencies]
 async-io = "^1.0"
 async-trait = "^0.1"
@@ -50,7 +54,6 @@ crossbeam-channel = "^0.4"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^4.4"
-tracing = "^0.1"
 
 [dev-dependencies]
 waker-fn = "^1.1"

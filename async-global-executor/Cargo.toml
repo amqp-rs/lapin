@@ -27,8 +27,9 @@ version = "^1.2.3"
 path = ".."
 default-features = false
 
-[dev-dependencies]
-tracing = "^0.1"
+[dev-dependencies.tracing]
+version = "^0.1"
+default-features = false
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"

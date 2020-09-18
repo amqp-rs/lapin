@@ -24,13 +24,14 @@ version = "^0.2"
 default-features = false
 features = ["blocking", "rt-core"]
 
-[dev-dependencies]
-tracing = "^0.1"
-
 [dev-dependencies.tokio]
 version = "^0.2"
 default-features = false
 features = ["blocking", "macros", "rt-core", "rt-threaded"]
+
+[dev-dependencies.tracing]
+version = "^0.1"
+default-features = false
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"
