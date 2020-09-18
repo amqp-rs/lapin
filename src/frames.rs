@@ -44,7 +44,7 @@ impl Frames {
     }
 
     pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
-        self.inner.lock().retry(frame);
+        self.inner.lock().retry_frames.push_back(frame);
     }
 
     pub(crate) fn pop(&self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
@@ -75,8 +75,9 @@ impl Frames {
 
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise RabbitMQ-server send us an UNEXPECTED_FRAME */
-    header_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
-    priority_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    /* After sending the Header frame, we need to send the associated Body frames before anything else for the same reason */
+    publish_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    retry_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
@@ -85,8 +86,8 @@ struct Inner {
 impl Default for Inner {
     fn default() -> Self {
         Self {
-            header_frames: VecDeque::default(),
-            priority_frames: VecDeque::default(),
+            publish_frames: VecDeque::default(),
+            retry_frames: VecDeque::default(),
             frames: VecDeque::default(),
             low_prio_frames: VecDeque::default(),
             expected_replies: HashMap::default(),
@@ -147,9 +148,9 @@ impl Inner {
 
     fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
         if let Some(frame) = self
-            .header_frames
+            .retry_frames
             .pop_front()
-            .or_else(|| self.priority_frames.pop_front())
+            .or_else(|| self.publish_frames.pop_front())
             .or_else(|| self.frames.pop_front())
         {
             return Some(frame);
@@ -157,18 +158,30 @@ impl Inner {
         if flow {
             if let Some(frame) = self.low_prio_frames.pop_front() {
                 // If the next frame is a header, that means we're a basic.publish
-                // Header frame needs to follow directly the basic.publish frame or
-                // the AMQP server will close the connection.
-                // Push the header into header_frames which is there to handle just that.
+                // Header frame needs to follow directly the basic.publish frame, and Body frames
+                // need to be sent just after those or the AMQP server will close the connection.
+                // Push the header into publish_frames which is there to handle just that.
                 if self
                     .low_prio_frames
                     .front()
                     .map(|(frame, _)| frame.is_header())
                     .unwrap_or(false)
                 {
-                    // Yes, this will always be Some(), but let's keep our unwrap() count low
+                    // Yes, this will always be Some() with a Header frame, but let's keep our unwrap() count low
                     if let Some(next_frame) = self.low_prio_frames.pop_front() {
-                        self.header_frames.push_back(next_frame);
+                        self.publish_frames.push_back(next_frame);
+                    }
+                    while let Some(next_frame) = self.low_prio_frames.pop_front() {
+                        match next_frame.0 {
+                            AMQPFrame::Body(..) => {
+                                self.publish_frames.push_back(next_frame);
+                            }
+                            _ => {
+                                // We've exhausted Body frames for this publish, push back the next one and exit
+                                self.low_prio_frames.push_front(next_frame);
+                                break;
+                            }
+                        }
                     }
                 }
                 return Some(frame);
@@ -177,24 +190,16 @@ impl Inner {
         None
     }
 
-    fn retry(&mut self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
-        if frame.0.is_header() {
-            self.header_frames.push_front(frame);
-        } else {
-            self.priority_frames.push_back(frame);
-        }
-    }
-
     fn has_pending(&self) -> bool {
-        !(self.header_frames.is_empty()
-            && self.priority_frames.is_empty()
+        !(self.retry_frames.is_empty()
+            && self.publish_frames.is_empty()
             && self.frames.is_empty()
             && self.low_prio_frames.is_empty())
     }
 
     fn drop_pending(&mut self, error: Error) {
-        Self::drop_pending_frames(&mut self.header_frames, error.clone());
-        Self::drop_pending_frames(&mut self.priority_frames, error.clone());
+        Self::drop_pending_frames(&mut self.retry_frames, error.clone());
+        Self::drop_pending_frames(&mut self.publish_frames, error.clone());
         Self::drop_pending_frames(&mut self.frames, error.clone());
         Self::drop_pending_frames(&mut self.low_prio_frames, error.clone());
         for (_, replies) in self.expected_replies.drain() {

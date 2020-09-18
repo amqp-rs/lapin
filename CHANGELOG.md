@@ -1,3 +1,21 @@
+### 1.2.7 (2020-09-18)
+
+#### Bug Fixes
+
+* Make frame ordering more robust
+
+### 1.2.6 (2020-09-18)
+
+#### Bug Fixes
+
+* Fix a bug in the frame ordering when doing lots of publishing
+
+### 1.2.5 (2020-09-18)
+
+#### Misc
+
+* Update pinky-swear
+
 ### 1.2.4 (2020-09-17)
 
 #### Bug Fixes
