@@ -5,7 +5,7 @@ use crate::{
     BasicProperties, Channel, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
-use futures_core::stream::Stream;
+use futures_lite::Stream;
 use log::trace;
 use parking_lot::Mutex;
 use std::{
@@ -85,13 +85,12 @@ impl<
 /// ## Example
 /// ```rust,no_run
 /// use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties, Result};
-/// use futures_executor::LocalPool;
-/// use futures_util::stream::StreamExt;
+/// use futures_lite::stream::StreamExt;
 /// use std::future::Future;
 ///
 /// let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 ///
-/// let res: Result<()> = LocalPool::new().run_until(async {
+/// let res: Result<()> = async_global_executor::block_on(async {
 ///     let conn = Connection::connect(
 ///         &addr,
 ///         ConnectionProperties::default(),
@@ -353,8 +352,8 @@ mod futures_tests {
 
     use std::task::{Context, Poll};
 
+    use futures_lite::stream::StreamExt;
     use futures_test::task::new_count_waker;
-    use futures_util::stream::StreamExt;
 
     #[test]
     fn stream_on_cancel() {
@@ -365,14 +364,21 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             DefaultExecutor::default().unwrap(),
         );
+        {
+            let mut next = consumer.next();
 
-        assert_eq!(awoken_count.get(), 0);
-        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
+            assert_eq!(awoken_count.get(), 0);
+            assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Pending);
+        }
 
         consumer.cancel();
 
-        assert_eq!(awoken_count.get(), 1);
-        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Ready(None));
+        {
+            let mut next = consumer.next();
+
+            assert_eq!(awoken_count.get(), 1);
+            assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Ready(None));
+        }
     }
 
     #[test]
@@ -384,16 +390,23 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             DefaultExecutor::default().unwrap(),
         );
+        {
+            let mut next = consumer.next();
 
-        assert_eq!(awoken_count.get(), 0);
-        assert_eq!(consumer.poll_next_unpin(&mut cx), Poll::Pending);
+            assert_eq!(awoken_count.get(), 0);
+            assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Pending);
+        }
 
         consumer.set_error(Error::ChannelsLimitReached);
 
-        assert_eq!(awoken_count.get(), 1);
-        assert_eq!(
-            consumer.poll_next_unpin(&mut cx),
-            Poll::Ready(Some(Err(Error::ChannelsLimitReached)))
-        );
+        {
+            let mut next = consumer.next();
+
+            assert_eq!(awoken_count.get(), 1);
+            assert_eq!(
+                Pin::new(&mut next).poll(&mut cx),
+                Poll::Ready(Some(Err(Error::ChannelsLimitReached)))
+            );
+        }
     }
 }

@@ -1,4 +1,3 @@
-use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult,
     options::*,
@@ -37,7 +36,7 @@ fn main() {
     let addr = std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqps://localhost:5671/%2f?auth_mechanism=external".into());
 
-    LocalPool::new().run_until(async {
+    async_global_executor::block_on(async {
         let conn = Connection::connect_with_config(
             &addr,
             ConnectionProperties::default(),

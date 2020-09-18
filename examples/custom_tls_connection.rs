@@ -1,4 +1,3 @@
-use futures_executor::LocalPool;
 use lapin::{
     message::DeliveryResult,
     options::*,
@@ -51,7 +50,7 @@ fn main() {
 
     env_logger::init();
 
-    LocalPool::new().run_until(async {
+    async_global_executor::block_on(async {
         let conn = connect().await.expect("connection error");
 
         info!("CONNECTED");

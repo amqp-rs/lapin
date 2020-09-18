@@ -1,4 +1,3 @@
-use futures_executor::LocalPool;
 use lapin::{
     message::{BasicReturnMessage, Delivery, DeliveryResult},
     options::*,
@@ -17,7 +16,7 @@ fn main() {
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
-    LocalPool::new().run_until(async {
+    async_global_executor::block_on(async {
         let conn = Connection::connect(&addr, ConnectionProperties::default())
             .await
             .expect("connection error");

@@ -47,19 +47,14 @@ async-global-executor = "^1.0.2"
 async-trait = "^0.1"
 blocking = "^1.0"
 crossbeam-channel = "^0.4"
-futures-core = "^0.3"
+futures-lite = "^1.7"
 log = "^0.4"
 parking_lot = "^0.11"
 pinky-swear = "^4.4"
 
-[dev-dependencies.futures-executor]
-version = "^0.3"
-features = ["thread-pool"]
-
 [dev-dependencies]
 env_logger = "^0.7"
 futures-test = "^0.3"
-futures-util = "^0.3"
 
 [[example]]
 name = "custom_tls_connection"
