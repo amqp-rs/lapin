@@ -45,7 +45,7 @@ impl ConsumerDelegate for Subscriber {
 
 #[test]
 fn connection() {
-    let _ = env_logger::try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 

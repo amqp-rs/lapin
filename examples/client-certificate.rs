@@ -31,7 +31,7 @@ fn main() {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqps://localhost:5671/%2f?auth_mechanism=external".into());

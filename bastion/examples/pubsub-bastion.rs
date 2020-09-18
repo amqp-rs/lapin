@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     Bastion::init();
     Bastion::start();

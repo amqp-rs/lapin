@@ -25,10 +25,13 @@ default-features = false
 features = ["blocking", "rt-core"]
 
 [dev-dependencies]
-env_logger = "^0.7"
 log = "^0.4"
 
 [dev-dependencies.tokio]
 version = "^0.2"
 default-features = false
 features = ["blocking", "macros", "rt-core", "rt-threaded"]
+
+[dev-dependencies.tracing-subscriber]
+version = "^0.2"
+features = ["fmt"]

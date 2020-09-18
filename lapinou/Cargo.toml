@@ -30,5 +30,8 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
-env_logger = "^0.7"
 log = "^0.4"
+
+[dev-dependencies.tracing-subscriber]
+version = "^0.2"
+features = ["fmt"]

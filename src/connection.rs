@@ -322,8 +322,6 @@ impl Connect for &str {
 
 #[cfg(test)]
 mod tests {
-    use env_logger;
-
     use super::*;
     use crate::channel_receiver_state::ChannelReceiverState;
     use crate::channel_status::ChannelState;
@@ -334,7 +332,7 @@ mod tests {
 
     #[test]
     fn basic_consume_small_payload() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         use crate::consumer::Consumer;
         use crate::queue::{Queue, QueueState};
@@ -413,7 +411,7 @@ mod tests {
 
     #[test]
     fn basic_consume_empty_payload() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         use crate::consumer::Consumer;
         use crate::queue::{Queue, QueueState};

@@ -9,7 +9,7 @@ fn main() {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 

@@ -53,8 +53,11 @@ parking_lot = "^0.11"
 pinky-swear = "^4.4"
 
 [dev-dependencies]
-env_logger = "^0.7"
 waker-fn = "^1.1"
+
+[dev-dependencies.tracing-subscriber]
+version = "^0.2"
+features = ["fmt"]
 
 [[example]]
 name = "custom_tls_connection"

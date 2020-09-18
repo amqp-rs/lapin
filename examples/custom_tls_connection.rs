@@ -48,7 +48,7 @@ fn main() {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     async_global_executor::block_on(async {
         let conn = connect().await.expect("connection error");
