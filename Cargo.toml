@@ -42,6 +42,10 @@ default-features = false
 version = "^1.0.2"
 features = ["async-io"]
 
+[dependencies.flume]
+version = "^0.9"
+default-features = false
+
 [dependencies.tracing]
 version = "^0.1"
 default-features = false
@@ -50,7 +54,6 @@ default-features = false
 async-io = "^1.0"
 async-trait = "^0.1"
 blocking = "^1.0"
-crossbeam-channel = "^0.4"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.0"

@@ -4,7 +4,7 @@ use crate::{
     types::ShortString,
     BasicProperties, Channel, Error, Result,
 };
-use crossbeam_channel::{Receiver, Sender};
+use flume::{Receiver, Sender};
 use futures_lite::Stream;
 use parking_lot::Mutex;
 use std::{
@@ -240,7 +240,7 @@ impl fmt::Debug for Consumer {
 
 impl ConsumerInner {
     fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
-        let (sender, receiver) = crossbeam_channel::unbounded();
+        let (sender, receiver) = flume::unbounded();
         Self {
             current_message: None,
             deliveries_in: sender,

@@ -2,7 +2,7 @@ use crate::{
     channels::Channels, executor::Executor, socket_state::SocketStateHandle, types::ShortUInt,
     Error, Result,
 };
-use crossbeam_channel::{Receiver, Sender};
+use flume::{Receiver, Sender};
 use std::{future::Future, sync::Arc};
 use tracing::trace;
 
@@ -90,7 +90,7 @@ enum InternalCommand {
 
 impl InternalRPC {
     pub(crate) fn new(executor: Arc<dyn Executor>, waker: SocketStateHandle) -> Self {
-        let (sender, rpc) = crossbeam_channel::unbounded();
+        let (sender, rpc) = flume::unbounded();
         let handle = InternalRPCHandle {
             sender,
             waker,

@@ -2,7 +2,7 @@ use crate::{
     reactor::{ReactorHandle, Slot},
     Result,
 };
-use crossbeam_channel::{Receiver, Sender};
+use flume::{Receiver, Sender};
 use tracing::trace;
 
 pub(crate) struct SocketState {
@@ -14,7 +14,7 @@ pub(crate) struct SocketState {
 
 impl Default for SocketState {
     fn default() -> Self {
-        let (sender, receiver) = crossbeam_channel::unbounded();
+        let (sender, receiver) = flume::unbounded();
         Self {
             readable: true,
             writable: true,
