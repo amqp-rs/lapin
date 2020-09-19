@@ -115,12 +115,12 @@ impl Channel {
     self.send_method_frame_with_body(method, payload, properties, start_hook_res).await
     {{else}}
     let (promise, send_resolver) = Promise::new();
-    if level_enabled!(Trace) {
+    if level_enabled!(Level::TRACE) {
       promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
     {{#if method.synchronous ~}}
     let ((promise, resolver), promise_out) = (Promise::new(), promise);
-    if level_enabled!(Trace) {
+    if level_enabled!(Level::TRACE) {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
