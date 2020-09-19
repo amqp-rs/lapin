@@ -12,6 +12,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Error {
     ChannelsLimitReached,
     InvalidProtocolVersion(ProtocolVersion),
@@ -24,16 +25,6 @@ pub enum Error {
     ParsingError(ParserError),
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
-
-    /// A hack to prevent developers from exhaustively match on the enum's variants
-    ///
-    /// The purpose of this variant is to let the `Error` enumeration grow more variants
-    /// without it being a breaking change for users. It is planned for the language to provide
-    /// this functionality out of the box, though it has not been [stabilized] yet.
-    ///
-    /// [stabilized]: https://github.com/rust-lang/rust/issues/44109
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 impl Error {
@@ -75,11 +66,6 @@ impl fmt::Display for Error {
             Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
             Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
             Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
-
-            Error::__Nonexhaustive => write!(
-                f,
-                "lapin::Error::__Nonexhaustive: this should not be printed"
-            ),
         }
     }
 }

@@ -190,7 +190,7 @@ impl Connection {
             .executor
             .take()
             .map(Ok)
-            .unwrap_or_else(|| DefaultExecutor::default())?;
+            .unwrap_or_else(DefaultExecutor::default)?;
 
         let (connect_promise, resolver) = pinky_swear::PinkySwear::<HandshakeResult>::new();
         let connect_uri = uri.clone();

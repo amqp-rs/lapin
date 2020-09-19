@@ -278,7 +278,7 @@ impl ConsumerInner {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.drop_prefetched_messages());
         }
-        while let Some(_) = self.next_delivery() {}
+        while self.next_delivery().is_some() {}
     }
 
     fn cancel(&mut self) {

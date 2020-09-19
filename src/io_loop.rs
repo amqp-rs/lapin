@@ -151,7 +151,8 @@ impl IoLoop {
 
     pub fn start(mut self) -> Result<()> {
         let waker = self.socket_state.handle();
-        self.connection_io_loop_handle.clone().register(
+        let handle = self.connection_io_loop_handle.clone();
+        handle.register(
             ThreadBuilder::new()
                 .name("lapin-io-loop".to_owned())
                 .spawn(move || {
