@@ -1,5 +1,5 @@
 use crate::{thread::ThreadHandle, Result};
-use async_task::Task;
+use async_task::Runnable;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use std::{
@@ -25,8 +25,8 @@ impl Executor for Arc<dyn Executor> {
 
 #[derive(Clone)]
 pub struct DefaultExecutor {
-    sender: Sender<Option<Task<()>>>,
-    receiver: Receiver<Option<Task<()>>>,
+    sender: Sender<Option<Runnable>>,
+    receiver: Receiver<Option<Runnable>>,
     threads: Arc<Mutex<Vec<ThreadHandle>>>,
     max_threads: usize,
 }
@@ -54,8 +54,8 @@ impl DefaultExecutor {
                     .spawn(move || {
                         LAPIN_EXECUTOR_THREAD
                             .with(|executor_thread| *executor_thread.borrow_mut() = true);
-                        while let Ok(Some(task)) = receiver.recv() {
-                            task.run();
+                        while let Ok(Some(runnable)) = receiver.recv() {
+                            runnable.run();
                         }
                         Ok(())
                     })?,
@@ -83,9 +83,10 @@ impl Executor for DefaultExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
         self.maybe_spawn_thread()?;
         let sender = self.sender.clone();
-        let schedule = move |task| sender.send(Some(task)).expect("executor failed");
-        let (task, _) = async_task::spawn(f, schedule, ());
-        task.schedule();
+        let schedule = move |runnable| sender.send(Some(runnable)).expect("executor failed");
+        let (runnable, task) = async_task::spawn(f, schedule);
+        runnable.schedule();
+        task.detach();
         Ok(())
     }
 }
