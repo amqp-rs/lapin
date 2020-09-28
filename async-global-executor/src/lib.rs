@@ -7,19 +7,28 @@ pub trait LapinAsyncGlobalExecutorExt {
     fn with_async_global_executor(self) -> Self
     where
         Self: Sized;
+
+    #[cfg(feature = "async-io")]
+    fn with_async_io(self) -> Self
+    where
+        Self: Sized;
 }
 
 impl LapinAsyncGlobalExecutorExt for ConnectionProperties {
     fn with_async_global_executor(self) -> Self {
         self.with_executor(AsyncGlobalExecutorExecutor)
     }
+
+    #[cfg(feature = "async-io")]
+    fn with_async_io(self) -> Self {
+        async_lapin::LapinAsyncIoExt::with_async_io(self, AsyncGlobalExecutorExecutor)
+    }
 }
 
 // Executor
 
 #[derive(Debug)]
-// this needs to be public until lapin passes the executor itself to reactors
-pub struct AsyncGlobalExecutorExecutor;
+struct AsyncGlobalExecutorExecutor;
 
 impl Executor for AsyncGlobalExecutorExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
