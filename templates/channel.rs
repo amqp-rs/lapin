@@ -51,7 +51,7 @@ impl Channel {
       {{/each ~}}
       {{/each ~}}
       m => {
-        error!("the client should not receive this method: {:?}", m);
+        error!(method=?m, "The client should not receive this method");
         self.handle_invalid_contents(format!("unexepcted method received on channel {}", self.id), m.get_amqp_class_id(), m.get_amqp_method_id())
       }
     }

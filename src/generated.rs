@@ -287,7 +287,7 @@ impl Channel {
                 self.receive_confirm_select_ok(m)
             }
             m => {
-                error!("the client should not receive this method: {:?}", m);
+                error!(method=?m, "The client should not receive this method");
                 self.handle_invalid_contents(
                     format!("unexepcted method received on channel {}", self.id),
                     m.get_amqp_class_id(),

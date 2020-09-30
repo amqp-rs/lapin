@@ -109,7 +109,7 @@ impl IoLoop {
                 self.reactor.start_heartbeat();
             }
             let peer = self.stream.inner().peer_addr()?;
-            debug!("Connected to {}", peer);
+            debug!(%peer, "Connected");
             self.status = Status::Connected;
         }
         Ok(true)
@@ -185,10 +185,10 @@ impl IoLoop {
             return Ok(());
         }
         trace!(
-            "io_loop do_run; can_read={}, can_write={}, has_data={}",
-            self.socket_state.readable(),
-            self.socket_state.writable(),
-            self.has_data()
+            can_read=%self.socket_state.readable(),
+            can_write=%self.socket_state.writable(),
+            has_data=%self.has_data(),
+            "io_loop do_run",
         );
         if !self.can_read() && !self.can_write() {
             self.socket_state.wait();
@@ -210,11 +210,11 @@ impl IoLoop {
         }
         self.handle_frames()?;
         trace!(
-            "io_loop do_run done; can_read={}, can_write={}, has_data={}, status={:?}",
-            self.socket_state.readable(),
-            self.socket_state.writable(),
-            self.has_data(),
-            self.status
+            can_read=%self.socket_state.readable(),
+            can_write=%self.socket_state.writable(),
+            has_data=%self.has_data(),
+            status=?self.status,
+            "io_loop do_run done",
         );
         self.poll_internal_rpc()
     }
@@ -238,7 +238,7 @@ impl IoLoop {
             .socket_state
             .handle_read_result(result, &*self.reactor, self.slot)
         {
-            error!("error reading: {:?}", e);
+            error!(error=?e, "error reading");
             self.critical_error(e)?;
         }
         self.poll_internal_rpc()
@@ -249,7 +249,7 @@ impl IoLoop {
             .socket_state
             .handle_write_result(result, &*self.reactor, self.slot)
         {
-            error!("error writing: {:?}", e);
+            error!(error=?e, "error writing");
             self.critical_error(e)?;
         }
         self.poll_internal_rpc()
@@ -351,7 +351,7 @@ impl IoLoop {
 
     fn serialize(&mut self) -> Result<()> {
         while let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
-            trace!("will write to buffer: {}", next_msg);
+            trace!(%next_msg, "will write to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
@@ -365,7 +365,7 @@ impl IoLoop {
                             break;
                         }
                         e => {
-                            error!("error generating frame: {:?}", e);
+                            error!(error=?e, "error generating frame");
                             self.critical_error(Error::SerialisationError(Arc::new(e)))?;
                         }
                     }
@@ -392,7 +392,7 @@ impl IoLoop {
                 let consumed = self.receive_buffer.offset(i);
                 let frame_max = self.configuration.frame_max() as usize;
                 if frame_max > 0 && consumed > frame_max {
-                    error!("received large ({} bytes) frame", consumed);
+                    error!(bytes = consumed, "received large frame");
                     let error = AMQPError::new(
                         AMQPHardError::FRAMEERROR.into(),
                         format!("frame too large: {} bytes", consumed).into(),
@@ -411,7 +411,7 @@ impl IoLoop {
             }
             Err(e) => {
                 if !e.is_incomplete() {
-                    error!("parse error: {:?}", e);
+                    error!(error=?e, "parse error");
                     self.critical_error(Error::ParsingError(e))?;
                 }
                 Ok(None)

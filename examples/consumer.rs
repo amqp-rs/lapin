@@ -20,7 +20,7 @@ fn main() {
 
         //receive channel
         let channel = conn.create_channel().await.expect("create_channel");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
         let queue = channel
             .queue_declare(
@@ -30,8 +30,8 @@ fn main() {
             )
             .await
             .expect("queue_declare");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
-        info!("declared queue {:?}", queue);
+        info!(state=?conn.status().state());
+        info!(?queue, "Declared queue");
 
         info!("will consume");
         let mut consumer = channel
@@ -43,10 +43,10 @@ fn main() {
             )
             .await
             .expect("basic_consume");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
         while let Some(delivery) = consumer.next().await {
-            info!("received message: {:?}", delivery);
+            info!(message=?delivery, "received message");
             if let Ok((channel, delivery)) = delivery {
                 channel
                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())

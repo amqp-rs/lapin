@@ -101,7 +101,7 @@ impl SocketState {
     }
 
     fn handle_event(&mut self, event: SocketEvent) {
-        trace!("Got event for socket: {:?}", event);
+        trace!(?event, "Got event for socket");
         match event {
             SocketEvent::Readable => self.readable = true,
             SocketEvent::Writable => self.writable = true,

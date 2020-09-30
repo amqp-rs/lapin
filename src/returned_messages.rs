@@ -69,7 +69,7 @@ pub struct Inner {
 impl Inner {
     fn new_delivery_complete(&mut self, confirm_mode: bool) {
         if let Some(message) = self.current_message.take() {
-            warn!("Server returned us a message: {:?}", message);
+            warn!(?message, "Server returned us a message");
             if confirm_mode {
                 self.waiting_messages.push_back(message);
             } else {
@@ -119,9 +119,9 @@ impl Inner {
                 }
             }
             trace!(
-                "{} PublisherConfirms left (was {})",
-                self.dropped_confirms.len(),
-                before
+                %before,
+                after=%self.dropped_confirms.len(),
+                "PublisherConfirms processed"
             );
         }
         messages

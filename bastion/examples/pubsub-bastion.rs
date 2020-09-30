@@ -24,7 +24,7 @@ pub async fn consume() -> Result<()> {
         )
         .await?;
 
-    info!("Declared queue {:?}", queue);
+    info!(?queue, "Declared queue");
 
     let consumer = channel_b
         .basic_consume(
@@ -42,7 +42,7 @@ pub async fn consume() -> Result<()> {
                 .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
                 .await
                 .expect("failed to ack");
-            info!("Acknowledge message: {}", delivery.delivery_tag);
+            info!(message=%delivery.delivery_tag, "Acknowledge message");
         }
     });
 

@@ -25,10 +25,10 @@ impl ConsumerDelegate for Subscriber {
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         let subscriber = self.clone();
         Box::pin(async move {
-            println!("received message: {:?}", delivery);
+            info!(message=?delivery, "received message");
 
             if let Some((channel, delivery)) = delivery.unwrap() {
-                println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
+                info!(data=%std::str::from_utf8(&delivery.data).unwrap());
 
                 assert_eq!(delivery.data, b"Hello world!");
 
@@ -45,6 +45,10 @@ impl ConsumerDelegate for Subscriber {
 
 #[test]
 fn connection() {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
+
     let _ = tracing_subscriber::fmt::try_init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
@@ -54,7 +58,7 @@ fn connection() {
             .await
             .expect("connection error");
 
-        println!("CONNECTED with configuration: {:?}", conn.configuration());
+        info!(configuration=?conn.configuration(), "CONNECTED");
 
         //now connected
 
@@ -77,18 +81,18 @@ fn connection() {
             )
             .await
             .expect("queue_declare");
-        println!("[{}] state: {:?}", line!(), conn.status().state());
-        println!("[{}] declared queue: {:?}", line!(), queue);
+        info!(state=?conn.status().state());
+        info!(?queue, "Declared queue");
 
         //purge the hello queue in case it already exists with contents in it
         let queue = channel_a
             .queue_purge("hello-async", QueuePurgeOptions::default())
             .await
             .expect("queue_purge");
-        println!("[{}] state: {:?}", line!(), conn.status().state());
-        info!("Declared queue {:?}", queue);
+        info!(state=?conn.status().state());
+        info!(purge=?queue, "Purged queue");
 
-        println!("will consume");
+        info!("will consume");
         let hello_world = Arc::new(AtomicU8::new(0));
         let subscriber = Subscriber {
             hello_world: hello_world.clone(),
@@ -103,7 +107,7 @@ fn connection() {
             .await
             .expect("basic_consume");
 
-        println!("will publish");
+        info!("will publish");
         let payload = b"Hello world!";
         let confirm = channel_a
             .basic_publish(
@@ -120,9 +124,9 @@ fn connection() {
         assert_eq!(confirm, Confirmation::Ack(None));
 
         consumer.set_delegate(subscriber);
-        println!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
-        println!("will publish");
+        info!("will publish");
         let confirm = channel_a
             .basic_publish(
                 "",
@@ -136,7 +140,7 @@ fn connection() {
             .await
             .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::Ack(None));
-        println!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
         thread::sleep(time::Duration::from_millis(500));
         assert_eq!(hello_world.load(Ordering::SeqCst), 2);

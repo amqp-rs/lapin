@@ -51,7 +51,7 @@ fn main() {
         let channel_a = conn.create_channel().await.expect("create_channel");
         //receive channel
         let channel_b = conn.create_channel().await.expect("create_channel");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
         //create the hello queue
         let queue = channel_a
@@ -62,8 +62,8 @@ fn main() {
             )
             .await
             .expect("queue_declare");
-        info!("[{}] state: {:?}", line!(), conn.status().state());
-        info!("[{}] declared queue: {:?}", line!(), queue);
+        info!(state=?conn.status().state());
+        info!(?queue, "Declared queue");
 
         info!("will consume");
         channel_b
@@ -76,7 +76,7 @@ fn main() {
             .await
             .expect("basic_consume")
             .set_delegate(move |delivery: DeliveryResult| async move {
-                info!("received message: {:?}", delivery);
+                info!(message=?delivery, "received message");
                 if let Ok(Some((channel, delivery))) = delivery {
                     channel
                         .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
@@ -84,7 +84,7 @@ fn main() {
                         .expect("basic_ack");
                 }
             });
-        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
 
         info!("will publish");
         let payload = b"Hello world!";
@@ -101,6 +101,6 @@ fn main() {
             .await
             .expect("publisher-confirms");
         assert_eq!(confirm, Confirmation::NotRequested);
-        info!("[{}] state: {:?}", line!(), conn.status().state());
+        info!(state=?conn.status().state());
     })
 }

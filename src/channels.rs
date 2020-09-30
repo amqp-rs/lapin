@@ -127,7 +127,7 @@ impl Channels {
             return;
         }
 
-        error!("Connection error: {}", error);
+        error!(%error, "Connection error");
         self.connection_status.set_state(ConnectionState::Error);
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
@@ -172,7 +172,7 @@ impl Channels {
     }
 
     fn do_handle_frame(&self, f: AMQPFrame) -> Result<()> {
-        trace!("will handle frame: {:?}", f);
+        trace!(frame=?f, "will handle frame");
         match f {
             AMQPFrame::ProtocolHeader(version) => {
                 error!(
@@ -193,7 +193,7 @@ impl Channels {
                 if channel_id == 0 {
                     debug!("received heartbeat from server");
                 } else {
-                    error!("received invalid heartbeat on channel {}", channel_id);
+                    error!(channel=%channel_id, "received invalid heartbeat");
                     let error = AMQPError::new(
                         AMQPHardError::FRAMEERROR.into(),
                         format!("heartbeat frame received on channel {}", channel_id).into(),
@@ -216,7 +216,7 @@ impl Channels {
             }
             AMQPFrame::Header(channel_id, class_id, header) => {
                 if channel_id == 0 {
-                    error!("received content header on channel {}", channel_id);
+                    error!(channel=%channel_id, "received content header");
                     let error = AMQPError::new(
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {}", channel_id).into(),
@@ -300,7 +300,7 @@ impl Inner {
         executor: Arc<dyn Executor>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
-        debug!("create channel with id {}", id);
+        debug!(%id, "create channel");
         let channel = Channel::new(
             id,
             self.configuration.clone(),

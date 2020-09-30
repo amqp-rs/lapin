@@ -116,9 +116,9 @@ impl Inner {
         self.frames.push_back((frame, Some(resolver)));
         if let Some(reply) = expected_reply {
             trace!(
-                "channel {} state is now waiting for {:?}",
-                channel_id,
-                reply
+                channel=%channel_id,
+                expected_reply=?reply,
+                "state is now waiting"
             );
             self.expected_replies
                 .entry(channel_id)

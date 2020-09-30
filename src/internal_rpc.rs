@@ -62,7 +62,7 @@ impl InternalRPCHandle {
     }
 
     fn send(&self, command: InternalCommand) {
-        trace!("Queuing internal RPC command: {:?}", command);
+        trace!(?command, "Queuing internal RPC command");
         // The only scenario where this can fail if this is the IoLoop already exited
         let _ = self.sender.send(command);
         self.waker.wake();
@@ -118,7 +118,7 @@ impl InternalRPC {
     fn run(&self, command: InternalCommand, channels: &Channels) -> Result<()> {
         use InternalCommand::*;
 
-        trace!("Handling internal RPC command: {:?}", command);
+        trace!(?command, "Handling internal RPC command");
         match command {
             CancelConsumer(channel_id, consumer_tag) => channels
                 .get(channel_id)

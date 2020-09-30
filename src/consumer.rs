@@ -302,7 +302,7 @@ impl ConsumerInner {
     }
 
     fn new_delivery(&mut self, channel: Channel, delivery: Delivery) {
-        trace!("new_delivery; consumer_tag={}", self.tag);
+        trace!(consumer_tag=%self.tag, "new_delivery");
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor
@@ -318,7 +318,7 @@ impl ConsumerInner {
     }
 
     fn drop_prefetched_messages(&mut self) {
-        trace!("drop_prefetched_messages; consumer_tag={}", self.tag);
+        trace!(consumer_tag=%self.tag, "drop_prefetched_messages");
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.drop_prefetched_messages());
@@ -327,7 +327,7 @@ impl ConsumerInner {
     }
 
     fn cancel(&mut self) {
-        trace!("cancel; consumer_tag={}", self.tag);
+        trace!(consumer_tag=%self.tag, "cancel");
         let mut status = self.status.lock();
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
@@ -344,7 +344,7 @@ impl ConsumerInner {
     }
 
     fn set_error(&mut self, error: Error) {
-        trace!("set_error; consumer_tag={}", self.tag);
+        trace!(consumer_tag=%self.tag, "set_error");
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.on_new_delivery(Err(error)));
@@ -364,29 +364,29 @@ impl Stream for Consumer {
         trace!("consumer poll_next");
         let mut inner = self.inner.lock();
         trace!(
-            "consumer poll; acquired inner lock, consumer_tag={}",
-            inner.tag
+            consumer_tag=%inner.tag,
+            "consumer poll; acquired inner lock"
         );
         inner.task = Some(cx.waker().clone());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
                 Ok(Some((channel, delivery))) => {
                     trace!(
-                        "delivery; channel={}, consumer_tag={}, delivery_tag={:?}",
-                        channel.id(),
-                        inner.tag,
-                        delivery.delivery_tag
+                        channel=%channel.id(),
+                        consumer_tag=%inner.tag,
+                        delivery_tag=?delivery.delivery_tag,
+                        "delivery"
                     );
                     Poll::Ready(Some(Ok((channel, delivery))))
                 }
                 Ok(None) => {
-                    trace!("consumer canceled; consumer_tag={}", inner.tag);
+                    trace!(consumer_tag=%inner.tag, "consumer canceled");
                     Poll::Ready(None)
                 }
                 Err(error) => Poll::Ready(Some(Err(error))),
             }
         } else {
-            trace!("delivery; status=NotReady, consumer_tag={}", inner.tag);
+            trace!(consumer_tag=%inner.tag, "delivery; status=NotReady");
             Poll::Pending
         }
     }

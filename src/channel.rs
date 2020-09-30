@@ -23,7 +23,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use std::{convert::TryFrom, fmt, sync::Arc};
-use tracing::{debug, error, info, level_enabled, trace, Level};
+use tracing::{error, info, level_enabled, trace, Level};
 
 #[cfg(test)]
 use crate::queue::QueueState;
@@ -177,7 +177,7 @@ impl Channel {
     }
 
     fn wake(&self) {
-        trace!("channel {} wake", self.id);
+        trace!(channel=%self.id, "wake");
         self.waker.wake()
     }
 
@@ -186,8 +186,8 @@ impl Channel {
             Ok(())
         } else {
             error!(
-                "Got a connection frame on channel {}, closing connection",
-                self.id
+                channel=%self.id,
+                "Got a connection frame on, closing connection"
             );
             let error = AMQPError::new(
                 AMQPHardError::COMMANDINVALID.into(),
@@ -253,7 +253,7 @@ impl Channel {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
-        trace!("channel {} send_frame", self.id);
+        trace!(channel=%self.id, "send_frame");
         self.frames.push(self.id, frame, resolver, expected_reply);
         self.wake();
     }
@@ -286,7 +286,7 @@ impl Channel {
                 .map(|chunk| AMQPFrame::Body(self.id, chunk.into())),
         );
 
-        trace!("channel {} send_frames", self.id);
+        trace!(channel=%self.id, "send_frames");
         let promise = self.frames.push_frames(frames);
         self.wake();
         promise.await?;
@@ -295,7 +295,7 @@ impl Channel {
     }
 
     fn handle_invalid_contents(&self, error: String, class_id: u16, method_id: u16) -> Result<()> {
-        error!("{}", error);
+        error!(%error);
         let error = AMQPError::new(AMQPHardError::UNEXPECTEDFRAME.into(), error.into());
         self.internal_rpc.close_connection(
             error.get_id(),
@@ -333,7 +333,7 @@ impl Channel {
                 }
             },
             |msg| {
-                error!("{}", msg);
+                error!(%msg);
                 let error = AMQPError::new(AMQPHardError::FRAMEERROR.into(), msg.into());
                 self.internal_rpc.close_connection(
                     error.get_id(),
@@ -488,7 +488,7 @@ impl Channel {
     }
 
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
-        trace!("Server sent connection::Start: {:?}", method);
+        trace!(?method, "Server sent connection::Start");
         let state = self.connection_status.state();
         if let (
             ConnectionState::Connecting,
@@ -509,10 +509,10 @@ impl Channel {
                 .split_whitespace()
                 .any(|m| m == mechanism_str)
             {
-                error!("unsupported mechanism: {}", mechanism);
+                error!(%mechanism, "unsupported mechanism");
             }
             if !method.locales.split_whitespace().any(|l| l == locale) {
-                error!("unsupported locale: {}", mechanism);
+                error!(%locale, "unsupported locale");
             }
 
             if !options.client_properties.contains_key("product")
@@ -563,7 +563,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!("Invalid state: {:?}", state);
+            error!(?state, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -571,7 +571,7 @@ impl Channel {
     }
 
     fn on_connection_secure_received(&self, method: protocol::connection::Secure) -> Result<()> {
-        trace!("Server sent connection::Secure: {:?}", method);
+        trace!(?method, "Server sent connection::Secure");
 
         let state = self.connection_status.state();
         if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
@@ -585,7 +585,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!("Invalid state: {:?}", state);
+            error!(?state, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -593,7 +593,7 @@ impl Channel {
     }
 
     fn on_connection_tune_received(&self, method: protocol::connection::Tune) -> Result<()> {
-        debug!("Server sent Connection::Tune: {:?}", method);
+        trace!(?method, "Server sent Connection::Tune");
 
         let state = self.connection_status.state();
         if let (
@@ -625,7 +625,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!("Invalid state: {:?}", state);
+            error!(?state, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -645,7 +645,7 @@ impl Channel {
             resolver.swear(Ok(connection));
             Ok(())
         } else {
-            error!("Invalid state: {:?}", state);
+            error!(?state, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -656,14 +656,16 @@ impl Channel {
         let error = AMQPError::try_from(method.clone())
             .map(|error| {
                 error!(
-                    "Connection closed on channel {} by {}:{} => {:?} => {}",
-                    self.id, method.class_id, method.method_id, error, method.reply_text
+                    channel=%self.id,
+                    ?method,
+                    ?error,
+                    "Connection closed",
                 );
                 Error::ProtocolError(error)
             })
             .unwrap_or_else(|error| {
-                error!("{}", error);
-                info!("Connection closed on channel {}: {:?}", self.id, method);
+                error!(%error);
+                info!(channel=%self.id, ?method, "Connection closed");
                 Error::InvalidConnectionState(ConnectionState::Closed)
             });
         self.internal_rpc.set_connection_closing();
@@ -733,14 +735,14 @@ impl Channel {
         let error = AMQPError::try_from(method.clone())
             .map(|error| {
                 error!(
-                    "Channel closed on channel {} by {}:{} => {:?} => {}",
-                    self.id, method.class_id, method.method_id, error, method.reply_text
+                    channel=%self.id, ?method, ?error,
+                    "Channel closed"
                 );
                 Error::ProtocolError(error)
             })
             .unwrap_or_else(|error| {
-                error!("{}", error);
-                info!("Channel closed on channel {}: {:?}", self.id, method);
+                error!(%error);
+                info!(channel=%self.id, ?method, "Channel closed");
                 Error::InvalidChannelState(ChannelState::Closing)
             });
         self.set_state(ChannelState::Closing);

@@ -30,7 +30,7 @@ fn main() -> Result<()> {
             )
             .await?;
 
-        info!("Declared queue {:?}", queue);
+        info!(?queue, "Declared queue");
 
         let consumer = channel_b
             .basic_consume(
