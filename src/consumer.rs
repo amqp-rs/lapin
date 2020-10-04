@@ -1,4 +1,5 @@
 use crate::{
+    channel_closer::ChannelCloser,
     executor::Executor,
     message::{Delivery, DeliveryResult},
     types::ShortString,
@@ -129,12 +130,18 @@ impl<
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
+    channel_closer: Option<Arc<ChannelCloser>>,
 }
 
 impl Consumer {
-    pub(crate) fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Consumer {
+    pub(crate) fn new(
+        consumer_tag: ShortString,
+        executor: Arc<dyn Executor>,
+        channel_closer: Option<Arc<ChannelCloser>>,
+    ) -> Consumer {
         Consumer {
             inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, executor))),
+            channel_closer,
         }
     }
 
@@ -369,6 +376,7 @@ mod futures_tests {
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
+            None,
         );
 
         assert_eq!(awoken_count.get(), 0);
@@ -388,6 +396,7 @@ mod futures_tests {
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
+            None,
         );
 
         assert_eq!(awoken_count.get(), 0);
