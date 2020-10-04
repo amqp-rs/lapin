@@ -1,7 +1,7 @@
 use crate::{
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
-    consumer_status::ConsumerStatus,
+    consumer_status::{ConsumerState, ConsumerStatus},
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
@@ -177,6 +177,11 @@ impl Consumer {
     /// this contains the server generated consumer tag.
     pub fn tag(&self) -> ShortString {
         self.inner.lock().tag.clone()
+    }
+
+    /// Gets the current state of the Consumer.
+    pub fn state(&self) -> ConsumerState {
+        self.status.state()
     }
 
     /// Automatically spawns the delegate on the executor for each message.

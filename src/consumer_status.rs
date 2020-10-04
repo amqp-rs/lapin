@@ -5,6 +5,10 @@ use std::sync::Arc;
 pub(crate) struct ConsumerStatus(Arc<Mutex<ConsumerStatusInner>>);
 
 impl ConsumerStatus {
+    pub(crate) fn state(&self) -> ConsumerState {
+        self.lock().state()
+    }
+
     pub(crate) fn try_lock(&self) -> Option<MutexGuard<'_, ConsumerStatusInner>> {
         self.0.try_lock()
     }
