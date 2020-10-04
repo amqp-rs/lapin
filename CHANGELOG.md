@@ -1,3 +1,9 @@
+### 1.4.0 (2020-10-04)
+
+#### Bug Fixes
+
+* When dropping a Consumer, cancel it if it has no delegates
+
 ### 1.3.1 (2020-10-04)
 
 #### Bug Fixes
