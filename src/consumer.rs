@@ -138,10 +138,17 @@ impl Consumer {
         consumer_tag: ShortString,
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
-    ) -> Consumer {
-        Consumer {
+    ) -> Self {
+        Self {
             inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, executor))),
             channel_closer,
+        }
+    }
+
+    pub(crate) fn clone_internal(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            channel_closer: None,
         }
     }
 

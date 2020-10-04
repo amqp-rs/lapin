@@ -814,9 +814,10 @@ impl Channel {
             self.executor.clone(),
             self.channel_closer.clone(),
         );
+        let external_consumer = consumer.clone_internal();
         self.queues
-            .register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
-        resolver.swear(Ok(consumer));
+            .register_consumer(queue.as_str(), method.consumer_tag, consumer);
+        resolver.swear(Ok(external_consumer));
         Ok(())
     }
 
