@@ -1,7 +1,9 @@
 use crate::{
     channel_closer::ChannelCloser,
+    consumer_canceler::ConsumerCanceler,
     consumer_status::ConsumerState,
     executor::Executor,
+    internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     types::ShortString,
     BasicProperties, Channel, Error, Result,
@@ -133,6 +135,7 @@ pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
     state: Arc<Mutex<ConsumerState>>,
     channel_closer: Option<Arc<ChannelCloser>>,
+    consumer_canceler: Option<Arc<ConsumerCanceler>>,
 }
 
 impl Consumer {
@@ -150,14 +153,21 @@ impl Consumer {
             ))),
             state,
             channel_closer,
+            consumer_canceler: None,
         }
     }
 
-    pub(crate) fn clone_internal(&self) -> Self {
+    pub(crate) fn external(&self, channel_id: u16, internal_rpc_handle: InternalRPCHandle) -> Self {
         Self {
             inner: self.inner.clone(),
             state: self.state.clone(),
             channel_closer: None,
+            consumer_canceler: Some(Arc::new(ConsumerCanceler::new(
+                channel_id,
+                self.tag().to_string(),
+                self.state.clone(),
+                internal_rpc_handle,
+            ))),
         }
     }
 
@@ -262,8 +272,7 @@ impl fmt::Debug for Consumer {
                 .field("task", &inner.task);
         }
         if let Some(state) = self.state.try_lock() {
-            debug
-                .field("state", &*state);
+            debug.field("state", &*state);
         }
         debug.finish()
     }

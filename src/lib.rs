@@ -148,6 +148,7 @@ mod connection_closer;
 mod connection_properties;
 mod connection_status;
 mod consumer;
+mod consumer_canceler;
 mod consumer_status;
 mod error;
 mod error_handler;
