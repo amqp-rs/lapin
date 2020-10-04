@@ -32,22 +32,20 @@ impl Default for ConsumerState {
 }
 
 #[derive(Default)]
-pub(crate) struct ConsumerStatusInner {
-    state: ConsumerState,
-}
+pub(crate) struct ConsumerStatusInner(ConsumerState);
 
 impl ConsumerStatusInner {
     pub(crate) fn state(&self) -> ConsumerState {
-        self.state
+        self.0
     }
 
     pub(crate) fn set_delegate(&mut self) {
-        if self.state == ConsumerState::Active {
-            self.state = ConsumerState::ActiveWithDelegate;
+        if self.0 == ConsumerState::Active {
+            self.0 = ConsumerState::ActiveWithDelegate;
         }
     }
 
     pub(crate) fn cancel(&mut self) {
-        self.state = ConsumerState::Canceled;
+        self.0 = ConsumerState::Canceled;
     }
 }
