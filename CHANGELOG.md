@@ -1,3 +1,13 @@
+### 1.3.0 (2020-10-04)
+
+#### Bug Fixes
+
+* When dropping a Channel, wait for all its consumers to be canceled before closing it
+
+#### Misc
+
+* Use proper `non_exhaustive` annotation for error enum
+
 ### 1.2.8 (2020-09-25)
 
 #### Misc
