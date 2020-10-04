@@ -164,7 +164,11 @@ pub(crate) enum Reply {
     QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
     QueueUnbindOk(PromiseResolver<()>),
     BasicQosOk(PromiseResolver<()>),
-    BasicConsumeOk(PromiseResolver<Consumer>, ShortString),
+    BasicConsumeOk(
+        PromiseResolver<Consumer>,
+        Option<Arc<ChannelCloser>>,
+        ShortString,
+    ),
     BasicCancelOk(PromiseResolver<()>),
     BasicGetOk(PromiseResolver<Option<BasicGetMessage>>, ShortString),
     BasicRecoverOk(PromiseResolver<()>),
@@ -1588,7 +1592,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicConsumeOk(resolver.clone(), queue.into()),
+                Reply::BasicConsumeOk(resolver.clone(), self.channel_closer.clone(), queue.into()),
                 Box::new(resolver),
             )),
         );
@@ -1606,8 +1610,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicConsumeOk(resolver, queue)) => {
-                self.on_basic_consume_ok_received(method, resolver, queue)
+            Some(Reply::BasicConsumeOk(resolver, channel_closer, queue)) => {
+                self.on_basic_consume_ok_received(method, resolver, channel_closer, queue)
             }
             _ => self.handle_invalid_contents(
                 format!(

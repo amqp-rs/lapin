@@ -1,3 +1,15 @@
+### 1.4.0 (2020-10-04)
+
+#### Bug Fixes
+
+* When dropping a Consumer, cancel it if it has no delegates
+
+### 1.3.1 (2020-10-04)
+
+#### Bug Fixes
+
+* Fix potential leak due to consumer clone
+
 ### 1.3.0 (2020-10-04)
 
 #### Bug Fixes

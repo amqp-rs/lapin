@@ -1,6 +1,6 @@
 use crate::{
-    channels::Channels, executor::Executor, socket_state::SocketStateHandle, types::ShortUInt,
-    Error, Result,
+    channels::Channels, executor::Executor, options::BasicCancelOptions,
+    socket_state::SocketStateHandle, types::ShortUInt, Error, Result,
 };
 use flume::{Receiver, Sender};
 use std::{future::Future, sync::Arc};
@@ -19,6 +19,10 @@ pub(crate) struct InternalRPCHandle {
 }
 
 impl InternalRPCHandle {
+    pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String) {
+        self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag));
+    }
+
     pub(crate) fn close_channel(&self, channel_id: u16, reply_code: ShortUInt, reply_text: String) {
         self.send(InternalCommand::CloseChannel(
             channel_id, reply_code, reply_text,
@@ -79,6 +83,7 @@ impl InternalRPCHandle {
 
 #[derive(Debug)]
 enum InternalCommand {
+    CancelConsumer(u16, String),
     CloseChannel(u16, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
     SendConnectionCloseOk(Error),
@@ -115,6 +120,16 @@ impl InternalRPC {
 
         trace!("Handling internal RPC command: {:?}", command);
         match command {
+            CancelConsumer(channel_id, consumer_tag) => channels
+                .get(channel_id)
+                .map(|channel| {
+                    self.handle.register_internal_future(async move {
+                        channel
+                            .basic_cancel(&consumer_tag, BasicCancelOptions::default())
+                            .await
+                    })
+                })
+                .unwrap_or_default(),
             CloseChannel(channel_id, reply_code, reply_text) => channels
                 .get(channel_id)
                 .map(|channel| {

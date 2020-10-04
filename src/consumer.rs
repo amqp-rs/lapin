@@ -1,6 +1,9 @@
 use crate::{
     channel_closer::ChannelCloser,
+    consumer_canceler::ConsumerCanceler,
+    consumer_status::{ConsumerState, ConsumerStatus},
     executor::Executor,
+    internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     types::ShortString,
     BasicProperties, Channel, Error, Result,
@@ -129,7 +132,9 @@ impl<
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
+    status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
+    consumer_canceler: Option<Arc<ConsumerCanceler>>,
 }
 
 impl Consumer {
@@ -137,10 +142,31 @@ impl Consumer {
         consumer_tag: ShortString,
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
-    ) -> Consumer {
-        Consumer {
-            inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, executor))),
+    ) -> Self {
+        let status = ConsumerStatus::default();
+        Self {
+            inner: Arc::new(Mutex::new(ConsumerInner::new(
+                status.clone(),
+                consumer_tag,
+                executor,
+            ))),
+            status,
             channel_closer,
+            consumer_canceler: None,
+        }
+    }
+
+    pub(crate) fn external(&self, channel_id: u16, internal_rpc_handle: InternalRPCHandle) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            status: self.status.clone(),
+            channel_closer: None,
+            consumer_canceler: Some(Arc::new(ConsumerCanceler::new(
+                channel_id,
+                self.tag().to_string(),
+                self.status.clone(),
+                internal_rpc_handle,
+            ))),
         }
     }
 
@@ -152,15 +178,22 @@ impl Consumer {
         self.inner.lock().tag.clone()
     }
 
+    /// Gets the current state of the Consumer.
+    pub fn state(&self) -> ConsumerState {
+        self.status.state()
+    }
+
     /// Automatically spawns the delegate on the executor for each message.
     ///
     /// Enables parallel handling of the messages.
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
         let mut inner = self.inner.lock();
+        let mut status = self.status.lock();
         while let Some(delivery) = inner.next_delivery() {
             inner.executor.spawn(delegate.on_new_delivery(delivery));
         }
         inner.delegate = Some(Arc::new(Box::new(delegate)));
+        status.set_delegate();
     }
 
     pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
@@ -200,6 +233,7 @@ impl Consumer {
 }
 
 struct ConsumerInner {
+    status: ConsumerStatus,
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
@@ -241,14 +275,18 @@ impl fmt::Debug for Consumer {
                 .field("executor", &inner.executor)
                 .field("task", &inner.task);
         }
+        if let Some(status) = self.status.try_lock() {
+            debug.field("state", &status.state());
+        }
         debug.finish()
     }
 }
 
 impl ConsumerInner {
-    fn new(consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
+    fn new(status: ConsumerStatus, consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
         let (sender, receiver) = flume::unbounded();
         Self {
+            status,
             current_message: None,
             deliveries_in: sender,
             deliveries_out: receiver,
@@ -290,6 +328,7 @@ impl ConsumerInner {
 
     fn cancel(&mut self) {
         trace!("cancel; consumer_tag={}", self.tag);
+        let mut status = self.status.lock();
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.on_new_delivery(Ok(None)));
@@ -301,6 +340,7 @@ impl ConsumerInner {
         if let Some(task) = self.task.take() {
             task.wake();
         }
+        status.cancel();
     }
 
     fn set_error(&mut self, error: Error) {

@@ -1,4 +1,5 @@
 use crate::{channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol};
+use std::fmt;
 
 pub(crate) struct ChannelCloser {
     id: u16,
@@ -13,6 +14,15 @@ impl ChannelCloser {
             status,
             internal_rpc,
         }
+    }
+}
+
+impl fmt::Debug for ChannelCloser {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ChannelCloser")
+            .field("id", &self.id)
+            .field("status", &self.status)
+            .finish()
     }
 }
 

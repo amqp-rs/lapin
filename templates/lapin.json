@@ -202,6 +202,11 @@
       "metadata": {
         "state": [
           {
+            "name": "channel_closer",
+            "provider": "self.channel_closer.clone()",
+            "type": "Option<Arc<ChannelCloser>>"
+          },
+          {
             "name": "queue",
             "type": "ShortString",
             "use_str_ref": true
