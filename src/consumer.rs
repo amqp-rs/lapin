@@ -1,7 +1,7 @@
 use crate::{
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
-    consumer_status::ConsumerState,
+    consumer_status::ConsumerStatus,
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
@@ -133,7 +133,7 @@ impl<
 #[derive(Clone)]
 pub struct Consumer {
     inner: Arc<Mutex<ConsumerInner>>,
-    state: Arc<Mutex<ConsumerState>>,
+    status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
 }
@@ -144,14 +144,14 @@ impl Consumer {
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
     ) -> Self {
-        let state = Arc::new(Mutex::new(ConsumerState::default()));
+        let status = ConsumerStatus::default();
         Self {
             inner: Arc::new(Mutex::new(ConsumerInner::new(
-                state.clone(),
+                status.clone(),
                 consumer_tag,
                 executor,
             ))),
-            state,
+            status,
             channel_closer,
             consumer_canceler: None,
         }
@@ -160,12 +160,12 @@ impl Consumer {
     pub(crate) fn external(&self, channel_id: u16, internal_rpc_handle: InternalRPCHandle) -> Self {
         Self {
             inner: self.inner.clone(),
-            state: self.state.clone(),
+            status: self.status.clone(),
             channel_closer: None,
             consumer_canceler: Some(Arc::new(ConsumerCanceler::new(
                 channel_id,
                 self.tag().to_string(),
-                self.state.clone(),
+                self.status.clone(),
                 internal_rpc_handle,
             ))),
         }
@@ -229,7 +229,7 @@ impl Consumer {
 }
 
 struct ConsumerInner {
-    state: Arc<Mutex<ConsumerState>>,
+    status: ConsumerStatus,
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
@@ -271,22 +271,18 @@ impl fmt::Debug for Consumer {
                 .field("executor", &inner.executor)
                 .field("task", &inner.task);
         }
-        if let Some(state) = self.state.try_lock() {
-            debug.field("state", &*state);
+        if let Some(status) = self.status.try_lock() {
+            debug.field("state", &status.state());
         }
         debug.finish()
     }
 }
 
 impl ConsumerInner {
-    fn new(
-        state: Arc<Mutex<ConsumerState>>,
-        consumer_tag: ShortString,
-        executor: Arc<dyn Executor>,
-    ) -> Self {
+    fn new(status: ConsumerStatus, consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
         Self {
-            state,
+            status,
             current_message: None,
             deliveries_in: sender,
             deliveries_out: receiver,
@@ -330,7 +326,7 @@ impl ConsumerInner {
 
     fn cancel(&mut self) -> Result<()> {
         trace!("cancel; consumer_tag={}", self.tag);
-        let mut state = self.state.lock();
+        let mut status = self.status.lock();
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.on_new_delivery(Ok(None)))?;
@@ -342,7 +338,7 @@ impl ConsumerInner {
         if let Some(task) = self.task.take() {
             task.wake();
         }
-        *state = ConsumerState::Canceled;
+        status.cancel();
         Ok(())
     }
 
