@@ -189,10 +189,12 @@ impl Consumer {
     /// Enables parallel handling of the messages.
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) -> Result<()> {
         let mut inner = self.inner.lock();
+        let mut status = self.status.lock();
         while let Some(delivery) = inner.next_delivery() {
             inner.executor.spawn(delegate.on_new_delivery(delivery))?;
         }
         inner.delegate = Some(Arc::new(Box::new(delegate)));
+        status.set_delegate();
         Ok(())
     }
 

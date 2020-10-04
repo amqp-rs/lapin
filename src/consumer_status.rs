@@ -21,6 +21,7 @@ impl ConsumerStatus {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConsumerState {
     Active,
+    ActiveWithDelegate,
     Canceled,
 }
 
@@ -38,6 +39,12 @@ pub(crate) struct ConsumerStatusInner {
 impl ConsumerStatusInner {
     pub(crate) fn state(&self) -> ConsumerState {
         self.state
+    }
+
+    pub(crate) fn set_delegate(&mut self) {
+        if self.state == ConsumerState::Active {
+            self.state = ConsumerState::ActiveWithDelegate;
+        }
     }
 
     pub(crate) fn cancel(&mut self) {
