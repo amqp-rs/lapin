@@ -355,7 +355,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor);
+        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
@@ -434,7 +434,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor);
+        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())

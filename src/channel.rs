@@ -51,7 +51,7 @@ pub struct Channel {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     executor: Arc<dyn Executor>,
-    _channel_closer: Option<Arc<ChannelCloser>>,
+    channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
 }
 
@@ -114,7 +114,7 @@ impl Channel {
             internal_rpc,
             frames,
             executor,
-            _channel_closer: channel_closer,
+            channel_closer,
             connection_closer,
         }
     }
@@ -171,7 +171,7 @@ impl Channel {
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
             executor: self.executor.clone(),
-            _channel_closer: None,
+            channel_closer: None,
             connection_closer: self.connection_closer.clone(),
         }
     }
@@ -828,7 +828,11 @@ impl Channel {
         resolver: PromiseResolver<Consumer>,
         queue: ShortString,
     ) -> Result<()> {
-        let consumer = Consumer::new(method.consumer_tag.clone(), self.executor.clone());
+        let consumer = Consumer::new(
+            method.consumer_tag.clone(),
+            self.executor.clone(),
+            self.channel_closer.clone(),
+        );
         self.queues
             .register_consumer(queue.as_str(), method.consumer_tag, consumer.clone());
         resolver.swear(Ok(consumer));
