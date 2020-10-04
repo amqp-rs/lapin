@@ -807,12 +807,13 @@ impl Channel {
         &self,
         method: protocol::basic::ConsumeOk,
         resolver: PromiseResolver<Consumer>,
+        channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
     ) -> Result<()> {
         let consumer = Consumer::new(
             method.consumer_tag.clone(),
             self.executor.clone(),
-            self.channel_closer.clone(),
+            channel_closer,
         );
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
         self.queues
