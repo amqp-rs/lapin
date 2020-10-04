@@ -317,7 +317,7 @@ impl Channel {
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
             protocol::connection::StartOk {
-                client_properties: client_properties,
+                client_properties,
                 mechanism: mechanism.into(),
                 response: response.into(),
                 locale: locale.into(),
@@ -383,9 +383,9 @@ impl Channel {
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::TuneOk(
             protocol::connection::TuneOk {
-                channel_max: channel_max,
-                frame_max: frame_max,
-                heartbeat: heartbeat,
+                channel_max,
+                frame_max,
+                heartbeat,
             },
         ));
 
@@ -472,10 +472,10 @@ impl Channel {
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Close(
             protocol::connection::Close {
-                reply_code: reply_code,
+                reply_code,
                 reply_text: reply_text.into(),
-                class_id: class_id,
-                method_id: method_id,
+                class_id,
+                method_id,
             },
         ));
 
@@ -797,10 +797,10 @@ impl Channel {
         self.before_channel_close();
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::Close(
             protocol::channel::Close {
-                reply_code: reply_code,
+                reply_code,
                 reply_text: reply_text.into(),
-                class_id: class_id,
-                method_id: method_id,
+                class_id,
+                method_id,
             },
         ));
 
@@ -964,7 +964,7 @@ impl Channel {
                 auto_delete,
                 internal,
                 nowait,
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1084,7 +1084,7 @@ impl Channel {
                 routing_key: routing_key.into(),
 
                 nowait,
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1148,7 +1148,7 @@ impl Channel {
                 routing_key: routing_key.into(),
 
                 nowait,
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1220,7 +1220,7 @@ impl Channel {
                 exclusive,
                 auto_delete,
                 nowait,
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1289,7 +1289,7 @@ impl Channel {
             routing_key: routing_key.into(),
 
             nowait,
-            arguments: arguments,
+            arguments,
         }));
 
         let (promise, send_resolver) = Promise::new();
@@ -1458,7 +1458,7 @@ impl Channel {
                 queue: queue.into(),
                 exchange: exchange.into(),
                 routing_key: routing_key.into(),
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1506,7 +1506,7 @@ impl Channel {
 
         let BasicQosOptions { global } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
-            prefetch_count: prefetch_count,
+            prefetch_count,
 
             global,
         }));
@@ -1576,7 +1576,7 @@ impl Channel {
                 no_ack,
                 exclusive,
                 nowait,
-                arguments: arguments,
+                arguments,
             },
         ));
 
@@ -1823,7 +1823,7 @@ impl Channel {
 
         let BasicAckOptions { multiple } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
-            delivery_tag: delivery_tag,
+            delivery_tag,
 
             multiple,
         }));
@@ -1859,7 +1859,7 @@ impl Channel {
         let BasicRejectOptions { requeue } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
             protocol::basic::Reject {
-                delivery_tag: delivery_tag,
+                delivery_tag,
 
                 requeue,
             },
@@ -1952,7 +1952,7 @@ impl Channel {
 
         let BasicNackOptions { multiple, requeue } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
-            delivery_tag: delivery_tag,
+            delivery_tag,
 
             multiple,
             requeue,

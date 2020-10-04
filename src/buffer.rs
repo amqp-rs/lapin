@@ -221,9 +221,9 @@ impl BackToTheBuffer for &mut Buffer {
             let mut end = s.write.checkpoint();
             end.backwards = false;
             s.write.rollback(start);
-            before(s, tmp).and_then(|s| {
+            before(s, tmp).map(|s| {
                 s.write.rollback(end);
-                Ok(s)
+                s
             })
         })
     }

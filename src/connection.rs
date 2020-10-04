@@ -94,7 +94,10 @@ impl Connection {
             )));
         }
         match self.channels.create(self.closer.clone()) {
-            Ok(channel) => channel.clone().channel_open(channel),
+            Ok(channel) => {
+                let ch = channel.clone();
+                ch.channel_open(channel)
+            }
             Err(error) => PromiseChain::new_with_data(Err(error)),
         }
     }

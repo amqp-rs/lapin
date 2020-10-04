@@ -97,7 +97,7 @@ impl Channel {
       {{#each_argument method.arguments as |argument| ~}}
       {{#if @argument_is_value ~}}
       {{#unless argument.force_default ~}}
-      {{snake argument.name}}: {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}.into(){{/if ~}},
+      {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}: {{snake argument.name}}.into(){{/if ~}},
       {{/unless ~}}
       {{else}}
       {{#unless argument.ignore_flags ~}}
