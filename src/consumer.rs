@@ -6,6 +6,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     types::ShortString,
+    wakers::Wakers,
     BasicProperties, Channel, Error, Result,
 };
 use flume::{Receiver, Sender};
@@ -16,7 +17,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 use tracing::trace;
 
@@ -237,7 +238,7 @@ struct ConsumerInner {
     current_message: Option<Delivery>,
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
-    task: Option<Waker>,
+    wakers: Wakers,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
     executor: Arc<dyn Executor>,
@@ -272,8 +273,7 @@ impl fmt::Debug for Consumer {
         if let Some(inner) = self.inner.try_lock() {
             debug
                 .field("tag", &inner.tag)
-                .field("executor", &inner.executor)
-                .field("task", &inner.task);
+                .field("executor", &inner.executor);
         }
         if let Some(status) = self.status.try_lock() {
             debug.field("state", &status.state());
@@ -290,7 +290,7 @@ impl ConsumerInner {
             current_message: None,
             deliveries_in: sender,
             deliveries_out: receiver,
-            task: None,
+            wakers: Wakers::default(),
             tag: consumer_tag,
             delegate: None,
             executor,
@@ -312,9 +312,7 @@ impl ConsumerInner {
                 .send(Ok(Some((channel, delivery))))
                 .expect("failed to send delivery to consumer");
         }
-        if let Some(task) = self.task.as_ref() {
-            task.wake_by_ref();
-        }
+        self.wakers.wake();
     }
 
     fn drop_prefetched_messages(&mut self) {
@@ -337,9 +335,7 @@ impl ConsumerInner {
                 .send(Ok(None))
                 .expect("failed to send cancel to consumer");
         }
-        if let Some(task) = self.task.take() {
-            task.wake();
-        }
+        self.wakers.wake();
         status.cancel();
     }
 
@@ -367,7 +363,7 @@ impl Stream for Consumer {
             consumer_tag=%inner.tag,
             "consumer poll; acquired inner lock"
         );
-        inner.task = Some(cx.waker().clone());
+        inner.wakers.register(cx.waker().clone());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
                 Ok(Some((channel, delivery))) => {
