@@ -155,3 +155,4 @@ mod queues;
 mod returned_messages;
 mod stream;
 mod thread;
+mod wakers;
