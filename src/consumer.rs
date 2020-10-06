@@ -248,6 +248,7 @@ struct ConsumerInner {
 
 pub struct ConsumerIterator {
     receiver: Receiver<DeliveryResult>,
+    _consumer_canceler: Option<Arc<ConsumerCanceler>>,
 }
 
 impl Iterator for ConsumerIterator {
@@ -265,6 +266,7 @@ impl IntoIterator for Consumer {
     fn into_iter(self) -> Self::IntoIter {
         ConsumerIterator {
             receiver: self.inner.lock().deliveries_out.clone(),
+            _consumer_canceler: self.consumer_canceler.clone(),
         }
     }
 }
