@@ -7,13 +7,13 @@ use std::{future::Future, sync::Arc};
 use tracing::trace;
 
 pub(crate) struct InternalRPC {
-    rpc: Receiver<InternalCommand>,
+    rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
 }
 
 #[derive(Clone)]
 pub(crate) struct InternalRPCHandle {
-    sender: Sender<InternalCommand>,
+    sender: Sender<Option<InternalCommand>>,
     waker: SocketStateHandle,
     executor: Arc<dyn Executor>,
 }
@@ -61,10 +61,15 @@ impl InternalRPCHandle {
         self.send(InternalCommand::SetConnectionError(error));
     }
 
+    pub(crate) fn stop(&self) {
+        trace!("Stopping internal RPC command");
+        let _ = self.sender.send(None);
+    }
+
     fn send(&self, command: InternalCommand) {
         trace!(?command, "Queuing internal RPC command");
         // The only scenario where this can fail if this is the IoLoop already exited
-        let _ = self.sender.send(command);
+        let _ = self.sender.send(Some(command));
         self.waker.wake();
     }
 
@@ -108,59 +113,60 @@ impl InternalRPC {
         self.handle.clone()
     }
 
-    pub(crate) fn poll(&self, channels: &Channels) -> Result<()> {
-        while let Ok(command) = self.rpc.try_recv() {
-            self.run(command, channels)?;
-        }
-        Ok(())
-    }
-
-    fn run(&self, command: InternalCommand, channels: &Channels) -> Result<()> {
+    pub(crate) async fn run(self, channels: Channels) {
         use InternalCommand::*;
 
-        trace!(?command, "Handling internal RPC command");
-        match command {
-            CancelConsumer(channel_id, consumer_tag) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle.register_internal_future(async move {
-                        channel
-                            .basic_cancel(&consumer_tag, BasicCancelOptions::default())
-                            .await
+        while let Ok(Some(command)) = self.rpc.recv_async().await {
+            trace!(?command, "Handling internal RPC command");
+            let handle = self.handle();
+            match command {
+                CancelConsumer(channel_id, consumer_tag) => channels
+                    .get(channel_id)
+                    .map(|channel| {
+                        handle.register_internal_future(async move {
+                            channel
+                                .basic_cancel(&consumer_tag, BasicCancelOptions::default())
+                                .await
+                        })
                     })
-                })
-                .unwrap_or_default(),
-            CloseChannel(channel_id, reply_code, reply_text) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle.register_internal_future(async move {
-                        channel.close(reply_code, &reply_text).await
+                    .unwrap_or_default(),
+                CloseChannel(channel_id, reply_code, reply_text) => channels
+                    .get(channel_id)
+                    .map(|channel| {
+                        handle.register_internal_future(async move {
+                            channel.close(reply_code, &reply_text).await
+                        })
                     })
-                })
-                .unwrap_or_default(),
-            CloseConnection(reply_code, reply_text, class_id, method_id) => channels
-                .get(0)
-                .map(move |channel0| {
-                    self.handle.register_internal_future(async move {
-                        channel0
-                            .connection_close(reply_code, &reply_text, class_id, method_id)
-                            .await
+                    .unwrap_or_default(),
+                CloseConnection(reply_code, reply_text, class_id, method_id) => channels
+                    .get(0)
+                    .map(move |channel0| {
+                        handle.register_internal_future(async move {
+                            channel0
+                                .connection_close(reply_code, &reply_text, class_id, method_id)
+                                .await
+                        })
                     })
-                })
-                .unwrap_or_default(),
-            SendConnectionCloseOk(error) => channels
-                .get(0)
-                .map(move |channel| {
-                    self.handle.register_internal_future(async move {
-                        channel.connection_close_ok(error).await
+                    .unwrap_or_default(),
+                SendConnectionCloseOk(error) => channels
+                    .get(0)
+                    .map(move |channel| {
+                        handle.register_internal_future(async move {
+                            channel.connection_close_ok(error).await
+                        })
                     })
-                })
-                .unwrap_or_default(),
-            RemoveChannel(channel_id, error) => channels.remove(channel_id, error)?,
-            SetConnectionClosing => channels.set_connection_closing(),
-            SetConnectionClosed(error) => channels.set_connection_closed(error),
-            SetConnectionError(error) => channels.set_connection_error(error),
+                    .unwrap_or_default(),
+                RemoveChannel(channel_id, error) => {
+                    let channels = channels.clone();
+                    handle
+                        .register_internal_future(async move { channels.remove(channel_id, error) })
+                }
+                SetConnectionClosing => channels.set_connection_closing(),
+                SetConnectionClosed(error) => channels.set_connection_closed(error),
+                SetConnectionError(error) => channels.set_connection_error(error),
+            }
+            self.handle.waker.wake();
         }
-        Ok(())
+        trace!("InternalRPC stopped");
     }
 }

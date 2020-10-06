@@ -251,11 +251,13 @@ impl Connection {
             options,
         ));
         let handshake_result = connect_promise.await;
+        let internal_rpc_handle = internal_rpc.handle();
+        executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
         IoLoop::new(
             status,
             configuration,
             channels,
-            internal_rpc,
+            internal_rpc_handle,
             frames,
             socket_state,
             io_loop_handle,

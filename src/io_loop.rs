@@ -5,7 +5,7 @@ use crate::{
     executor::Executor,
     frames::Frames,
     heartbeat::Heartbeat,
-    internal_rpc::InternalRPC,
+    internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
     reactor::{ReactorBuilder, ReactorHandle, Slot},
     socket_state::SocketState,
@@ -37,7 +37,7 @@ pub struct IoLoop {
     connection_status: ConnectionStatus,
     configuration: Configuration,
     channels: Channels,
-    internal_rpc: InternalRPC,
+    internal_rpc: InternalRPCHandle,
     frames: Frames,
     heartbeat: Heartbeat,
     socket_state: SocketState,
@@ -58,7 +58,7 @@ impl IoLoop {
         connection_status: ConnectionStatus,
         configuration: Configuration,
         channels: Channels,
-        internal_rpc: InternalRPC,
+        internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
@@ -161,6 +161,7 @@ impl IoLoop {
                             self.critical_error(err)?;
                         }
                     }
+                    self.internal_rpc.stop();
                     self.heartbeat.cancel();
                     Ok(())
                 })?,
@@ -169,31 +170,33 @@ impl IoLoop {
         Ok(())
     }
 
-    fn poll_internal_rpc(&self) -> Result<()> {
-        self.internal_rpc.poll(&self.channels)
+    fn poll_socket_events(&mut self) {
+        self.socket_state.poll_events();
     }
 
-    fn poll_socket_events(&mut self) -> Result<()> {
-        self.socket_state.poll_events();
-        self.poll_internal_rpc()
+    fn check_connection_state(&mut self) {
+        if self.connection_status.closed() {
+            self.status = Status::Stop;
+        }
     }
 
     fn run(&mut self) -> Result<()> {
         trace!("io_loop run");
-        self.poll_socket_events()?;
+        self.poll_socket_events();
         if !self.ensure_setup()? {
             return Ok(());
         }
+        self.check_connection_state();
         trace!(
             can_read=%self.socket_state.readable(),
             can_write=%self.socket_state.writable(),
             has_data=%self.has_data(),
             "io_loop do_run",
         );
-        if !self.can_read() && !self.can_write() {
+        if !self.can_read() && !self.can_write() && self.should_continue() {
             self.socket_state.wait();
         }
-        self.poll_socket_events()?;
+        self.poll_socket_events();
         if self.stream.is_handshaking() {
             self.stream.handshake()?;
             if self.stream.is_handshaking() {
@@ -202,13 +205,12 @@ impl IoLoop {
             }
         }
         self.write()?;
-        if self.connection_status.closed() {
-            self.status = Status::Stop;
-        }
+        self.check_connection_state();
         if self.should_continue() {
             self.read()?;
         }
         self.handle_frames()?;
+        self.check_connection_state();
         trace!(
             can_read=%self.socket_state.readable(),
             can_write=%self.socket_state.writable(),
@@ -216,7 +218,7 @@ impl IoLoop {
             status=?self.status,
             "io_loop do_run done",
         );
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
@@ -241,7 +243,7 @@ impl IoLoop {
             error!(error=?e, "error reading");
             self.critical_error(e)?;
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
@@ -252,12 +254,12 @@ impl IoLoop {
             error!(error=?e, "error writing");
             self.critical_error(e)?;
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
         self.stream.flush()?;
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn write(&mut self) -> Result<()> {
@@ -269,7 +271,7 @@ impl IoLoop {
             let res = self.write_to_stream();
             self.handle_write_result(res)?;
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn read(&mut self) -> Result<()> {
@@ -277,7 +279,7 @@ impl IoLoop {
             let res = self.read_from_stream();
             self.handle_read_result(res)?;
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn write_to_stream(&mut self) -> Result<()> {
@@ -325,7 +327,7 @@ impl IoLoop {
             error!("Socket was writable but we wrote 0, marking as wouldblock");
             self.handle_write_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn read_from_stream(&mut self) -> Result<()> {
@@ -344,7 +346,7 @@ impl IoLoop {
                         Err(io::Error::from(io::ErrorKind::WouldBlock).into()),
                     )?;
                 }
-                self.poll_internal_rpc()
+                Ok(())
             }
         }
     }
@@ -372,7 +374,7 @@ impl IoLoop {
                 }
             }
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn handle_frames(&mut self) -> Result<()> {
@@ -383,7 +385,7 @@ impl IoLoop {
                 break;
             }
         }
-        self.poll_internal_rpc()
+        Ok(())
     }
 
     fn parse(&mut self) -> Result<Option<AMQPFrame>> {
@@ -397,13 +399,12 @@ impl IoLoop {
                         AMQPHardError::FRAMEERROR.into(),
                         format!("frame too large: {} bytes", consumed).into(),
                     );
-                    self.internal_rpc.handle().close_connection(
+                    self.internal_rpc.close_connection(
                         error.get_id(),
                         error.get_message().to_string(),
                         0,
                         0,
                     );
-                    self.poll_internal_rpc()?;
                     self.critical_error(Error::ProtocolError(error))?;
                 }
                 self.receive_buffer.consume(consumed);

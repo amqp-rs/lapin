@@ -45,6 +45,7 @@ features = ["async-io"]
 [dependencies.flume]
 version = "^0.9"
 default-features = false
+features = ["async"]
 
 [dependencies.tracing]
 version = "^0.1"

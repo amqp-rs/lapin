@@ -1,8 +1,8 @@
 use parking_lot::Mutex;
-use std::{sync::Arc, task::Waker};
+use std::task::Waker;
 
 #[derive(Default)]
-pub(crate) struct Wakers(Arc<Mutex<Vec<Waker>>>);
+pub(crate) struct Wakers(Mutex<Vec<Waker>>);
 
 impl Wakers {
     pub(crate) fn register(&self, waker: Waker) {
