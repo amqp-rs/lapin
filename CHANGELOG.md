@@ -1,3 +1,9 @@
+### 1.4.1 (2020-10-06)
+
+#### Bug Fixes
+
+* When converting Consumer to an Iterator, don't cancel it until the Iterator is gone
+
 ### 1.4.0 (2020-10-04)
 
 #### Bug Fixes
