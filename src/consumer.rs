@@ -244,31 +244,6 @@ struct ConsumerInner {
     executor: Arc<dyn Executor>,
 }
 
-pub struct ConsumerIterator {
-    receiver: Receiver<DeliveryResult>,
-    _consumer_canceler: Option<Arc<ConsumerCanceler>>,
-}
-
-impl Iterator for ConsumerIterator {
-    type Item = Result<(Channel, Delivery)>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.receiver.recv().ok().and_then(Result::transpose)
-    }
-}
-
-impl IntoIterator for Consumer {
-    type Item = Result<(Channel, Delivery)>;
-    type IntoIter = ConsumerIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        ConsumerIterator {
-            receiver: self.inner.lock().deliveries_out.clone(),
-            _consumer_canceler: self.consumer_canceler.clone(),
-        }
-    }
-}
-
 impl fmt::Debug for Consumer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Consumer");
