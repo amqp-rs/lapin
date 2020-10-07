@@ -340,7 +340,7 @@ impl Stream for Consumer {
             consumer_tag=%inner.tag,
             "consumer poll; acquired inner lock"
         );
-        inner.wakers.register(cx.waker().clone());
+        inner.wakers.register(cx.waker());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
                 Ok(Some((channel, delivery))) => {
