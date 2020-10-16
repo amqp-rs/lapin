@@ -15,20 +15,20 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies.lapin]
-version = "^1.2.1"
+version = "^1.4.1"
 path = ".."
 default-features = false
 
 [dependencies.tokio]
-version = "^0.2"
+version = "^0.3"
 default-features = false
-features = ["rt-core"]
+features = ["rt"]
 
 [dev-dependencies]
 env_logger = "^0.7"
 log = "^0.4"
 
 [dev-dependencies.tokio]
-version = "^0.2"
+version = "^0.3"
 default-features = false
-features = ["macros", "rt-core", "rt-threaded"]
+features = ["macros", "rt", "rt-multi-thread"]

@@ -3,10 +3,11 @@ use lapin::{
     BasicProperties, Connection, ConnectionProperties, Result,
 };
 use log::info;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 use tokio_amqp::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }
@@ -14,7 +15,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let conn = Connection::connect(&addr, ConnectionProperties::default().with_tokio()).await?;
+    let conn = Connection::connect(&addr, ConnectionProperties::default().with_tokio(rt)).await?;
 
     info!("CONNECTED");
 
@@ -67,4 +68,9 @@ async fn main() -> Result<()> {
             .await?;
         assert_eq!(confirm, Confirmation::NotRequested);
     }
+}
+
+fn main() {
+    let rt = Arc::new(Runtime::new().expect("failed to create runtime"));
+    rt.block_on(tokio_main(rt.clone())).expect("error");
 }
