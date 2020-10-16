@@ -1,3 +1,9 @@
+### 1.4.2 (2020-10-16)
+
+#### Misc
+
+* Update dependencies
+
 ### 1.4.1 (2020-10-06)
 
 #### Bug Fixes

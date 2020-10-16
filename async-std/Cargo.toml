@@ -1,6 +1,6 @@
 [package]
 name = "async-amqp"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-std"
@@ -15,16 +15,16 @@ license = "MIT"
 default = ["async-lapin/default"]
 
 [dependencies.async-std]
-version = "^1.6.4"
+version = "^1.6.5"
 features = ["default"]
 
 [dependencies.async-lapin]
-version = "^0.4"
+version = "^0.4.1"
 path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "^1.4.1"
+version = "^1.4.2"
 path = ".."
 default-features = false
 
@@ -33,5 +33,5 @@ env_logger = "^0.8"
 log = "^0.4"
 
 [dev-dependencies.async-std]
-version = "^1.6.4"
+version = "^1.6.5"
 features = ["attributes", "default", "unstable"]

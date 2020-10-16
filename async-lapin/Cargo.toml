@@ -1,6 +1,6 @@
 [package]
 name = "async-lapin"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-io"
@@ -19,7 +19,7 @@ async-io = "^1.0"
 parking_lot = "^0.11"
 
 [dependencies.lapin]
-version = "^1.2.3"
+version = "^1.4.2"
 path = ".."
 default-features = false
 
