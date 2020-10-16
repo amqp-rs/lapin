@@ -25,7 +25,7 @@ default-features = false
 features = ["rt"]
 
 [dev-dependencies]
-env_logger = "^0.7"
+env_logger = "^0.8"
 log = "^0.4"
 
 [dev-dependencies.tokio]

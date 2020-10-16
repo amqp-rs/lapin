@@ -44,7 +44,7 @@ features = ["os-poll", "tcp"]
 
 [dependencies]
 async-task = "^4.0"
-crossbeam-channel = "^0.4"
+crossbeam-channel = "^0.5"
 futures-core = "^0.3"
 log = "^0.4"
 parking_lot = "^0.11"
@@ -55,7 +55,7 @@ version = "^0.3"
 features = ["thread-pool"]
 
 [dev-dependencies]
-env_logger = "^0.7"
+env_logger = "^0.8"
 futures-test = "^0.3"
 futures-util = "^0.3"
 
