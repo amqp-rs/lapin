@@ -1,12 +1,12 @@
 [package]
 name = "async-amqp"
-version = "0.1.6"
+version = "0.1.8"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-std"
 repository = "https://github.com/CleverCloud/lapin"
 readme = "README.md"
-documentation = "https://docs.rs/tokio-amqp"
+documentation = "https://docs.rs/async-amqp"
 keywords = ["amqp", "async-std", "rabbitmq", "mio", "futures"]
 categories = ["database"]
 license = "MIT"
@@ -15,21 +15,21 @@ license = "MIT"
 default = ["async-lapin/default"]
 
 [dependencies.async-std]
-version = "^1.6.4"
+version = "^1.6.5"
 features = ["default", "unstable"]
 
 [dependencies.async-lapin]
-version = "^0.4"
+version = "^0.4.1"
 path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "^1.2.3"
+version = "^1.4.2"
 path = ".."
 default-features = false
 
 [dev-dependencies.async-std]
-version = "^1.6.3"
+version = "^1.6.5"
 features = ["attributes", "default", "unstable"]
 
 [dev-dependencies.tracing]
