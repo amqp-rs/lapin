@@ -7,8 +7,8 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::{ReactorBuilder, ReactorHandle, Slot},
-    socket_state::SocketState,
+    reactor::{AsyncRW, ReactorBuilder, ReactorHandle},
+    socket_state::{SocketEvent, SocketState},
     tcp::HandshakeResult,
     thread::ThreadHandle,
     Configuration, ConnectionStatus, Error, PromiseResolver, Result, TcpStream,
@@ -17,12 +17,13 @@ use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use std::{
     collections::VecDeque,
     convert::TryFrom,
-    io::{self, Write},
+    pin::Pin,
     sync::Arc,
+    task::{Context, Poll, Waker},
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -43,8 +44,7 @@ pub struct IoLoop {
     socket_state: SocketState,
     reactor: Box<dyn ReactorHandle + Send>,
     connection_io_loop_handle: ThreadHandle,
-    stream: TcpStream,
-    slot: Slot,
+    stream: Pin<Box<dyn AsyncRW + Send>>,
     status: Status,
     frame_size: usize,
     receive_buffer: Buffer,
@@ -54,7 +54,7 @@ pub struct IoLoop {
 
 impl IoLoop {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub(crate) async fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
         channels: Channels,
@@ -66,7 +66,11 @@ impl IoLoop {
         reactor_builder: &dyn ReactorBuilder,
         executor: Arc<dyn Executor>,
     ) -> Result<Self> {
-        let mut stream = TcpStream::try_from(stream)?;
+        let stream = TcpStream::try_from(stream)?;
+        let (s, r) = flume::unbounded();
+        executor.spawn_blocking(Box::new(move || drop(s.send(stream.handshake()))));
+        let stream = r.recv_async().await.unwrap()?;
+
         let heartbeat = Heartbeat::new(channels.clone());
         let mut reactor = reactor_builder.build(heartbeat.clone(), executor);
         let reactor_handle = reactor.handle();
@@ -74,7 +78,7 @@ impl IoLoop {
             protocol::constants::FRAME_MIN_SIZE as usize,
             configuration.frame_max() as usize,
         );
-        let slot = reactor.register(stream.inner_mut(), socket_state.handle())?;
+        let stream = reactor.register(stream)?.into();
 
         Ok(Self {
             connection_status,
@@ -87,13 +91,22 @@ impl IoLoop {
             reactor: reactor_handle,
             connection_io_loop_handle,
             stream,
-            slot,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             serialized_frames: VecDeque::default(),
         })
+    }
+
+    fn readable_waker(&self) -> Waker {
+        let socket_state_handle = self.socket_state.handle();
+        waker_fn::waker_fn(move || socket_state_handle.send(SocketEvent::Readable))
+    }
+
+    fn writable_waker(&self) -> Waker {
+        let socket_state_handle = self.socket_state.handle();
+        waker_fn::waker_fn(move || socket_state_handle.send(SocketEvent::Writable))
     }
 
     fn finish_setup(&mut self) -> Result<bool> {
@@ -108,8 +121,6 @@ impl IoLoop {
                 self.heartbeat.set_timeout(heartbeat);
                 self.reactor.start_heartbeat();
             }
-            let peer = self.stream.inner().peer_addr()?;
-            debug!(%peer, "Connected");
             self.status = Status::Connected;
         }
         Ok(true)
@@ -156,8 +167,18 @@ impl IoLoop {
             ThreadBuilder::new()
                 .name("lapin-io-loop".to_owned())
                 .spawn(move || {
+                    let readable_waker = self.readable_waker();
+                    let mut readable_context = Context::from_waker(&readable_waker);
+                    let writable_waker = self.writable_waker();
+                    let mut writable_context = Context::from_waker(&writable_waker);
+                    let noop_waker = waker_fn::waker_fn(|| {});
+                    let mut noop_context = Context::from_waker(&noop_waker);
                     while self.should_continue() {
-                        if let Err(err) = self.run() {
+                        if let Err(err) = self.run(
+                            &mut readable_context,
+                            &mut writable_context,
+                            &mut noop_context,
+                        ) {
                             self.critical_error(err)?;
                         }
                     }
@@ -180,7 +201,12 @@ impl IoLoop {
         }
     }
 
-    fn run(&mut self) -> Result<()> {
+    fn run(
+        &mut self,
+        readable_context: &mut Context<'_>,
+        writable_context: &mut Context<'_>,
+        noop_context: &mut Context<'_>,
+    ) -> Result<()> {
         trace!("io_loop run");
         self.poll_socket_events();
         if !self.ensure_setup()? {
@@ -197,18 +223,11 @@ impl IoLoop {
             self.socket_state.wait();
         }
         self.poll_socket_events();
-        if self.stream.is_handshaking() {
-            self.stream.handshake()?;
-            if self.stream.is_handshaking() {
-                // We hit WOULDBLOCK while handshaking, wait for the next socket event
-                return Ok(());
-            }
-        }
-        self.attempt_flush()?;
-        self.write()?;
+        self.attempt_flush(noop_context)?;
+        self.write(writable_context)?;
         self.check_connection_state();
         if self.should_continue() {
-            self.read()?;
+            self.read(readable_context)?;
         }
         self.handle_frames()?;
         self.check_connection_state();
@@ -236,121 +255,110 @@ impl IoLoop {
         Err(error)
     }
 
-    fn attempt_flush(&mut self) -> Result<()> {
-        let res = self.flush();
-        if let Err(e) = self.socket_state.handle_flush_result(res) {
-            error!("error flushing: {:?}", e);
-            self.critical_error(e)?;
-        }
-        self.poll_internal_rpc()
+    fn attempt_flush(&mut self, noop_context: &mut Context<'_>) -> Result<()> {
+        let res = self.flush(noop_context);
+        self.handle_io_result(res)
     }
 
-    fn handle_read_result(&mut self, result: Result<()>) -> Result<()> {
-        if let Err(e) = self
-            .socket_state
-            .handle_read_result(result, &*self.reactor, self.slot)
-        {
-            error!(error=?e, "error reading");
+    fn handle_io_result(&mut self, result: Result<()>) -> Result<()> {
+        if let Err(e) = self.socket_state.handle_io_result(result) {
+            error!(error=?e, "error doing IO");
             self.critical_error(e)?;
         }
         Ok(())
     }
 
-    fn handle_write_result(&mut self, result: Result<()>) -> Result<()> {
-        if let Err(e) = self
-            .socket_state
-            .handle_write_result(result, &*self.reactor, self.slot)
-        {
-            error!(error=?e, "error writing");
-            self.critical_error(e)?;
-        }
+    fn flush(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
+        let res = self.stream.as_mut().poll_flush(writable_context)?;
+        self.socket_state.handle_write_poll(res);
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<()> {
-        self.stream.flush()?;
-        Ok(())
-    }
-
-    fn write(&mut self) -> Result<()> {
+    fn write(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
         while self.can_write() {
-            let res = self.write_to_stream();
-            self.handle_write_result(res)?;
+            let res = self.write_to_stream(writable_context);
+            self.handle_io_result(res)?;
         }
         Ok(())
     }
 
-    fn read(&mut self) -> Result<()> {
+    fn read(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
         while self.can_read() {
-            let res = self.read_from_stream();
-            self.handle_read_result(res)?;
+            let res = self.read_from_stream(readable_context);
+            self.handle_io_result(res)?;
         }
         Ok(())
     }
 
-    fn write_to_stream(&mut self) -> Result<()> {
-        self.flush()?;
+    fn write_to_stream(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
+        self.flush(writable_context)?;
         self.serialize()?;
 
-        let sz = self.send_buffer.write_to(&mut self.stream)?;
+        let res = self
+            .send_buffer
+            .poll_write_to(writable_context, Pin::new(&mut self.stream))?;
 
-        if sz > 0 {
-            self.heartbeat.update_last_write();
+        if let Some(sz) = self.socket_state.handle_write_poll(res) {
+            if sz > 0 {
+                self.heartbeat.update_last_write();
 
-            trace!("wrote {} bytes", sz);
-            self.send_buffer.consume(sz);
+                trace!("wrote {} bytes", sz);
+                self.send_buffer.consume(sz);
 
-            let mut written = sz as u64;
-            while written > 0 {
-                if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
-                    if written < to_write {
-                        self.serialized_frames
-                            .push_front((to_write - written, resolver));
-                        trace!("{} to write to complete this frame", to_write - written);
-                        written = 0;
-                    } else {
-                        if let Some(resolver) = resolver {
-                            resolver.swear(Ok(()));
+                let mut written = sz as u64;
+                while written > 0 {
+                    if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
+                        if written < to_write {
+                            self.serialized_frames
+                                .push_front((to_write - written, resolver));
+                            trace!("{} to write to complete this frame", to_write - written);
+                            written = 0;
+                        } else {
+                            if let Some(resolver) = resolver {
+                                resolver.swear(Ok(()));
+                            }
+                            written -= to_write;
                         }
-                        written -= to_write;
+                    } else {
+                        error!(
+                            "We've written {} but didn't expect to write anything",
+                            written
+                        );
+                        break;
                     }
-                } else {
-                    error!(
-                        "We've written {} but didn't expect to write anything",
-                        written
-                    );
-                    break;
                 }
-            }
 
-            if self.send_buffer.available_data() > 0 {
-                // We didn't write all the data yet
-                trace!("Still {} to write", self.send_buffer.available_data());
-            }
+                if self.send_buffer.available_data() > 0 {
+                    // We didn't write all the data yet
+                    trace!("Still {} to write", self.send_buffer.available_data());
+                }
 
-            self.flush()?;
-        } else {
-            error!("Socket was writable but we wrote 0, marking as wouldblock");
-            self.handle_write_result(Err(io::Error::from(io::ErrorKind::WouldBlock).into()))?;
+                self.flush(writable_context)?;
+            } else {
+                error!("Socket was writable but we wrote 0, marking as wouldblock");
+                self.socket_state.handle_write_poll::<()>(Poll::Pending);
+            }
         }
         Ok(())
     }
 
-    fn read_from_stream(&mut self) -> Result<()> {
+    fn read_from_stream(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
         match self.connection_status.state() {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                let sz = self.receive_buffer.read_from(&mut self.stream)?;
+                let res = self
+                    .receive_buffer
+                    .poll_read_from(readable_context, Pin::new(&mut self.stream))?;
 
-                if sz > 0 {
-                    trace!("read {} bytes", sz);
-                    self.receive_buffer.fill(sz);
-                } else {
-                    error!("Socket was readable but we read 0, marking as wouldblock");
-                    self.handle_read_result(
-                        Err(io::Error::from(io::ErrorKind::WouldBlock).into()),
-                    )?;
+                if let Some(sz) = self.socket_state.handle_read_poll(res) {
+                    if sz > 0 {
+                        trace!("read {} bytes", sz);
+                        self.receive_buffer.fill(sz);
+                    } else {
+                        error!("Socket was readable but we read 0, marking as wouldblock");
+                        self.socket_state.handle_read_poll(Poll::Pending);
+                    }
                 }
                 Ok(())
             }

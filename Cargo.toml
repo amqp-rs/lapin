@@ -27,7 +27,7 @@ vendored-openssl          = ["amq-protocol/vendored-openssl"]
 members = [".", "async-global-executor", "async-lapin", "async-std", "bastion", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
-version = "^6.0.2"
+version = "=7.0.0-alpha.2"
 optional = true
 
 [build-dependencies.serde_json]
@@ -35,7 +35,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "^6.0.2"
+version = "7.0.0-alpha.2"
 default-features = false
 
 [dependencies.async-global-executor]
@@ -62,6 +62,7 @@ blocking = "^1.0"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.0"
+waker-fn = "^1.1"
 
 [dev-dependencies]
 serde_json = "^1.0"

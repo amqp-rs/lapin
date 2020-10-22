@@ -3,7 +3,9 @@ use std::{
     convert::TryFrom,
     fmt,
     io::{self, IoSlice, IoSliceMut, Read, Write},
+    ops::{Deref, DerefMut},
 };
+use tracing::debug;
 
 pub struct TcpStream(Inner);
 
@@ -27,25 +29,21 @@ impl TryFrom<tcp::HandshakeResult> for TcpStream {
 }
 
 impl TcpStream {
-    pub(crate) fn inner(&self) -> &tcp::TcpStream {
-        match self.0 {
-            Inner::Connected(ref stream) => stream,
-            Inner::Handshaking(ref handshaker) => handshaker.as_ref().unwrap().get_ref(),
+    pub(crate) fn handshake(mut self) -> Result<Self> {
+        // FIXME: use SocketState to not busyloop
+        while self.is_handshaking() {
+            self.try_handshake()?;
         }
+        let peer = self.peer_addr()?;
+        debug!(%peer, "Connected");
+        Ok(self)
     }
 
-    pub(crate) fn inner_mut(&mut self) -> &mut tcp::TcpStream {
-        match self.0 {
-            Inner::Connected(ref mut stream) => stream,
-            Inner::Handshaking(ref mut handshaker) => handshaker.as_mut().unwrap().get_mut(),
-        }
-    }
-
-    pub(crate) fn is_handshaking(&self) -> bool {
+    pub fn is_handshaking(&self) -> bool {
         matches!(self.0, Inner::Handshaking(_))
     }
 
-    pub(crate) fn handshake(&mut self) -> Result<()> {
+    pub fn try_handshake(&mut self) -> Result<()> {
         if let Inner::Handshaking(ref mut handshaker) = self.0 {
             match handshaker.take().unwrap().handshake() {
                 Ok(stream) => self.0 = Inner::Connected(stream),
@@ -55,6 +53,26 @@ impl TcpStream {
             }
         }
         Ok(())
+    }
+}
+
+impl Deref for TcpStream {
+    type Target = tcp::TcpStream;
+
+    fn deref(&self) -> &Self::Target {
+        match self.0 {
+            Inner::Connected(ref stream) => stream,
+            Inner::Handshaking(ref handshaker) => handshaker.as_ref().unwrap().get_ref(),
+        }
+    }
+}
+
+impl DerefMut for TcpStream {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self.0 {
+            Inner::Connected(ref mut stream) => stream,
+            Inner::Handshaking(ref mut handshaker) => handshaker.as_mut().unwrap().get_mut(),
+        }
     }
 }
 
@@ -108,5 +126,47 @@ impl Write for TcpStream {
 
     fn write_fmt(&mut self, fmt: fmt::Arguments<'_>) -> io::Result<()> {
         fwd_impl!(self, write_fmt, fmt)
+    }
+}
+
+#[cfg(unix)]
+mod sys {
+    use crate::TcpStream;
+    use std::{
+        net::TcpStream as StdTcpStream,
+        os::unix::io::{AsRawFd, RawFd},
+    };
+
+    impl AsRawFd for TcpStream {
+        fn as_raw_fd(&self) -> RawFd {
+            <StdTcpStream as AsRawFd>::as_raw_fd(self)
+        }
+    }
+
+    impl AsRawFd for &TcpStream {
+        fn as_raw_fd(&self) -> RawFd {
+            <StdTcpStream as AsRawFd>::as_raw_fd(self)
+        }
+    }
+}
+
+#[cfg(windows)]
+mod sys {
+    use crate::TcpStream;
+    use std::{
+        net::TcpStream as StdTcpStream,
+        os::windows::io::{AsRawSocket, RawSocket},
+    };
+
+    impl AsRawSocket for TcpStream {
+        fn as_raw_socket(&self) -> RawSocket {
+            <StdTcpStream as AsRawSocket>::as_raw_socket(self)
+        }
+    }
+
+    impl AsRawSocket for &TcpStream {
+        fn as_raw_socket(&self) -> RawSocket {
+            <StdTcpStream as AsRawSocket>::as_raw_socket(self)
+        }
     }
 }

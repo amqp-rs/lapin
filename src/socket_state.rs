@@ -1,8 +1,6 @@
-use crate::{
-    reactor::{ReactorHandle, Slot},
-    Result,
-};
+use crate::Result;
 use flume::{Receiver, Sender};
+use std::task::Poll;
 use tracing::trace;
 
 pub(crate) struct SocketState {
@@ -49,54 +47,39 @@ impl SocketState {
         self.handle_event(self.events.recv().expect("waiting for socket event failed"))
     }
 
-    pub(crate) fn handle_read_result(
-        &mut self,
-        result: Result<()>,
-        reactor: &dyn ReactorHandle,
-        slot: Slot,
-    ) -> Result<()> {
-        self.readable = self.handle_io_result(result, self.readable)?;
-        if !self.readable {
-            reactor.poll_read(slot);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn handle_write_result(
-        &mut self,
-        result: Result<()>,
-        reactor: &dyn ReactorHandle,
-        slot: Slot,
-    ) -> Result<()> {
-        self.writable = self.handle_io_result(result, self.writable)?;
-        if !self.writable {
-            reactor.poll_write(slot);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn handle_flush_result(&mut self, result: Result<()>) -> Result<()> {
-        self.handle_io_result(result, false)?;
-        Ok(())
-    }
-
     pub(crate) fn handle(&self) -> SocketStateHandle {
         self.handle.clone()
     }
 
-    fn handle_io_result(&self, result: Result<()>, current: bool) -> Result<bool> {
-        if let Err(err) = result {
-            if err.wouldblock() {
-                Ok(false)
-            } else if err.interrupted() {
-                self.handle.wake();
-                Ok(current)
-            } else {
-                Err(err)
+    pub(crate) fn handle_read_poll(&mut self, poll: Poll<usize>) -> Option<usize> {
+        match poll {
+            Poll::Ready(sz) => Some(sz),
+            Poll::Pending => {
+                self.readable = false;
+                None
             }
-        } else {
-            Ok(current)
         }
+    }
+
+    pub(crate) fn handle_write_poll<T>(&mut self, poll: Poll<T>) -> Option<T> {
+        match poll {
+            Poll::Ready(sz) => Some(sz),
+            Poll::Pending => {
+                self.writable = false;
+                None
+            }
+        }
+    }
+
+    pub(crate) fn handle_io_result(&self, result: Result<()>) -> Result<()> {
+        if let Err(err) = result {
+            if err.interrupted() {
+                self.handle.wake();
+            } else {
+                return Err(err);
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn poll_events(&mut self) {

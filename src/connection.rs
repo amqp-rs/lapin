@@ -369,6 +369,7 @@ impl Connection {
             &*reactor_builder,
             executor,
         )
+        .await
         .and_then(IoLoop::start)?;
         promise_out.await?;
         promise_in.await

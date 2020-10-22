@@ -1,8 +1,11 @@
 use crate::parsing::ParsingContext;
 use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
+use futures_lite::io::{AsyncRead, AsyncWrite};
 use std::{
     cmp,
     io::{self, IoSlice, IoSliceMut},
+    pin::Pin,
+    task::{Context, Poll},
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -120,32 +123,44 @@ impl Buffer {
         cnt
     }
 
-    pub(crate) fn write_to<T: io::Write>(&self, writer: &mut T) -> io::Result<usize> {
+    pub(crate) fn poll_write_to<T: AsyncWrite>(
+        &self,
+        cx: &mut Context<'_>,
+        writer: Pin<&mut T>,
+    ) -> Poll<io::Result<usize>> {
         if self.available_data() == 0 {
-            Ok(0)
+            Poll::Ready(Ok(0))
         } else if self.end > self.position {
-            writer.write(&self.memory[self.position..self.end])
+            writer.poll_write(cx, &self.memory[self.position..self.end])
         } else {
-            writer.write_vectored(&[
-                IoSlice::new(&self.memory[self.position..]),
-                IoSlice::new(&self.memory[..self.end]),
-            ])
+            writer.poll_write_vectored(
+                cx,
+                &[
+                    IoSlice::new(&self.memory[self.position..]),
+                    IoSlice::new(&self.memory[..self.end]),
+                ],
+            )
         }
     }
 
-    pub(crate) fn read_from<T: io::Read>(&mut self, reader: &mut T) -> io::Result<usize> {
+    pub(crate) fn poll_read_from<T: AsyncRead>(
+        &mut self,
+        cx: &mut Context<'_>,
+        reader: Pin<&mut T>,
+    ) -> Poll<io::Result<usize>> {
         if self.available_space() == 0 {
-            Ok(0)
+            Poll::Ready(Ok(0))
         } else if self.end >= self.position {
             let (start, end) = self.memory.split_at_mut(self.end);
-            reader.read_vectored(
+            reader.poll_read_vectored(
+                cx,
                 &mut [
                     IoSliceMut::new(&mut end[..]),
                     IoSliceMut::new(&mut start[..self.position]),
                 ][..],
             )
         } else {
-            reader.read(&mut self.memory[self.end..self.position])
+            reader.poll_read(cx, &mut self.memory[self.end..self.position])
         }
     }
 
