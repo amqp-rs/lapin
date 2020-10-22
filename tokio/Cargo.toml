@@ -20,14 +20,14 @@ path = ".."
 default-features = false
 
 [dependencies.tokio]
-version = "^0.3"
+version = "^0.3.1"
 default-features = false
 features = ["rt"]
 
 [dev-dependencies.tokio]
-version = "^0.3"
+version = "^0.3.1"
 default-features = false
-features = ["macros", "rt", "rt-multi-thread"]
+features = ["rt", 'rt-multi-thread']
 
 [dev-dependencies.tracing]
 version = "^0.1"

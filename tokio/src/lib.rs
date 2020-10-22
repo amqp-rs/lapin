@@ -30,7 +30,6 @@ impl Executor for TokioExecutor {
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
-        let _enter = self.0.enter();
-        tokio::task::spawn_blocking(f);
+        self.0.spawn_blocking(f);
     }
 }
