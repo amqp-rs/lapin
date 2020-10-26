@@ -1,3 +1,9 @@
+### 1.4.3 (2020-10-26)
+
+#### Misc
+
+* Port examples to async-global-executor
+
 ### 1.4.2 (2020-10-16)
 
 #### Misc
