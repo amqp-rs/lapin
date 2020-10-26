@@ -1,28 +1,26 @@
-use futures_executor::{LocalPool, ThreadPool};
 use futures_util::stream::StreamExt;
 use lapin::{
     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
     ConnectionProperties, Result,
 };
 use log::info;
-use std::sync::Arc;
 
-fn retry_rabbit_stuff(addr: String, executor: Arc<ThreadPool>) {
+fn retry_rabbit_stuff(addr: String) {
     std::thread::sleep(std::time::Duration::from_millis(2000));
     log::debug!("Reconnecting to rabbitmq");
-    try_rabbit_stuff(addr, executor);
+    try_rabbit_stuff(addr);
 }
 
-fn try_rabbit_stuff(addr: String, executor: Arc<ThreadPool>) {
-    executor.clone().spawn_ok(async move {
-        if let Err(err) = rabbit_stuff(addr.clone(), executor.clone()).await {
+fn try_rabbit_stuff(addr: String) {
+    async_global_executor::spawn(async move {
+        if let Err(err) = rabbit_stuff(addr.clone()).await {
             log::error!("Error: {}", err);
-            retry_rabbit_stuff(addr, executor);
+            retry_rabbit_stuff(addr);
         }
-    });
+    }).detach();
 }
 
-async fn rabbit_stuff(addr: String, executor: Arc<ThreadPool>) -> Result<()> {
+async fn rabbit_stuff(addr: String) -> Result<()> {
     let conn = Connection::connect(
         &addr,
         ConnectionProperties::default().with_default_executor(8),
@@ -52,7 +50,7 @@ async fn rabbit_stuff(addr: String, executor: Arc<ThreadPool>) -> Result<()> {
             FieldTable::default(),
         )
         .await?;
-    executor.spawn_ok(async move {
+    async_global_executor::spawn(async move {
         info!("will consume");
         while let Some(delivery) = consumer.next().await {
             let (channel, delivery) = delivery.expect("error in consumer");
@@ -61,7 +59,7 @@ async fn rabbit_stuff(addr: String, executor: Arc<ThreadPool>) -> Result<()> {
                 .await
                 .expect("ack");
         }
-    });
+    }).detach();
 
     let payload = b"Hello world!";
 
@@ -88,9 +86,8 @@ fn main() -> Result<()> {
     env_logger::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let executor = Arc::new(ThreadPool::new()?);
 
-    try_rabbit_stuff(addr, executor);
+    try_rabbit_stuff(addr);
 
-    LocalPool::new().run_until(futures_util::future::pending())
+    async_global_executor::block_on(futures_util::future::pending())
 }

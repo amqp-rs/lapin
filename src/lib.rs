@@ -20,7 +20,6 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use futures_executor::{LocalPool, ThreadPool};
 //! use futures_util::stream::StreamExt;
 //! use lapin::{
 //!     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
@@ -36,9 +35,8 @@
 //!     env_logger::init();
 //!
 //!     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-//!     let executor = ThreadPool::new()?;
 //!
-//!     LocalPool::new().run_until(async {
+//!     async_global_executor::block_on(async {
 //!         let conn = Connection::connect(
 //!             &addr,
 //!             ConnectionProperties::default().with_default_executor(8),
@@ -68,7 +66,7 @@
 //!                 FieldTable::default(),
 //!             )
 //!             .await?;
-//!         executor.spawn_ok(async move {
+//!         async_global_executor::spawn(async move {
 //!             info!("will consume");
 //!             while let Some(delivery) = consumer.next().await {
 //!                 let (channel, delivery) = delivery.expect("error in consumer");
@@ -77,7 +75,7 @@
 //!                     .await
 //!                     .expect("ack");
 //!             }
-//!         });
+//!         }).detach();
 //!
 //!         let payload = b"Hello world!";
 //!
