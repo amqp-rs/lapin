@@ -1,3 +1,4 @@
+use futures_util::stream::StreamExt;
 use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use log::info;
 
@@ -33,7 +34,7 @@ fn main() {
         info!("declared queue {:?}", queue);
 
         info!("will consume");
-        let consumer = channel
+        let mut consumer = channel
             .basic_consume(
                 "hello",
                 "my_consumer",
@@ -44,7 +45,7 @@ fn main() {
             .expect("basic_consume");
         info!("[{}] state: {:?}", line!(), conn.status().state());
 
-        for delivery in consumer {
+        while let Some(delivery) = consumer.next().await {
             info!("received message: {:?}", delivery);
             if let Ok((channel, delivery)) = delivery {
                 channel
