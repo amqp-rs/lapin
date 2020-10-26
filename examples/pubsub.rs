@@ -53,7 +53,8 @@ fn main() -> Result<()> {
                     .await
                     .expect("ack");
             }
-        }).detach();
+        })
+        .detach();
 
         let payload = b"Hello world!";
 

@@ -17,7 +17,8 @@ fn try_rabbit_stuff(addr: String) {
             log::error!("Error: {}", err);
             retry_rabbit_stuff(addr);
         }
-    }).detach();
+    })
+    .detach();
 }
 
 async fn rabbit_stuff(addr: String) -> Result<()> {
@@ -59,7 +60,8 @@ async fn rabbit_stuff(addr: String) -> Result<()> {
                 .await
                 .expect("ack");
         }
-    }).detach();
+    })
+    .detach();
 
     let payload = b"Hello world!";
 
