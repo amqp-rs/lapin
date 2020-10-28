@@ -20,15 +20,18 @@ path = ".."
 default-features = false
 
 [dependencies.tokio]
-version = "^0.3"
+version = "^0.3.2"
 default-features = false
-features = ["rt"]
+features = ["net", "rt", "time"]
+
+[dependencies]
+parking_lot = "^0.11"
 
 [dev-dependencies]
 env_logger = "^0.8"
 log = "^0.4"
 
 [dev-dependencies.tokio]
-version = "^0.3"
+version = "^0.3.2"
 default-features = false
-features = ["macros", "rt", "rt-multi-thread"]
+features = ["macros", "net", "rt", "rt-multi-thread", "time"]
