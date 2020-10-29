@@ -54,7 +54,7 @@ struct AsyncIoReactorHandle {
 #[derive(Default)]
 struct Inner {
     slot: Slot,
-    slots: HashMap<usize, (Arc<Async<TcpStreamWrapper>>, SocketStateHandle)>,
+    slots: HashMap<Slot, (Arc<Async<TcpStreamWrapper>>, SocketStateHandle)>,
 }
 
 impl fmt::Debug for AsyncIoReactorHandle {

@@ -20,14 +20,17 @@ path = ".."
 default-features = false
 
 [dependencies.tokio]
-version = "^0.3.1"
+version = "^0.3.2"
 default-features = false
-features = ["rt"]
+features = ["net", "rt", "time"]
+
+[dependencies]
+parking_lot = "^0.11"
 
 [dev-dependencies.tokio]
-version = "^0.3.1"
+version = "^0.3.2"
 default-features = false
-features = ["rt", 'rt-multi-thread']
+features = ["net", "rt", "rt-multi-thread", "time"]
 
 [dev-dependencies.tracing]
 version = "^0.1"
