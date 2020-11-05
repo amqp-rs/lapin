@@ -1,41 +1,41 @@
 use lapin::{executor::Executor, ConnectionProperties, Result};
-use std::{future::Future, pin::Pin, sync::Arc};
-use tokio::runtime::Runtime;
+use std::{future::Future, pin::Pin};
+use tokio::runtime::Handle;
 
 pub trait LapinTokioExt {
-    fn with_tokio(self, rt: Arc<Runtime>) -> Self
+    fn with_tokio(self) -> Self
     where
         Self: Sized,
     {
-        let this = self.with_tokio_executor(rt.clone());
+        let this = self.with_tokio_executor();
         #[cfg(unix)]
-        let this = this.with_tokio_reactor(rt);
+        let this = this.with_tokio_reactor();
         this
     }
 
-    fn with_tokio_executor(self, rt: Arc<Runtime>) -> Self
+    fn with_tokio_executor(self) -> Self
     where
         Self: Sized;
 
     #[cfg(unix)]
-    fn with_tokio_reactor(self, rt: Arc<Runtime>) -> Self
+    fn with_tokio_reactor(self) -> Self
     where
         Self: Sized;
 }
 
 impl LapinTokioExt for ConnectionProperties {
-    fn with_tokio_executor(self, rt: Arc<Runtime>) -> Self {
-        self.with_executor(TokioExecutor(rt))
+    fn with_tokio_executor(self) -> Self {
+        self.with_executor(TokioExecutor(Handle::current()))
     }
 
     #[cfg(unix)]
-    fn with_tokio_reactor(self, rt: Arc<Runtime>) -> Self {
-        self.with_reactor(unix::TokioReactorBuilder(Arc::new(TokioExecutor(rt))))
+    fn with_tokio_reactor(self) -> Self {
+        self.with_reactor(unix::TokioReactorBuilder::new(Handle::current()))
     }
 }
 
 #[derive(Debug)]
-struct TokioExecutor(Arc<Runtime>);
+struct TokioExecutor(Handle);
 
 impl Executor for TokioExecutor {
     fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
@@ -58,7 +58,19 @@ mod unix {
     use tokio::{io::unix::AsyncFd, time::sleep};
 
     #[derive(Debug)]
-    pub(crate) struct TokioReactorBuilder(pub(crate) Arc<dyn Executor>);
+    pub(crate) struct TokioReactorBuilder {
+        executor: Arc<dyn Executor>,
+        handle: Handle,
+    }
+
+    impl TokioReactorBuilder {
+        pub(crate) fn new(handle: Handle) -> Self {
+            Self {
+                executor: Arc::new(TokioExecutor(handle.clone())),
+                handle,
+            }
+        }
+    }
 
     #[derive(Debug)]
     struct TokioReactor(TokioReactorHandle);
@@ -67,6 +79,7 @@ mod unix {
     struct TokioReactorHandle {
         heartbeat: Heartbeat,
         executor: Arc<dyn Executor>,
+        handle: Handle,
         inner: Arc<Mutex<Inner>>,
     }
 
@@ -99,7 +112,8 @@ mod unix {
         fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>> {
             Ok(Box::new(TokioReactor(TokioReactorHandle {
                 heartbeat,
-                executor: self.0.clone(),
+                executor: self.executor.clone(),
+                handle: self.handle.clone(),
                 inner: Arc::new(Mutex::new(Default::default())),
             })))
         }
@@ -111,6 +125,7 @@ mod unix {
             socket: &mut TcpStream,
             socket_state: SocketStateHandle,
         ) -> Result<Slot> {
+            let _enter = self.0.handle.enter();
             let socket = Arc::new(AsyncFd::new(unsafe { TcpStreamWrapper::new(socket) })?);
             let slot = self.0.inner.lock().register(socket, socket_state)?;
             self.0.poll_read(slot);
