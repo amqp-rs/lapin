@@ -767,8 +767,15 @@ impl Channel {
         &self,
         method: protocol::queue::DeclareOk,
         resolver: PromiseResolver<Queue>,
+        options: QueueDeclareOptions,
+        arguments: FieldTable,
     ) -> Result<()> {
-        let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
+        let queue = Queue::new(
+            method.queue,
+            method.message_count,
+            method.consumer_count,
+            Some((options, arguments)),
+        );
         self.queues.register(queue.clone().into());
         resolver.swear(Ok(queue));
         Ok(())

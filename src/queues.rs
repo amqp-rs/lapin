@@ -48,7 +48,7 @@ impl Queues {
             .queues
             .lock()
             .entry(queue.into())
-            .or_insert_with(|| Queue::new(queue.into(), 0, 0).into()))
+            .or_insert_with(|| Queue::new(queue.into(), 0, 0, None).into()))
     }
 
     pub(crate) fn register_consumer(

@@ -162,6 +162,22 @@
         "confirmation": {
           "type": "Queue"
         },
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "options",
+            "type": "QueueDeclareOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
         "nowait_hook": {
           "fields": ["queue: queue.into()"]
         }

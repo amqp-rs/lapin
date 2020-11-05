@@ -1,25 +1,28 @@
-use crate::types::ShortString;
+use crate::{
+    options::QueueDeclareOptions,
+    types::{FieldTable, ShortString},
+};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TopologyDefinition {
     pub channels: Vec<ChannelDefinition>,
     // FIXME: exchanges
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ChannelDefinition {
     pub queues: Vec<QueueDefinition>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct QueueDefinition {
     pub name: ShortString,
-    // FIXME: attributes
+    pub params: Option<(QueueDeclareOptions, FieldTable)>,
     // FIXME: bindings
     pub consumers: Vec<ConsumerDefinition>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ConsumerDefinition {
     pub tag: ShortString,
 }

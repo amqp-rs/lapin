@@ -158,7 +158,7 @@ pub(crate) enum Reply {
     ExchangeDeleteOk(PromiseResolver<()>),
     ExchangeBindOk(PromiseResolver<()>),
     ExchangeUnbindOk(PromiseResolver<()>),
-    QueueDeclareOk(PromiseResolver<Queue>),
+    QueueDeclareOk(PromiseResolver<Queue>, QueueDeclareOptions, FieldTable),
     QueueBindOk(PromiseResolver<()>),
     QueuePurgeOk(PromiseResolver<LongUInt>),
     QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
@@ -1208,6 +1208,7 @@ impl Channel {
             )));
         }
 
+        let creation_arguments = arguments.clone();
         let QueueDeclareOptions {
             passive,
             durable,
@@ -1240,7 +1241,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueDeclareOk(resolver.clone()),
+                Reply::QueueDeclareOk(resolver.clone(), options, creation_arguments),
                 Box::new(resolver),
             )),
         );
@@ -1260,8 +1261,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueDeclareOk(resolver)) => {
-                self.on_queue_declare_ok_received(method, resolver)
+            Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => {
+                self.on_queue_declare_ok_received(method, resolver, options, creation_arguments)
             }
             _ => self.handle_invalid_contents(
                 format!(

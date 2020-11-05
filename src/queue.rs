@@ -1,8 +1,9 @@
 use crate::{
     consumer::Consumer,
     message::BasicGetMessage,
+    options::QueueDeclareOptions,
     topology::{ConsumerDefinition, QueueDefinition},
-    types::ShortString,
+    types::{FieldTable, ShortString},
     BasicProperties, Error, PromiseResolver, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
@@ -12,6 +13,7 @@ pub struct Queue {
     name: ShortString,
     message_count: u32,
     consumer_count: u32,
+    creation_params: Option<(QueueDeclareOptions, FieldTable)>,
 }
 
 impl Queue {
@@ -32,6 +34,7 @@ pub(crate) struct QueueState {
     name: ShortString,
     consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
+    creation_params: Option<(QueueDeclareOptions, FieldTable)>,
 }
 
 impl fmt::Debug for QueueState {
@@ -44,11 +47,17 @@ impl fmt::Debug for QueueState {
 }
 
 impl Queue {
-    pub(crate) fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Self {
+    pub(crate) fn new(
+        name: ShortString,
+        message_count: u32,
+        consumer_count: u32,
+        creation_params: Option<(QueueDeclareOptions, FieldTable)>,
+    ) -> Self {
         Self {
             name,
             message_count,
             consumer_count,
+            creation_params,
         }
     }
 }
@@ -141,6 +150,7 @@ impl QueueState {
     pub(crate) fn topology(&self) -> QueueDefinition {
         QueueDefinition {
             name: self.name.clone(),
+            params: self.creation_params.clone(),
             consumers: self
                 .consumers
                 .keys()
@@ -156,6 +166,7 @@ impl From<Queue> for QueueState {
             name: queue.name,
             consumers: HashMap::new(),
             current_get_message: None,
+            creation_params: queue.creation_params,
         }
     }
 }
