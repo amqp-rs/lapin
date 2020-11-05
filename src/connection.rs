@@ -13,6 +13,7 @@ use crate::{
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
+    topology::TopologyDefinition,
     types::ShortUInt,
     uri::AMQPUri,
     Error, Promise, PromiseChain, Result,
@@ -235,6 +236,12 @@ impl Connection {
             .and_then(IoLoop::start)
             .map(|()| promise)
             .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
+        }
+    }
+
+    pub fn topology(&self) -> TopologyDefinition {
+        TopologyDefinition {
+            channels: self.channels.topology(),
         }
     }
 }

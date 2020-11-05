@@ -7,6 +7,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
     socket_state::SocketStateHandle,
+    topology::ChannelDefinition,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
@@ -265,6 +266,15 @@ impl Channels {
 
     pub(crate) fn set_error_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
+    }
+
+    pub(crate) fn topology(&self) -> Vec<ChannelDefinition> {
+        self.inner
+            .lock()
+            .channels
+            .values()
+            .map(Channel::topology)
+            .collect()
     }
 }
 

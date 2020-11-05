@@ -1,6 +1,9 @@
 use crate::{
-    consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
-    PromiseResolver, Result,
+    consumer::Consumer,
+    message::BasicGetMessage,
+    topology::{ConsumerDefinition, QueueDefinition},
+    types::ShortString,
+    BasicProperties, Error, PromiseResolver, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
 
@@ -132,6 +135,17 @@ impl QueueState {
     pub(crate) fn new_delivery_complete(&mut self) {
         if let Some((message, resolver)) = self.current_get_message.take() {
             resolver.swear(Ok(Some(message)));
+        }
+    }
+
+    pub(crate) fn topology(&self) -> QueueDefinition {
+        QueueDefinition {
+            name: self.name.clone(),
+            consumers: self
+                .consumers
+                .keys()
+                .map(|tag| ConsumerDefinition { tag: tag.clone() })
+                .collect(),
         }
     }
 }

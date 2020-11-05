@@ -17,6 +17,7 @@ use crate::{
     queues::Queues,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
+    topology::ChannelDefinition,
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
     ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
@@ -371,6 +372,12 @@ impl Channel {
             },
             |msg| self.handle_invalid_contents(msg, 0, 0),
         )
+    }
+
+    pub(crate) fn topology(&self) -> ChannelDefinition {
+        ChannelDefinition {
+            queues: self.queues.topology(),
+        }
     }
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {

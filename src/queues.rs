@@ -2,6 +2,7 @@ use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
     queue::{Queue, QueueState},
+    topology::QueueDefinition,
     types::ShortString,
     BasicProperties, Channel, Error, PromiseResolver, Result,
 };
@@ -28,6 +29,14 @@ impl Queues {
 
     pub(crate) fn deregister(&self, queue: &str) {
         self.queues.lock().remove(queue);
+    }
+
+    pub(crate) fn topology(&self) -> Vec<QueueDefinition> {
+        self.queues
+            .lock()
+            .values()
+            .map(QueueState::topology)
+            .collect()
     }
 
     fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(
