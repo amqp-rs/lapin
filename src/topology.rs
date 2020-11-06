@@ -2,19 +2,20 @@ use crate::{
     options::QueueDeclareOptions,
     types::{FieldTable, ShortString},
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TopologyDefinition {
     pub channels: Vec<ChannelDefinition>,
     // FIXME: exchanges
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ChannelDefinition {
     pub queues: Vec<QueueDefinition>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct QueueDefinition {
     pub name: ShortString,
     pub params: Option<(QueueDeclareOptions, FieldTable)>,
@@ -22,14 +23,14 @@ pub struct QueueDefinition {
     pub consumers: Vec<ConsumerDefinition>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct BindingDefinition {
     pub exchange: ShortString,
     pub routing_key: ShortString,
     pub arguments: FieldTable,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ConsumerDefinition {
     pub tag: ShortString,
 }

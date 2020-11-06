@@ -25,6 +25,7 @@ use crate::{
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
 
 #[cfg(test)]

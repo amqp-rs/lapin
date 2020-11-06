@@ -1,17 +1,17 @@
 pub mod options {
     use super::*;
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOptions {
         pub active: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOkOptions {
         pub active: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct AccessRequestOptions {
         pub exclusive: Boolean,
         pub passive: Boolean,
@@ -20,7 +20,7 @@ pub mod options {
         pub read: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeclareOptions {
         pub passive: Boolean,
         pub durable: Boolean,
@@ -29,23 +29,23 @@ pub mod options {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeleteOptions {
         pub if_unused: Boolean,
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeBindOptions {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeUnbindOptions {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeclareOptions {
         pub passive: Boolean,
         pub durable: Boolean,
@@ -54,29 +54,29 @@ pub mod options {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueBindOptions {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueuePurgeOptions {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeleteOptions {
         pub if_unused: Boolean,
         pub if_empty: Boolean,
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicQosOptions {
         pub global: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicConsumeOptions {
         pub no_local: Boolean,
         pub no_ack: Boolean,
@@ -84,59 +84,59 @@ pub mod options {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicCancelOptions {
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicPublishOptions {
         pub mandatory: Boolean,
         pub immediate: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicDeliverOptions {
         pub redelivered: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOptions {
         pub no_ack: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOkOptions {
         pub redelivered: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicAckOptions {
         pub multiple: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRejectOptions {
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverAsyncOptions {
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverOptions {
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicNackOptions {
         pub multiple: Boolean,
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ConfirmSelectOptions {
         pub nowait: Boolean,
     }
