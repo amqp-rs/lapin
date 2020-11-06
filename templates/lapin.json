@@ -157,6 +157,47 @@
     }
   },
   "queue": {
+    "bind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "queue",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ]
+      }
+    },
+    "bind-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "queue", "exchange", "routing_key", "creation_arguments"]
+        }
+      }
+    },
     "declare": {
       "metadata": {
         "confirmation": {
@@ -202,6 +243,37 @@
       "metadata": {
         "confirmation": {
           "type": "LongUInt"
+        }
+      }
+    },
+    "unbind": {
+      "metadata": {
+        "state": [
+          {
+            "name": "queue",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          }
+        ]
+      }
+    },
+    "unbind-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "queue", "exchange", "routing_key"]
         }
       }
     }

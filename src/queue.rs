@@ -2,7 +2,7 @@ use crate::{
     consumer::Consumer,
     message::BasicGetMessage,
     options::QueueDeclareOptions,
-    topology::{ConsumerDefinition, QueueDefinition},
+    topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
     types::{FieldTable, ShortString},
     BasicProperties, Error, PromiseResolver, Result,
 };
@@ -35,6 +35,7 @@ pub(crate) struct QueueState {
     consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
     creation_params: Option<(QueueDeclareOptions, FieldTable)>,
+    bindings: Vec<Binding>,
 }
 
 impl fmt::Debug for QueueState {
@@ -44,6 +45,12 @@ impl fmt::Debug for QueueState {
             .field("consumers", &self.consumers)
             .finish()
     }
+}
+
+struct Binding {
+    exchange: ShortString,
+    routing_key: ShortString,
+    arguments: FieldTable,
 }
 
 impl Queue {
@@ -110,6 +117,24 @@ impl QueueState {
             .fold(Ok(()), Result::and)
     }
 
+    pub(crate) fn register_binding(
+        &mut self,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.bindings.push(Binding {
+            exchange,
+            routing_key,
+            arguments,
+        });
+    }
+
+    pub(crate) fn deregister_binding(&mut self, exchange: ShortString, routing_key: ShortString) {
+        self.bindings
+            .retain(|binding| binding.exchange != exchange && binding.routing_key != routing_key);
+    }
+
     pub(crate) fn name(&self) -> ShortString {
         self.name.clone()
     }
@@ -151,6 +176,15 @@ impl QueueState {
         QueueDefinition {
             name: self.name.clone(),
             params: self.creation_params.clone(),
+            bindings: self
+                .bindings
+                .iter()
+                .map(|binding| BindingDefinition {
+                    exchange: binding.exchange.clone(),
+                    routing_key: binding.routing_key.clone(),
+                    arguments: binding.arguments.clone(),
+                })
+                .collect(),
             consumers: self
                 .consumers
                 .keys()
@@ -167,6 +201,7 @@ impl From<Queue> for QueueState {
             consumers: HashMap::new(),
             current_get_message: None,
             creation_params: queue.creation_params,
+            bindings: Vec::new(),
         }
     }
 }

@@ -781,6 +781,33 @@ impl Channel {
         Ok(())
     }
 
+    fn on_queue_bind_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.queues
+            .register_binding(queue.as_str(), exchange, routing_key, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_queue_unbind_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+    ) -> Result<()> {
+        self.queues
+            .deregister_binding(queue.as_str(), exchange, routing_key);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
     fn on_basic_get_ok_received(
         &self,
         method: protocol::basic::GetOk,

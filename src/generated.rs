@@ -159,10 +159,16 @@ pub(crate) enum Reply {
     ExchangeBindOk(PromiseResolver<()>),
     ExchangeUnbindOk(PromiseResolver<()>),
     QueueDeclareOk(PromiseResolver<Queue>, QueueDeclareOptions, FieldTable),
-    QueueBindOk(PromiseResolver<()>),
+    QueueBindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
     QueuePurgeOk(PromiseResolver<LongUInt>),
     QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
-    QueueUnbindOk(PromiseResolver<()>),
+    QueueUnbindOk(PromiseResolver<()>, ShortString, ShortString, ShortString),
     BasicQosOk(PromiseResolver<()>),
     BasicConsumeOk(
         PromiseResolver<Consumer>,
@@ -1287,6 +1293,7 @@ impl Channel {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 
+        let creation_arguments = arguments.clone();
         let QueueBindOptions { nowait } = options;
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Bind(protocol::queue::Bind {
             queue: queue.into(),
@@ -1309,7 +1316,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueBindOk(resolver.clone()),
+                Reply::QueueBindOk(
+                    resolver.clone(),
+                    queue.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1321,11 +1334,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueBindOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
+            Some(Reply::QueueBindOk(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            )) => self.on_queue_bind_ok_received(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!("unexepcted queue bind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
@@ -1479,7 +1500,12 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueUnbindOk(resolver.clone()),
+                Reply::QueueUnbindOk(
+                    resolver.clone(),
+                    queue.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1491,10 +1517,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueUnbindOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
+            Some(Reply::QueueUnbindOk(resolver, queue, exchange, routing_key)) => {
+                self.on_queue_unbind_ok_received(resolver, queue, exchange, routing_key)
             }
             _ => self.handle_invalid_contents(
                 format!("unexepcted queue unbind-ok received on channel {}", self.id),

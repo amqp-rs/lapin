@@ -3,7 +3,7 @@ use crate::{
     message::{BasicGetMessage, Delivery},
     queue::{Queue, QueueState},
     topology::QueueDefinition,
-    types::ShortString,
+    types::{FieldTable, ShortString},
     BasicProperties, Channel, Error, PromiseResolver, Result,
 };
 use parking_lot::Mutex;
@@ -70,6 +70,33 @@ impl Queues {
             .values_mut()
             .map(|queue| queue.deregister_consumer(consumer_tag))
             .fold(Ok(()), Result::and)
+    }
+
+    pub(crate) fn register_binding(
+        &self,
+        queue: &str,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.with_queue(queue, |queue| {
+            queue.register_binding(exchange, routing_key, arguments);
+            Ok(())
+        })
+        .expect("register_binding cannot fail");
+    }
+
+    pub(crate) fn deregister_binding(
+        &self,
+        queue: &str,
+        exchange: ShortString,
+        routing_key: ShortString,
+    ) {
+        self.with_queue(queue, |queue| {
+            queue.deregister_binding(exchange, routing_key);
+            Ok(())
+        })
+        .expect("deregister_binding cannot fail");
     }
 
     pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {

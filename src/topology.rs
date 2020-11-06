@@ -18,8 +18,15 @@ pub struct ChannelDefinition {
 pub struct QueueDefinition {
     pub name: ShortString,
     pub params: Option<(QueueDeclareOptions, FieldTable)>,
-    // FIXME: bindings
+    pub bindings: Vec<BindingDefinition>,
     pub consumers: Vec<ConsumerDefinition>,
+}
+
+#[derive(Debug, Default)]
+pub struct BindingDefinition {
+    pub exchange: ShortString,
+    pub routing_key: ShortString,
+    pub arguments: FieldTable,
 }
 
 #[derive(Debug, Default)]
