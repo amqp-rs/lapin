@@ -10,9 +10,7 @@ use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 #[derive(Clone, Default)]
-pub(crate) struct Queues {
-    queues: Arc<Mutex<HashMap<ShortString, QueueState>>>,
-}
+pub(crate) struct Queues(Arc<Mutex<HashMap<ShortString, QueueState>>>);
 
 impl Queues {
     pub(crate) fn register(&self, queue: QueueState) {
@@ -24,15 +22,21 @@ impl Queues {
         // we have no way to error/cancel them, we have no way to send them incoming messages.
         //
         // This can be avoided with an "insert-if-missing" operation.
-        self.queues.lock().entry(queue.name()).or_insert(queue);
+        let mut inner = self.0.lock();
+        let name = queue.name();
+        if let Some(q) = inner.get_mut(&name) {
+            q.absorb(queue);
+        } else {
+            inner.insert(name, queue);
+        }
     }
 
     pub(crate) fn deregister(&self, queue: &str) {
-        self.queues.lock().remove(queue);
+        self.0.lock().remove(queue);
     }
 
     pub(crate) fn topology(&self) -> Vec<QueueDefinition> {
-        self.queues
+        self.0
             .lock()
             .values()
             .filter_map(QueueState::topology)
@@ -40,7 +44,7 @@ impl Queues {
     }
 
     pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinition> {
-        self.queues
+        self.0
             .lock()
             .values()
             .flat_map(QueueState::consumers_topology)
@@ -53,7 +57,7 @@ impl Queues {
         f: F,
     ) -> Result<()> {
         f(self
-            .queues
+            .0
             .lock()
             .entry(queue.into())
             .or_insert_with(|| QueueState::new(queue.into(), None, None)))
@@ -73,7 +77,7 @@ impl Queues {
     }
 
     pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
-        self.queues
+        self.0
             .lock()
             .values_mut()
             .map(|queue| queue.deregister_consumer(consumer_tag))
@@ -109,7 +113,7 @@ impl Queues {
     }
 
     pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
-        self.queues
+        self.0
             .lock()
             .values_mut()
             .map(QueueState::drop_prefetched_messages)
@@ -117,7 +121,7 @@ impl Queues {
     }
 
     pub(crate) fn cancel_consumers(&self) -> Result<()> {
-        self.queues
+        self.0
             .lock()
             .values_mut()
             .map(QueueState::cancel_consumers)
@@ -125,7 +129,7 @@ impl Queues {
     }
 
     pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
-        self.queues
+        self.0
             .lock()
             .values_mut()
             .map(|queue| queue.error_consumers(error.clone()))
@@ -137,7 +141,7 @@ impl Queues {
         consumer_tag: &str,
         message: Delivery,
     ) -> Option<ShortString> {
-        for queue in self.queues.lock().values_mut() {
+        for queue in self.0.lock().values_mut() {
             if let Some(consumer) = queue.get_consumer(consumer_tag) {
                 consumer.start_new_delivery(message);
                 return Some(queue.name());
@@ -221,7 +225,7 @@ impl Queues {
 impl fmt::Debug for Queues {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_tuple("Queues");
-        if let Some(queues) = self.queues.try_lock() {
+        if let Some(queues) = self.0.try_lock() {
             debug.field(&*queues);
         }
         debug.finish()

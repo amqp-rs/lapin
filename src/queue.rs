@@ -78,6 +78,11 @@ impl QueueState {
         }
     }
 
+    pub(crate) fn absorb(&mut self, other: QueueState) {
+        self.definition.options = other.definition.options;
+        self.definition.arguments = other.definition.arguments;
+    }
+
     pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
         self.consumers.insert(consumer_tag, consumer);
     }
