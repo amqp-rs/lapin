@@ -154,10 +154,28 @@ pub(crate) enum Reply {
     ChannelFlowOk(PromiseResolver<Boolean>),
     ChannelCloseOk(PromiseResolver<()>),
     AccessRequestOk(PromiseResolver<()>),
-    ExchangeDeclareOk(PromiseResolver<()>),
-    ExchangeDeleteOk(PromiseResolver<()>),
-    ExchangeBindOk(PromiseResolver<()>),
-    ExchangeUnbindOk(PromiseResolver<()>),
+    ExchangeDeclareOk(
+        PromiseResolver<()>,
+        ShortString,
+        ExchangeKind,
+        ExchangeDeclareOptions,
+        FieldTable,
+    ),
+    ExchangeDeleteOk(PromiseResolver<()>, ShortString),
+    ExchangeBindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
+    ExchangeUnbindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
     QueueDeclareOk(PromiseResolver<Queue>, QueueDeclareOptions, FieldTable),
     QueueBindOk(
         PromiseResolver<()>,
@@ -952,11 +970,15 @@ impl Channel {
         kind: &str,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
-    ) -> Promise<()> {
+        exchange_kind: ExchangeKind,
+    ) -> PromiseChain<()> {
         if !self.status.connected() {
-            return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
+            return PromiseChain::new_with_data(Err(Error::InvalidChannelState(
+                self.status.state(),
+            )));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeDeclareOptions {
             passive,
             durable,
@@ -982,7 +1004,7 @@ impl Channel {
         if log_enabled!(Trace) {
             promise.set_marker("exchange.declare".into());
         }
-        let (promise, resolver) = Promise::after(promise);
+        let (promise, resolver) = PromiseChain::after(promise);
         if log_enabled!(Trace) {
             promise.set_marker("exchange.declare.Ok".into());
         }
@@ -990,7 +1012,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeDeclareOk(resolver.clone()),
+                Reply::ExchangeDeclareOk(
+                    resolver.clone(),
+                    exchange.into(),
+                    exchange_kind,
+                    options,
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1002,11 +1030,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeDeclareOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
+            Some(Reply::ExchangeDeclareOk(
+                resolver,
+                exchange,
+                exchange_kind,
+                options,
+                creation_arguments,
+            )) => self.on_exchange_declare_ok_received(
+                resolver,
+                exchange,
+                exchange_kind,
+                options,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange declare-ok received on channel {}",
@@ -1046,7 +1082,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeDeleteOk(resolver.clone()),
+                Reply::ExchangeDeleteOk(resolver.clone(), exchange.into()),
                 Box::new(resolver),
             )),
         );
@@ -1058,10 +1094,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeDeleteOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
+            Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
+                self.on_exchange_delete_ok_received(resolver, exchange)
             }
             _ => self.handle_invalid_contents(
                 format!(
@@ -1086,6 +1120,7 @@ impl Channel {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeBindOptions { nowait } = options;
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Bind(
             protocol::exchange::Bind {
@@ -1110,7 +1145,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeBindOk(resolver.clone()),
+                Reply::ExchangeBindOk(
+                    resolver.clone(),
+                    destination.into(),
+                    source.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1122,11 +1163,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeBindOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
+            Some(Reply::ExchangeBindOk(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            )) => self.on_exchange_bind_ok_received(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange bind-ok received on channel {}",
@@ -1150,6 +1199,7 @@ impl Channel {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeUnbindOptions { nowait } = options;
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Unbind(
             protocol::exchange::Unbind {
@@ -1174,7 +1224,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeUnbindOk(resolver.clone()),
+                Reply::ExchangeUnbindOk(
+                    resolver.clone(),
+                    destination.into(),
+                    source.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1186,11 +1242,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeUnbindOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
+            Some(Reply::ExchangeUnbindOk(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            )) => self.on_exchange_unbind_ok_received(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange unbind-ok received on channel {}",

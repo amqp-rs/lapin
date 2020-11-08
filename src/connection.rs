@@ -10,6 +10,7 @@ use crate::{
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     reactor::DefaultReactorBuilder,
+    registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
@@ -25,6 +26,7 @@ use std::{fmt, io, sync::Arc};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
+    registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -39,9 +41,11 @@ impl Connection {
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
+        let registry = Registry::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
+            registry.clone(),
             waker,
             internal_rpc.clone(),
             frames,
@@ -51,6 +55,7 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
+            registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -241,6 +246,7 @@ impl Connection {
 
     pub fn topology(&self) -> TopologyDefinition {
         TopologyDefinition {
+            exchanges: self.registry.exchanges_topology(),
             channels: self.channels.topology(),
         }
     }

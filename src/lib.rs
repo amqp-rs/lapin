@@ -159,6 +159,7 @@ mod io_loop;
 mod parsing;
 mod queue;
 mod queues;
+mod registry;
 mod returned_messages;
 mod stream;
 mod thread;

@@ -180,7 +180,7 @@ impl QueueState {
                 .bindings
                 .iter()
                 .map(|binding| BindingDefinition {
-                    exchange: binding.exchange.clone(),
+                    source: binding.exchange.clone(),
                     routing_key: binding.routing_key.clone(),
                     arguments: binding.arguments.clone(),
                 })

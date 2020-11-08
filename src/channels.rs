@@ -6,6 +6,7 @@ use crate::{
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
+    registry::Registry,
     socket_state::SocketStateHandle,
     topology::ChannelDefinition,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
@@ -20,6 +21,7 @@ use std::{collections::HashMap, fmt, sync::Arc};
 pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
     connection_status: ConnectionStatus,
+    registry: Registry,
     internal_rpc: InternalRPCHandle,
     executor: Arc<dyn Executor>,
     frames: Frames,
@@ -30,6 +32,7 @@ impl Channels {
     pub(crate) fn new(
         configuration: Configuration,
         connection_status: ConnectionStatus,
+        registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -38,6 +41,7 @@ impl Channels {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
             connection_status,
+            registry,
             internal_rpc,
             executor,
             frames,
@@ -48,6 +52,7 @@ impl Channels {
     pub(crate) fn create(&self, connection_closer: Arc<ConnectionCloser>) -> Result<Channel> {
         self.inner.lock().create(
             self.connection_status.clone(),
+            self.registry.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
             self.executor.clone(),
@@ -61,6 +66,7 @@ impl Channels {
             .create_channel(
                 0,
                 self.connection_status.clone(),
+                self.registry.clone(),
                 self.internal_rpc.clone(),
                 self.frames.clone(),
                 self.executor.clone(),
@@ -318,6 +324,7 @@ impl Inner {
         &mut self,
         id: u16,
         connection_status: ConnectionStatus,
+        registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -328,6 +335,7 @@ impl Inner {
             id,
             self.configuration.clone(),
             connection_status,
+            registry,
             self.waker.clone(),
             internal_rpc,
             frames,
@@ -341,6 +349,7 @@ impl Inner {
     fn create(
         &mut self,
         connection_status: ConnectionStatus,
+        registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -362,6 +371,7 @@ impl Inner {
                 return Ok(self.create_channel(
                     id,
                     connection_status,
+                    registry,
                     internal_rpc,
                     frames,
                     executor,

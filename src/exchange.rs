@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum ExchangeKind {
     Custom(String),
     Direct,

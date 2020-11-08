@@ -15,6 +15,7 @@ use crate::{
     publisher_confirm::PublisherConfirm,
     queue::Queue,
     queues::Queues,
+    registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
     topology::ChannelDefinition,
@@ -37,6 +38,7 @@ pub struct Channel {
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
+    registry: Registry,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
@@ -78,6 +80,7 @@ impl Channel {
         channel_id: u16,
         configuration: Configuration,
         connection_status: ConnectionStatus,
+        registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -100,6 +103,7 @@ impl Channel {
             configuration,
             status,
             connection_status,
+            registry,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
@@ -159,6 +163,7 @@ impl Channel {
             configuration: self.configuration.clone(),
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
+            registry: self.registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
             queues: self.queues.clone(),
@@ -210,7 +215,7 @@ impl Channel {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Promise<()> {
-        self.do_exchange_declare(exchange, kind.kind(), options, arguments)
+        self.do_exchange_declare(exchange, kind.kind(), options, arguments, kind.clone())
     }
 
     pub fn wait_for_confirms(&self) -> ConfirmationPromise<Vec<BasicReturnMessage>> {
@@ -742,6 +747,58 @@ impl Channel {
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
         self.set_closed(Error::InvalidChannelState(ChannelState::Closed))
+    }
+
+    fn on_exchange_bind_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .register_exchange_binding(destination, source, routing_key, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_exchange_unbind_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .deregister_exchange_binding(destination, source, routing_key, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_exchange_declare_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        exchange: ShortString,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .register_exchange(exchange, kind, options, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_exchange_delete_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        exchange: ShortString,
+    ) -> Result<()> {
+        self.registry.deregister_exchange(exchange);
+        resolver.swear(Ok(()));
+        Ok(())
     }
 
     fn on_queue_delete_ok_received(

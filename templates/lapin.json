@@ -279,9 +279,156 @@
     }
   },
   "exchange": {
+    "bind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "destination",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "source",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ]
+      }
+    },
+    "bind-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "destination", "source", "routing_key", "creation_arguments"]
+        }
+      }
+    },
     "declare": {
       "metadata": {
-        "require_wrapper": true
+        "require_wrapper": true,
+        "extra_args": [
+          {
+            "name": "exchange_kind",
+            "type": "ExchangeKind"
+          }
+        ],
+        "confirmation": {
+          "type": "()"
+        },
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange_kind",
+            "type": "ExchangeKind"
+          },
+          {
+            "name": "options",
+            "type": "ExchangeDeclareOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ]
+      }
+    },
+    "declare-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "exchange", "exchange_kind", "options", "creation_arguments"]
+        }
+      }
+    },
+    "delete": {
+      "metadata": {
+        "state": [
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          }
+        ]
+      }
+    },
+    "delete-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "exchange"]
+        }
+      }
+    },
+    "unbind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "destination",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "source",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ]
+      }
+    },
+    "unbind-ok": {
+      "metadata": {
+        "confirmation": {
+          "type": "()"
+        },
+        "received_hook": {
+          "params": ["resolver", "destination", "source", "routing_key", "creation_arguments"]
+        }
       }
     }
   },

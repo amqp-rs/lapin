@@ -1,13 +1,23 @@
 use crate::{
-    options::QueueDeclareOptions,
+    exchange::ExchangeKind,
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::{FieldTable, ShortString},
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TopologyDefinition {
+    pub exchanges: Vec<ExchangeDefinition>,
     pub channels: Vec<ChannelDefinition>,
-    // FIXME: exchanges
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ExchangeDefinition {
+    pub name: ShortString,
+    pub kind: Option<ExchangeKind>,
+    pub options: Option<ExchangeDeclareOptions>,
+    pub arguments: Option<FieldTable>,
+    pub bindings: Vec<BindingDefinition>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -25,7 +35,7 @@ pub struct QueueDefinition {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct BindingDefinition {
-    pub exchange: ShortString,
+    pub source: ShortString,
     pub routing_key: ShortString,
     pub arguments: FieldTable,
 }
