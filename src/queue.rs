@@ -2,7 +2,7 @@ use crate::{
     consumer::Consumer,
     message::BasicGetMessage,
     options::QueueDeclareOptions,
-    topology::{BindingDefinition, QueueDefinition},
+    topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
     types::{FieldTable, ShortString},
     BasicProperties, Error, PromiseResolver, Result,
 };
@@ -72,7 +72,6 @@ impl QueueState {
                 options,
                 arguments,
                 bindings: Vec::new(),
-                consumers: Vec::new(),
             },
             consumers: HashMap::new(),
             current_get_message: None,
@@ -194,5 +193,17 @@ impl QueueState {
         } else {
             None
         }
+    }
+
+    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinition> {
+        self.consumers
+            .values()
+            .map(|c| ConsumerDefinition {
+                tag: c.tag(),
+                options: c.options(),
+                arguments: c.arguments(),
+                queue: self.name(),
+            })
+            .collect()
     }
 }

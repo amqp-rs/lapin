@@ -5,7 +5,8 @@ use crate::{
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
-    types::ShortString,
+    options::BasicConsumeOptions,
+    types::{FieldTable, ShortString},
     BasicProperties, Channel, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -181,6 +182,16 @@ impl Consumer {
     /// Gets the current state of the Consumer.
     pub fn state(&self) -> ConsumerState {
         self.status.state()
+    }
+
+    pub(crate) fn options(&self) -> BasicConsumeOptions {
+        // FIXME
+        BasicConsumeOptions::default()
+    }
+
+    pub(crate) fn arguments(&self) -> FieldTable {
+        // FIXME
+        FieldTable::default()
     }
 
     /// Automatically spawns the delegate on the executor for each message.

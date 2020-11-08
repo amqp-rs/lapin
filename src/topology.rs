@@ -1,6 +1,6 @@
 use crate::{
     exchange::ExchangeKind,
-    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    options::{BasicConsumeOptions, ExchangeDeclareOptions, QueueDeclareOptions},
     types::{FieldTable, ShortString},
 };
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,6 @@ pub struct QueueDefinition {
     pub options: Option<QueueDeclareOptions>,
     pub arguments: Option<FieldTable>,
     pub bindings: Vec<BindingDefinition>,
-    pub consumers: Vec<ConsumerDefinition>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -40,9 +39,13 @@ pub struct BindingDefinition {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ChannelDefinition {
     pub queues: Vec<QueueDefinition>,
+    pub consumers: Vec<ConsumerDefinition>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ConsumerDefinition {
+    pub queue: ShortString,
     pub tag: ShortString,
+    pub options: BasicConsumeOptions,
+    pub arguments: FieldTable,
 }

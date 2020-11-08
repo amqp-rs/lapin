@@ -380,6 +380,7 @@ impl Channel {
     pub(crate) fn topology(&self) -> ChannelDefinition {
         ChannelDefinition {
             queues: self.queues.topology(),
+            consumers: self.queues.consumers_topology(),
         }
     }
 

@@ -115,7 +115,6 @@ impl Registry {
                     options: Some(options),
                     arguments: Some(arguments),
                     bindings: Vec::new(),
-                    consumers: Vec::new(),
                 },
             );
         }
@@ -141,7 +140,6 @@ impl Registry {
                 options: None,
                 arguments: None,
                 bindings: Vec::new(),
-                consumers: Vec::new(),
             })
             .bindings
             .push(BindingDefinition {
