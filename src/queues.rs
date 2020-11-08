@@ -51,11 +51,7 @@ impl Queues {
             .collect()
     }
 
-    fn with_queue<F: FnOnce(&mut QueueState) -> Result<()>>(
-        &self,
-        queue: &str,
-        f: F,
-    ) -> Result<()> {
+    fn with_queue<R, F: FnOnce(&mut QueueState) -> R>(&self, queue: &str, f: F) -> R {
         f(self
             .0
             .lock()
@@ -71,9 +67,7 @@ impl Queues {
     ) {
         self.with_queue(queue, |queue| {
             queue.register_consumer(consumer_tag, consumer);
-            Ok(())
         })
-        .expect("register_consumer cannot fail");
     }
 
     pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
@@ -156,9 +150,7 @@ impl Queues {
     ) {
         self.with_queue(queue, |queue| {
             queue.start_new_delivery(message, resolver);
-            Ok(())
         })
-        .expect("start_basic_get_delivery cannot fail");
     }
 
     pub(crate) fn handle_content_header_frame(
