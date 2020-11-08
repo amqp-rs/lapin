@@ -248,6 +248,12 @@
     },
     "unbind": {
       "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
         "state": [
           {
             "name": "queue",
@@ -263,6 +269,10 @@
             "name": "routing_key",
             "type": "ShortString",
             "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
           }
         ]
       }
@@ -273,7 +283,7 @@
           "type": "()"
         },
         "received_hook": {
-          "params": ["resolver", "queue", "exchange", "routing_key"]
+          "params": ["resolver", "queue", "exchange", "routing_key", "creation_arguments"]
         }
       }
     }

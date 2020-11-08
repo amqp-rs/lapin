@@ -808,6 +808,7 @@ impl Channel {
         queue: ShortString,
     ) -> Result<()> {
         self.queues.deregister(queue.as_str());
+        self.registry.deregister_queue(queue);
         resolver.swear(Ok(method.message_count));
         Ok(())
     }
@@ -829,12 +830,15 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         let queue = Queue::new(
-            method.queue,
+            method.queue.clone(),
             method.message_count,
             method.consumer_count,
-            Some((options, arguments)),
+            Some(options.clone()),
+            Some(arguments.clone()),
         );
         self.queues.register(queue.clone().into());
+        self.registry
+            .register_queue(method.queue, options, arguments);
         resolver.swear(Ok(queue));
         Ok(())
     }
@@ -847,8 +851,14 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.queues
-            .register_binding(queue.as_str(), exchange, routing_key, arguments);
+        self.queues.register_binding(
+            queue.as_str(),
+            exchange.clone(),
+            routing_key.clone(),
+            arguments.clone(),
+        );
+        self.registry
+            .register_queue_binding(queue, exchange, routing_key, arguments);
         resolver.swear(Ok(()));
         Ok(())
     }
@@ -859,9 +869,12 @@ impl Channel {
         queue: ShortString,
         exchange: ShortString,
         routing_key: ShortString,
+        arguments: FieldTable,
     ) -> Result<()> {
         self.queues
-            .deregister_binding(queue.as_str(), exchange, routing_key);
+            .deregister_binding(queue.as_str(), exchange.clone(), routing_key.clone());
+        self.registry
+            .deregister_queue_binding(queue, exchange, routing_key, arguments);
         resolver.swear(Ok(()));
         Ok(())
     }

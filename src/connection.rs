@@ -247,6 +247,7 @@ impl Connection {
     pub fn topology(&self) -> TopologyDefinition {
         TopologyDefinition {
             exchanges: self.registry.exchanges_topology(),
+            queues: self.registry.queues_topology(),
             channels: self.channels.topology(),
         }
     }
@@ -333,7 +334,7 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0, None).into();
+        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0, None, None).into();
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(consumer_tag.clone(), executor, None);
         queue.register_consumer(consumer_tag.clone(), consumer);
@@ -412,7 +413,7 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0, None).into();
+        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0, None, None).into();
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(consumer_tag.clone(), executor, None);
         queue.register_consumer(consumer_tag.clone(), consumer);

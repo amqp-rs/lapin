@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TopologyDefinition {
     pub exchanges: Vec<ExchangeDefinition>,
+    pub queues: Vec<QueueDefinition>,
     pub channels: Vec<ChannelDefinition>,
 }
 
@@ -21,14 +22,10 @@ pub struct ExchangeDefinition {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct ChannelDefinition {
-    pub queues: Vec<QueueDefinition>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct QueueDefinition {
     pub name: ShortString,
-    pub params: Option<(QueueDeclareOptions, FieldTable)>,
+    pub options: Option<QueueDeclareOptions>,
+    pub arguments: Option<FieldTable>,
     pub bindings: Vec<BindingDefinition>,
     pub consumers: Vec<ConsumerDefinition>,
 }
@@ -38,6 +35,11 @@ pub struct BindingDefinition {
     pub source: ShortString,
     pub routing_key: ShortString,
     pub arguments: FieldTable,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ChannelDefinition {
+    pub queues: Vec<QueueDefinition>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

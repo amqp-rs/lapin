@@ -186,7 +186,13 @@ pub(crate) enum Reply {
     ),
     QueuePurgeOk(PromiseResolver<LongUInt>),
     QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
-    QueueUnbindOk(PromiseResolver<()>, ShortString, ShortString, ShortString),
+    QueueUnbindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
     BasicQosOk(PromiseResolver<()>),
     BasicConsumeOk(
         PromiseResolver<Consumer>,
@@ -1543,6 +1549,7 @@ impl Channel {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 
+        let creation_arguments = arguments.clone();
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Unbind(
             protocol::queue::Unbind {
                 queue: queue.into(),
@@ -1569,6 +1576,7 @@ impl Channel {
                     queue.into(),
                     exchange.into(),
                     routing_key.into(),
+                    creation_arguments,
                 ),
                 Box::new(resolver),
             )),
@@ -1581,9 +1589,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueUnbindOk(resolver, queue, exchange, routing_key)) => {
-                self.on_queue_unbind_ok_received(resolver, queue, exchange, routing_key)
-            }
+            Some(Reply::QueueUnbindOk(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            )) => self.on_queue_unbind_ok_received(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!("unexepcted queue unbind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
