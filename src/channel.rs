@@ -926,11 +926,15 @@ impl Channel {
         resolver: PromiseResolver<Consumer>,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
     ) -> Result<()> {
         let consumer = Consumer::new(
             method.consumer_tag.clone(),
             self.executor.clone(),
             channel_closer,
+            options,
+            arguments,
         );
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
         self.queues

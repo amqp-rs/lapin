@@ -445,6 +445,12 @@
   "basic": {
     "consume": {
       "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
         "state": [
           {
             "name": "channel_closer",
@@ -455,6 +461,14 @@
             "name": "queue",
             "type": "ShortString",
             "use_str_ref": true
+          },
+          {
+            "name": "options",
+            "type": "BasicConsumeOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
           }
         ],
         "confirmation": {

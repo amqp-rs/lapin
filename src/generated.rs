@@ -198,6 +198,8 @@ pub(crate) enum Reply {
         PromiseResolver<Consumer>,
         Option<Arc<ChannelCloser>>,
         ShortString,
+        BasicConsumeOptions,
+        FieldTable,
     ),
     BasicCancelOk(PromiseResolver<()>),
     BasicGetOk(PromiseResolver<Option<BasicGetMessage>>, ShortString),
@@ -1672,6 +1674,7 @@ impl Channel {
             )));
         }
 
+        let creation_arguments = arguments.clone();
         let BasicConsumeOptions {
             no_local,
             no_ack,
@@ -1703,7 +1706,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicConsumeOk(resolver.clone(), self.channel_closer.clone(), queue.into()),
+                Reply::BasicConsumeOk(
+                    resolver.clone(),
+                    self.channel_closer.clone(),
+                    queue.into(),
+                    options,
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1722,9 +1731,20 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicConsumeOk(resolver, channel_closer, queue)) => {
-                self.on_basic_consume_ok_received(method, resolver, channel_closer, queue)
-            }
+            Some(Reply::BasicConsumeOk(
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+            )) => self.on_basic_consume_ok_received(
+                method,
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted basic consume-ok received on channel {}",

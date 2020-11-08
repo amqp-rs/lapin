@@ -306,7 +306,8 @@ mod tests {
     use super::*;
     use crate::channel_receiver_state::ChannelReceiverState;
     use crate::channel_status::ChannelState;
-    use crate::types::ShortString;
+    use crate::options::BasicConsumeOptions;
+    use crate::types::{FieldTable, ShortString};
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{basic, AMQPClass};
@@ -336,7 +337,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
+        let consumer = Consumer::new(consumer_tag.clone(), executor, None, BasicConsumeOptions::default(), FieldTable::default());
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
@@ -415,7 +416,7 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
+        let consumer = Consumer::new(consumer_tag.clone(), executor, None, BasicConsumeOptions::default(), FieldTable::default());
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
