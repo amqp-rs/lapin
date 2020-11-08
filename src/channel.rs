@@ -13,7 +13,7 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
-    queue::Queue,
+    queue::{Queue, QueueState},
     queues::Queues,
     registry::Registry,
     returned_messages::ReturnedMessages,
@@ -28,9 +28,6 @@ use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
-
-#[cfg(test)]
-use crate::queue::QueueState;
 
 #[derive(Clone)]
 pub struct Channel {
@@ -829,17 +826,20 @@ impl Channel {
         options: QueueDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        let queue = Queue::new(
-            method.queue.clone(),
+        if options.exclusive {
+            self.queues.register(QueueState::new(
+                method.queue.clone(),
+                Some(options.clone()),
+                Some(arguments.clone()),
+            ));
+        }
+        self.registry
+            .register_queue(method.queue.clone(), options, arguments);
+        resolver.swear(Ok(Queue::new(
+            method.queue,
             method.message_count,
             method.consumer_count,
-            Some(options.clone()),
-            Some(arguments.clone()),
-        );
-        self.queues.register(queue.clone().into());
-        self.registry
-            .register_queue(method.queue, options, arguments);
-        resolver.swear(Ok(queue));
+        )));
         Ok(())
     }
 
@@ -871,8 +871,12 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.queues
-            .deregister_binding(queue.as_str(), exchange.clone(), routing_key.clone());
+        self.queues.deregister_binding(
+            queue.as_str(),
+            exchange.clone(),
+            routing_key.clone(),
+            arguments.clone(),
+        );
         self.registry
             .deregister_queue_binding(queue, exchange, routing_key, arguments);
         resolver.swear(Ok(()));

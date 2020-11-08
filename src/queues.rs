@@ -1,7 +1,7 @@
 use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
-    queue::{Queue, QueueState},
+    queue::QueueState,
     topology::QueueDefinition,
     types::{FieldTable, ShortString},
     BasicProperties, Channel, Error, PromiseResolver, Result,
@@ -35,7 +35,7 @@ impl Queues {
         self.queues
             .lock()
             .values()
-            .map(QueueState::topology)
+            .filter_map(QueueState::topology)
             .collect()
     }
 
@@ -48,7 +48,7 @@ impl Queues {
             .queues
             .lock()
             .entry(queue.into())
-            .or_insert_with(|| Queue::new(queue.into(), 0, 0, None, None).into()))
+            .or_insert_with(|| QueueState::new(queue.into(), None, None)))
     }
 
     pub(crate) fn register_consumer(
@@ -91,9 +91,10 @@ impl Queues {
         queue: &str,
         exchange: ShortString,
         routing_key: ShortString,
+        arguments: FieldTable,
     ) {
         self.with_queue(queue, |queue| {
-            queue.deregister_binding(exchange, routing_key);
+            queue.deregister_binding(exchange, routing_key, arguments);
             Ok(())
         })
         .expect("deregister_binding cannot fail");

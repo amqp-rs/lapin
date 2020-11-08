@@ -2,7 +2,7 @@ use crate::{
     consumer::Consumer,
     message::BasicGetMessage,
     options::QueueDeclareOptions,
-    topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
+    topology::{BindingDefinition, QueueDefinition},
     types::{FieldTable, ShortString},
     BasicProperties, Error, PromiseResolver, Result,
 };
@@ -13,8 +13,6 @@ pub struct Queue {
     name: ShortString,
     message_count: u32,
     consumer_count: u32,
-    options: Option<QueueDeclareOptions>,
-    arguments: Option<FieldTable>,
 }
 
 impl Queue {
@@ -32,43 +30,26 @@ impl Queue {
 }
 
 pub(crate) struct QueueState {
-    name: ShortString,
+    definition: QueueDefinition,
     consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
-    options: Option<QueueDeclareOptions>,
-    arguments: Option<FieldTable>,
-    bindings: Vec<Binding>,
 }
 
 impl fmt::Debug for QueueState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QueueState")
-            .field("name", &self.name)
+            .field("name", &self.definition.name)
             .field("consumers", &self.consumers)
             .finish()
     }
 }
 
-struct Binding {
-    exchange: ShortString,
-    routing_key: ShortString,
-    arguments: FieldTable,
-}
-
 impl Queue {
-    pub(crate) fn new(
-        name: ShortString,
-        message_count: u32,
-        consumer_count: u32,
-        options: Option<QueueDeclareOptions>,
-        arguments: Option<FieldTable>,
-    ) -> Self {
+    pub(crate) fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Self {
         Self {
             name,
             message_count,
             consumer_count,
-            options,
-            arguments,
         }
     }
 }
@@ -80,6 +61,24 @@ impl Borrow<str> for Queue {
 }
 
 impl QueueState {
+    pub(crate) fn new(
+        name: ShortString,
+        options: Option<QueueDeclareOptions>,
+        arguments: Option<FieldTable>,
+    ) -> Self {
+        Self {
+            definition: QueueDefinition {
+                name,
+                options,
+                arguments,
+                bindings: Vec::new(),
+                consumers: Vec::new(),
+            },
+            consumers: HashMap::new(),
+            current_get_message: None,
+        }
+    }
+
     pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
         self.consumers.insert(consumer_tag, consumer);
     }
@@ -123,24 +122,32 @@ impl QueueState {
 
     pub(crate) fn register_binding(
         &mut self,
-        exchange: ShortString,
+        source: ShortString,
         routing_key: ShortString,
         arguments: FieldTable,
     ) {
-        self.bindings.push(Binding {
-            exchange,
+        self.definition.bindings.push(BindingDefinition {
+            source,
             routing_key,
             arguments,
         });
     }
 
-    pub(crate) fn deregister_binding(&mut self, exchange: ShortString, routing_key: ShortString) {
-        self.bindings
-            .retain(|binding| binding.exchange != exchange && binding.routing_key != routing_key);
+    pub(crate) fn deregister_binding(
+        &mut self,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.definition.bindings.retain(|binding| {
+            binding.source != source
+                || binding.routing_key != routing_key
+                || binding.arguments != arguments
+        });
     }
 
     pub(crate) fn name(&self) -> ShortString {
-        self.name.clone()
+        self.definition.name.clone()
     }
 
     pub(crate) fn drop_prefetched_messages(&mut self) -> Result<()> {
@@ -176,38 +183,16 @@ impl QueueState {
         }
     }
 
-    pub(crate) fn topology(&self) -> QueueDefinition {
-        QueueDefinition {
-            name: self.name.clone(),
-            options: self.options.clone(),
-            arguments: self.arguments.clone(),
-            bindings: self
-                .bindings
-                .iter()
-                .map(|binding| BindingDefinition {
-                    source: binding.exchange.clone(),
-                    routing_key: binding.routing_key.clone(),
-                    arguments: binding.arguments.clone(),
-                })
-                .collect(),
-            consumers: self
-                .consumers
-                .keys()
-                .map(|tag| ConsumerDefinition { tag: tag.clone() })
-                .collect(),
-        }
-    }
-}
-
-impl From<Queue> for QueueState {
-    fn from(queue: Queue) -> Self {
-        Self {
-            name: queue.name,
-            consumers: HashMap::new(),
-            current_get_message: None,
-            options: queue.options,
-            arguments: queue.arguments,
-            bindings: Vec::new(),
+    pub(crate) fn topology(&self) -> Option<QueueDefinition> {
+        if self
+            .definition
+            .options
+            .map(|o| o.exclusive)
+            .unwrap_or(false)
+        {
+            Some(self.definition.clone())
+        } else {
+            None
         }
     }
 }
