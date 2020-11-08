@@ -10,6 +10,7 @@ pub mod options {
   #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
   pub struct {{camel class.name}}{{camel method.name}}Options {
     {{#each argument.flags as |flag| ~}}
+    #[serde(default)]
     pub {{snake flag.name}}: Boolean,
     {{/each ~}}
   }

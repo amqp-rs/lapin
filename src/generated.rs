@@ -3,141 +3,185 @@ pub mod options {
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOptions {
+        #[serde(default)]
         pub active: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOkOptions {
+        #[serde(default)]
         pub active: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct AccessRequestOptions {
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub active: Boolean,
+        #[serde(default)]
         pub write: Boolean,
+        #[serde(default)]
         pub read: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeclareOptions {
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub durable: Boolean,
+        #[serde(default)]
         pub auto_delete: Boolean,
+        #[serde(default)]
         pub internal: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeleteOptions {
+        #[serde(default)]
         pub if_unused: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeBindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeUnbindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeclareOptions {
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub durable: Boolean,
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub auto_delete: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueBindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueuePurgeOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeleteOptions {
+        #[serde(default)]
         pub if_unused: Boolean,
+        #[serde(default)]
         pub if_empty: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicQosOptions {
+        #[serde(default)]
         pub global: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicConsumeOptions {
+        #[serde(default)]
         pub no_local: Boolean,
+        #[serde(default)]
         pub no_ack: Boolean,
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicCancelOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicPublishOptions {
+        #[serde(default)]
         pub mandatory: Boolean,
+        #[serde(default)]
         pub immediate: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicDeliverOptions {
+        #[serde(default)]
         pub redelivered: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOptions {
+        #[serde(default)]
         pub no_ack: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOkOptions {
+        #[serde(default)]
         pub redelivered: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicAckOptions {
+        #[serde(default)]
         pub multiple: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRejectOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverAsyncOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicNackOptions {
+        #[serde(default)]
         pub multiple: Boolean,
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ConfirmSelectOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 }

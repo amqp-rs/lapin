@@ -56,13 +56,13 @@ fn main() -> Result<()> {
             .await?;
 
         let mut dloptions = FieldTable::default();
-        dloptions.insert("x-message-ttl".into(), AMQPValue::Timestamp(2000));
+        dloptions.insert("x-message-ttl".into(), AMQPValue::LongUInt(2000));
         dloptions.insert(
-            "x-message-dead-letter-exchange".into(),
+            "x-dead-letter-exchange".into(),
             AMQPValue::LongString("test-exchange".into()),
         );
         dloptions.insert(
-            "x-message-dead-letter-routing-key".into(),
+            "x-dead-letter-routing-key".into(),
             AMQPValue::LongString("test-rk".into()),
         );
         channel_a
