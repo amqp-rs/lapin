@@ -1,6 +1,9 @@
 use crate::{
+    channel::Channel,
+    consumer::Consumer,
     exchange::ExchangeKind,
     options::{BasicConsumeOptions, ExchangeDeclareOptions, QueueDeclareOptions},
+    queue::Queue,
     types::{FieldTable, ShortString},
 };
 use serde::{Deserialize, Serialize};
@@ -54,4 +57,26 @@ pub struct ConsumerDefinition {
     pub tag: ShortString,
     pub options: BasicConsumeOptions,
     pub arguments: FieldTable,
+}
+
+#[derive(Default)]
+pub struct RestoredTopology {
+    pub queues: Vec<Queue>,
+    pub channels: Vec<RestoredChannel>,
+}
+
+pub struct RestoredChannel {
+    pub channel: Channel,
+    pub queues: Vec<Queue>,
+    pub consumers: Vec<Consumer>,
+}
+
+impl RestoredChannel {
+    pub(crate) fn new(channel: Channel) -> Self {
+        Self {
+            channel,
+            queues: Vec::new(),
+            consumers: Vec::new(),
+        }
+    }
 }

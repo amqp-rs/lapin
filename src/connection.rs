@@ -9,12 +9,13 @@ use crate::{
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    options::{ExchangeBindOptions, QueueBindOptions},
     reactor::DefaultReactorBuilder,
     registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
-    topology::TopologyDefinition,
+    topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
     types::ShortUInt,
     uri::AMQPUri,
     Error, Promise, PromiseChain, Result,
@@ -91,6 +92,114 @@ impl Connection {
         config: TLSConfig<'_, '_, '_>,
     ) -> PromiseChain<Connection> {
         Connect::connect(uri, options, config)
+    }
+
+    /// Restore the specified topology
+    pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
+        let mut restored = RestoredTopology::default();
+        for _ in &topology.channels {
+            restored
+                .channels
+                .push(RestoredChannel::new(self.create_channel().await?));
+        }
+        let channel = if let Some(chan) = restored.channels.get(0) {
+            chan.channel.clone()
+        } else {
+            self.create_channel().await?
+        };
+        for ex in &topology.exchanges {
+            channel
+                .exchange_declare(
+                    ex.name.as_str(),
+                    ex.kind.clone().unwrap_or_default(),
+                    ex.options.unwrap_or_default(),
+                    ex.arguments.clone().unwrap_or_default(),
+                )
+                .await?;
+        }
+        for queue in &topology.queues {
+            restored.queues.push(
+                channel
+                    .queue_declare(
+                        queue.name.as_str(),
+                        queue.options.unwrap_or_default(),
+                        queue.arguments.clone().unwrap_or_default(),
+                    )
+                    .await?,
+            );
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            let c = &mut restored.channels[n];
+            for queue in &ch.queues {
+                c.queues.push(
+                    c.channel
+                        .queue_declare(
+                            queue.name.as_str(),
+                            queue.options.unwrap_or_default(),
+                            queue.arguments.clone().unwrap_or_default(),
+                        )
+                        .await?,
+                );
+            }
+        }
+        for ex in &topology.exchanges {
+            for binding in &ex.bindings {
+                channel
+                    .exchange_bind(
+                        ex.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        ExchangeBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+        for queue in &topology.queues {
+            for binding in &queue.bindings {
+                channel
+                    .queue_bind(
+                        queue.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        QueueBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            for queue in &ch.queues {
+                for binding in &queue.bindings {
+                    restored.channels[n]
+                        .channel
+                        .queue_bind(
+                            queue.name.as_str(),
+                            binding.source.as_str(),
+                            binding.routing_key.as_str(),
+                            QueueBindOptions::default(),
+                            binding.arguments.clone(),
+                        )
+                        .await?;
+                }
+            }
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            let c = &mut restored.channels[n];
+            for consumer in &ch.consumers {
+                c.consumers.push(
+                    c.channel
+                        .basic_consume(
+                            consumer.queue.as_str(),
+                            consumer.tag.as_str(),
+                            consumer.options,
+                            consumer.arguments.clone(),
+                        )
+                        .await?,
+                );
+            }
+        }
+        Ok(restored)
     }
 
     pub fn create_channel(&self) -> PromiseChain<Channel> {
@@ -337,7 +446,13 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None, BasicConsumeOptions::default(), FieldTable::default());
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
@@ -416,7 +531,13 @@ mod tests {
         let queue_name = ShortString::from("consumed");
         let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None, BasicConsumeOptions::default(), FieldTable::default());
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
