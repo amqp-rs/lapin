@@ -854,9 +854,9 @@ impl Channel {
     ) -> Result<()> {
         self.queues.register_binding(
             queue.as_str(),
-            exchange.clone(),
-            routing_key.clone(),
-            arguments.clone(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
         );
         self.registry
             .register_queue_binding(queue, exchange, routing_key, arguments);
@@ -874,9 +874,9 @@ impl Channel {
     ) -> Result<()> {
         self.queues.deregister_binding(
             queue.as_str(),
-            exchange.clone(),
-            routing_key.clone(),
-            arguments.clone(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
         );
         self.registry
             .deregister_queue_binding(queue, exchange, routing_key, arguments);

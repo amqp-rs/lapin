@@ -29,6 +29,12 @@ pub struct QueueDefinition {
     pub bindings: Vec<BindingDefinition>,
 }
 
+impl QueueDefinition {
+    pub(crate) fn is_exclusive(&self) -> bool {
+        self.options.map_or(false, |o| o.exclusive)
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct BindingDefinition {
     pub source: ShortString,

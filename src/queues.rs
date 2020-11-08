@@ -87,29 +87,27 @@ impl Queues {
     pub(crate) fn register_binding(
         &self,
         queue: &str,
-        exchange: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
+        exchange: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
     ) {
-        self.with_queue(queue, |queue| {
-            queue.register_binding(exchange, routing_key, arguments);
-            Ok(())
-        })
-        .expect("register_binding cannot fail");
+        if let Some(queue) = self.0.lock().get_mut(queue) {
+            if queue.is_exclusive() {
+                queue.register_binding(exchange.into(), routing_key.into(), arguments.clone());
+            }
+        }
     }
 
     pub(crate) fn deregister_binding(
         &self,
         queue: &str,
-        exchange: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
+        exchange: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
     ) {
-        self.with_queue(queue, |queue| {
-            queue.deregister_binding(exchange, routing_key, arguments);
-            Ok(())
-        })
-        .expect("deregister_binding cannot fail");
+        if let Some(queue) = self.0.lock().get_mut(queue) {
+            queue.deregister_binding(exchange.into(), routing_key.into(), arguments.clone());
+        }
     }
 
     pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {

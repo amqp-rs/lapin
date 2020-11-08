@@ -124,6 +124,10 @@ impl QueueState {
             .fold(Ok(()), Result::and)
     }
 
+    pub(crate) fn is_exclusive(&self) -> bool {
+        self.definition.is_exclusive()
+    }
+
     pub(crate) fn register_binding(
         &mut self,
         source: ShortString,
@@ -188,12 +192,7 @@ impl QueueState {
     }
 
     pub(crate) fn topology(&self) -> Option<QueueDefinition> {
-        if self
-            .definition
-            .options
-            .map(|o| o.exclusive)
-            .unwrap_or(false)
-        {
+        if self.is_exclusive() {
             Some(self.definition.clone())
         } else {
             None
