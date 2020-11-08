@@ -273,6 +273,7 @@ impl Channels {
             .lock()
             .channels
             .values()
+            .filter(|c| c.id() != 0)
             .map(Channel::topology)
             .collect()
     }
