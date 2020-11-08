@@ -1030,6 +1030,11 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            if let Err(err) = self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {}) {
+                return PromiseChain::new_with_data(Err(err));
+            }
+        }
         promise
     }
     fn receive_exchange_declare_ok(&self, method: protocol::exchange::DeclareOk) -> Result<()> {
@@ -1094,6 +1099,11 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            if let Err(err) = self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {}) {
+                return Promise::new_with_data(Err(err));
+            }
+        }
         promise
     }
     fn receive_exchange_delete_ok(&self, method: protocol::exchange::DeleteOk) -> Result<()> {
@@ -1103,7 +1113,9 @@ impl Channel {
 
         match self.frames.next_expected_reply(self.id) {
             Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
-                self.on_exchange_delete_ok_received(resolver, exchange)
+                let res = self.on_exchange_delete_ok_received(exchange);
+                resolver.swear(res.clone());
+                res
             }
             _ => self.handle_invalid_contents(
                 format!(
@@ -1163,6 +1175,11 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            if let Err(err) = self.receive_exchange_bind_ok(protocol::exchange::BindOk {}) {
+                return Promise::new_with_data(Err(err));
+            }
+        }
         promise
     }
     fn receive_exchange_bind_ok(&self, method: protocol::exchange::BindOk) -> Result<()> {
@@ -1177,13 +1194,16 @@ impl Channel {
                 source,
                 routing_key,
                 creation_arguments,
-            )) => self.on_exchange_bind_ok_received(
-                resolver,
-                destination,
-                source,
-                routing_key,
-                creation_arguments,
-            ),
+            )) => {
+                let res = self.on_exchange_bind_ok_received(
+                    destination,
+                    source,
+                    routing_key,
+                    creation_arguments,
+                );
+                resolver.swear(res.clone());
+                res
+            }
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange bind-ok received on channel {}",
@@ -1242,6 +1262,11 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            if let Err(err) = self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {}) {
+                return Promise::new_with_data(Err(err));
+            }
+        }
         promise
     }
     fn receive_exchange_unbind_ok(&self, method: protocol::exchange::UnbindOk) -> Result<()> {
@@ -1256,13 +1281,16 @@ impl Channel {
                 source,
                 routing_key,
                 creation_arguments,
-            )) => self.on_exchange_unbind_ok_received(
-                resolver,
-                destination,
-                source,
-                routing_key,
-                creation_arguments,
-            ),
+            )) => {
+                let res = self.on_exchange_unbind_ok_received(
+                    destination,
+                    source,
+                    routing_key,
+                    creation_arguments,
+                );
+                resolver.swear(res.clone());
+                res
+            }
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange unbind-ok received on channel {}",
@@ -1398,6 +1426,11 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            if let Err(err) = self.receive_queue_bind_ok(protocol::queue::BindOk {}) {
+                return Promise::new_with_data(Err(err));
+            }
+        }
         promise
     }
     fn receive_queue_bind_ok(&self, method: protocol::queue::BindOk) -> Result<()> {
@@ -1412,13 +1445,16 @@ impl Channel {
                 exchange,
                 routing_key,
                 creation_arguments,
-            )) => self.on_queue_bind_ok_received(
-                resolver,
-                queue,
-                exchange,
-                routing_key,
-                creation_arguments,
-            ),
+            )) => {
+                let res = self.on_queue_bind_ok_received(
+                    queue,
+                    exchange,
+                    routing_key,
+                    creation_arguments,
+                );
+                resolver.swear(res.clone());
+                res
+            }
             _ => self.handle_invalid_contents(
                 format!("unexepcted queue bind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
@@ -1597,13 +1633,16 @@ impl Channel {
                 exchange,
                 routing_key,
                 creation_arguments,
-            )) => self.on_queue_unbind_ok_received(
-                resolver,
-                queue,
-                exchange,
-                routing_key,
-                creation_arguments,
-            ),
+            )) => {
+                let res = self.on_queue_unbind_ok_received(
+                    queue,
+                    exchange,
+                    routing_key,
+                    creation_arguments,
+                );
+                resolver.swear(res.clone());
+                res
+            }
             _ => self.handle_invalid_contents(
                 format!("unexepcted queue unbind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),

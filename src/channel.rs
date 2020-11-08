@@ -749,7 +749,6 @@ impl Channel {
 
     fn on_exchange_bind_ok_received(
         &self,
-        resolver: PromiseResolver<()>,
         destination: ShortString,
         source: ShortString,
         routing_key: ShortString,
@@ -757,13 +756,11 @@ impl Channel {
     ) -> Result<()> {
         self.registry
             .register_exchange_binding(destination, source, routing_key, arguments);
-        resolver.swear(Ok(()));
         Ok(())
     }
 
     fn on_exchange_unbind_ok_received(
         &self,
-        resolver: PromiseResolver<()>,
         destination: ShortString,
         source: ShortString,
         routing_key: ShortString,
@@ -771,7 +768,6 @@ impl Channel {
     ) -> Result<()> {
         self.registry
             .deregister_exchange_binding(destination, source, routing_key, arguments);
-        resolver.swear(Ok(()));
         Ok(())
     }
 
@@ -789,13 +785,8 @@ impl Channel {
         Ok(())
     }
 
-    fn on_exchange_delete_ok_received(
-        &self,
-        resolver: PromiseResolver<()>,
-        exchange: ShortString,
-    ) -> Result<()> {
+    fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
         self.registry.deregister_exchange(exchange);
-        resolver.swear(Ok(()));
         Ok(())
     }
 
@@ -846,7 +837,6 @@ impl Channel {
 
     fn on_queue_bind_ok_received(
         &self,
-        resolver: PromiseResolver<()>,
         queue: ShortString,
         exchange: ShortString,
         routing_key: ShortString,
@@ -860,13 +850,11 @@ impl Channel {
         );
         self.registry
             .register_queue_binding(queue, exchange, routing_key, arguments);
-        resolver.swear(Ok(()));
         Ok(())
     }
 
     fn on_queue_unbind_ok_received(
         &self,
-        resolver: PromiseResolver<()>,
         queue: ShortString,
         exchange: ShortString,
         routing_key: ShortString,
@@ -880,7 +868,6 @@ impl Channel {
         );
         self.registry
             .deregister_queue_binding(queue, exchange, routing_key, arguments);
-        resolver.swear(Ok(()));
         Ok(())
     }
 

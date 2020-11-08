@@ -185,16 +185,14 @@
             "name": "creation_arguments",
             "type": "FieldTable"
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "bind-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
-          "params": ["resolver", "queue", "exchange", "routing_key", "creation_arguments"]
+          "params": ["queue", "exchange", "routing_key", "creation_arguments"]
         }
       }
     },
@@ -220,7 +218,8 @@
           }
         ],
         "nowait_hook": {
-          "fields": ["queue: queue.into()"]
+          "fields": ["queue: queue.into()"],
+          "nonexhaustive_args": true
         }
       }
     },
@@ -236,7 +235,9 @@
         "confirmation": {
           "type": "LongUInt"
         },
-        "nowait_hook": true
+        "nowait_hook": {
+          "nonexhaustive_args": true
+        }
       }
     },
     "purge": {
@@ -279,11 +280,8 @@
     },
     "unbind-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
-          "params": ["resolver", "queue", "exchange", "routing_key", "creation_arguments"]
+          "params": ["queue", "exchange", "routing_key", "creation_arguments"]
         }
       }
     }
@@ -317,16 +315,14 @@
             "name": "creation_arguments",
             "type": "FieldTable"
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "bind-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
-          "params": ["resolver", "destination", "source", "routing_key", "creation_arguments"]
+          "params": ["destination", "source", "routing_key", "creation_arguments"]
         }
       }
     },
@@ -366,14 +362,12 @@
             "name": "creation_arguments",
             "type": "FieldTable"
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "declare-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
           "params": ["resolver", "exchange", "exchange_kind", "options", "creation_arguments"]
         }
@@ -387,16 +381,14 @@
             "type": "ShortString",
             "use_str_ref": true
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "delete-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
-          "params": ["resolver", "exchange"]
+          "params": ["exchange"]
         }
       }
     },
@@ -428,16 +420,14 @@
             "name": "creation_arguments",
             "type": "FieldTable"
           }
-        ]
+        ],
+        "nowait_hook": true
       }
     },
     "unbind-ok": {
       "metadata": {
-        "confirmation": {
-          "type": "()"
-        },
         "received_hook": {
-          "params": ["resolver", "destination", "source", "routing_key", "creation_arguments"]
+          "params": ["destination", "source", "routing_key", "creation_arguments"]
         }
       }
     }
@@ -475,16 +465,14 @@
           "type": "Consumer"
         },
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"],
-          "exhaustive_args": true
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
     "cancel": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"],
-          "exhaustive_args": true
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
