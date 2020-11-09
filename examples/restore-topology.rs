@@ -22,13 +22,13 @@ fn main() -> Result<()> {
 
         info!("CONNECTED");
 
-        let mut restored = conn.restore(topology).await?;
-        let trash_queue = restored.queues.pop().unwrap();
-        let channel_b = restored.channels.pop().unwrap().channel;
-        let mut c = restored.channels.pop().unwrap();
-        let tmp_queue = c.queues.pop().unwrap();
-        let mut consumer = c.consumers.pop().unwrap();
-        let channel_a = c.channel;
+        let topology = conn.restore(topology).await?;
+
+        let trash_queue = topology.queue(0);
+        let channel_a = topology.channel(0); // Can be used as Channel thanks to Deref
+        let channel_b = topology.channel(1).into_inner(); // Get the actual inner Channel
+        let tmp_queue = channel_a.queue(0);
+        let mut consumer = channel_a.consumer(0);
 
         info!("Declared queues {:?} and {:?}", trash_queue, tmp_queue);
 
