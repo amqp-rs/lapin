@@ -1,6 +1,10 @@
 use crate::{
-    consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
-    PromiseResolver, Result,
+    consumer::Consumer,
+    message::BasicGetMessage,
+    options::QueueDeclareOptions,
+    topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
+    types::{FieldTable, ShortString},
+    BasicProperties, Error, PromiseResolver, Result,
 };
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
 
@@ -26,7 +30,7 @@ impl Queue {
 }
 
 pub(crate) struct QueueState {
-    name: ShortString,
+    definition: QueueDefinition,
     consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
 }
@@ -34,7 +38,7 @@ pub(crate) struct QueueState {
 impl fmt::Debug for QueueState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QueueState")
-            .field("name", &self.name)
+            .field("name", &self.definition.name)
             .field("consumers", &self.consumers)
             .finish()
     }
@@ -57,6 +61,28 @@ impl Borrow<str> for Queue {
 }
 
 impl QueueState {
+    pub(crate) fn new(
+        name: ShortString,
+        options: Option<QueueDeclareOptions>,
+        arguments: Option<FieldTable>,
+    ) -> Self {
+        Self {
+            definition: QueueDefinition {
+                name,
+                options,
+                arguments,
+                bindings: Vec::new(),
+            },
+            consumers: HashMap::new(),
+            current_get_message: None,
+        }
+    }
+
+    pub(crate) fn absorb(&mut self, other: QueueState) {
+        self.definition.options = other.definition.options;
+        self.definition.arguments = other.definition.arguments;
+    }
+
     pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
         self.consumers.insert(consumer_tag, consumer);
     }
@@ -98,8 +124,38 @@ impl QueueState {
             .fold(Ok(()), Result::and)
     }
 
+    pub(crate) fn is_exclusive(&self) -> bool {
+        self.definition.is_exclusive()
+    }
+
+    pub(crate) fn register_binding(
+        &mut self,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.definition.bindings.push(BindingDefinition {
+            source,
+            routing_key,
+            arguments,
+        });
+    }
+
+    pub(crate) fn deregister_binding(
+        &mut self,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.definition.bindings.retain(|binding| {
+            binding.source != source
+                || binding.routing_key != routing_key
+                || binding.arguments != arguments
+        });
+    }
+
     pub(crate) fn name(&self) -> ShortString {
-        self.name.clone()
+        self.definition.name.clone()
     }
 
     pub(crate) fn drop_prefetched_messages(&mut self) -> Result<()> {
@@ -134,14 +190,24 @@ impl QueueState {
             resolver.swear(Ok(Some(message)));
         }
     }
-}
 
-impl From<Queue> for QueueState {
-    fn from(queue: Queue) -> Self {
-        Self {
-            name: queue.name,
-            consumers: HashMap::new(),
-            current_get_message: None,
+    pub(crate) fn topology(&self) -> Option<QueueDefinition> {
+        if self.is_exclusive() {
+            Some(self.definition.clone())
+        } else {
+            None
         }
+    }
+
+    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinition> {
+        self.consumers
+            .values()
+            .map(|c| ConsumerDefinition {
+                tag: c.tag(),
+                options: c.options(),
+                arguments: c.arguments(),
+                queue: self.name(),
+            })
+            .collect()
     }
 }

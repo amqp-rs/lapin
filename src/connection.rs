@@ -9,10 +9,13 @@ use crate::{
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    options::{ExchangeBindOptions, QueueBindOptions},
     reactor::DefaultReactorBuilder,
+    registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
+    topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
     types::ShortUInt,
     uri::AMQPUri,
     Error, Promise, PromiseChain, Result,
@@ -24,6 +27,7 @@ use std::{fmt, io, sync::Arc};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
+    registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -38,9 +42,11 @@ impl Connection {
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
+        let registry = Registry::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
+            registry.clone(),
             waker,
             internal_rpc.clone(),
             frames,
@@ -50,6 +56,7 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
+            registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -85,6 +92,114 @@ impl Connection {
         config: TLSConfig<'_, '_, '_>,
     ) -> PromiseChain<Connection> {
         Connect::connect(uri, options, config)
+    }
+
+    /// Restore the specified topology
+    pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
+        let mut restored = RestoredTopology::default();
+        for _ in &topology.channels {
+            restored
+                .channels
+                .push(RestoredChannel::new(self.create_channel().await?));
+        }
+        let channel = if let Some(chan) = restored.channels.get(0) {
+            chan.channel.clone()
+        } else {
+            self.create_channel().await?
+        };
+        for ex in &topology.exchanges {
+            channel
+                .exchange_declare(
+                    ex.name.as_str(),
+                    ex.kind.clone().unwrap_or_default(),
+                    ex.options.unwrap_or_default(),
+                    ex.arguments.clone().unwrap_or_default(),
+                )
+                .await?;
+        }
+        for queue in &topology.queues {
+            restored.queues.push(
+                channel
+                    .queue_declare(
+                        queue.name.as_str(),
+                        queue.options.unwrap_or_default(),
+                        queue.arguments.clone().unwrap_or_default(),
+                    )
+                    .await?,
+            );
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            let c = &mut restored.channels[n];
+            for queue in &ch.queues {
+                c.queues.push(
+                    c.channel
+                        .queue_declare(
+                            queue.name.as_str(),
+                            queue.options.unwrap_or_default(),
+                            queue.arguments.clone().unwrap_or_default(),
+                        )
+                        .await?,
+                );
+            }
+        }
+        for ex in &topology.exchanges {
+            for binding in &ex.bindings {
+                channel
+                    .exchange_bind(
+                        ex.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        ExchangeBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+        for queue in &topology.queues {
+            for binding in &queue.bindings {
+                channel
+                    .queue_bind(
+                        queue.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        QueueBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            for queue in &ch.queues {
+                for binding in &queue.bindings {
+                    restored.channels[n]
+                        .channel
+                        .queue_bind(
+                            queue.name.as_str(),
+                            binding.source.as_str(),
+                            binding.routing_key.as_str(),
+                            QueueBindOptions::default(),
+                            binding.arguments.clone(),
+                        )
+                        .await?;
+                }
+            }
+        }
+        for (n, ch) in topology.channels.iter().enumerate() {
+            let c = &mut restored.channels[n];
+            for consumer in &ch.consumers {
+                c.consumers.push(
+                    c.channel
+                        .basic_consume(
+                            consumer.queue.as_str(),
+                            consumer.tag.as_str(),
+                            consumer.options,
+                            consumer.arguments.clone(),
+                        )
+                        .await?,
+                );
+            }
+        }
+        Ok(restored)
     }
 
     pub fn create_channel(&self) -> PromiseChain<Channel> {
@@ -237,6 +352,14 @@ impl Connection {
             .unwrap_or_else(|err| PromiseChain::new_with_data(Err(err)))
         }
     }
+
+    pub fn topology(&self) -> TopologyDefinition {
+        TopologyDefinition {
+            exchanges: self.registry.exchanges_topology(),
+            queues: self.registry.queues_topology(),
+            channels: self.channels.topology(),
+        }
+    }
 }
 
 impl fmt::Debug for Connection {
@@ -292,7 +415,8 @@ mod tests {
     use super::*;
     use crate::channel_receiver_state::ChannelReceiverState;
     use crate::channel_status::ChannelState;
-    use crate::types::ShortString;
+    use crate::options::BasicConsumeOptions;
+    use crate::types::{FieldTable, ShortString};
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{basic, AMQPClass};
@@ -302,7 +426,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::{Queue, QueueState};
+        use crate::queue::QueueState;
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(DefaultExecutor::default());
@@ -320,9 +444,15 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
+        let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())
@@ -381,7 +511,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::{Queue, QueueState};
+        use crate::queue::QueueState;
 
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
@@ -399,9 +529,15 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
+        let mut queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
         queue.register_consumer(consumer_tag.clone(), consumer);
         conn.channels
             .get(channel.id())

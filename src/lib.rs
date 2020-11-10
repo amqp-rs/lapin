@@ -123,6 +123,7 @@ pub mod message;
 pub mod publisher_confirm;
 pub mod reactor;
 pub mod socket_state;
+pub mod topology;
 
 pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
@@ -158,6 +159,7 @@ mod io_loop;
 mod parsing;
 mod queue;
 mod queues;
+mod registry;
 mod returned_messages;
 mod stream;
 mod thread;

@@ -13,10 +13,12 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
-    queue::Queue,
+    queue::{Queue, QueueState},
     queues::Queues,
+    registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
+    topology::ChannelDefinition,
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
     ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
@@ -24,10 +26,8 @@ use crate::{
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
-
-#[cfg(test)]
-use crate::queue::QueueState;
 
 #[derive(Clone)]
 pub struct Channel {
@@ -35,6 +35,7 @@ pub struct Channel {
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
+    registry: Registry,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
@@ -76,6 +77,7 @@ impl Channel {
         channel_id: u16,
         configuration: Configuration,
         connection_status: ConnectionStatus,
+        registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -98,6 +100,7 @@ impl Channel {
             configuration,
             status,
             connection_status,
+            registry,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
@@ -157,6 +160,7 @@ impl Channel {
             configuration: self.configuration.clone(),
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
+            registry: self.registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
             queues: self.queues.clone(),
@@ -208,7 +212,7 @@ impl Channel {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Promise<()> {
-        self.do_exchange_declare(exchange, kind.kind(), options, arguments)
+        self.do_exchange_declare(exchange, kind.kind(), options, arguments, kind.clone())
     }
 
     pub fn wait_for_confirms(&self) -> ConfirmationPromise<Vec<BasicReturnMessage>> {
@@ -371,6 +375,13 @@ impl Channel {
             },
             |msg| self.handle_invalid_contents(msg, 0, 0),
         )
+    }
+
+    pub(crate) fn topology(&self) -> ChannelDefinition {
+        ChannelDefinition {
+            queues: self.queues.topology(),
+            consumers: self.queues.consumers_topology(),
+        }
     }
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
@@ -736,6 +747,49 @@ impl Channel {
         self.set_closed(Error::InvalidChannelState(ChannelState::Closed))
     }
 
+    fn on_exchange_bind_ok_received(
+        &self,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .register_exchange_binding(destination, source, routing_key, arguments);
+        Ok(())
+    }
+
+    fn on_exchange_unbind_ok_received(
+        &self,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .deregister_exchange_binding(destination, source, routing_key, arguments);
+        Ok(())
+    }
+
+    fn on_exchange_declare_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        exchange: ShortString,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.registry
+            .register_exchange(exchange, kind, options, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
+        self.registry.deregister_exchange(exchange);
+        Ok(())
+    }
+
     fn on_queue_delete_ok_received(
         &self,
         method: protocol::queue::DeleteOk,
@@ -743,6 +797,7 @@ impl Channel {
         queue: ShortString,
     ) -> Result<()> {
         self.queues.deregister(queue.as_str());
+        self.registry.deregister_queue(queue);
         resolver.swear(Ok(method.message_count));
         Ok(())
     }
@@ -760,10 +815,59 @@ impl Channel {
         &self,
         method: protocol::queue::DeclareOk,
         resolver: PromiseResolver<Queue>,
+        options: QueueDeclareOptions,
+        arguments: FieldTable,
     ) -> Result<()> {
-        let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
-        self.queues.register(queue.clone().into());
-        resolver.swear(Ok(queue));
+        if options.exclusive {
+            self.queues.register(QueueState::new(
+                method.queue.clone(),
+                Some(options.clone()),
+                Some(arguments.clone()),
+            ));
+        }
+        self.registry
+            .register_queue(method.queue.clone(), options, arguments);
+        resolver.swear(Ok(Queue::new(
+            method.queue,
+            method.message_count,
+            method.consumer_count,
+        )));
+        Ok(())
+    }
+
+    fn on_queue_bind_ok_received(
+        &self,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.queues.register_binding(
+            queue.as_str(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
+        self.registry
+            .register_queue_binding(queue, exchange, routing_key, arguments);
+        Ok(())
+    }
+
+    fn on_queue_unbind_ok_received(
+        &self,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.queues.deregister_binding(
+            queue.as_str(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
+        self.registry
+            .deregister_queue_binding(queue, exchange, routing_key, arguments);
         Ok(())
     }
 
@@ -809,11 +913,15 @@ impl Channel {
         resolver: PromiseResolver<Consumer>,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
     ) -> Result<()> {
         let consumer = Consumer::new(
             method.consumer_tag.clone(),
             self.executor.clone(),
             channel_closer,
+            options,
+            arguments,
         );
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
         self.queues

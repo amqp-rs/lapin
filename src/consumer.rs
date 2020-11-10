@@ -5,7 +5,8 @@ use crate::{
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
-    types::ShortString,
+    options::BasicConsumeOptions,
+    types::{FieldTable, ShortString},
     BasicProperties, Channel, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -135,6 +136,8 @@ pub struct Consumer {
     status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
+    options: BasicConsumeOptions,
+    arguments: FieldTable,
 }
 
 impl Consumer {
@@ -142,6 +145,8 @@ impl Consumer {
         consumer_tag: ShortString,
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
     ) -> Self {
         let status = ConsumerStatus::default();
         Self {
@@ -153,6 +158,8 @@ impl Consumer {
             status,
             channel_closer,
             consumer_canceler: None,
+            options,
+            arguments,
         }
     }
 
@@ -167,6 +174,8 @@ impl Consumer {
                 self.status.clone(),
                 internal_rpc_handle,
             ))),
+            options: self.options.clone(),
+            arguments: self.arguments.clone(),
         }
     }
 
@@ -181,6 +190,14 @@ impl Consumer {
     /// Gets the current state of the Consumer.
     pub fn state(&self) -> ConsumerState {
         self.status.state()
+    }
+
+    pub(crate) fn options(&self) -> BasicConsumeOptions {
+        self.options.clone()
+    }
+
+    pub(crate) fn arguments(&self) -> FieldTable {
+        self.arguments.clone()
     }
 
     /// Automatically spawns the delegate on the executor for each message.
@@ -418,6 +435,8 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
             None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
         );
 
         assert_eq!(awoken_count.get(), 0);
@@ -438,6 +457,8 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
             None,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
         );
 
         assert_eq!(awoken_count.get(), 0);

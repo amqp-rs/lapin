@@ -7,9 +7,10 @@ pub mod options {
   {{#each_argument method.arguments as |argument| ~}}
   {{#unless @argument_is_value ~}}
   {{#unless argument.ignore_flags ~}}
-  #[derive(Copy, Clone, Debug, Default, PartialEq)]
+  #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
   pub struct {{camel class.name}}{{camel method.name}}Options {
     {{#each argument.flags as |flag| ~}}
+    #[serde(default)]
     pub {{snake flag.name}}: Boolean,
     {{/each ~}}
   }
@@ -79,6 +80,9 @@ impl Channel {
     {{#if method.metadata.start_hook.returns ~}}let start_hook_res = {{/if ~}}self.before_{{snake class.name false}}_{{snake method.name false}}({{#each method.metadata.start_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     {{/if ~}}
 
+    {{#each method.metadata.init_clones as |init_clone| ~}}
+    let {{init_clone.to}} = {{init_clone.from}}.clone();
+    {{/each ~}}
     {{#unless method.ignore_args ~}}
     {{#each_argument method.arguments as |argument| ~}}
     {{#unless @argument_is_value ~}}
@@ -135,7 +139,7 @@ impl Channel {
     {{#if method.synchronous ~}}
     {{#if method.metadata.nowait_hook ~}}
     if nowait {
-      if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#unless method.metadata.nowait_hook.exhaustive_args ~}}..Default::default(){{/unless ~}} }) {
+      if let Err(err) = self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{#if method.metadata.nowait_hook.nonexhaustive_args ~}}..Default::default(){{/if ~}} }) {
         return Promise{{#if method.metadata.confirmation.type ~}}Chain{{/if ~}}::new_with_data(Err(err));
       }
     }
