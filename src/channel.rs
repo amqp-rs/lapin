@@ -821,7 +821,7 @@ impl Channel {
         if options.exclusive {
             self.queues.register(QueueState::new(
                 method.queue.clone(),
-                Some(options.clone()),
+                Some(options),
                 Some(arguments.clone()),
             ));
         }

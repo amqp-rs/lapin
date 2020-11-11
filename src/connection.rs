@@ -410,8 +410,6 @@ impl Connect for &str {
 
 #[cfg(test)]
 mod tests {
-    use env_logger;
-
     use super::*;
     use crate::channel_receiver_state::ChannelReceiverState;
     use crate::channel_status::ChannelState;
@@ -454,9 +452,9 @@ mod tests {
             FieldTable::default(),
         );
         queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels
-            .get(channel.id())
-            .map(|c| c.register_queue(queue));
+        if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_queue(queue)
+        }
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -490,15 +488,12 @@ mod tests {
             );
             conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().receiver_state();
-            let expected_state = ChannelReceiverState::ReceivingContent(
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
-                2,
-            );
+            let expected_state =
+                ChannelReceiverState::ReceivingContent(Some(queue_name), Some(consumer_tag), 2);
             assert_eq!(channel_state, expected_state);
         }
         {
-            let body_frame = AMQPFrame::Body(channel.id(), "{}".as_bytes().to_vec());
+            let body_frame = AMQPFrame::Body(channel.id(), b"{}".to_vec());
             conn.channels.handle_frame(body_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
@@ -539,9 +534,9 @@ mod tests {
             FieldTable::default(),
         );
         queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels
-            .get(channel.id())
-            .map(|c| c.register_queue(queue));
+        if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_queue(queue)
+        }
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -557,8 +552,8 @@ mod tests {
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
+                Some(queue_name),
+                Some(consumer_tag),
             );
             assert_eq!(channel_state, expected_state);
         }

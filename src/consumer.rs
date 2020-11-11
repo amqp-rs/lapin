@@ -174,7 +174,7 @@ impl Consumer {
                 self.status.clone(),
                 internal_rpc_handle,
             ))),
-            options: self.options.clone(),
+            options: self.options,
             arguments: self.arguments.clone(),
         }
     }
@@ -193,7 +193,7 @@ impl Consumer {
     }
 
     pub(crate) fn options(&self) -> BasicConsumeOptions {
-        self.options.clone()
+        self.options
     }
 
     pub(crate) fn arguments(&self) -> FieldTable {

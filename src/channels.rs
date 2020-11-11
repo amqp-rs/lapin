@@ -320,6 +320,7 @@ impl Inner {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_channel(
         &mut self,
         id: u16,

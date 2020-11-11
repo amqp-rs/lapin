@@ -42,11 +42,7 @@ impl TcpStream {
     }
 
     pub(crate) fn is_handshaking(&self) -> bool {
-        if let Inner::Handshaking(_) = self.0 {
-            true
-        } else {
-            false
-        }
+        matches!(self.0, Inner::Handshaking(_))
     }
 
     pub(crate) fn handshake(&mut self) -> Result<()> {
