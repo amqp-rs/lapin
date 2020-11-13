@@ -18,7 +18,7 @@ use crate::{
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology::ChannelDefinition,
+    topology::{ChannelDefinition, RestoredChannel},
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
     ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
@@ -116,6 +116,53 @@ impl Channel {
 
     pub fn status(&self) -> &ChannelStatus {
         &self.status
+    }
+
+    pub(crate) async fn restore(
+        &self,
+        ch: &ChannelDefinition,
+        c: &mut RestoredChannel,
+    ) -> Result<()> {
+        // First, redeclare all queues
+        for queue in &ch.queues {
+            c.queues.push(
+                self.queue_declare(
+                    queue.name.as_str(),
+                    queue.options.unwrap_or_default(),
+                    queue.arguments.clone().unwrap_or_default(),
+                )
+                .await?,
+            );
+        }
+
+        // Second, redeclare all queues bindings
+        for queue in &ch.queues {
+            for binding in &queue.bindings {
+                self.queue_bind(
+                    queue.name.as_str(),
+                    binding.source.as_str(),
+                    binding.routing_key.as_str(),
+                    QueueBindOptions::default(),
+                    binding.arguments.clone(),
+                )
+                .await?;
+            }
+        }
+
+        // Third, redeclare all consumers
+        for consumer in &ch.consumers {
+            c.consumers.push(
+                self.basic_consume(
+                    consumer.queue.as_str(),
+                    consumer.tag.as_str(),
+                    consumer.options,
+                    consumer.arguments.clone(),
+                )
+                .await?,
+            );
+        }
+
+        Ok(())
     }
 
     fn set_closed(&self, error: Error) -> Result<()> {

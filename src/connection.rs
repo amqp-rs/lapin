@@ -97,16 +97,22 @@ impl Connection {
     /// Restore the specified topology
     pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
         let mut restored = RestoredTopology::default();
+
+        // First, recreate all channels
         for _ in &topology.channels {
             restored
                 .channels
                 .push(RestoredChannel::new(self.create_channel().await?));
         }
+
+        // Then, ensure we have at least one channel to restore everything else
         let channel = if let Some(chan) = restored.channels.get(0) {
             chan.channel.clone()
         } else {
             self.create_channel().await?
         };
+
+        // First, redeclare all exchanges
         for ex in &topology.exchanges {
             channel
                 .exchange_declare(
@@ -117,31 +123,8 @@ impl Connection {
                 )
                 .await?;
         }
-        for queue in &topology.queues {
-            restored.queues.push(
-                channel
-                    .queue_declare(
-                        queue.name.as_str(),
-                        queue.options.unwrap_or_default(),
-                        queue.arguments.clone().unwrap_or_default(),
-                    )
-                    .await?,
-            );
-        }
-        for (n, ch) in topology.channels.iter().enumerate() {
-            let c = &mut restored.channels[n];
-            for queue in &ch.queues {
-                c.queues.push(
-                    c.channel
-                        .queue_declare(
-                            queue.name.as_str(),
-                            queue.options.unwrap_or_default(),
-                            queue.arguments.clone().unwrap_or_default(),
-                        )
-                        .await?,
-                );
-            }
-        }
+
+        // Second, redeclare all exchange bindings
         for ex in &topology.exchanges {
             for binding in &ex.bindings {
                 channel
@@ -155,6 +138,21 @@ impl Connection {
                     .await?;
             }
         }
+
+        // Third, redeclare all "global" (e.g. non exclusive) queues
+        for queue in &topology.queues {
+            restored.queues.push(
+                channel
+                    .queue_declare(
+                        queue.name.as_str(),
+                        queue.options.unwrap_or_default(),
+                        queue.arguments.clone().unwrap_or_default(),
+                    )
+                    .await?,
+            );
+        }
+
+        // Fourth, redeclare all global queues bindings
         for queue in &topology.queues {
             for binding in &queue.bindings {
                 channel
@@ -168,36 +166,11 @@ impl Connection {
                     .await?;
             }
         }
-        for (n, ch) in topology.channels.iter().enumerate() {
-            for queue in &ch.queues {
-                for binding in &queue.bindings {
-                    restored.channels[n]
-                        .channel
-                        .queue_bind(
-                            queue.name.as_str(),
-                            binding.source.as_str(),
-                            binding.routing_key.as_str(),
-                            QueueBindOptions::default(),
-                            binding.arguments.clone(),
-                        )
-                        .await?;
-                }
-            }
-        }
+
+        // Fifth, restore all channel-specific queues/bindings/consumers
         for (n, ch) in topology.channels.iter().enumerate() {
             let c = &mut restored.channels[n];
-            for consumer in &ch.consumers {
-                c.consumers.push(
-                    c.channel
-                        .basic_consume(
-                            consumer.queue.as_str(),
-                            consumer.tag.as_str(),
-                            consumer.options,
-                            consumer.arguments.clone(),
-                        )
-                        .await?,
-                );
-            }
+            c.channel.clone().restore(ch, c).await?;
         }
         Ok(restored)
     }
@@ -353,6 +326,9 @@ impl Connection {
         }
     }
 
+    /// Get the current topology
+    ///
+    /// This includes exchanges, queues, bindings and consumers declared by this Connection
     pub fn topology(&self) -> TopologyDefinition {
         TopologyDefinition {
             exchanges: self.registry.exchanges_topology(),
