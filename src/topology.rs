@@ -9,12 +9,19 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
+/// The current topology definition
+///
+/// This contains the list of exhanges, queues, bindings, channels and consumers
+/// declared on the current Connection.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TopologyDefinition {
+    /// The exchanges declared in this topology.
     #[serde(default)]
     pub exchanges: Vec<ExchangeDefinition>,
+    /// The "global" (not exclusive) declared in this topology.
     #[serde(default)]
     pub queues: Vec<QueueDefinition>,
+    /// The channels declares in this topology
     #[serde(default)]
     pub channels: Vec<ChannelDefinition>,
 }
@@ -54,6 +61,8 @@ pub struct BindingDefinition {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ChannelDefinition {
+    /// Exclusive queues need to be declared in a Channel.
+    /// This is the list of exclusive queues for this one.
     #[serde(default)]
     pub queues: Vec<QueueDefinition>,
     pub consumers: Vec<ConsumerDefinition>,
