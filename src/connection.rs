@@ -16,6 +16,7 @@ use crate::{
     tcp::{AMQPUriTcpExt, HandshakeResult, TLSConfig},
     thread::ThreadHandle,
     topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
+    topology_internal::TopologyInternal,
     types::ShortUInt,
     uri::AMQPUri,
     Error, Promise, PromiseChain, Result,
@@ -96,6 +97,13 @@ impl Connection {
 
     /// Restore the specified topology
     pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
+        self.restore_internal(topology.into()).await
+    }
+
+    pub(crate) async fn restore_internal(
+        &self,
+        topology: TopologyInternal,
+    ) -> Result<RestoredTopology> {
         let mut restored = RestoredTopology::default();
 
         // First, recreate all channels
@@ -330,7 +338,11 @@ impl Connection {
     ///
     /// This includes exchanges, queues, bindings and consumers declared by this Connection
     pub fn topology(&self) -> TopologyDefinition {
-        TopologyDefinition {
+        self.topology_internal().into()
+    }
+
+    pub(crate) fn topology_internal(&self) -> TopologyInternal {
+        TopologyInternal {
             exchanges: self.registry.exchanges_topology(),
             queues: self.registry.queues_topology(),
             channels: self.channels.topology(),

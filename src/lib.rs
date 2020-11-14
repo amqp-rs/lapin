@@ -163,3 +163,4 @@ mod registry;
 mod returned_messages;
 mod stream;
 mod thread;
+mod topology_internal;

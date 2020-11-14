@@ -3,6 +3,7 @@ use crate::{
     message::BasicGetMessage,
     options::QueueDeclareOptions,
     topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
+    topology_internal::ConsumerDefinitionInternal,
     types::{FieldTable, ShortString},
     BasicProperties, Error, PromiseResolver, Result,
 };
@@ -199,14 +200,17 @@ impl QueueState {
         }
     }
 
-    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinition> {
+    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinitionInternal> {
         self.consumers
             .values()
-            .map(|c| ConsumerDefinition {
-                tag: c.tag(),
-                options: c.options(),
-                arguments: c.arguments(),
-                queue: self.name(),
+            .map(|c| ConsumerDefinitionInternal {
+                consumer: Some(c.clone()),
+                definition: ConsumerDefinition {
+                    tag: c.tag(),
+                    options: c.options(),
+                    arguments: c.arguments(),
+                    queue: self.name(),
+                },
             })
             .collect()
     }

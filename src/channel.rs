@@ -18,7 +18,8 @@ use crate::{
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology::{ChannelDefinition, RestoredChannel},
+    topology::RestoredChannel,
+    topology_internal::ChannelDefinitionInternal,
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
     ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
@@ -120,7 +121,7 @@ impl Channel {
 
     pub(crate) async fn restore(
         &self,
-        ch: &ChannelDefinition,
+        ch: &ChannelDefinitionInternal,
         c: &mut RestoredChannel,
     ) -> Result<()> {
         // First, redeclare all queues
@@ -153,10 +154,10 @@ impl Channel {
         for consumer in &ch.consumers {
             c.consumers.push(
                 self.basic_consume(
-                    consumer.queue.as_str(),
-                    consumer.tag.as_str(),
-                    consumer.options,
-                    consumer.arguments.clone(),
+                    consumer.definition.queue.as_str(),
+                    consumer.definition.tag.as_str(),
+                    consumer.definition.options,
+                    consumer.definition.arguments.clone(),
                 )
                 .await?,
             );
@@ -424,8 +425,9 @@ impl Channel {
         )
     }
 
-    pub(crate) fn topology(&self) -> ChannelDefinition {
-        ChannelDefinition {
+    pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
+        ChannelDefinitionInternal {
+            channel: Some(self.clone()),
             queues: self.queues.topology(),
             consumers: self.queues.consumers_topology(),
         }

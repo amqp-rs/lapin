@@ -8,7 +8,7 @@ use crate::{
     protocol::{AMQPClass, AMQPError, AMQPHardError},
     registry::Registry,
     socket_state::SocketStateHandle,
-    topology::ChannelDefinition,
+    topology_internal::ChannelDefinitionInternal,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
@@ -274,7 +274,7 @@ impl Channels {
         self.error_handler.set_handler(handler);
     }
 
-    pub(crate) fn topology(&self) -> Vec<ChannelDefinition> {
+    pub(crate) fn topology(&self) -> Vec<ChannelDefinitionInternal> {
         self.inner
             .lock()
             .channels

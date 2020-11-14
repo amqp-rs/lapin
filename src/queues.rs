@@ -2,7 +2,8 @@ use crate::{
     consumer::Consumer,
     message::{BasicGetMessage, Delivery},
     queue::QueueState,
-    topology::{ConsumerDefinition, QueueDefinition},
+    topology::QueueDefinition,
+    topology_internal::ConsumerDefinitionInternal,
     types::{FieldTable, ShortString},
     BasicProperties, Channel, Error, PromiseResolver, Result,
 };
@@ -43,7 +44,7 @@ impl Queues {
             .collect()
     }
 
-    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinition> {
+    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinitionInternal> {
         self.0
             .lock()
             .values()
