@@ -6,6 +6,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
+    consumers::Consumers,
     executor::Executor,
     frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
@@ -40,6 +41,7 @@ pub struct Channel {
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
+    consumers: Consumers,
     returned_messages: ReturnedMessages,
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
@@ -65,6 +67,7 @@ impl fmt::Debug for Channel {
             .field("acknowledgements", &self.acknowledgements)
             .field("delivery_tag", &self.delivery_tag)
             .field("queues", &self.queues)
+            .field("consumers", &self.consumers)
             .field("returned_messages", &self.returned_messages)
             .field("frames", &self.frames)
             .field("executor", &self.executor)
@@ -105,6 +108,7 @@ impl Channel {
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
+            consumers: Consumers::default(),
             returned_messages,
             waker,
             internal_rpc,
@@ -187,11 +191,11 @@ impl Channel {
     }
 
     pub(crate) fn cancel_consumers(&self) -> Result<()> {
-        self.queues.cancel_consumers()
+        self.consumers.cancel()
     }
 
     pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
-        self.queues.error_consumers(error)
+        self.consumers.error(error)
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -212,6 +216,7 @@ impl Channel {
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
             queues: self.queues.clone(),
+            consumers: self.consumers.clone(),
             returned_messages: self.returned_messages.clone(),
             waker: self.waker.clone(),
             internal_rpc: self.internal_rpc.clone(),
@@ -277,6 +282,11 @@ impl Channel {
     #[cfg(test)]
     pub(crate) fn register_queue(&self, queue: QueueState) {
         self.queues.register(queue);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn register_consumer(&self, tag: ShortString, consumer: Consumer) {
+        self.consumers.register(tag, consumer);
     }
 
     pub(crate) fn send_method_frame(
@@ -370,13 +380,20 @@ impl Channel {
             size as usize,
             |queue_name, consumer_tag, confirm_mode| {
                 if let Some(queue_name) = queue_name {
-                    self.queues.handle_content_header_frame(
-                        &self,
-                        queue_name.as_str(),
-                        consumer_tag.clone(),
-                        size,
-                        properties,
-                    )?;
+                    if let Some(consumer_tag) = consumer_tag {
+                        self.consumers.handle_content_header_frame(
+                            &self,
+                            consumer_tag,
+                            size,
+                            properties,
+                        )?;
+                    } else {
+                        self.queues.handle_content_header_frame(
+                            queue_name.as_str(),
+                            size,
+                            properties,
+                        );
+                    }
                 } else {
                     self.returned_messages.set_delivery_properties(properties);
                     if size == 0 {
@@ -406,13 +423,17 @@ impl Channel {
             payload.len(),
             |queue_name, consumer_tag, remaining_size, confirm_mode| {
                 if let Some(queue_name) = queue_name {
-                    self.queues.handle_body_frame(
-                        &self,
-                        queue_name.as_str(),
-                        consumer_tag.clone(),
-                        remaining_size,
-                        payload,
-                    )?;
+                    if let Some(consumer_tag) = consumer_tag {
+                        self.consumers.handle_body_frame(
+                            &self,
+                            consumer_tag,
+                            remaining_size,
+                            payload,
+                        )?;
+                    } else {
+                        self.queues
+                            .handle_body_frame(queue_name.as_str(), remaining_size, payload);
+                    }
                 } else {
                     self.returned_messages.receive_delivery_content(payload);
                     if remaining_size == 0 {
@@ -429,7 +450,7 @@ impl Channel {
         ChannelDefinitionInternal {
             channel: Some(self.clone()),
             queues: self.queues.topology(),
-            consumers: self.queues.consumers_topology(),
+            consumers: self.consumers.topology(),
         }
     }
 
@@ -497,12 +518,12 @@ impl Channel {
     }
 
     fn on_basic_recover_async_sent(&self) -> Result<()> {
-        self.queues.drop_prefetched_messages()
+        self.consumers.drop_prefetched_messages()
     }
 
     fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages()
+            self.consumers.drop_prefetched_messages()
         } else {
             Ok(())
         }
@@ -510,7 +531,7 @@ impl Channel {
 
     fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) -> Result<()> {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages()
+            self.consumers.drop_prefetched_messages()
         } else {
             Ok(())
         }
@@ -969,20 +990,20 @@ impl Channel {
             method.consumer_tag.clone(),
             self.executor.clone(),
             channel_closer,
+            queue,
             options,
             arguments,
         );
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
-        self.queues
-            .register_consumer(queue.as_str(), method.consumer_tag, consumer);
+        self.consumers.register(method.consumer_tag, consumer);
         resolver.swear(Ok(external_consumer));
         Ok(())
     }
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        if let Some(queue_name) = self.queues.start_consumer_delivery(
-            method.consumer_tag.as_str(),
+        if let Some(queue_name) = self.consumers.start_delivery(
+            &method.consumer_tag,
             Delivery::new(
                 method.delivery_tag,
                 method.exchange,
@@ -997,8 +1018,8 @@ impl Channel {
     }
 
     fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<()> {
-        self.queues
-            .deregister_consumer(method.consumer_tag.as_str())
+        self.consumers
+            .deregister(&method.consumer_tag)
             .and(if !method.nowait {
                 self.internal_rpc
                     .register_internal_future(self.basic_cancel_ok(method.consumer_tag.as_str()))
@@ -1008,8 +1029,7 @@ impl Channel {
     }
 
     fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<()> {
-        self.queues
-            .deregister_consumer(method.consumer_tag.as_str())
+        self.consumers.deregister(&method.consumer_tag)
     }
 
     fn on_basic_ack_received(&self, method: protocol::basic::Ack) -> Result<()> {
@@ -1088,7 +1108,7 @@ impl Channel {
     }
 
     fn on_basic_recover_ok_received(&self) -> Result<()> {
-        self.queues.drop_prefetched_messages()
+        self.consumers.drop_prefetched_messages()
     }
 
     fn on_confirm_select_ok_received(&self) -> Result<()> {

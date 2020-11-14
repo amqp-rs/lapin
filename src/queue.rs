@@ -1,13 +1,11 @@
 use crate::{
-    consumer::Consumer,
     message::BasicGetMessage,
     options::QueueDeclareOptions,
-    topology::{BindingDefinition, ConsumerDefinition, QueueDefinition},
-    topology_internal::ConsumerDefinitionInternal,
+    topology::{BindingDefinition, QueueDefinition},
     types::{FieldTable, ShortString},
-    BasicProperties, Error, PromiseResolver, Result,
+    BasicProperties, PromiseResolver,
 };
-use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
+use std::{borrow::Borrow, fmt};
 
 #[derive(Clone, Debug)]
 pub struct Queue {
@@ -32,7 +30,6 @@ impl Queue {
 
 pub(crate) struct QueueState {
     definition: QueueDefinition,
-    consumers: HashMap<ShortString, Consumer>,
     current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
 }
 
@@ -40,7 +37,6 @@ impl fmt::Debug for QueueState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QueueState")
             .field("name", &self.definition.name)
-            .field("consumers", &self.consumers)
             .finish()
     }
 }
@@ -74,7 +70,6 @@ impl QueueState {
                 arguments,
                 bindings: Vec::new(),
             },
-            consumers: HashMap::new(),
             current_get_message: None,
         }
     }
@@ -82,47 +77,6 @@ impl QueueState {
     pub(crate) fn absorb(&mut self, other: QueueState) {
         self.definition.options = other.definition.options;
         self.definition.arguments = other.definition.arguments;
-    }
-
-    pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
-        self.consumers.insert(consumer_tag, consumer);
-    }
-
-    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(
-        &mut self,
-        consumer_tag: &S,
-    ) -> Result<()>
-    where
-        ShortString: Borrow<S>,
-    {
-        if let Some(consumer) = self.consumers.remove(consumer_tag) {
-            consumer.cancel()?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn get_consumer<S: Hash + Eq + ?Sized>(
-        &mut self,
-        consumer_tag: &S,
-    ) -> Option<&mut Consumer>
-    where
-        ShortString: Borrow<S>,
-    {
-        self.consumers.get_mut(consumer_tag.borrow())
-    }
-
-    pub(crate) fn cancel_consumers(&mut self) -> Result<()> {
-        self.consumers
-            .drain()
-            .map(|(_, consumer)| consumer.cancel())
-            .fold(Ok(()), Result::and)
-    }
-
-    pub(crate) fn error_consumers(&mut self, error: Error) -> Result<()> {
-        self.consumers
-            .drain()
-            .map(|(_, consumer)| consumer.set_error(error.clone()))
-            .fold(Ok(()), Result::and)
     }
 
     pub(crate) fn is_exclusive(&self) -> bool {
@@ -159,13 +113,6 @@ impl QueueState {
         self.definition.name.clone()
     }
 
-    pub(crate) fn drop_prefetched_messages(&mut self) -> Result<()> {
-        self.consumers
-            .values()
-            .map(Consumer::drop_prefetched_messages)
-            .fold(Ok(()), Result::and)
-    }
-
     pub(crate) fn start_new_delivery(
         &mut self,
         delivery: BasicGetMessage,
@@ -198,20 +145,5 @@ impl QueueState {
         } else {
             None
         }
-    }
-
-    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinitionInternal> {
-        self.consumers
-            .values()
-            .map(|c| ConsumerDefinitionInternal {
-                consumer: Some(c.clone()),
-                definition: ConsumerDefinition {
-                    tag: c.tag(),
-                    options: c.options(),
-                    arguments: c.arguments(),
-                    queue: self.name(),
-                },
-            })
-            .collect()
     }
 }

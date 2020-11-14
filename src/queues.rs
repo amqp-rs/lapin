@@ -1,11 +1,9 @@
 use crate::{
-    consumer::Consumer,
-    message::{BasicGetMessage, Delivery},
+    message::BasicGetMessage,
     queue::QueueState,
     topology::QueueDefinition,
-    topology_internal::ConsumerDefinitionInternal,
     types::{FieldTable, ShortString},
-    BasicProperties, Channel, Error, PromiseResolver, Result,
+    BasicProperties, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -44,41 +42,6 @@ impl Queues {
             .collect()
     }
 
-    pub(crate) fn consumers_topology(&self) -> Vec<ConsumerDefinitionInternal> {
-        self.0
-            .lock()
-            .values()
-            .flat_map(QueueState::consumers_topology)
-            .collect()
-    }
-
-    fn with_queue<R, F: FnOnce(&mut QueueState) -> R>(&self, queue: &str, f: F) -> R {
-        f(self
-            .0
-            .lock()
-            .entry(queue.into())
-            .or_insert_with(|| QueueState::new(queue.into(), None, None)))
-    }
-
-    pub(crate) fn register_consumer(
-        &self,
-        queue: &str,
-        consumer_tag: ShortString,
-        consumer: Consumer,
-    ) {
-        self.with_queue(queue, |queue| {
-            queue.register_consumer(consumer_tag, consumer);
-        })
-    }
-
-    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) -> Result<()> {
-        self.0
-            .lock()
-            .values_mut()
-            .map(|queue| queue.deregister_consumer(consumer_tag))
-            .fold(Ok(()), Result::and)
-    }
-
     pub(crate) fn register_binding(
         &self,
         queue: &str,
@@ -105,42 +68,12 @@ impl Queues {
         }
     }
 
-    pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
-        self.0
+    fn with_queue<F: FnOnce(&mut QueueState)>(&self, queue: &str, f: F) {
+        f(self
+            .0
             .lock()
-            .values_mut()
-            .map(QueueState::drop_prefetched_messages)
-            .fold(Ok(()), Result::and)
-    }
-
-    pub(crate) fn cancel_consumers(&self) -> Result<()> {
-        self.0
-            .lock()
-            .values_mut()
-            .map(QueueState::cancel_consumers)
-            .fold(Ok(()), Result::and)
-    }
-
-    pub(crate) fn error_consumers(&self, error: Error) -> Result<()> {
-        self.0
-            .lock()
-            .values_mut()
-            .map(|queue| queue.error_consumers(error.clone()))
-            .fold(Ok(()), Result::and)
-    }
-
-    pub(crate) fn start_consumer_delivery(
-        &self,
-        consumer_tag: &str,
-        message: Delivery,
-    ) -> Option<ShortString> {
-        for queue in self.0.lock().values_mut() {
-            if let Some(consumer) = queue.get_consumer(consumer_tag) {
-                consumer.start_new_delivery(message);
-                return Some(queue.name());
-            }
-        }
-        None
+            .entry(queue.into())
+            .or_insert_with(|| QueueState::new(queue.into(), None, None)))
     }
 
     pub(crate) fn start_basic_get_delivery(
@@ -156,59 +89,24 @@ impl Queues {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        channel: &Channel,
         queue: &str,
-        consumer_tag: Option<ShortString>,
         size: u64,
         properties: BasicProperties,
-    ) -> Result<()> {
+    ) {
         self.with_queue(queue, |queue| {
-            match consumer_tag {
-                Some(consumer_tag) => {
-                    if let Some(consumer) = queue.get_consumer(&consumer_tag) {
-                        consumer.set_delivery_properties(properties);
-                        if size == 0 {
-                            consumer.new_delivery_complete(channel.clone())?;
-                        }
-                    }
-                }
-                None => {
-                    queue.set_delivery_properties(properties);
-                    if size == 0 {
-                        queue.new_delivery_complete();
-                    }
-                }
+            queue.set_delivery_properties(properties);
+            if size == 0 {
+                queue.new_delivery_complete();
             }
-            Ok(())
         })
     }
 
-    pub(crate) fn handle_body_frame(
-        &self,
-        channel: &Channel,
-        queue: &str,
-        consumer_tag: Option<ShortString>,
-        remaining_size: usize,
-        payload: Vec<u8>,
-    ) -> Result<()> {
+    pub(crate) fn handle_body_frame(&self, queue: &str, remaining_size: usize, payload: Vec<u8>) {
         self.with_queue(queue, |queue| {
-            match consumer_tag {
-                Some(consumer_tag) => {
-                    if let Some(consumer) = queue.get_consumer(&consumer_tag) {
-                        consumer.receive_delivery_content(payload);
-                        if remaining_size == 0 {
-                            consumer.new_delivery_complete(channel.clone())?;
-                        }
-                    }
-                }
-                None => {
-                    queue.receive_delivery_content(payload);
-                    if remaining_size == 0 {
-                        queue.new_delivery_complete();
-                    }
-                }
+            queue.receive_delivery_content(payload);
+            if remaining_size == 0 {
+                queue.new_delivery_complete();
             }
-            Ok(())
         })
     }
 }

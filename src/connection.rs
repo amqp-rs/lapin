@@ -430,17 +430,18 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue = QueueState::new(queue_name.clone(), None, None);
+        let queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
             executor,
             None,
+            queue_name.clone(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
-        queue.register_consumer(consumer_tag.clone(), consumer);
         if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_consumer(consumer_tag.clone(), consumer);
             c.register_queue(queue)
         }
         // Now test the state machine behaviour
@@ -512,17 +513,18 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue = QueueState::new(queue_name.clone(), None, None);
+        let queue = QueueState::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
             executor,
             None,
+            queue_name.clone(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
-        queue.register_consumer(consumer_tag.clone(), consumer);
         if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_consumer(consumer_tag.clone(), consumer);
             c.register_queue(queue)
         }
         // Now test the state machine behaviour

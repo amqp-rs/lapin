@@ -136,6 +136,7 @@ pub struct Consumer {
     status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
+    queue: ShortString,
     options: BasicConsumeOptions,
     arguments: FieldTable,
 }
@@ -145,6 +146,7 @@ impl Consumer {
         consumer_tag: ShortString,
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
+        queue: ShortString,
         options: BasicConsumeOptions,
         arguments: FieldTable,
     ) -> Self {
@@ -158,6 +160,7 @@ impl Consumer {
             status,
             channel_closer,
             consumer_canceler: None,
+            queue,
             options,
             arguments,
         }
@@ -174,6 +177,7 @@ impl Consumer {
                 self.status.clone(),
                 internal_rpc_handle,
             ))),
+            queue: self.queue.clone(),
             options: self.options,
             arguments: self.arguments.clone(),
         }
@@ -190,6 +194,11 @@ impl Consumer {
     /// Gets the current state of the Consumer.
     pub fn state(&self) -> ConsumerState {
         self.status.state()
+    }
+
+    /// Get the name of the queue we're consuming
+    pub fn queue(&self) -> ShortString {
+        self.queue.clone()
     }
 
     pub(crate) fn options(&self) -> BasicConsumeOptions {
@@ -435,6 +444,7 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
             None,
+            "test".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
@@ -457,6 +467,7 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             Arc::new(DefaultExecutor::default()),
             None,
+            "test".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
