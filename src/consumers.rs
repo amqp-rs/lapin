@@ -101,7 +101,6 @@ impl Consumers {
             .values()
             .map(|consumer| ConsumerDefinitionInternal {
                 consumer: Some(consumer.clone()),
-                // TODO: drop this ?
                 definition: ConsumerDefinition {
                     tag: consumer.tag(),
                     options: consumer.options(),
