@@ -1,4 +1,3 @@
-use bastion::Bastion;
 use bastion_amqp::*;
 use lapin::{
     message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
@@ -73,9 +72,5 @@ fn main() -> Result<()> {
 
     env_logger::init();
 
-    Bastion::init();
-    Bastion::start();
-
-    // FIXME: bastion::run once self-contained
-    bastion_executor::run::run(consume(), Default::default())
+    bastion::run!(consume())
 }
