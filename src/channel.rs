@@ -368,12 +368,12 @@ impl Channel {
             self.id,
             class_id,
             size as usize,
-            |queue_name, request_id_or_consumer_tag, confirm_mode| {
+            |queue_name, consumer_tag, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_content_header_frame(
                         &self,
                         queue_name.as_str(),
-                        request_id_or_consumer_tag.clone(),
+                        consumer_tag.clone(),
                         size,
                         properties,
                     )?;
@@ -404,12 +404,12 @@ impl Channel {
         self.status.receive(
             self.id,
             payload.len(),
-            |queue_name, request_id_or_consumer_tag, remaining_size, confirm_mode| {
+            |queue_name, consumer_tag, remaining_size, confirm_mode| {
                 if let Some(queue_name) = queue_name {
                     self.queues.handle_body_frame(
                         &self,
                         queue_name.as_str(),
-                        request_id_or_consumer_tag.clone(),
+                        consumer_tag.clone(),
                         remaining_size,
                         payload,
                     )?;

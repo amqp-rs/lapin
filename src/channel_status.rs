@@ -57,13 +57,12 @@ impl ChannelStatus {
         &self,
         class_id: ShortUInt,
         queue_name: Option<ShortString>,
-        request_id_or_consumer_tag: Option<ShortString>,
+        consumer_tag: Option<ShortString>,
     ) {
-        self.0.lock().receiver_state.set_will_receive(
-            class_id,
-            queue_name,
-            request_id_or_consumer_tag,
-        );
+        self.0
+            .lock()
+            .receiver_state
+            .set_will_receive(class_id, queue_name, consumer_tag);
     }
 
     pub(crate) fn set_content_length<

@@ -17,12 +17,12 @@ impl ChannelReceiverStates {
         &mut self,
         class_id: ShortUInt,
         queue_name: Option<ShortString>,
-        request_id_or_consumer_tag: Option<ShortString>,
+        consumer_tag: Option<ShortString>,
     ) {
         self.0.push_back(ChannelReceiverState::WillReceiveContent(
             class_id,
             queue_name,
-            request_id_or_consumer_tag,
+            consumer_tag,
         ));
     }
 
@@ -44,15 +44,15 @@ impl ChannelReceiverStates {
         if let Some(ChannelReceiverState::WillReceiveContent(
             expected_class_id,
             queue_name,
-            request_id_or_consumer_tag,
+            consumer_tag,
         )) = self.0.pop_front()
         {
             if expected_class_id == class_id {
-                let res = handler(&queue_name, &request_id_or_consumer_tag, confirm_mode);
+                let res = handler(&queue_name, &consumer_tag, confirm_mode);
                 if length > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,
-                        request_id_or_consumer_tag,
+                        consumer_tag,
                         length,
                     ));
                 }
@@ -82,23 +82,15 @@ impl ChannelReceiverStates {
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
-        if let Some(ChannelReceiverState::ReceivingContent(
-            queue_name,
-            request_id_or_consumer_tag,
-            len,
-        )) = self.0.pop_front()
+        if let Some(ChannelReceiverState::ReceivingContent(queue_name, consumer_tag, len)) =
+            self.0.pop_front()
         {
             if let Some(remaining) = len.checked_sub(length) {
-                let res = handler(
-                    &queue_name,
-                    &request_id_or_consumer_tag,
-                    remaining,
-                    confirm_mode,
-                );
+                let res = handler(&queue_name, &consumer_tag, remaining, confirm_mode);
                 if remaining > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
                         queue_name,
-                        request_id_or_consumer_tag,
+                        consumer_tag,
                         remaining,
                     ));
                 }
