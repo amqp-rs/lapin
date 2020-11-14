@@ -1,6 +1,6 @@
 use crate::{
-    channel_receiver_state::ChannelReceiverStates,
-    types::{ShortString, ShortUInt},
+    channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
+    types::ShortUInt,
     Result,
 };
 use log::trace;
@@ -53,20 +53,15 @@ impl ChannelStatus {
         self.0.lock().receiver_state.receiver_state()
     }
 
-    pub(crate) fn set_will_receive(
-        &self,
-        class_id: ShortUInt,
-        queue_name: Option<ShortString>,
-        consumer_tag: Option<ShortString>,
-    ) {
+    pub(crate) fn set_will_receive(&self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
         self.0
             .lock()
             .receiver_state
-            .set_will_receive(class_id, queue_name, consumer_tag);
+            .set_will_receive(class_id, delivery_cause);
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, bool) -> Result<()>,
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -92,7 +87,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, usize, bool) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,

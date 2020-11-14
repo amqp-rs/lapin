@@ -399,7 +399,7 @@ impl Connect for &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel_receiver_state::ChannelReceiverState;
+    use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::channel_status::ChannelState;
     use crate::options::BasicConsumeOptions;
     use crate::types::{FieldTable, ShortString};
@@ -459,8 +459,7 @@ mod tests {
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
+                DeliveryCause::Consume(consumer_tag.clone()),
             );
             assert_eq!(channel_state, expected_state);
         }
@@ -478,7 +477,7 @@ mod tests {
             conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().receiver_state();
             let expected_state =
-                ChannelReceiverState::ReceivingContent(Some(queue_name), Some(consumer_tag), 2);
+                ChannelReceiverState::ReceivingContent(DeliveryCause::Consume(consumer_tag), 2);
             assert_eq!(channel_state, expected_state);
         }
         {
@@ -542,8 +541,7 @@ mod tests {
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
-                Some(queue_name),
-                Some(consumer_tag),
+                DeliveryCause::Consume(consumer_tag),
             );
             assert_eq!(channel_state, expected_state);
         }

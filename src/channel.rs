@@ -2,6 +2,7 @@ use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
     channel_closer::ChannelCloser,
+    channel_receiver_state::DeliveryCause,
     channel_status::{ChannelState, ChannelStatus},
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
@@ -378,26 +379,28 @@ impl Channel {
             self.id,
             class_id,
             size as usize,
-            |queue_name, consumer_tag, confirm_mode| {
-                if let Some(queue_name) = queue_name {
-                    if let Some(consumer_tag) = consumer_tag {
+            |delivery_cause, confirm_mode| {
+                match delivery_cause {
+                    DeliveryCause::Consume(consumer_tag) => {
                         self.consumers.handle_content_header_frame(
                             &self,
                             consumer_tag,
                             size,
                             properties,
                         )?;
-                    } else {
+                    }
+                    DeliveryCause::Get(queue_name) => {
                         self.queues.handle_content_header_frame(
                             queue_name.as_str(),
                             size,
                             properties,
                         );
                     }
-                } else {
-                    self.returned_messages.set_delivery_properties(properties);
-                    if size == 0 {
-                        self.returned_messages.new_delivery_complete(confirm_mode);
+                    DeliveryCause::Return => {
+                        self.returned_messages.set_delivery_properties(properties);
+                        if size == 0 {
+                            self.returned_messages.new_delivery_complete(confirm_mode);
+                        }
                     }
                 }
                 Ok(())
@@ -421,23 +424,25 @@ impl Channel {
         self.status.receive(
             self.id,
             payload.len(),
-            |queue_name, consumer_tag, remaining_size, confirm_mode| {
-                if let Some(queue_name) = queue_name {
-                    if let Some(consumer_tag) = consumer_tag {
+            |delivery_cause, remaining_size, confirm_mode| {
+                match delivery_cause {
+                    DeliveryCause::Consume(consumer_tag) => {
                         self.consumers.handle_body_frame(
                             &self,
                             consumer_tag,
                             remaining_size,
                             payload,
                         )?;
-                    } else {
+                    }
+                    DeliveryCause::Get(queue_name) => {
                         self.queues
                             .handle_body_frame(queue_name.as_str(), remaining_size, payload);
                     }
-                } else {
-                    self.returned_messages.receive_delivery_content(payload);
-                    if remaining_size == 0 {
-                        self.returned_messages.new_delivery_complete(confirm_mode);
+                    DeliveryCause::Return => {
+                        self.returned_messages.receive_delivery_content(payload);
+                        if remaining_size == 0 {
+                            self.returned_messages.new_delivery_complete(confirm_mode);
+                        }
                     }
                 }
                 Ok(())
@@ -959,7 +964,8 @@ impl Channel {
             ),
             resolver,
         );
-        self.status.set_will_receive(class_id, Some(queue), None);
+        self.status
+            .set_will_receive(class_id, DeliveryCause::Get(queue));
         Ok(())
     }
 
@@ -1002,7 +1008,7 @@ impl Channel {
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        if let Some(queue_name) = self.consumers.start_delivery(
+        self.consumers.start_delivery(
             &method.consumer_tag,
             Delivery::new(
                 method.delivery_tag,
@@ -1010,10 +1016,9 @@ impl Channel {
                 method.routing_key,
                 method.redelivered,
             ),
-        ) {
-            self.status
-                .set_will_receive(class_id, Some(queue_name), Some(method.consumer_tag));
-        }
+        );
+        self.status
+            .set_will_receive(class_id, DeliveryCause::Consume(method.consumer_tag));
         Ok(())
     }
 
@@ -1103,7 +1108,8 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.status.set_will_receive(class_id, None, None);
+        self.status
+            .set_will_receive(class_id, DeliveryCause::Return);
         Ok(())
     }
 

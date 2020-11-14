@@ -24,18 +24,13 @@ impl Consumers {
         Ok(())
     }
 
-    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized>(
-        &self,
-        consumer_tag: &S,
-        message: Delivery,
-    ) -> Option<ShortString>
+    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S, message: Delivery)
     where
         ShortString: Borrow<S>,
     {
-        self.0.lock().get_mut(consumer_tag).map(|consumer| {
+        if let Some(consumer) = self.0.lock().get_mut(consumer_tag) {
             consumer.start_new_delivery(message);
-            consumer.queue()
-        })
+        }
     }
 
     pub(crate) fn handle_content_header_frame<S: Hash + Eq + ?Sized>(

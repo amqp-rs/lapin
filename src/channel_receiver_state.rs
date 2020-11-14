@@ -13,22 +13,16 @@ impl ChannelReceiverStates {
         self.0.front().unwrap().clone()
     }
 
-    pub(crate) fn set_will_receive(
-        &mut self,
-        class_id: ShortUInt,
-        queue_name: Option<ShortString>,
-        consumer_tag: Option<ShortString>,
-    ) {
+    pub(crate) fn set_will_receive(&mut self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
         self.0.push_back(ChannelReceiverState::WillReceiveContent(
             class_id,
-            queue_name,
-            consumer_tag,
+            delivery_cause,
         ));
     }
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, bool) -> Result<()>,
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
@@ -41,18 +35,14 @@ impl ChannelReceiverStates {
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
-        if let Some(ChannelReceiverState::WillReceiveContent(
-            expected_class_id,
-            queue_name,
-            consumer_tag,
-        )) = self.0.pop_front()
+        if let Some(ChannelReceiverState::WillReceiveContent(expected_class_id, delivery_cause)) =
+            self.0.pop_front()
         {
             if expected_class_id == class_id {
-                let res = handler(&queue_name, &consumer_tag, confirm_mode);
+                let res = handler(&delivery_cause, confirm_mode);
                 if length > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
-                        queue_name,
-                        consumer_tag,
+                        delivery_cause,
                         length,
                     ));
                 }
@@ -72,7 +62,7 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, usize, bool) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
@@ -82,15 +72,14 @@ impl ChannelReceiverStates {
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
-        if let Some(ChannelReceiverState::ReceivingContent(queue_name, consumer_tag, len)) =
+        if let Some(ChannelReceiverState::ReceivingContent(delivery_cause, len)) =
             self.0.pop_front()
         {
             if let Some(remaining) = len.checked_sub(length) {
-                let res = handler(&queue_name, &consumer_tag, remaining, confirm_mode);
+                let res = handler(&delivery_cause, remaining, confirm_mode);
                 if remaining > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
-                        queue_name,
-                        consumer_tag,
+                        delivery_cause,
                         remaining,
                     ));
                 }
@@ -109,6 +98,13 @@ impl ChannelReceiverStates {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ChannelReceiverState {
-    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
-    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
+    WillReceiveContent(ShortUInt, DeliveryCause),
+    ReceivingContent(DeliveryCause, usize),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DeliveryCause {
+    Consume(ShortString),
+    Get(ShortString),
+    Return,
 }
