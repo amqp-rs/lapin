@@ -17,11 +17,10 @@ use crate::{
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
-    queues::Queues,
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology::{QueueDefinition, RestoredChannel},
+    topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
@@ -40,9 +39,9 @@ pub struct Channel {
     status: ChannelStatus,
     connection_status: ConnectionStatus,
     global_registry: Registry,
+    local_registry: Registry,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
-    queues: Queues,
     consumers: Consumers,
     basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
@@ -69,7 +68,6 @@ impl fmt::Debug for Channel {
             .field("connection_status", &self.connection_status)
             .field("acknowledgements", &self.acknowledgements)
             .field("delivery_tag", &self.delivery_tag)
-            .field("queues", &self.queues)
             .field("consumers", &self.consumers)
             .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
@@ -109,9 +107,9 @@ impl Channel {
             status,
             connection_status,
             global_registry,
+            local_registry: Registry::default(),
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
-            queues: Queues::default(),
             consumers: Consumers::default(),
             basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
@@ -218,9 +216,9 @@ impl Channel {
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
             global_registry: self.global_registry.clone(),
+            local_registry: self.local_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
-            queues: self.queues.clone(),
             consumers: self.consumers.clone(),
             basic_get_delivery: self.basic_get_delivery.clone(),
             returned_messages: self.returned_messages.clone(),
@@ -286,8 +284,13 @@ impl Channel {
     }
 
     #[cfg(test)]
-    pub(crate) fn register_queue(&self, queue: QueueDefinition) {
-        self.queues.register(queue);
+    pub(crate) fn register_queue(
+        &self,
+        name: ShortString,
+        options: QueueDeclareOptions,
+        arguments: FieldTable,
+    ) {
+        self.local_registry.register_queue(name, options, arguments);
     }
 
     #[cfg(test)]
@@ -458,7 +461,7 @@ impl Channel {
     pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
         ChannelDefinitionInternal {
             channel: Some(self.clone()),
-            queues: self.queues.topology(),
+            queues: self.local_registry.queues_topology(true),
             consumers: self.consumers.topology(),
         }
     }
@@ -846,10 +849,10 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         self.global_registry.deregister_exchange_binding(
-            destination,
-            source,
-            routing_key,
-            arguments,
+            destination.as_str(),
+            source.as_str(),
+            routing_key.as_str(),
+            &arguments,
         );
         Ok(())
     }
@@ -869,7 +872,7 @@ impl Channel {
     }
 
     fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
-        self.global_registry.deregister_exchange(exchange);
+        self.global_registry.deregister_exchange(exchange.as_str());
         Ok(())
     }
 
@@ -879,8 +882,8 @@ impl Channel {
         resolver: PromiseResolver<LongUInt>,
         queue: ShortString,
     ) -> Result<()> {
-        self.queues.deregister(queue.as_str());
-        self.global_registry.deregister_queue(queue);
+        self.local_registry.deregister_queue(queue.as_str());
+        self.global_registry.deregister_queue(queue.as_str());
         resolver.swear(Ok(method.message_count));
         Ok(())
     }
@@ -902,11 +905,8 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if options.exclusive {
-            self.queues.register(QueueDefinition::new(
-                method.queue.clone(),
-                Some(options),
-                Some(arguments.clone()),
-            ));
+            self.local_registry
+                .register_queue(method.queue.clone(), options, arguments.clone());
         }
         self.global_registry
             .register_queue(method.queue.clone(), options, arguments);
@@ -925,11 +925,11 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.queues.register_binding(
-            queue.as_str(),
-            exchange.as_str(),
-            routing_key.as_str(),
-            &arguments,
+        self.local_registry.register_queue_binding(
+            queue.clone(),
+            exchange.clone(),
+            routing_key.clone(),
+            arguments.clone(),
         );
         self.global_registry
             .register_queue_binding(queue, exchange, routing_key, arguments);
@@ -943,14 +943,18 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.queues.deregister_binding(
+        self.local_registry.deregister_queue_binding(
             queue.as_str(),
             exchange.as_str(),
             routing_key.as_str(),
             &arguments,
         );
-        self.global_registry
-            .deregister_queue_binding(queue, exchange, routing_key, arguments);
+        self.global_registry.deregister_queue_binding(
+            queue.as_str(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
         Ok(())
     }
 

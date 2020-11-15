@@ -59,11 +59,6 @@ impl QueueDefinition {
         }
     }
 
-    pub(crate) fn absorb(&mut self, other: QueueDefinition) {
-        self.options = other.options;
-        self.arguments = other.arguments;
-    }
-
     pub(crate) fn is_exclusive(&self) -> bool {
         self.options.map_or(false, |o| o.exclusive)
     }
@@ -83,14 +78,14 @@ impl QueueDefinition {
 
     pub(crate) fn deregister_binding(
         &mut self,
-        source: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
+        source: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
     ) {
         self.bindings.retain(|binding| {
-            binding.source != source
-                || binding.routing_key != routing_key
-                || binding.arguments != arguments
+            binding.source.as_str() != source
+                || binding.routing_key.as_str() != routing_key
+                || &binding.arguments != arguments
         });
     }
 }

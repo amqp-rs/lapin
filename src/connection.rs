@@ -344,7 +344,7 @@ impl Connection {
     pub(crate) fn topology_internal(&self) -> TopologyInternal {
         TopologyInternal {
             exchanges: self.global_registry.exchanges_topology(),
-            queues: self.global_registry.queues_topology(),
+            queues: self.global_registry.queues_topology(false),
             channels: self.channels.topology(),
         }
     }
@@ -412,7 +412,6 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::topology::QueueDefinition;
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(DefaultExecutor::default());
@@ -430,7 +429,6 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let queue = QueueDefinition::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
@@ -442,7 +440,7 @@ mod tests {
         );
         if let Some(c) = conn.channels.get(channel.id()) {
             c.register_consumer(consumer_tag.clone(), consumer);
-            c.register_queue(queue)
+            c.register_queue(queue_name.clone(), Default::default(), Default::default());
         }
         // Now test the state machine behaviour
         {
@@ -451,7 +449,7 @@ mod tests {
                 delivery_tag: 1,
                 redelivered: false,
                 exchange: "".into(),
-                routing_key: queue_name.clone(),
+                routing_key: queue_name,
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
@@ -494,7 +492,6 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::topology::QueueDefinition;
 
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
@@ -512,7 +509,6 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let queue = QueueDefinition::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
@@ -524,7 +520,7 @@ mod tests {
         );
         if let Some(c) = conn.channels.get(channel.id()) {
             c.register_consumer(consumer_tag.clone(), consumer);
-            c.register_queue(queue)
+            c.register_queue(queue_name.clone(), Default::default(), Default::default());
         }
         // Now test the state machine behaviour
         {
@@ -533,7 +529,7 @@ mod tests {
                 delivery_tag: 1,
                 redelivered: false,
                 exchange: "".into(),
-                routing_key: queue_name.clone(),
+                routing_key: queue_name,
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);

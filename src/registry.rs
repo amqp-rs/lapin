@@ -15,12 +15,12 @@ impl Registry {
         self.0.lock().exchanges.values().cloned().collect()
     }
 
-    pub(crate) fn queues_topology(&self) -> Vec<QueueDefinition> {
+    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinition> {
         self.0
             .lock()
             .queues
             .values()
-            .filter(|q| q.options.map(|o| !o.exclusive).unwrap_or(false))
+            .filter(|q| q.is_exclusive() == exclusive)
             .cloned()
             .collect()
     }
@@ -51,8 +51,8 @@ impl Registry {
         }
     }
 
-    pub(crate) fn deregister_exchange(&self, name: ShortString) {
-        self.0.lock().exchanges.remove(&name);
+    pub(crate) fn deregister_exchange(&self, name: &str) {
+        self.0.lock().exchanges.remove(name);
     }
 
     pub(crate) fn register_exchange_binding(
@@ -83,16 +83,16 @@ impl Registry {
 
     pub(crate) fn deregister_exchange_binding(
         &self,
-        destination: ShortString,
-        source: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
+        destination: &str,
+        source: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
     ) {
-        if let Some(destination) = self.0.lock().exchanges.get_mut(&destination) {
+        if let Some(destination) = self.0.lock().exchanges.get_mut(destination) {
             destination.bindings.retain(|binding| {
-                binding.source != source
-                    || binding.routing_key != routing_key
-                    || binding.arguments != arguments
+                binding.source.as_str() != source
+                    || binding.routing_key.as_str() != routing_key
+                    || &binding.arguments != arguments
             });
         }
     }
@@ -115,8 +115,8 @@ impl Registry {
         }
     }
 
-    pub(crate) fn deregister_queue(&self, name: ShortString) {
-        self.0.lock().queues.remove(&name);
+    pub(crate) fn deregister_queue(&self, name: &str) {
+        self.0.lock().queues.remove(name);
     }
 
     pub(crate) fn register_queue_binding(
@@ -141,12 +141,12 @@ impl Registry {
 
     pub(crate) fn deregister_queue_binding(
         &self,
-        destination: ShortString,
-        source: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
+        destination: &str,
+        source: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
     ) {
-        if let Some(destination) = self.0.lock().queues.get_mut(&destination) {
+        if let Some(destination) = self.0.lock().queues.get_mut(destination) {
             destination.deregister_binding(source, routing_key, arguments);
         }
     }
