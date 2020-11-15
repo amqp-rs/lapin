@@ -16,12 +16,12 @@ use crate::{
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
-    queue::{Queue, QueueState},
+    queue::Queue,
     queues::Queues,
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology::RestoredChannel,
+    topology::{QueueDefinition, RestoredChannel},
     topology_internal::ChannelDefinitionInternal,
     types::*,
     BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
@@ -286,7 +286,7 @@ impl Channel {
     }
 
     #[cfg(test)]
-    pub(crate) fn register_queue(&self, queue: QueueState) {
+    pub(crate) fn register_queue(&self, queue: QueueDefinition) {
         self.queues.register(queue);
     }
 
@@ -898,7 +898,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if options.exclusive {
-            self.queues.register(QueueState::new(
+            self.queues.register(QueueDefinition::new(
                 method.queue.clone(),
                 Some(options),
                 Some(arguments.clone()),

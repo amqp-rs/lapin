@@ -1,5 +1,4 @@
 use crate::{
-    queue::QueueState,
     topology::QueueDefinition,
     types::{FieldTable, ShortString},
 };
@@ -7,24 +6,15 @@ use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 #[derive(Clone, Default)]
-pub(crate) struct Queues(Arc<Mutex<HashMap<ShortString, QueueState>>>);
+pub(crate) struct Queues(Arc<Mutex<HashMap<ShortString, QueueDefinition>>>);
 
 impl Queues {
-    pub(crate) fn register(&self, queue: QueueState) {
-        // QueueState tracks the consumers associated with a queue.
-        //
-        // If a queue is re-declared (e.g. to get the number of outstanding messages)
-        // we do not want to _replace_ the entry in the `queues` hashmap.
-        // If we do replace it we lose track of what consumers are associated with that queue:
-        // we have no way to error/cancel them, we have no way to send them incoming messages.
-        //
-        // This can be avoided with an "insert-if-missing" operation.
+    pub(crate) fn register(&self, queue: QueueDefinition) {
         let mut inner = self.0.lock();
-        let name = queue.name();
-        if let Some(q) = inner.get_mut(&name) {
+        if let Some(q) = inner.get_mut(&queue.name) {
             q.absorb(queue);
         } else {
-            inner.insert(name, queue);
+            inner.insert(queue.name.clone(), queue);
         }
     }
 
@@ -36,7 +26,8 @@ impl Queues {
         self.0
             .lock()
             .values()
-            .filter_map(QueueState::topology)
+            .filter(|q| !q.is_exclusive())
+            .cloned()
             .collect()
     }
 

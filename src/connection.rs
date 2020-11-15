@@ -412,7 +412,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::QueueState;
+        use crate::topology::QueueDefinition;
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(DefaultExecutor::default());
@@ -430,7 +430,7 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let queue = QueueState::new(queue_name.clone(), None, None);
+        let queue = QueueDefinition::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
@@ -494,7 +494,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::QueueState;
+        use crate::topology::QueueDefinition;
 
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
@@ -512,7 +512,7 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let queue = QueueState::new(queue_name.clone(), None, None);
+        let queue = QueueDefinition::new(queue_name.clone(), None, None);
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
