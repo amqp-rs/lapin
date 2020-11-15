@@ -1,5 +1,6 @@
 use crate::{
-    message::BasicReturnMessage, publisher_confirm::Confirmation, BasicProperties, Promise,
+    message::BasicReturnMessage, publisher_confirm::Confirmation, types::LongLongUInt,
+    BasicProperties, Promise,
 };
 use log::{trace, warn};
 use parking_lot::Mutex;
@@ -15,20 +16,26 @@ impl ReturnedMessages {
         self.inner.lock().current_message = Some(message);
     }
 
-    pub(crate) fn set_delivery_properties(&self, properties: BasicProperties) {
-        if let Some(message) = self.inner.lock().current_message.as_mut() {
-            message.delivery.properties = properties;
-        }
+    pub(crate) fn handle_content_header_frame(
+        &self,
+        size: LongLongUInt,
+        properties: BasicProperties,
+        confirm_mode: bool,
+    ) {
+        self.inner
+            .lock()
+            .handle_content_header_frame(size, properties, confirm_mode);
     }
 
-    pub(crate) fn new_delivery_complete(&self, confirm_mode: bool) {
-        self.inner.lock().new_delivery_complete(confirm_mode);
-    }
-
-    pub(crate) fn receive_delivery_content(&self, data: Vec<u8>) {
-        if let Some(message) = self.inner.lock().current_message.as_mut() {
-            message.delivery.data.extend(data);
-        }
+    pub(crate) fn handle_body_frame(
+        &self,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+        confirm_mode: bool,
+    ) {
+        self.inner
+            .lock()
+            .handle_body_frame(remaining_size, payload, confirm_mode);
     }
 
     pub(crate) fn drain(&self) -> Vec<BasicReturnMessage> {
@@ -67,6 +74,34 @@ pub struct Inner {
 }
 
 impl Inner {
+    fn handle_content_header_frame(
+        &mut self,
+        size: LongLongUInt,
+        properties: BasicProperties,
+        confirm_mode: bool,
+    ) {
+        if let Some(message) = self.current_message.as_mut() {
+            message.delivery.properties = properties;
+        }
+        if size == 0 {
+            self.new_delivery_complete(confirm_mode);
+        }
+    }
+
+    fn handle_body_frame(
+        &mut self,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+        confirm_mode: bool,
+    ) {
+        if let Some(message) = self.current_message.as_mut() {
+            message.delivery.receive_content(payload);
+        }
+        if remaining_size == 0 {
+            self.new_delivery_complete(confirm_mode);
+        }
+    }
+
     fn new_delivery_complete(&mut self, confirm_mode: bool) {
         if let Some(message) = self.current_message.take() {
             warn!("Server returned us a message: {:?}", message);

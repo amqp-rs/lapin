@@ -1,7 +1,10 @@
 use crate::{
-    consumer::Consumer, message::Delivery, topology::ConsumerDefinition,
-    topology_internal::ConsumerDefinitionInternal, types::ShortString, BasicProperties, Channel,
-    Error, Result,
+    consumer::Consumer,
+    message::Delivery,
+    topology::ConsumerDefinition,
+    topology_internal::ConsumerDefinitionInternal,
+    types::{LongLongUInt, ShortString},
+    BasicProperties, Channel, Error, Result,
 };
 use parking_lot::Mutex;
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash, sync::Arc};
@@ -37,17 +40,14 @@ impl Consumers {
         &self,
         channel: &Channel,
         consumer_tag: &S,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) -> Result<()>
     where
         ShortString: Borrow<S>,
     {
         if let Some(consumer) = self.0.lock().get_mut(consumer_tag) {
-            consumer.set_delivery_properties(properties);
-            if size == 0 {
-                consumer.new_delivery_complete(channel.clone())?;
-            }
+            consumer.handle_content_header_frame(channel, size, properties)?;
         }
         Ok(())
     }
@@ -56,17 +56,14 @@ impl Consumers {
         &self,
         channel: &Channel,
         consumer_tag: &S,
-        remaining_size: usize,
+        remaining_size: LongLongUInt,
         payload: Vec<u8>,
     ) -> Result<()>
     where
         ShortString: Borrow<S>,
     {
         if let Some(consumer) = self.0.lock().get_mut(consumer_tag) {
-            consumer.receive_delivery_content(payload);
-            if remaining_size == 0 {
-                consumer.new_delivery_complete(channel.clone())?;
-            }
+            consumer.handle_body_frame(channel, remaining_size, payload)?;
         }
         Ok(())
     }

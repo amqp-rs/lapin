@@ -2,7 +2,7 @@ use crate::{
     message::BasicGetMessage,
     queue::QueueState,
     topology::QueueDefinition,
-    types::{FieldTable, ShortString},
+    types::{FieldTable, LongLongUInt, ShortString},
     BasicProperties, PromiseResolver,
 };
 use parking_lot::Mutex;
@@ -90,7 +90,7 @@ impl Queues {
     pub(crate) fn handle_content_header_frame(
         &self,
         queue: &str,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) {
         self.with_queue(queue, |queue| {
@@ -101,7 +101,12 @@ impl Queues {
         })
     }
 
-    pub(crate) fn handle_body_frame(&self, queue: &str, remaining_size: usize, payload: Vec<u8>) {
+    pub(crate) fn handle_body_frame(
+        &self,
+        queue: &str,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+    ) {
         self.with_queue(queue, |queue| {
             queue.receive_delivery_content(payload);
             if remaining_size == 0 {

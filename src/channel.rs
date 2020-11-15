@@ -372,13 +372,13 @@ impl Channel {
     pub(crate) fn handle_content_header_frame(
         &self,
         class_id: u16,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) -> Result<()> {
         self.status.set_content_length(
             self.id,
             class_id,
-            size as usize,
+            size,
             |delivery_cause, confirm_mode| {
                 match delivery_cause {
                     DeliveryCause::Consume(consumer_tag) => {
@@ -397,10 +397,11 @@ impl Channel {
                         );
                     }
                     DeliveryCause::Return => {
-                        self.returned_messages.set_delivery_properties(properties);
-                        if size == 0 {
-                            self.returned_messages.new_delivery_complete(confirm_mode);
-                        }
+                        self.returned_messages.handle_content_header_frame(
+                            size,
+                            properties,
+                            confirm_mode,
+                        );
                     }
                 }
                 Ok(())
@@ -423,7 +424,7 @@ impl Channel {
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
         self.status.receive(
             self.id,
-            payload.len(),
+            payload.len() as LongLongUInt,
             |delivery_cause, remaining_size, confirm_mode| {
                 match delivery_cause {
                     DeliveryCause::Consume(consumer_tag) => {
@@ -439,10 +440,11 @@ impl Channel {
                             .handle_body_frame(queue_name.as_str(), remaining_size, payload);
                     }
                     DeliveryCause::Return => {
-                        self.returned_messages.receive_delivery_content(payload);
-                        if remaining_size == 0 {
-                            self.returned_messages.new_delivery_complete(confirm_mode);
-                        }
+                        self.returned_messages.handle_body_frame(
+                            remaining_size,
+                            payload,
+                            confirm_mode,
+                        );
                     }
                 }
                 Ok(())

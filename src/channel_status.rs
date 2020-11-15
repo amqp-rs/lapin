@@ -1,6 +1,6 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
-    types::ShortUInt,
+    types::{LongLongUInt, ShortUInt},
     Result,
 };
 use log::trace;
@@ -68,7 +68,7 @@ impl ChannelStatus {
         &self,
         channel_id: u16,
         class_id: ShortUInt,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
@@ -87,12 +87,12 @@ impl ChannelStatus {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&DeliveryCause, usize, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
         channel_id: u16,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {

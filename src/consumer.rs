@@ -6,7 +6,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     options::BasicConsumeOptions,
-    types::{FieldTable, ShortString},
+    types::{FieldTable, LongLongUInt, ShortString},
     BasicProperties, Channel, Error, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
@@ -227,24 +227,26 @@ impl Consumer {
         self.inner.lock().current_message = Some(delivery)
     }
 
-    pub(crate) fn set_delivery_properties(&mut self, properties: BasicProperties) {
-        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
-            delivery.properties = properties;
-        }
+    pub(crate) fn handle_content_header_frame(
+        &self,
+        channel: &Channel,
+        size: LongLongUInt,
+        properties: BasicProperties,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .handle_content_header_frame(channel, size, properties)
     }
 
-    pub(crate) fn receive_delivery_content(&mut self, payload: Vec<u8>) {
-        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
-            delivery.receive_content(payload);
-        }
-    }
-
-    pub(crate) fn new_delivery_complete(&mut self, channel: Channel) -> Result<()> {
-        let mut inner = self.inner.lock();
-        if let Some(delivery) = inner.current_message.take() {
-            inner.new_delivery(channel, delivery)?;
-        }
-        Ok(())
+    pub(crate) fn handle_body_frame(
+        &self,
+        channel: &Channel,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .handle_body_frame(channel, remaining_size, payload)
     }
 
     pub(crate) fn drop_prefetched_messages(&self) -> Result<()> {
@@ -331,19 +333,51 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn new_delivery(&mut self, channel: Channel, delivery: Delivery) -> Result<()> {
-        trace!("new_delivery; consumer_tag={}", self.tag);
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor
-                .spawn(delegate.on_new_delivery(Ok(Some((channel, delivery)))))?;
-        } else {
-            self.deliveries_in
-                .send(Ok(Some((channel, delivery))))
-                .expect("failed to send delivery to consumer");
+    fn handle_content_header_frame(
+        &mut self,
+        channel: &Channel,
+        size: LongLongUInt,
+        properties: BasicProperties,
+    ) -> Result<()> {
+        if let Some(delivery) = self.current_message.as_mut() {
+            delivery.properties = properties;
         }
-        if let Some(task) = self.task.as_ref() {
-            task.wake_by_ref();
+        if size == 0 {
+            self.new_delivery_complete(channel)?;
+        }
+        Ok(())
+    }
+
+    fn handle_body_frame(
+        &mut self,
+        channel: &Channel,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+    ) -> Result<()> {
+        if let Some(delivery) = self.current_message.as_mut() {
+            delivery.receive_content(payload);
+        }
+        if remaining_size == 0 {
+            self.new_delivery_complete(channel)?;
+        }
+        Ok(())
+    }
+
+    fn new_delivery_complete(&mut self, channel: &Channel) -> Result<()> {
+        if let Some(delivery) = self.current_message.take() {
+            trace!("new_delivery; consumer_tag={}", self.tag);
+            if let Some(delegate) = self.delegate.as_ref() {
+                let delegate = delegate.clone();
+                self.executor
+                    .spawn(delegate.on_new_delivery(Ok(Some((channel.clone(), delivery)))))?;
+            } else {
+                self.deliveries_in
+                    .send(Ok(Some((channel.clone(), delivery))))
+                    .expect("failed to send delivery to consumer");
+            }
+            if let Some(task) = self.task.as_ref() {
+                task.wake_by_ref();
+            }
         }
         Ok(())
     }

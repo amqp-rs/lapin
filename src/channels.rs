@@ -9,6 +9,7 @@ use crate::{
     registry::Registry,
     socket_state::SocketStateHandle,
     topology_internal::ChannelDefinitionInternal,
+    types::LongLongUInt,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
@@ -98,7 +99,7 @@ impl Channels {
         &self,
         id: u16,
         class_id: u16,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) -> Result<()> {
         self.get(id)

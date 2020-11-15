@@ -1,5 +1,5 @@
 use crate::{
-    types::{ShortString, ShortUInt},
+    types::{LongLongUInt, ShortString, ShortUInt},
     Result,
 };
 use std::collections::VecDeque;
@@ -29,7 +29,7 @@ impl ChannelReceiverStates {
         &mut self,
         channel_id: u16,
         class_id: ShortUInt,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
@@ -62,12 +62,12 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&DeliveryCause, usize, bool) -> Result<()>,
+        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
         channel_id: u16,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,
         confirm_mode: bool,
@@ -99,7 +99,7 @@ impl ChannelReceiverStates {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ChannelReceiverState {
     WillReceiveContent(ShortUInt, DeliveryCause),
-    ReceivingContent(DeliveryCause, usize),
+    ReceivingContent(DeliveryCause, LongLongUInt),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
