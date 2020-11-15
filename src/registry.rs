@@ -1,7 +1,8 @@
 use crate::{
     exchange::ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
-    topology::{BindingDefinition, ExchangeDefinition, QueueDefinition},
+    topology::{BindingDefinition, ExchangeDefinition},
+    topology_internal::QueueDefinitionInternal,
     types::{FieldTable, ShortString},
 };
 use parking_lot::Mutex;
@@ -15,13 +16,13 @@ impl Registry {
         self.0.lock().exchanges.values().cloned().collect()
     }
 
-    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinition> {
+    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinitionInternal> {
         self.0
             .lock()
             .queues
             .values()
             .filter(|q| q.is_exclusive() == exclusive)
-            .cloned()
+            .map(|q| q.clone())
             .collect()
     }
 
@@ -105,12 +106,11 @@ impl Registry {
     ) {
         let mut inner = self.0.lock();
         if let Some(queue) = inner.queues.get_mut(&name) {
-            queue.options = Some(options);
-            queue.arguments = Some(arguments);
+            queue.set_declared(options, arguments);
         } else {
             inner.queues.insert(
                 name.clone(),
-                QueueDefinition::new(name, Some(options), Some(arguments)),
+                QueueDefinitionInternal::declared(name, options, arguments),
             );
         }
     }
@@ -130,12 +130,7 @@ impl Registry {
             .lock()
             .queues
             .entry(destination.clone())
-            .or_insert_with(|| QueueDefinition {
-                name: destination,
-                options: None,
-                arguments: None,
-                bindings: Vec::new(),
-            })
+            .or_insert_with(|| QueueDefinitionInternal::undeclared(destination))
             .register_binding(source, routing_key, arguments);
     }
 
@@ -155,5 +150,5 @@ impl Registry {
 #[derive(Default)]
 struct Inner {
     exchanges: HashMap<ShortString, ExchangeDefinition>,
-    queues: HashMap<ShortString, QueueDefinition>,
+    queues: HashMap<ShortString, QueueDefinitionInternal>,
 }

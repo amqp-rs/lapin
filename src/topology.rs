@@ -45,51 +45,6 @@ pub struct QueueDefinition {
     pub bindings: Vec<BindingDefinition>,
 }
 
-impl QueueDefinition {
-    pub fn new(
-        name: ShortString,
-        options: Option<QueueDeclareOptions>,
-        arguments: Option<FieldTable>,
-    ) -> Self {
-        Self {
-            name,
-            options,
-            arguments,
-            bindings: Vec::new(),
-        }
-    }
-
-    pub(crate) fn is_exclusive(&self) -> bool {
-        self.options.map_or(false, |o| o.exclusive)
-    }
-
-    pub(crate) fn register_binding(
-        &mut self,
-        source: ShortString,
-        routing_key: ShortString,
-        arguments: FieldTable,
-    ) {
-        self.bindings.push(BindingDefinition {
-            source,
-            routing_key,
-            arguments,
-        });
-    }
-
-    pub(crate) fn deregister_binding(
-        &mut self,
-        source: &str,
-        routing_key: &str,
-        arguments: &FieldTable,
-    ) {
-        self.bindings.retain(|binding| {
-            binding.source.as_str() != source
-                || binding.routing_key.as_str() != routing_key
-                || &binding.arguments != arguments
-        });
-    }
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct BindingDefinition {
     pub source: ShortString,
