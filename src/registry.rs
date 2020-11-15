@@ -110,12 +110,7 @@ impl Registry {
         } else {
             inner.queues.insert(
                 name.clone(),
-                QueueDefinition {
-                    name,
-                    options: Some(options),
-                    arguments: Some(arguments),
-                    bindings: Vec::new(),
-                },
+                QueueDefinition::new(name, Some(options), Some(arguments)),
             );
         }
     }
@@ -141,12 +136,7 @@ impl Registry {
                 arguments: None,
                 bindings: Vec::new(),
             })
-            .bindings
-            .push(BindingDefinition {
-                source,
-                routing_key,
-                arguments,
-            });
+            .register_binding(source, routing_key, arguments);
     }
 
     pub(crate) fn deregister_queue_binding(
@@ -157,11 +147,7 @@ impl Registry {
         arguments: FieldTable,
     ) {
         if let Some(destination) = self.0.lock().queues.get_mut(&destination) {
-            destination.bindings.retain(|binding| {
-                binding.source != source
-                    || binding.routing_key != routing_key
-                    || binding.arguments != arguments
-            });
+            destination.deregister_binding(source, routing_key, arguments);
         }
     }
 }
