@@ -39,7 +39,7 @@ pub struct Channel {
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
-    registry: Registry,
+    global_registry: Registry,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
@@ -85,7 +85,7 @@ impl Channel {
         channel_id: u16,
         configuration: Configuration,
         connection_status: ConnectionStatus,
-        registry: Registry,
+        global_registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -108,7 +108,7 @@ impl Channel {
             configuration,
             status,
             connection_status,
-            registry,
+            global_registry,
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
@@ -217,7 +217,7 @@ impl Channel {
             configuration: self.configuration.clone(),
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
-            registry: self.registry.clone(),
+            global_registry: self.global_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
             queues: self.queues.clone(),
@@ -833,7 +833,7 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.registry
+        self.global_registry
             .register_exchange_binding(destination, source, routing_key, arguments);
         Ok(())
     }
@@ -845,8 +845,12 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.registry
-            .deregister_exchange_binding(destination, source, routing_key, arguments);
+        self.global_registry.deregister_exchange_binding(
+            destination,
+            source,
+            routing_key,
+            arguments,
+        );
         Ok(())
     }
 
@@ -858,14 +862,14 @@ impl Channel {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.registry
+        self.global_registry
             .register_exchange(exchange, kind, options, arguments);
         resolver.swear(Ok(()));
         Ok(())
     }
 
     fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
-        self.registry.deregister_exchange(exchange);
+        self.global_registry.deregister_exchange(exchange);
         Ok(())
     }
 
@@ -876,7 +880,7 @@ impl Channel {
         queue: ShortString,
     ) -> Result<()> {
         self.queues.deregister(queue.as_str());
-        self.registry.deregister_queue(queue);
+        self.global_registry.deregister_queue(queue);
         resolver.swear(Ok(method.message_count));
         Ok(())
     }
@@ -904,7 +908,7 @@ impl Channel {
                 Some(arguments.clone()),
             ));
         }
-        self.registry
+        self.global_registry
             .register_queue(method.queue.clone(), options, arguments);
         resolver.swear(Ok(Queue::new(
             method.queue,
@@ -927,7 +931,7 @@ impl Channel {
             routing_key.as_str(),
             &arguments,
         );
-        self.registry
+        self.global_registry
             .register_queue_binding(queue, exchange, routing_key, arguments);
         Ok(())
     }
@@ -945,7 +949,7 @@ impl Channel {
             routing_key.as_str(),
             &arguments,
         );
-        self.registry
+        self.global_registry
             .deregister_queue_binding(queue, exchange, routing_key, arguments);
         Ok(())
     }

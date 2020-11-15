@@ -28,7 +28,7 @@ use std::{fmt, io, sync::Arc};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
-    registry: Registry,
+    global_registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -43,11 +43,11 @@ impl Connection {
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
-        let registry = Registry::default();
+        let global_registry = Registry::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
-            registry.clone(),
+            global_registry.clone(),
             waker,
             internal_rpc.clone(),
             frames,
@@ -57,7 +57,7 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
-            registry,
+            global_registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -343,8 +343,8 @@ impl Connection {
 
     pub(crate) fn topology_internal(&self) -> TopologyInternal {
         TopologyInternal {
-            exchanges: self.registry.exchanges_topology(),
-            queues: self.registry.queues_topology(),
+            exchanges: self.global_registry.exchanges_topology(),
+            queues: self.global_registry.queues_topology(),
             channels: self.channels.topology(),
         }
     }
