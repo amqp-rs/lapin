@@ -135,6 +135,7 @@ type ConfirmationBroadcaster =
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
 mod acknowledgement;
+mod basic_get_delivery;
 mod buffer;
 mod channel;
 mod channel_closer;

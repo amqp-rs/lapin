@@ -1,9 +1,7 @@
 use crate::{
-    message::BasicGetMessage,
     queue::QueueState,
     topology::QueueDefinition,
-    types::{FieldTable, LongLongUInt, ShortString},
-    BasicProperties, PromiseResolver,
+    types::{FieldTable, ShortString},
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -66,53 +64,6 @@ impl Queues {
         if let Some(queue) = self.0.lock().get_mut(queue) {
             queue.deregister_binding(exchange.into(), routing_key.into(), arguments.clone());
         }
-    }
-
-    fn with_queue<F: FnOnce(&mut QueueState)>(&self, queue: &str, f: F) {
-        f(self
-            .0
-            .lock()
-            .entry(queue.into())
-            .or_insert_with(|| QueueState::new(queue.into(), None, None)))
-    }
-
-    pub(crate) fn start_basic_get_delivery(
-        &self,
-        queue: &str,
-        message: BasicGetMessage,
-        resolver: PromiseResolver<Option<BasicGetMessage>>,
-    ) {
-        self.with_queue(queue, |queue| {
-            queue.start_new_delivery(message, resolver);
-        })
-    }
-
-    pub(crate) fn handle_content_header_frame(
-        &self,
-        queue: &str,
-        size: LongLongUInt,
-        properties: BasicProperties,
-    ) {
-        self.with_queue(queue, |queue| {
-            queue.set_delivery_properties(properties);
-            if size == 0 {
-                queue.new_delivery_complete();
-            }
-        })
-    }
-
-    pub(crate) fn handle_body_frame(
-        &self,
-        queue: &str,
-        remaining_size: LongLongUInt,
-        payload: Vec<u8>,
-    ) {
-        self.with_queue(queue, |queue| {
-            queue.receive_delivery_content(payload);
-            if remaining_size == 0 {
-                queue.new_delivery_complete();
-            }
-        })
     }
 }
 

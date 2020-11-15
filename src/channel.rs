@@ -1,6 +1,7 @@
 use crate::{
     acknowledgement::{Acknowledgements, DeliveryTag},
     auth::Credentials,
+    basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
     channel_status::{ChannelState, ChannelStatus},
@@ -43,6 +44,7 @@ pub struct Channel {
     delivery_tag: IdSequence<DeliveryTag>,
     queues: Queues,
     consumers: Consumers,
+    basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
@@ -69,6 +71,7 @@ impl fmt::Debug for Channel {
             .field("delivery_tag", &self.delivery_tag)
             .field("queues", &self.queues)
             .field("consumers", &self.consumers)
+            .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
             .field("frames", &self.frames)
             .field("executor", &self.executor)
@@ -110,6 +113,7 @@ impl Channel {
             delivery_tag: IdSequence::new(false),
             queues: Queues::default(),
             consumers: Consumers::default(),
+            basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
             waker,
             internal_rpc,
@@ -218,6 +222,7 @@ impl Channel {
             delivery_tag: self.delivery_tag.clone(),
             queues: self.queues.clone(),
             consumers: self.consumers.clone(),
+            basic_get_delivery: self.basic_get_delivery.clone(),
             returned_messages: self.returned_messages.clone(),
             waker: self.waker.clone(),
             internal_rpc: self.internal_rpc.clone(),
@@ -389,12 +394,9 @@ impl Channel {
                             properties,
                         )?;
                     }
-                    DeliveryCause::Get(queue_name) => {
-                        self.queues.handle_content_header_frame(
-                            queue_name.as_str(),
-                            size,
-                            properties,
-                        );
+                    DeliveryCause::Get => {
+                        self.basic_get_delivery
+                            .handle_content_header_frame(size, properties);
                     }
                     DeliveryCause::Return => {
                         self.returned_messages.handle_content_header_frame(
@@ -435,9 +437,9 @@ impl Channel {
                             payload,
                         )?;
                     }
-                    DeliveryCause::Get(queue_name) => {
-                        self.queues
-                            .handle_body_frame(queue_name.as_str(), remaining_size, payload);
+                    DeliveryCause::Get => {
+                        self.basic_get_delivery
+                            .handle_body_frame(remaining_size, payload);
                     }
                     DeliveryCause::Return => {
                         self.returned_messages.handle_body_frame(
@@ -952,11 +954,9 @@ impl Channel {
         &self,
         method: protocol::basic::GetOk,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
-        queue: ShortString,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        self.queues.start_basic_get_delivery(
-            queue.as_str(),
+        self.basic_get_delivery.start_new_delivery(
             BasicGetMessage::new(
                 method.delivery_tag,
                 method.exchange,
@@ -966,14 +966,13 @@ impl Channel {
             ),
             resolver,
         );
-        self.status
-            .set_will_receive(class_id, DeliveryCause::Get(queue));
+        self.status.set_will_receive(class_id, DeliveryCause::Get);
         Ok(())
     }
 
     fn on_basic_get_empty_received(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver, _)) => {
+            Some(Reply::BasicGetOk(resolver)) => {
                 resolver.swear(Ok(None));
                 Ok(())
             }

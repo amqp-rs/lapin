@@ -105,6 +105,6 @@ pub(crate) enum ChannelReceiverState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DeliveryCause {
     Consume(ShortString),
-    Get(ShortString),
+    Get,
     Return,
 }

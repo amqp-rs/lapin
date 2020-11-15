@@ -246,7 +246,7 @@ pub(crate) enum Reply {
         FieldTable,
     ),
     BasicCancelOk(PromiseResolver<()>),
-    BasicGetOk(PromiseResolver<Option<BasicGetMessage>>, ShortString),
+    BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
     BasicRecoverOk(PromiseResolver<()>),
     TxSelectOk(PromiseResolver<()>),
     TxCommitOk(PromiseResolver<()>),
@@ -2000,7 +2000,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone(), queue.into()),
+                Reply::BasicGetOk(resolver.clone()),
                 Box::new(resolver),
             )),
         );
@@ -2012,9 +2012,7 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver, queue)) => {
-                self.on_basic_get_ok_received(method, resolver, queue)
-            }
+            Some(Reply::BasicGetOk(resolver)) => self.on_basic_get_ok_received(method, resolver),
             _ => self.handle_invalid_contents(
                 format!("unexepcted basic get-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),

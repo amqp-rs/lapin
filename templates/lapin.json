@@ -501,14 +501,7 @@
       "metadata": {
         "confirmation": {
           "type": "Option<BasicGetMessage>"
-        },
-        "state": [
-          {
-            "name": "queue",
-            "type": "ShortString",
-            "use_str_ref": true
-          }
-        ]
+        }
       }
     },
     "ack": {
