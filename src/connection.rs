@@ -149,15 +149,17 @@ impl Connection {
 
         // Third, redeclare all "global" (e.g. non exclusive) queues
         for queue in &topology.queues {
-            restored.queues.push(
-                channel
-                    .queue_declare(
-                        queue.name.as_str(),
-                        queue.options.unwrap_or_default(),
-                        queue.arguments.clone().unwrap_or_default(),
-                    )
-                    .await?,
-            );
+            if queue.is_declared() {
+                restored.queues.push(
+                    channel
+                        .queue_declare(
+                            queue.name.as_str(),
+                            queue.options.unwrap_or_default(),
+                            queue.arguments.clone().unwrap_or_default(),
+                        )
+                        .await?,
+                );
+            }
         }
 
         // Fourth, redeclare all global queues bindings

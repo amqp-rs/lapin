@@ -104,6 +104,10 @@ impl QueueDefinitionInternal {
         self.declared = true;
     }
 
+    pub(crate) fn is_declared(&self) -> bool {
+        self.declared
+    }
+
     pub(crate) fn is_exclusive(&self) -> bool {
         self.definition.options.map_or(false, |o| o.exclusive)
     }

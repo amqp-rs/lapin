@@ -133,14 +133,16 @@ impl Channel {
     ) -> Result<()> {
         // First, redeclare all queues
         for queue in &ch.queues {
-            c.queues.push(
-                self.queue_declare(
-                    queue.name.as_str(),
-                    queue.options.unwrap_or_default(),
-                    queue.arguments.clone().unwrap_or_default(),
-                )
-                .await?,
-            );
+            if queue.is_declared() {
+                c.queues.push(
+                    self.queue_declare(
+                        queue.name.as_str(),
+                        queue.options.unwrap_or_default(),
+                        queue.arguments.clone().unwrap_or_default(),
+                    )
+                    .await?,
+                );
+            }
         }
 
         // Second, redeclare all queues bindings
