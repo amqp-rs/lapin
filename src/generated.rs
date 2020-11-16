@@ -244,6 +244,7 @@ pub(crate) enum Reply {
         ShortString,
         BasicConsumeOptions,
         FieldTable,
+        Option<Consumer>,
     ),
     BasicCancelOk(PromiseResolver<()>),
     BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
@@ -1744,12 +1745,13 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub fn basic_consume(
+    fn do_basic_consume(
         &self,
         queue: &str,
         consumer_tag: &str,
         options: BasicConsumeOptions,
         arguments: FieldTable,
+        original: Option<Consumer>,
     ) -> PromiseChain<Consumer> {
         if !self.status.connected() {
             return PromiseChain::new_with_data(Err(Error::InvalidChannelState(
@@ -1795,6 +1797,7 @@ impl Channel {
                     queue.into(),
                     options,
                     creation_arguments,
+                    original,
                 ),
                 Box::new(resolver),
             )),
@@ -1820,6 +1823,7 @@ impl Channel {
                 queue,
                 options,
                 creation_arguments,
+                original,
             )) => self.on_basic_consume_ok_received(
                 method,
                 resolver,
@@ -1827,6 +1831,7 @@ impl Channel {
                 queue,
                 options,
                 creation_arguments,
+                original,
             ),
             _ => self.handle_invalid_contents(
                 format!(

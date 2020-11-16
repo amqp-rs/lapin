@@ -162,11 +162,12 @@ impl Channel {
         // Third, redeclare all consumers
         for consumer in &ch.consumers {
             c.consumers.push(
-                self.basic_consume(
+                self.do_basic_consume(
                     consumer.queue.as_str(),
                     consumer.tag.as_str(),
                     consumer.options,
                     consumer.arguments.clone(),
+                    consumer.inner(),
                 )
                 .await?,
             );
@@ -262,6 +263,16 @@ impl Channel {
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
         self.do_channel_close(reply_code, reply_text, 0, 0)
+    }
+
+    pub fn basic_consume(
+        &self,
+        queue: &str,
+        consumer_tag: &str,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
+    ) -> PromiseChain<Consumer> {
+        self.do_basic_consume(queue, consumer_tag, options, arguments, None)
     }
 
     pub fn exchange_declare(
@@ -1002,15 +1013,18 @@ impl Channel {
         queue: ShortString,
         options: BasicConsumeOptions,
         arguments: FieldTable,
+        original: Option<Consumer>,
     ) -> Result<()> {
-        let consumer = Consumer::new(
-            method.consumer_tag.clone(),
-            self.executor.clone(),
-            channel_closer,
-            queue,
-            options,
-            arguments,
-        );
+        let consumer = original.unwrap_or_else(|| {
+            Consumer::new(
+                method.consumer_tag.clone(),
+                self.executor.clone(),
+                channel_closer,
+                queue,
+                options,
+                arguments,
+            )
+        });
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
         self.consumers.register(method.consumer_tag, consumer);
         resolver.swear(Ok(external_consumer));

@@ -435,10 +435,17 @@
   "basic": {
     "consume": {
       "metadata": {
+        "require_wrapper": true,
         "init_clones": [
           {
             "from": "arguments",
             "to": "creation_arguments"
+          }
+        ],
+        "extra_args": [
+          {
+            "name": "original",
+            "type": "Option<Consumer>"
           }
         ],
         "state": [
@@ -459,6 +466,10 @@
           {
             "name": "creation_arguments",
             "type": "FieldTable"
+          },
+          {
+            "name": "original",
+            "type": "Option<Consumer>"
           }
         ],
         "confirmation": {

@@ -170,6 +170,7 @@ pub(crate) struct ConsumerDefinitionInternal {
 
 impl ConsumerDefinitionInternal {
     pub(crate) fn new(consumer: Consumer) -> Self {
+        consumer.reset();
         let definition = ConsumerDefinition {
             tag: consumer.tag(),
             options: consumer.options(),
@@ -180,6 +181,10 @@ impl ConsumerDefinitionInternal {
             consumer: Some(consumer),
             definition,
         }
+    }
+
+    pub(crate) fn inner(&self) -> Option<Consumer> {
+        self.consumer.clone()
     }
 }
 

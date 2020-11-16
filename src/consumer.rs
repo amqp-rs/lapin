@@ -223,7 +223,11 @@ impl Consumer {
         Ok(())
     }
 
-    pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
+    pub(crate) fn reset(&self) {
+        self.inner.lock().reset(self.options.no_ack)
+    }
+
+    pub(crate) fn start_new_delivery(&self, delivery: Delivery) {
         self.inner.lock().current_message = Some(delivery)
     }
 
@@ -327,6 +331,13 @@ impl ConsumerInner {
             delegate: None,
             executor,
         }
+    }
+
+    fn reset(&mut self, no_ack: bool) {
+        if !no_ack {
+            while let Some(_) = self.next_delivery() {}
+        }
+        self.current_message = None;
     }
 
     fn next_delivery(&mut self) -> Option<DeliveryResult> {
