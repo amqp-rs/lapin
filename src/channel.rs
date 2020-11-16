@@ -173,6 +173,16 @@ impl Channel {
             );
         }
 
+        // Fourth, reemit pending basic_get
+        if let Some(original) = self.basic_get_delivery.recover() {
+            self.do_basic_get(
+                original.queue.as_str(),
+                original.options,
+                Some(original.resolver),
+            )
+            .await?;
+        }
+
         Ok(())
     }
 
@@ -273,6 +283,14 @@ impl Channel {
         arguments: FieldTable,
     ) -> PromiseChain<Consumer> {
         self.do_basic_consume(queue, consumer_tag, options, arguments, None)
+    }
+
+    pub fn basic_get(
+        &self,
+        queue: &str,
+        options: BasicGetOptions,
+    ) -> PromiseChain<Option<BasicGetMessage>> {
+        self.do_basic_get(queue, options, None)
     }
 
     pub fn exchange_declare(
@@ -975,9 +993,13 @@ impl Channel {
         &self,
         method: protocol::basic::GetOk,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
+        queue: ShortString,
+        options: BasicGetOptions,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
         self.basic_get_delivery.start_new_delivery(
+            queue,
+            options,
             BasicGetMessage::new(
                 method.delivery_tag,
                 method.exchange,
@@ -993,7 +1015,7 @@ impl Channel {
 
     fn on_basic_get_empty_received(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver)) => {
+            Some(Reply::BasicGetOk(resolver, ..)) => {
                 resolver.swear(Ok(None));
                 Ok(())
             }

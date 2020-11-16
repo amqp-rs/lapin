@@ -247,7 +247,11 @@ pub(crate) enum Reply {
         Option<Consumer>,
     ),
     BasicCancelOk(PromiseResolver<()>),
-    BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
+    BasicGetOk(
+        PromiseResolver<Option<BasicGetMessage>>,
+        ShortString,
+        BasicGetOptions,
+    ),
     BasicRecoverOk(PromiseResolver<()>),
     TxSelectOk(PromiseResolver<()>),
     TxCommitOk(PromiseResolver<()>),
@@ -1975,10 +1979,11 @@ impl Channel {
         self.on_basic_deliver_received(method)
     }
     #[allow(clippy::too_many_arguments)]
-    pub fn basic_get(
+    fn do_basic_get(
         &self,
         queue: &str,
         options: BasicGetOptions,
+        original: Option<PromiseResolver<Option<BasicGetMessage>>>,
     ) -> PromiseChain<Option<BasicGetMessage>> {
         if !self.status.connected() {
             return PromiseChain::new_with_data(Err(Error::InvalidChannelState(
@@ -2001,11 +2006,12 @@ impl Channel {
         if log_enabled!(Trace) {
             promise.set_marker("basic.get.Ok".into());
         }
+        let resolver = original.unwrap_or(resolver);
         self.send_method_frame(
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone()),
+                Reply::BasicGetOk(resolver.clone(), queue.into(), options),
                 Box::new(resolver),
             )),
         );
@@ -2017,7 +2023,9 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver)) => self.on_basic_get_ok_received(method, resolver),
+            Some(Reply::BasicGetOk(resolver, queue, options)) => {
+                self.on_basic_get_ok_received(method, resolver, queue, options)
+            }
             _ => self.handle_invalid_contents(
                 format!("unexepcted basic get-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),

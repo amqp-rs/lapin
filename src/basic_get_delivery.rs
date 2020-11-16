@@ -1,4 +1,10 @@
-use crate::{message::BasicGetMessage, types::LongLongUInt, BasicProperties, PromiseResolver};
+use crate::{
+    message::BasicGetMessage,
+    options::BasicGetOptions,
+    topology_internal::BasicGetDefinitionInternal,
+    types::{LongLongUInt, ShortString},
+    BasicProperties, PromiseResolver,
+};
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
 
@@ -8,10 +14,14 @@ pub(crate) struct BasicGetDelivery(Arc<Mutex<Inner>>);
 impl BasicGetDelivery {
     pub(crate) fn start_new_delivery(
         &self,
+        queue: ShortString,
+        options: BasicGetOptions,
         message: BasicGetMessage,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.0.lock().start_new_delivery(message, resolver);
+        self.0
+            .lock()
+            .start_new_delivery(queue, options, message, resolver);
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -24,6 +34,18 @@ impl BasicGetDelivery {
 
     pub(crate) fn handle_body_frame(&self, remaining_size: LongLongUInt, payload: Vec<u8>) {
         self.0.lock().handle_body_frame(remaining_size, payload);
+    }
+
+    pub(crate) fn recover(&self) -> Option<BasicGetDefinitionInternal> {
+        self.0
+            .lock()
+            .0
+            .take()
+            .map(|inner| BasicGetDefinitionInternal {
+                queue: inner.queue,
+                options: inner.options,
+                resolver: inner.resolver,
+            })
     }
 }
 
@@ -39,10 +61,17 @@ struct Inner(Option<InnerData>);
 impl Inner {
     fn start_new_delivery(
         &mut self,
+        queue: ShortString,
+        options: BasicGetOptions,
         message: BasicGetMessage,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.0 = Some(InnerData { message, resolver });
+        self.0 = Some(InnerData {
+            queue,
+            options,
+            message,
+            resolver,
+        });
     }
 
     fn handle_content_header_frame(&mut self, size: LongLongUInt, properties: BasicProperties) {
@@ -71,6 +100,8 @@ impl Inner {
 }
 
 struct InnerData {
+    queue: ShortString,
+    options: BasicGetOptions,
     message: BasicGetMessage,
     resolver: PromiseResolver<Option<BasicGetMessage>>,
 }

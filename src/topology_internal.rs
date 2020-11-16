@@ -1,12 +1,14 @@
 use crate::{
     channel::Channel,
     consumer::Consumer,
-    options::QueueDeclareOptions,
+    message::BasicGetMessage,
+    options::{BasicGetOptions, QueueDeclareOptions},
     topology::{
         BindingDefinition, ChannelDefinition, ConsumerDefinition, ExchangeDefinition,
         QueueDefinition, TopologyDefinition,
     },
     types::{FieldTable, ShortString},
+    PromiseResolver,
 };
 use std::ops::Deref;
 
@@ -209,4 +211,11 @@ impl From<ConsumerDefinitionInternal> for ConsumerDefinition {
     fn from(internal: ConsumerDefinitionInternal) -> Self {
         internal.definition
     }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BasicGetDefinitionInternal {
+    pub(crate) queue: ShortString,
+    pub(crate) options: BasicGetOptions,
+    pub(crate) resolver: PromiseResolver<Option<BasicGetMessage>>,
 }

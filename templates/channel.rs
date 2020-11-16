@@ -128,6 +128,7 @@ impl Channel {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
+    {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     self.send_method_frame(method, send_resolver, {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/if ~}}{{/each ~}}), Box::new(resolver))){{else}}None{{/if ~}});
     {{#if method.metadata.end_hook ~}}
     let end_hook_res = self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});

@@ -510,6 +510,25 @@
     },
     "get": {
       "metadata": {
+        "require_wrapper": true,
+        "extra_args": [
+          {
+            "name": "original",
+            "type": "Option<PromiseResolver<Option<BasicGetMessage>>>"
+          }
+        ],
+        "state": [
+          {
+            "name": "queue",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "options",
+            "type": "BasicGetOptions"
+          }
+        ],
+        "resolver_hook": "let resolver = original.unwrap_or(resolver);",
         "confirmation": {
           "type": "Option<BasicGetMessage>"
         }
