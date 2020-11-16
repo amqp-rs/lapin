@@ -126,6 +126,10 @@ impl Channel {
         &self.status
     }
 
+    pub(crate) fn reset(&self) {
+        // FIXME
+    }
+
     pub(crate) async fn restore(
         &self,
         ch: &ChannelDefinitionInternal,

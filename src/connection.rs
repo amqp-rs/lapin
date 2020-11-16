@@ -107,10 +107,16 @@ impl Connection {
         let mut restored = RestoredTopology::default();
 
         // First, recreate all channels
-        for _ in &topology.channels {
+        for c in &topology.channels {
             restored
                 .channels
-                .push(RestoredChannel::new(self.create_channel().await?));
+                .push(RestoredChannel::new(if let Some(c) = c.channel.clone() {
+                    let channel = c.clone();
+                    c.reset();
+                    c.channel_open(channel).await?
+                } else {
+                    self.create_channel().await?
+                }));
         }
 
         // Then, ensure we have at least one channel to restore everything else
