@@ -161,10 +161,10 @@ impl Channel {
         for consumer in &ch.consumers {
             c.consumers.push(
                 self.basic_consume(
-                    consumer.definition.queue.as_str(),
-                    consumer.definition.tag.as_str(),
-                    consumer.definition.options,
-                    consumer.definition.arguments.clone(),
+                    consumer.queue.as_str(),
+                    consumer.tag.as_str(),
+                    consumer.options,
+                    consumer.arguments.clone(),
                 )
                 .await?,
             );

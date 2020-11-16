@@ -160,8 +160,31 @@ impl From<QueueDefinitionInternal> for QueueDefinition {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ConsumerDefinitionInternal {
-    pub(crate) consumer: Option<Consumer>,
-    pub(crate) definition: ConsumerDefinition,
+    consumer: Option<Consumer>,
+    definition: ConsumerDefinition,
+}
+
+impl ConsumerDefinitionInternal {
+    pub(crate) fn new(consumer: Consumer) -> Self {
+        let definition = ConsumerDefinition {
+            tag: consumer.tag(),
+            options: consumer.options(),
+            arguments: consumer.arguments(),
+            queue: consumer.queue(),
+        };
+        Self {
+            consumer: Some(consumer),
+            definition,
+        }
+    }
+}
+
+impl Deref for ConsumerDefinitionInternal {
+    type Target = ConsumerDefinition;
+
+    fn deref(&self) -> &Self::Target {
+        &self.definition
+    }
 }
 
 impl From<ConsumerDefinition> for ConsumerDefinitionInternal {

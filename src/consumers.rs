@@ -1,7 +1,6 @@
 use crate::{
     consumer::Consumer,
     message::Delivery,
-    topology::ConsumerDefinition,
     topology_internal::ConsumerDefinitionInternal,
     types::{LongLongUInt, ShortString},
     BasicProperties, Channel, Error, Result,
@@ -96,15 +95,7 @@ impl Consumers {
         self.0
             .lock()
             .values()
-            .map(|consumer| ConsumerDefinitionInternal {
-                consumer: Some(consumer.clone()),
-                definition: ConsumerDefinition {
-                    tag: consumer.tag(),
-                    options: consumer.options(),
-                    arguments: consumer.arguments(),
-                    queue: consumer.queue(),
-                },
-            })
+            .map(|consumer| ConsumerDefinitionInternal::new(consumer.clone()))
             .collect()
     }
 }
