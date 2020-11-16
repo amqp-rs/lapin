@@ -161,13 +161,17 @@ impl Channel {
 
         // Third, redeclare all consumers
         for consumer in &ch.consumers {
+            let original = consumer.original();
+            if let Some(original) = original.as_ref() {
+                original.reset();
+            }
             c.consumers.push(
                 self.do_basic_consume(
                     consumer.queue.as_str(),
                     consumer.tag.as_str(),
                     consumer.options,
                     consumer.arguments.clone(),
-                    consumer.inner(),
+                    original,
                 )
                 .await?,
             );
