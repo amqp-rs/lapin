@@ -1,10 +1,15 @@
 use crate::{
-    channels::Channels, executor::Executor, options::BasicCancelOptions,
-    socket_state::SocketStateHandle, types::ShortUInt, Error, Result,
+    acknowledgement::DeliveryTag,
+    channels::Channels,
+    executor::Executor,
+    options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
+    socket_state::SocketStateHandle,
+    types::ShortUInt,
+    Error, PromiseResolver, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;
-use std::{future::Future, sync::Arc};
+use std::{fmt, future::Future, sync::Arc};
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<InternalCommand>,
@@ -19,6 +24,51 @@ pub(crate) struct InternalRPCHandle {
 }
 
 impl InternalRPCHandle {
+    pub(crate) fn basic_ack(
+        &self,
+        channel_id: u16,
+        delivery_tag: DeliveryTag,
+        options: BasicAckOptions,
+        resolver: PromiseResolver<()>,
+    ) {
+        self.send(InternalCommand::BasicAck(
+            channel_id,
+            delivery_tag,
+            options,
+            resolver,
+        ));
+    }
+
+    pub(crate) fn basic_nack(
+        &self,
+        channel_id: u16,
+        delivery_tag: DeliveryTag,
+        options: BasicNackOptions,
+        resolver: PromiseResolver<()>,
+    ) {
+        self.send(InternalCommand::BasicNack(
+            channel_id,
+            delivery_tag,
+            options,
+            resolver,
+        ));
+    }
+
+    pub(crate) fn basic_reject(
+        &self,
+        channel_id: u16,
+        delivery_tag: DeliveryTag,
+        options: BasicRejectOptions,
+        resolver: PromiseResolver<()>,
+    ) {
+        self.send(InternalCommand::BasicReject(
+            channel_id,
+            delivery_tag,
+            options,
+            resolver,
+        ));
+    }
+
     pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String) {
         self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag));
     }
@@ -79,10 +129,30 @@ impl InternalRPCHandle {
             }
         }))
     }
+
+    fn register_internal_future_with_resolver(
+        &self,
+        f: impl Future<Output = Result<()>> + Send + 'static,
+        resolver: PromiseResolver<()>,
+    ) -> Result<()> {
+        self.executor.spawn(Box::pin(async move {
+            let res = f.await;
+            resolver.swear(res);
+        }))
+    }
+}
+
+impl fmt::Debug for InternalRPCHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InternalRPCHandle").finish()
+    }
 }
 
 #[derive(Debug)]
 enum InternalCommand {
+    BasicAck(u16, DeliveryTag, BasicAckOptions, PromiseResolver<()>),
+    BasicNack(u16, DeliveryTag, BasicNackOptions, PromiseResolver<()>),
+    BasicReject(u16, DeliveryTag, BasicRejectOptions, PromiseResolver<()>),
     CancelConsumer(u16, String),
     CloseChannel(u16, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
@@ -120,6 +190,33 @@ impl InternalRPC {
 
         trace!("Handling internal RPC command: {:?}", command);
         match command {
+            BasicAck(channel_id, delivery_tag, options, resolver) => channels
+                .get(channel_id)
+                .map(|channel| {
+                    self.handle.register_internal_future_with_resolver(
+                        channel.basic_ack(delivery_tag, options),
+                        resolver,
+                    )
+                })
+                .unwrap_or(Ok(())),
+            BasicNack(channel_id, delivery_tag, options, resolver) => channels
+                .get(channel_id)
+                .map(|channel| {
+                    self.handle.register_internal_future_with_resolver(
+                        channel.basic_nack(delivery_tag, options),
+                        resolver,
+                    )
+                })
+                .unwrap_or(Ok(())),
+            BasicReject(channel_id, delivery_tag, options, resolver) => channels
+                .get(channel_id)
+                .map(|channel| {
+                    self.handle.register_internal_future_with_resolver(
+                        channel.basic_reject(delivery_tag, options),
+                        resolver,
+                    )
+                })
+                .unwrap_or(Ok(())),
             CancelConsumer(channel_id, consumer_tag) => channels
                 .get(channel_id)
                 .map(|channel| {
