@@ -1,5 +1,5 @@
 use crate::{
-    acknowledgement::{Acknowledgements, DeliveryTag},
+    acknowledgement::Acknowledgements,
     auth::Credentials,
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
@@ -23,8 +23,8 @@ use crate::{
     topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
-    BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, Error,
-    ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
+    BasicProperties, Configuration, ConfirmationPromise, Connection, ConnectionStatus, DeliveryTag,
+    Error, ExchangeKind, Promise, PromiseChain, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use log::{debug, error, info, log_enabled, trace, Level::Trace};

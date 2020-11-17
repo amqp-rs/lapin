@@ -1,11 +1,10 @@
 use crate::{
-    acknowledgement::DeliveryTag,
     channels::Channels,
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::ShortUInt,
-    Error, PromiseResolver, Result,
+    DeliveryTag, Error, PromiseResolver, Result,
 };
 use crossbeam_channel::{Receiver, Sender};
 use log::trace;

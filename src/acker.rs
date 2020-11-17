@@ -1,8 +1,7 @@
 use crate::{
-    acknowledgement::DeliveryTag,
     internal_rpc::InternalRPCHandle,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
-    Promise, PromiseResolver, Result,
+    DeliveryTag, Promise, PromiseResolver, Result,
 };
 
 #[derive(Default, Debug, Clone)]

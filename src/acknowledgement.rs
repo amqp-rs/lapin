@@ -2,7 +2,7 @@ use crate::{
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    ConfirmationBroadcaster, Error, Promise,
+    ConfirmationBroadcaster, DeliveryTag, Error, Promise,
 };
 use parking_lot::Mutex;
 use std::{
@@ -10,8 +10,6 @@ use std::{
     fmt,
     sync::Arc,
 };
-
-pub type DeliveryTag = u64;
 
 #[derive(Clone)]
 pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);

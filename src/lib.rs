@@ -125,6 +125,8 @@ pub mod reactor;
 pub mod socket_state;
 pub mod topology;
 
+pub type DeliveryTag = u64;
+
 pub type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 pub type PromiseChain<T> = pinky_swear::PinkySwear<Result<T>, Result<()>>;
 pub type ConfirmationPromise<T> =
