@@ -14,9 +14,9 @@ impl ConsumerDelegate for Subscriber {
         delivery: DeliveryResult,
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         Box::pin(async move {
-            if let Ok(Some((channel, delivery))) = delivery {
-                channel
-                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+            if let Ok(Some((_, delivery))) = delivery {
+                delivery
+                    .ack(BasicAckOptions::default())
                     .await
                     .expect("basic_ack");
             }

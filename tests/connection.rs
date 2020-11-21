@@ -27,17 +27,14 @@ impl ConsumerDelegate for Subscriber {
         Box::pin(async move {
             println!("received message: {:?}", delivery);
 
-            if let Some((channel, delivery)) = delivery.unwrap() {
+            if let Some((_, delivery)) = delivery.unwrap() {
                 println!("data: {}", std::str::from_utf8(&delivery.data).unwrap());
 
                 assert_eq!(delivery.data, b"Hello world!");
 
                 subscriber.hello_world.fetch_add(1, Ordering::SeqCst);
 
-                channel
-                    .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                    .await
-                    .unwrap();
+                delivery.ack(BasicAckOptions::default()).await.unwrap();
             }
         })
     }

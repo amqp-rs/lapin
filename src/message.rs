@@ -1,8 +1,11 @@
 use crate::{
+    acker::Acker,
+    internal_rpc::InternalRPCHandle,
     protocol::AMQPError,
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
     BasicProperties, Channel, Result,
 };
+use std::ops::Deref;
 
 /// Type wrapping the output of a consumer
 ///
@@ -14,14 +17,12 @@ pub type DeliveryResult = Result<Option<(Channel, Delivery)>>;
 /// A received AMQP message.
 ///
 /// The message has to be acknowledged after processing by calling
-/// [`Channel::basic_ack`], [`Channel::basic_reject`] or [`Channel::basic_nack`] with the delivery tag.
+/// [`Acker::ack`], [`Acker::nack`] or [`Acker::reject`].
 /// (Multiple acknowledgments are also possible).
 ///
-/// It is important to acknowledge on the same channel where the message was received.
-///
-/// [`Channel::basic_ack`]: ../struct.Channel.html#method.basic_ack
-/// [`Channel::basic_reject`]: ../struct.Channel.html#method.basic_reject
-/// [`Channel::basic_nack`]: ../struct.Channel.html#method.basic_nack
+/// [`Acker::ack`]: ../struct.Acker.html#method.ack
+/// [`Acker::nack`]: ../struct.Acker.html#method.nack
+/// [`Acker::reject`]: ../struct.Acker.html#method.reject
 #[derive(Clone, Debug, PartialEq)]
 pub struct Delivery {
     /// The delivery tag of the message. Use this for
@@ -45,14 +46,19 @@ pub struct Delivery {
 
     /// The payload of the message in binary format.
     pub data: Vec<u8>,
+
+    /// The acker used to ack/nack the message
+    pub acker: Acker,
 }
 
 impl Delivery {
     pub(crate) fn new(
+        channel_id: u16,
         delivery_tag: LongLongUInt,
         exchange: ShortString,
         routing_key: ShortString,
         redelivered: bool,
+        internal_rpc: Option<InternalRPCHandle>,
     ) -> Self {
         Self {
             delivery_tag,
@@ -61,11 +67,20 @@ impl Delivery {
             redelivered,
             properties: BasicProperties::default(),
             data: Vec::default(),
+            acker: Acker::new(channel_id, delivery_tag, internal_rpc),
         }
     }
 
     pub(crate) fn receive_content(&mut self, data: Vec<u8>) {
         self.data.extend(data);
+    }
+}
+
+impl Deref for Delivery {
+    type Target = Acker;
+
+    fn deref(&self) -> &Self::Target {
+        &self.acker
     }
 }
 
@@ -77,14 +92,23 @@ pub struct BasicGetMessage {
 
 impl BasicGetMessage {
     pub(crate) fn new(
+        channel_id: u16,
         delivery_tag: LongLongUInt,
         exchange: ShortString,
         routing_key: ShortString,
         redelivered: bool,
         message_count: LongUInt,
+        internal_rpc: InternalRPCHandle,
     ) -> Self {
         Self {
-            delivery: Delivery::new(delivery_tag, exchange, routing_key, redelivered),
+            delivery: Delivery::new(
+                channel_id,
+                delivery_tag,
+                exchange,
+                routing_key,
+                redelivered,
+                Some(internal_rpc),
+            ),
             message_count,
         }
     }
@@ -105,7 +129,7 @@ impl BasicReturnMessage {
         reply_text: ShortString,
     ) -> Self {
         Self {
-            delivery: Delivery::new(0, exchange, routing_key, false),
+            delivery: Delivery::new(0, 0, exchange, routing_key, false, None),
             reply_code,
             reply_text,
         }

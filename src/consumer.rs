@@ -66,8 +66,8 @@ impl<
 ///   [`Channel::basic_consume`], the server implicitely acknowledges each message after it has been
 ///   sent.
 /// * If the flag [`BasicConsumeOptions::no_ack`] is set to `false`, a message has to be explicitely
-///   acknowledged or rejected with [`Channel::basic_ack`],
-///   [`Channel::basic_reject`] or [`Channel::basic_nack`]. See the documentation at [`Delivery`]
+///   acknowledged or rejected with [`Acker::ack`],
+///   [`Acker::nack`] or [`Acker::reject`]. See the documentation at [`Delivery`]
 ///   for further information.
 ///
 /// Also see the RabbitMQ documentation about
@@ -112,9 +112,9 @@ impl<
 ///         .await?;
 ///
 ///     while let Some(delivery) = consumer.next().await {
-///         let (channel, delivery) = delivery.expect("error in consumer");
-///         channel
-///             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+///         let (_, delivery) = delivery.expect("error in consumer");
+///         delivery
+///             .ack(BasicAckOptions::default())
 ///             .await?;
 ///     }
 ///     Ok(())
@@ -123,10 +123,10 @@ impl<
 ///
 /// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
 /// [`Channel::basic_qos`]: ./struct.Channel.html#method.basic_qos
-/// [`Channel::basic_ack`]: ./struct.Channel.html#method.basic_ack
-/// [`Channel::basic_reject`]: ./struct.Channel.html#method.basic_reject
-/// [`Channel::basic_nack`]: ./struct.Channel.html#method.basic_nack
 /// [`Channel::basic_cancel`]: ./struct.Channel.html#method.basic_cancel
+/// [`Acker::ack`]: ./struct.Acker.html#method.ack
+/// [`Acker::reject`]: ./struct.Acker.html#method.reject
+/// [`Acker::nack`]: ./struct.Acker.html#method.nack
 /// [`DeliveryResult`]: ./message/type.DeliveryResult.html
 /// [`BasicConsumeOptions::no_ack`]: ./options/struct.BasicConsumeOptions.html#structfield.no_ack
 /// [`set_delegate`]: #method.set_delegate

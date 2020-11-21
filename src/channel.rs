@@ -1009,11 +1009,13 @@ impl Channel {
             queue,
             options,
             BasicGetMessage::new(
+                self.id,
                 method.delivery_tag,
                 method.exchange,
                 method.routing_key,
                 method.redelivered,
                 method.message_count,
+                self.internal_rpc.clone(),
             ),
             resolver,
         );
@@ -1066,10 +1068,12 @@ impl Channel {
         self.consumers.start_delivery(
             &method.consumer_tag,
             Delivery::new(
+                self.id,
                 method.delivery_tag,
                 method.exchange,
                 method.routing_key,
                 method.redelivered,
+                Some(self.internal_rpc.clone()),
             ),
         );
         self.status

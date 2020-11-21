@@ -60,9 +60,9 @@ fn main() {
             .expect("basic_consume")
             .set_delegate(move |delivery: DeliveryResult| async move {
                 info!("received message: {:?}", delivery);
-                if let Ok(Some((channel, delivery))) = delivery {
-                    channel
-                        .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                if let Ok(Some((_, delivery))) = delivery {
+                    delivery
+                        .ack(BasicAckOptions::default())
                         .await
                         .expect("basic_ack");
                 }
@@ -135,6 +135,7 @@ fn main() {
                     redelivered: false,
                     properties: BasicProperties::default().with_priority(42),
                     data: payload.to_vec(),
+                    acker: Default::default(),
                 },
                 reply_code: 312,
                 reply_text: "NO_ROUTE".into(),
