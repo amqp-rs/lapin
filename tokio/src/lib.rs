@@ -61,17 +61,11 @@ mod unix {
     use tokio::{io::unix::AsyncFd, time::sleep};
 
     #[derive(Debug)]
-    pub(crate) struct TokioReactorBuilder {
-        executor: Arc<dyn Executor>,
-        handle: Handle,
-    }
+    pub(crate) struct TokioReactorBuilder(Handle);
 
     impl TokioReactorBuilder {
         pub(crate) fn new(handle: Handle) -> Self {
-            Self {
-                executor: Arc::new(TokioExecutor(handle.clone())),
-                handle,
-            }
+            Self(handle)
         }
     }
 
@@ -112,13 +106,17 @@ mod unix {
     }
 
     impl ReactorBuilder for TokioReactorBuilder {
-        fn build(&self, heartbeat: Heartbeat) -> Result<Box<dyn Reactor + Send>> {
-            Ok(Box::new(TokioReactor(TokioReactorHandle {
+        fn build(
+            &self,
+            heartbeat: Heartbeat,
+            executor: Arc<dyn Executor>,
+        ) -> Box<dyn Reactor + Send> {
+            Box::new(TokioReactor(TokioReactorHandle {
                 heartbeat,
-                executor: self.executor.clone(),
-                handle: self.handle.clone(),
+                executor,
+                handle: self.0.clone(),
                 inner: Arc::new(Mutex::new(Default::default())),
-            })))
+            }))
         }
     }
 
@@ -144,29 +142,26 @@ mod unix {
     impl ReactorHandle for TokioReactorHandle {
         fn start_heartbeat(&self) {
             self.executor
-                .spawn(Box::pin(heartbeat(self.heartbeat.clone())))
-                .expect("start_heartbeat");
+                .spawn(Box::pin(heartbeat(self.heartbeat.clone())));
         }
 
         fn poll_read(&self, slot: usize) {
             if let Some((socket, socket_state)) = self.inner.lock().slots.get(&slot) {
                 self.executor
-                    .spawn(Box::pin(poll_read(socket.clone(), socket_state.clone())))
-                    .expect("poll_read");
+                    .spawn(Box::pin(poll_read(socket.clone(), socket_state.clone())));
             }
         }
 
         fn poll_write(&self, slot: usize) {
             if let Some((socket, socket_state)) = self.inner.lock().slots.get(&slot) {
                 self.executor
-                    .spawn(Box::pin(poll_write(socket.clone(), socket_state.clone())))
-                    .expect("poll_write");
+                    .spawn(Box::pin(poll_write(socket.clone(), socket_state.clone())));
             }
         }
     }
 
     async fn heartbeat(heartbeat: Heartbeat) {
-        while let Ok(Some(timeout)) = heartbeat.poll_timeout() {
+        while let Some(timeout) = heartbeat.poll_timeout() {
             sleep(timeout).await;
         }
     }
