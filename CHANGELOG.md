@@ -1,3 +1,13 @@
+### 1.6.0 (2020-11-21)
+
+#### Features
+
+* Introduce `Connection::topology` to get a serializable representation of the declared queues and consumers
+* Introduce `Connection::restore` to redeclare the things listed in a Topology
+* Introduce `Delivery::acker` as a simpler way to ack/nack/reject deliveries
+* `Delivery` can be dereferenced as `Acker` to directly be able to ack/nack/reject
+* `BasicGetMessage` and `BasicReturnMessage` can be dereferenced as `Delivery`
+
 ### 1.5.0 (2020-10-31)
 
 #### Misc
