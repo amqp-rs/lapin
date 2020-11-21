@@ -1,5 +1,5 @@
 use crate::{
-    types::{ShortString, ShortUInt},
+    types::{LongLongUInt, ShortString, ShortUInt},
     Result,
 };
 use std::collections::VecDeque;
@@ -13,46 +13,36 @@ impl ChannelReceiverStates {
         self.0.front().unwrap().clone()
     }
 
-    pub(crate) fn set_will_receive(
-        &mut self,
-        class_id: ShortUInt,
-        queue_name: Option<ShortString>,
-        request_id_or_consumer_tag: Option<ShortString>,
-    ) {
+    pub(crate) fn set_will_receive(&mut self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
         self.0.push_back(ChannelReceiverState::WillReceiveContent(
             class_id,
-            queue_name,
-            request_id_or_consumer_tag,
+            delivery_cause,
         ));
     }
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool),
+        Handler: FnOnce(&DeliveryCause, bool),
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
         channel_id: u16,
         class_id: ShortUInt,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
-        if let Some(ChannelReceiverState::WillReceiveContent(
-            expected_class_id,
-            queue_name,
-            request_id_or_consumer_tag,
-        )) = self.0.pop_front()
+        if let Some(ChannelReceiverState::WillReceiveContent(expected_class_id, delivery_cause)) =
+            self.0.pop_front()
         {
             if expected_class_id == class_id {
-                handler(&queue_name, &request_id_or_consumer_tag, confirm_mode);
+                handler(&delivery_cause, confirm_mode);
                 if length > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
-                        queue_name,
-                        request_id_or_consumer_tag,
+                        delivery_cause,
                         length,
                     ));
                 }
@@ -72,33 +62,24 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool),
+        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
         channel_id: u16,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
-        if let Some(ChannelReceiverState::ReceivingContent(
-            queue_name,
-            request_id_or_consumer_tag,
-            len,
-        )) = self.0.pop_front()
+        if let Some(ChannelReceiverState::ReceivingContent(delivery_cause, len)) =
+            self.0.pop_front()
         {
             if let Some(remaining) = len.checked_sub(length) {
-                handler(
-                    &queue_name,
-                    &request_id_or_consumer_tag,
-                    remaining,
-                    confirm_mode,
-                );
+                handler(&delivery_cause, remaining, confirm_mode);
                 if remaining > 0 {
                     self.0.push_front(ChannelReceiverState::ReceivingContent(
-                        queue_name,
-                        request_id_or_consumer_tag,
+                        delivery_cause,
                         remaining,
                     ));
                 }
@@ -117,6 +98,13 @@ impl ChannelReceiverStates {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ChannelReceiverState {
-    WillReceiveContent(ShortUInt, Option<ShortString>, Option<ShortString>),
-    ReceivingContent(Option<ShortString>, Option<ShortString>, usize),
+    WillReceiveContent(ShortUInt, DeliveryCause),
+    ReceivingContent(DeliveryCause, LongLongUInt),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DeliveryCause {
+    Consume(ShortString),
+    Get,
+    Return,
 }

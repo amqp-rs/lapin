@@ -1,6 +1,6 @@
 [package]
 name = "tokio-amqp"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with tokio"
@@ -15,12 +15,12 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies.lapin]
-version = "^1.4.2"
+version = "^1.5"
 path = ".."
 default-features = false
 
 [dependencies.tokio]
-version = "^0.3.2"
+version = "^0.3.4"
 default-features = false
 features = ["net", "rt", "time"]
 
@@ -28,7 +28,7 @@ features = ["net", "rt", "time"]
 parking_lot = "^0.11"
 
 [dev-dependencies.tokio]
-version = "^0.3.2"
+version = "^0.3.4"
 default-features = false
 features = ["net", "rt", "rt-multi-thread", "time"]
 

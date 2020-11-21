@@ -1,11 +1,14 @@
 use crate::{
-    acknowledgement::{Acknowledgements, DeliveryTag},
+    acknowledgement::Acknowledgements,
     auth::Credentials,
+    basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
+    channel_receiver_state::DeliveryCause,
     channel_status::{ChannelState, ChannelStatus},
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
+    consumers::Consumers,
     executor::Executor,
     frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
@@ -14,19 +17,19 @@ use crate::{
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
-    queues::Queues,
+    registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
+    topology::RestoredChannel,
+    topology_internal::ChannelDefinitionInternal,
     types::*,
-    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ExchangeKind, Promise,
-    PromiseResolver, Result,
+    BasicProperties, Configuration, Connection, ConnectionStatus, DeliveryTag, Error, ExchangeKind,
+    Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{error, info, level_enabled, trace, Level};
-
-#[cfg(test)]
-use crate::queue::QueueState;
 
 /// Main entry point for most AMQP operations.
 ///
@@ -43,9 +46,12 @@ pub struct Channel {
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
+    global_registry: Registry,
+    local_registry: Registry,
     acknowledgements: Acknowledgements,
     delivery_tag: IdSequence<DeliveryTag>,
-    queues: Queues,
+    consumers: Consumers,
+    basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
@@ -70,7 +76,8 @@ impl fmt::Debug for Channel {
             .field("connection_status", &self.connection_status)
             .field("acknowledgements", &self.acknowledgements)
             .field("delivery_tag", &self.delivery_tag)
-            .field("queues", &self.queues)
+            .field("consumers", &self.consumers)
+            .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
             .field("frames", &self.frames)
             .field("executor", &self.executor)
@@ -84,6 +91,7 @@ impl Channel {
         channel_id: u16,
         configuration: Configuration,
         connection_status: ConnectionStatus,
+        global_registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -106,9 +114,12 @@ impl Channel {
             configuration,
             status,
             connection_status,
+            global_registry,
+            local_registry: Registry::default(),
             acknowledgements: Acknowledgements::new(returned_messages.clone()),
             delivery_tag: IdSequence::new(false),
-            queues: Queues::default(),
+            consumers: Consumers::default(),
+            basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
             waker,
             internal_rpc,
@@ -121,6 +132,74 @@ impl Channel {
 
     pub fn status(&self) -> &ChannelStatus {
         &self.status
+    }
+
+    pub(crate) fn reset(&self) {
+        // FIXME
+    }
+
+    pub(crate) async fn restore(
+        &self,
+        ch: &ChannelDefinitionInternal,
+        c: &mut RestoredChannel,
+    ) -> Result<()> {
+        // First, redeclare all queues
+        for queue in &ch.queues {
+            if queue.is_declared() {
+                c.queues.push(
+                    self.queue_declare(
+                        queue.name.as_str(),
+                        queue.options.unwrap_or_default(),
+                        queue.arguments.clone().unwrap_or_default(),
+                    )
+                    .await?,
+                );
+            }
+        }
+
+        // Second, redeclare all queues bindings
+        for queue in &ch.queues {
+            for binding in &queue.bindings {
+                self.queue_bind(
+                    queue.name.as_str(),
+                    binding.source.as_str(),
+                    binding.routing_key.as_str(),
+                    QueueBindOptions::default(),
+                    binding.arguments.clone(),
+                )
+                .await?;
+            }
+        }
+
+        // Third, redeclare all consumers
+        for consumer in &ch.consumers {
+            let original = consumer.original();
+            if let Some(original) = original.as_ref() {
+                original.reset();
+            }
+            c.consumers.push(
+                self.do_basic_consume(
+                    consumer.queue.as_str(),
+                    consumer.tag.as_str(),
+                    consumer.options,
+                    consumer.arguments.clone(),
+                    original,
+                )
+                .await?,
+            );
+        }
+
+        // Fourth, reemit pending basic_get
+        if let Some(original) = self.basic_get_delivery.recover() {
+            self.do_basic_get(
+                original.queue.as_str(),
+                original.options,
+                Some(original.resolver),
+            )
+            .await?;
+        }
+
+        Ok(())
     }
 
     fn set_closed(&self, error: Error) {
@@ -142,11 +221,11 @@ impl Channel {
     }
 
     pub(crate) fn cancel_consumers(&self) {
-        self.queues.cancel_consumers();
+        self.consumers.cancel();
     }
 
     pub(crate) fn error_consumers(&self, error: Error) {
-        self.queues.error_consumers(error);
+        self.consumers.error(error);
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -163,9 +242,12 @@ impl Channel {
             configuration: self.configuration.clone(),
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
+            global_registry: self.global_registry.clone(),
+            local_registry: self.local_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             delivery_tag: self.delivery_tag.clone(),
-            queues: self.queues.clone(),
+            consumers: self.consumers.clone(),
+            basic_get_delivery: self.basic_get_delivery.clone(),
             returned_messages: self.returned_messages.clone(),
             waker: self.waker.clone(),
             internal_rpc: self.internal_rpc.clone(),
@@ -207,6 +289,25 @@ impl Channel {
         self.do_channel_close(reply_code, reply_text, 0, 0).await
     }
 
+    pub async fn basic_consume(
+        &self,
+        queue: &str,
+        consumer_tag: &str,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
+    ) -> Result<Consumer> {
+        self.do_basic_consume(queue, consumer_tag, options, arguments, None)
+            .await
+    }
+
+    pub async fn basic_get(
+        &self,
+        queue: &str,
+        options: BasicGetOptions,
+    ) -> Result<Option<BasicGetMessage>> {
+        self.do_basic_get(queue, options, None).await
+    }
+
     pub async fn exchange_declare(
         &self,
         exchange: &str,
@@ -214,7 +315,7 @@ impl Channel {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.do_exchange_declare(exchange, kind.kind(), options, arguments)
+        self.do_exchange_declare(exchange, kind.kind(), options, arguments, kind.clone())
             .await
     }
 
@@ -234,8 +335,18 @@ impl Channel {
     }
 
     #[cfg(test)]
-    pub(crate) fn register_queue(&self, queue: QueueState) {
-        self.queues.register(queue);
+    pub(crate) fn register_queue(
+        &self,
+        name: ShortString,
+        options: QueueDeclareOptions,
+        arguments: FieldTable,
+    ) {
+        self.local_registry.register_queue(name, options, arguments);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn register_consumer(&self, tag: ShortString, consumer: Consumer) {
+        self.consumers.register(tag, consumer);
     }
 
     pub(crate) fn send_method_frame(
@@ -309,27 +420,32 @@ impl Channel {
     pub(crate) fn handle_content_header_frame(
         &self,
         class_id: u16,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) -> Result<()> {
         self.status.set_content_length(
             self.id,
             class_id,
-            size as usize,
-            |queue_name, request_id_or_consumer_tag, confirm_mode| {
-                if let Some(queue_name) = queue_name {
-                    self.queues.handle_content_header_frame(
+            size,
+            |delivery_cause, confirm_mode| match delivery_cause {
+                DeliveryCause::Consume(consumer_tag) => {
+                    self.consumers.handle_content_header_frame(
                         &self,
-                        queue_name.as_str(),
-                        request_id_or_consumer_tag.clone(),
+                        consumer_tag,
                         size,
                         properties,
                     );
-                } else {
-                    self.returned_messages.set_delivery_properties(properties);
-                    if size == 0 {
-                        self.returned_messages.new_delivery_complete(confirm_mode);
-                    }
+                }
+                DeliveryCause::Get => {
+                    self.basic_get_delivery
+                        .handle_content_header_frame(size, properties);
+                }
+                DeliveryCause::Return => {
+                    self.returned_messages.handle_content_header_frame(
+                        size,
+                        properties,
+                        confirm_mode,
+                    );
                 }
             },
             |msg| {
@@ -352,25 +468,31 @@ impl Channel {
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
         self.status.receive(
             self.id,
-            payload.len(),
-            |queue_name, request_id_or_consumer_tag, remaining_size, confirm_mode| {
-                if let Some(queue_name) = queue_name {
-                    self.queues.handle_body_frame(
-                        &self,
-                        queue_name.as_str(),
-                        request_id_or_consumer_tag.clone(),
-                        remaining_size,
-                        payload,
-                    );
-                } else {
-                    self.returned_messages.receive_delivery_content(payload);
-                    if remaining_size == 0 {
-                        self.returned_messages.new_delivery_complete(confirm_mode);
-                    }
+            payload.len() as LongLongUInt,
+            |delivery_cause, remaining_size, confirm_mode| match delivery_cause {
+                DeliveryCause::Consume(consumer_tag) => {
+                    self.consumers
+                        .handle_body_frame(&self, consumer_tag, remaining_size, payload);
+                }
+                DeliveryCause::Get => {
+                    self.basic_get_delivery
+                        .handle_body_frame(remaining_size, payload);
+                }
+                DeliveryCause::Return => {
+                    self.returned_messages
+                        .handle_body_frame(remaining_size, payload, confirm_mode);
                 }
             },
             |msg| self.handle_invalid_contents(msg, 0, 0),
         )
+    }
+
+    pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
+        ChannelDefinitionInternal {
+            channel: Some(self.clone()),
+            queues: self.local_registry.queues_topology(true),
+            consumers: self.consumers.topology(),
+        }
     }
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
@@ -438,18 +560,18 @@ impl Channel {
     }
 
     fn on_basic_recover_async_sent(&self) {
-        self.queues.drop_prefetched_messages();
+        self.consumers.drop_prefetched_messages();
     }
 
     fn on_basic_ack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages();
+            self.consumers.drop_prefetched_messages();
         }
     }
 
     fn on_basic_nack_sent(&self, multiple: bool, delivery_tag: DeliveryTag) {
         if multiple && delivery_tag == 0 {
-            self.queues.drop_prefetched_messages();
+            self.consumers.drop_prefetched_messages();
         }
     }
 
@@ -757,13 +879,61 @@ impl Channel {
         Ok(())
     }
 
+    fn on_exchange_bind_ok_received(
+        &self,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.global_registry
+            .register_exchange_binding(destination, source, routing_key, arguments);
+        Ok(())
+    }
+
+    fn on_exchange_unbind_ok_received(
+        &self,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.global_registry.deregister_exchange_binding(
+            destination.as_str(),
+            source.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
+        Ok(())
+    }
+
+    fn on_exchange_declare_ok_received(
+        &self,
+        resolver: PromiseResolver<()>,
+        exchange: ShortString,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.global_registry
+            .register_exchange(exchange, kind, options, arguments);
+        resolver.swear(Ok(()));
+        Ok(())
+    }
+
+    fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
+        self.global_registry.deregister_exchange(exchange.as_str());
+        Ok(())
+    }
+
     fn on_queue_delete_ok_received(
         &self,
         method: protocol::queue::DeleteOk,
         resolver: PromiseResolver<LongUInt>,
         queue: ShortString,
     ) -> Result<()> {
-        self.queues.deregister(queue.as_str());
+        self.local_registry.deregister_queue(queue.as_str());
+        self.global_registry.deregister_queue(queue.as_str());
         resolver.swear(Ok(method.message_count));
         Ok(())
     }
@@ -781,10 +951,60 @@ impl Channel {
         &self,
         method: protocol::queue::DeclareOk,
         resolver: PromiseResolver<Queue>,
+        options: QueueDeclareOptions,
+        arguments: FieldTable,
     ) -> Result<()> {
-        let queue = Queue::new(method.queue, method.message_count, method.consumer_count);
-        self.queues.register(queue.clone().into());
-        resolver.swear(Ok(queue));
+        if options.exclusive {
+            self.local_registry
+                .register_queue(method.queue.clone(), options, arguments.clone());
+        }
+        self.global_registry
+            .register_queue(method.queue.clone(), options, arguments);
+        resolver.swear(Ok(Queue::new(
+            method.queue,
+            method.message_count,
+            method.consumer_count,
+        )));
+        Ok(())
+    }
+
+    fn on_queue_bind_ok_received(
+        &self,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.local_registry.register_queue_binding(
+            queue.clone(),
+            exchange.clone(),
+            routing_key.clone(),
+            arguments.clone(),
+        );
+        self.global_registry
+            .register_queue_binding(queue, exchange, routing_key, arguments);
+        Ok(())
+    }
+
+    fn on_queue_unbind_ok_received(
+        &self,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) -> Result<()> {
+        self.local_registry.deregister_queue_binding(
+            queue.as_str(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
+        self.global_registry.deregister_queue_binding(
+            queue.as_str(),
+            exchange.as_str(),
+            routing_key.as_str(),
+            &arguments,
+        );
         Ok(())
     }
 
@@ -793,26 +1013,30 @@ impl Channel {
         method: protocol::basic::GetOk,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
         queue: ShortString,
+        options: BasicGetOptions,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        self.queues.start_basic_get_delivery(
-            queue.as_str(),
+        self.basic_get_delivery.start_new_delivery(
+            queue,
+            options,
             BasicGetMessage::new(
+                self.id,
                 method.delivery_tag,
                 method.exchange,
                 method.routing_key,
                 method.redelivered,
                 method.message_count,
+                self.internal_rpc.clone(),
             ),
             resolver,
         );
-        self.status.set_will_receive(class_id, Some(queue), None);
+        self.status.set_will_receive(class_id, DeliveryCause::Get);
         Ok(())
     }
 
     fn on_basic_get_empty_received(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver, _)) => {
+            Some(Reply::BasicGetOk(resolver, ..)) => {
                 resolver.swear(Ok(None));
                 Ok(())
             }
@@ -830,39 +1054,46 @@ impl Channel {
         resolver: PromiseResolver<Consumer>,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
+        original: Option<Consumer>,
     ) -> Result<()> {
-        let consumer = Consumer::new(
-            method.consumer_tag.clone(),
-            self.executor.clone(),
-            channel_closer,
-        );
+        let consumer = original.unwrap_or_else(|| {
+            Consumer::new(
+                method.consumer_tag.clone(),
+                self.executor.clone(),
+                channel_closer,
+                queue,
+                options,
+                arguments,
+            )
+        });
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
-        self.queues
-            .register_consumer(queue.as_str(), method.consumer_tag, consumer);
+        self.consumers.register(method.consumer_tag, consumer);
         resolver.swear(Ok(external_consumer));
         Ok(())
     }
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        if let Some(queue_name) = self.queues.start_consumer_delivery(
-            method.consumer_tag.as_str(),
+        self.consumers.start_delivery(
+            &method.consumer_tag,
             Delivery::new(
+                self.id,
                 method.delivery_tag,
                 method.exchange,
                 method.routing_key,
                 method.redelivered,
+                Some(self.internal_rpc.clone()),
             ),
-        ) {
-            self.status
-                .set_will_receive(class_id, Some(queue_name), Some(method.consumer_tag));
-        }
+        );
+        self.status
+            .set_will_receive(class_id, DeliveryCause::Consume(method.consumer_tag));
         Ok(())
     }
 
     fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<()> {
-        self.queues
-            .deregister_consumer(method.consumer_tag.as_str());
+        self.consumers.deregister(method.consumer_tag.as_str());
         if !method.nowait {
             let channel = self.clone();
             self.internal_rpc.register_internal_future(async move {
@@ -873,8 +1104,7 @@ impl Channel {
     }
 
     fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<()> {
-        self.queues
-            .deregister_consumer(method.consumer_tag.as_str());
+        self.consumers.deregister(method.consumer_tag.as_str());
         Ok(())
     }
 
@@ -949,12 +1179,13 @@ impl Channel {
                 method.reply_code,
                 method.reply_text,
             ));
-        self.status.set_will_receive(class_id, None, None);
+        self.status
+            .set_will_receive(class_id, DeliveryCause::Return);
         Ok(())
     }
 
     fn on_basic_recover_ok_received(&self) -> Result<()> {
-        self.queues.drop_prefetched_messages();
+        self.consumers.drop_prefetched_messages();
         Ok(())
     }
 

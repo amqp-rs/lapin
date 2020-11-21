@@ -7,9 +7,10 @@ pub mod options {
   {{#each_argument method.arguments as |argument| ~}}
   {{#unless @argument_is_value ~}}
   {{#unless argument.ignore_flags ~}}
-  #[derive(Copy, Clone, Debug, Default, PartialEq)]
+  #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
   pub struct {{camel class.name}}{{camel method.name}}Options {
     {{#each argument.flags as |flag| ~}}
+    #[serde(default)]
     pub {{snake flag.name}}: Boolean,
     {{/each ~}}
   }
@@ -79,6 +80,9 @@ impl Channel {
     {{#if method.metadata.start_hook.returns ~}}let start_hook_res = {{/if ~}}self.before_{{snake class.name false}}_{{snake method.name false}}({{#each method.metadata.start_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});
     {{/if ~}}
 
+    {{#each method.metadata.init_clones as |init_clone| ~}}
+    let {{init_clone.to}} = {{init_clone.from}}.clone();
+    {{/each ~}}
     {{#unless method.ignore_args ~}}
     {{#each_argument method.arguments as |argument| ~}}
     {{#unless @argument_is_value ~}}
@@ -124,6 +128,7 @@ impl Channel {
       promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
     }
     {{/if ~}}
+    {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     self.send_method_frame(method, send_resolver, {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/if ~}}{{/each ~}}), Box::new(resolver))){{else}}None{{/if ~}});
     {{#if method.metadata.end_hook ~}}
     self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}});

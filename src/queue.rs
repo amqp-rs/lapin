@@ -1,8 +1,5 @@
-use crate::{
-    consumer::Consumer, message::BasicGetMessage, types::ShortString, BasicProperties, Error,
-    PromiseResolver,
-};
-use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash};
+use crate::types::ShortString;
+use std::borrow::Borrow;
 
 #[derive(Clone, Debug)]
 pub struct Queue {
@@ -12,6 +9,14 @@ pub struct Queue {
 }
 
 impl Queue {
+    pub(crate) fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Self {
+        Self {
+            name,
+            message_count,
+            consumer_count,
+        }
+    }
+
     pub fn name(&self) -> &ShortString {
         &self.name
     }
@@ -25,116 +30,8 @@ impl Queue {
     }
 }
 
-pub(crate) struct QueueState {
-    name: ShortString,
-    consumers: HashMap<ShortString, Consumer>,
-    current_get_message: Option<(BasicGetMessage, PromiseResolver<Option<BasicGetMessage>>)>,
-}
-
-impl fmt::Debug for QueueState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("QueueState")
-            .field("name", &self.name)
-            .field("consumers", &self.consumers)
-            .finish()
-    }
-}
-
-impl Queue {
-    pub(crate) fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Self {
-        Self {
-            name,
-            message_count,
-            consumer_count,
-        }
-    }
-}
-
 impl Borrow<str> for Queue {
     fn borrow(&self) -> &str {
         self.name.as_str()
-    }
-}
-
-impl QueueState {
-    pub(crate) fn register_consumer(&mut self, consumer_tag: ShortString, consumer: Consumer) {
-        self.consumers.insert(consumer_tag, consumer);
-    }
-
-    pub(crate) fn deregister_consumer<S: Hash + Eq + ?Sized>(&mut self, consumer_tag: &S)
-    where
-        ShortString: Borrow<S>,
-    {
-        if let Some(consumer) = self.consumers.remove(consumer_tag) {
-            consumer.cancel();
-        }
-    }
-
-    pub(crate) fn get_consumer<S: Hash + Eq + ?Sized>(
-        &mut self,
-        consumer_tag: &S,
-    ) -> Option<&mut Consumer>
-    where
-        ShortString: Borrow<S>,
-    {
-        self.consumers.get_mut(consumer_tag.borrow())
-    }
-
-    pub(crate) fn cancel_consumers(&self) {
-        for consumer in self.consumers.values() {
-            consumer.cancel();
-        }
-    }
-
-    pub(crate) fn error_consumers(&self, error: Error) {
-        for consumer in self.consumers.values() {
-            consumer.set_error(error.clone());
-        }
-    }
-
-    pub(crate) fn name(&self) -> ShortString {
-        self.name.clone()
-    }
-
-    pub(crate) fn drop_prefetched_messages(&self) {
-        for consumer in self.consumers.values() {
-            consumer.drop_prefetched_messages();
-        }
-    }
-
-    pub(crate) fn start_new_delivery(
-        &mut self,
-        delivery: BasicGetMessage,
-        resolver: PromiseResolver<Option<BasicGetMessage>>,
-    ) {
-        self.current_get_message = Some((delivery, resolver));
-    }
-
-    pub(crate) fn set_delivery_properties(&mut self, properties: BasicProperties) {
-        if let Some(delivery) = self.current_get_message.as_mut() {
-            delivery.0.delivery.properties = properties;
-        }
-    }
-
-    pub(crate) fn receive_delivery_content(&mut self, payload: Vec<u8>) {
-        if let Some(delivery) = self.current_get_message.as_mut() {
-            delivery.0.delivery.receive_content(payload);
-        }
-    }
-
-    pub(crate) fn new_delivery_complete(&mut self) {
-        if let Some((message, resolver)) = self.current_get_message.take() {
-            resolver.swear(Ok(Some(message)));
-        }
-    }
-}
-
-impl From<Queue> for QueueState {
-    fn from(queue: Queue) -> Self {
-        Self {
-            name: queue.name,
-            consumers: HashMap::new(),
-            current_get_message: None,
-        }
     }
 }

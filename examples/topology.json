@@ -1,0 +1,51 @@
+{
+  "exchanges": [
+    {
+      "name": "test-exchange",
+      "kind": "Direct"
+    }
+  ],
+  "queues": [
+    {
+      "name": "trash-queue",
+      "arguments": {
+        "x-dead-letter-exchange": {
+          "LongString": "test-exchange"
+        },
+        "x-dead-letter-routing-key": {
+          "LongString": "test-rk"
+        },
+        "x-message-ttl": {
+          "LongUInt": 2000
+        }
+      }
+    }
+  ],
+  "channels": [
+    {
+      "queues": [
+        {
+          "name": "tmp-queue",
+          "options": {
+            "exclusive": true,
+            "auto_delete": true
+          },
+          "bindings": [
+            {
+              "source": "test-exchange",
+              "routing_key": "test-rk"
+            }
+          ]
+        }
+      ],
+      "consumers": [
+        {
+          "queue": "tmp-queue"
+        }
+      ]
+    },
+    {
+      "consumers": []
+    }
+  ]
+}

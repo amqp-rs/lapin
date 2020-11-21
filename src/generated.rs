@@ -1,143 +1,187 @@
 pub mod options {
     use super::*;
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOptions {
+        #[serde(default)]
         pub active: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOkOptions {
+        #[serde(default)]
         pub active: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct AccessRequestOptions {
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub active: Boolean,
+        #[serde(default)]
         pub write: Boolean,
+        #[serde(default)]
         pub read: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeclareOptions {
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub durable: Boolean,
+        #[serde(default)]
         pub auto_delete: Boolean,
+        #[serde(default)]
         pub internal: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeDeleteOptions {
+        #[serde(default)]
         pub if_unused: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeBindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ExchangeUnbindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeclareOptions {
+        #[serde(default)]
         pub passive: Boolean,
+        #[serde(default)]
         pub durable: Boolean,
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub auto_delete: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueBindOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueuePurgeOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct QueueDeleteOptions {
+        #[serde(default)]
         pub if_unused: Boolean,
+        #[serde(default)]
         pub if_empty: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicQosOptions {
+        #[serde(default)]
         pub global: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicConsumeOptions {
+        #[serde(default)]
         pub no_local: Boolean,
+        #[serde(default)]
         pub no_ack: Boolean,
+        #[serde(default)]
         pub exclusive: Boolean,
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicCancelOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicPublishOptions {
+        #[serde(default)]
         pub mandatory: Boolean,
+        #[serde(default)]
         pub immediate: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicDeliverOptions {
+        #[serde(default)]
         pub redelivered: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOptions {
+        #[serde(default)]
         pub no_ack: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicGetOkOptions {
+        #[serde(default)]
         pub redelivered: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicAckOptions {
+        #[serde(default)]
         pub multiple: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRejectOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverAsyncOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicRecoverOptions {
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct BasicNackOptions {
+        #[serde(default)]
         pub multiple: Boolean,
+        #[serde(default)]
         pub requeue: Boolean,
     }
 
-    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ConfirmSelectOptions {
+        #[serde(default)]
         pub nowait: Boolean,
     }
 }
@@ -154,23 +198,60 @@ pub(crate) enum Reply {
     ChannelFlowOk(PromiseResolver<Boolean>),
     ChannelCloseOk(PromiseResolver<()>),
     AccessRequestOk(PromiseResolver<()>),
-    ExchangeDeclareOk(PromiseResolver<()>),
-    ExchangeDeleteOk(PromiseResolver<()>),
-    ExchangeBindOk(PromiseResolver<()>),
-    ExchangeUnbindOk(PromiseResolver<()>),
-    QueueDeclareOk(PromiseResolver<Queue>),
-    QueueBindOk(PromiseResolver<()>),
+    ExchangeDeclareOk(
+        PromiseResolver<()>,
+        ShortString,
+        ExchangeKind,
+        ExchangeDeclareOptions,
+        FieldTable,
+    ),
+    ExchangeDeleteOk(PromiseResolver<()>, ShortString),
+    ExchangeBindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
+    ExchangeUnbindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
+    QueueDeclareOk(PromiseResolver<Queue>, QueueDeclareOptions, FieldTable),
+    QueueBindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
     QueuePurgeOk(PromiseResolver<LongUInt>),
     QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
-    QueueUnbindOk(PromiseResolver<()>),
+    QueueUnbindOk(
+        PromiseResolver<()>,
+        ShortString,
+        ShortString,
+        ShortString,
+        FieldTable,
+    ),
     BasicQosOk(PromiseResolver<()>),
     BasicConsumeOk(
         PromiseResolver<Consumer>,
         Option<Arc<ChannelCloser>>,
         ShortString,
+        BasicConsumeOptions,
+        FieldTable,
+        Option<Consumer>,
     ),
     BasicCancelOk(PromiseResolver<()>),
-    BasicGetOk(PromiseResolver<Option<BasicGetMessage>>, ShortString),
+    BasicGetOk(
+        PromiseResolver<Option<BasicGetMessage>>,
+        ShortString,
+        BasicGetOptions,
+    ),
     BasicRecoverOk(PromiseResolver<()>),
     TxSelectOk(PromiseResolver<()>),
     TxCommitOk(PromiseResolver<()>),
@@ -936,11 +1017,13 @@ impl Channel {
         kind: &str,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
+        exchange_kind: ExchangeKind,
     ) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeDeclareOptions {
             passive,
             durable,
@@ -974,10 +1057,21 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeDeclareOk(resolver.clone()),
+                Reply::ExchangeDeclareOk(
+                    resolver.clone(),
+                    exchange.into(),
+                    exchange_kind,
+                    options,
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {
+                ..Default::default()
+            })?;
+        }
         promise_out.await?;
         promise.await
     }
@@ -987,11 +1081,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeDeclareOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
+            Some(Reply::ExchangeDeclareOk(
+                resolver,
+                exchange,
+                exchange_kind,
+                options,
+                creation_arguments,
+            )) => self.on_exchange_declare_ok_received(
+                resolver,
+                exchange,
+                exchange_kind,
+                options,
+                creation_arguments,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted exchange declare-ok received on channel {}",
@@ -1035,10 +1137,15 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeDeleteOk(resolver.clone()),
+                Reply::ExchangeDeleteOk(resolver.clone(), exchange.into()),
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {
+                ..Default::default()
+            })?;
+        }
         promise_out.await?;
         promise.await
     }
@@ -1048,8 +1155,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeDeleteOk(resolver)) => {
-                let res = Ok(());
+            Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
+                let res = self.on_exchange_delete_ok_received(exchange);
                 resolver.swear(res.clone());
                 res
             }
@@ -1076,6 +1183,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeBindOptions { nowait } = options;
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Bind(
             protocol::exchange::Bind {
@@ -1100,10 +1208,21 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeBindOk(resolver.clone()),
+                Reply::ExchangeBindOk(
+                    resolver.clone(),
+                    destination.into(),
+                    source.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            self.receive_exchange_bind_ok(protocol::exchange::BindOk {
+                ..Default::default()
+            })?;
+        }
         promise_out.await?;
         promise.await
     }
@@ -1113,8 +1232,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeBindOk(resolver)) => {
-                let res = Ok(());
+            Some(Reply::ExchangeBindOk(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            )) => {
+                let res = self.on_exchange_bind_ok_received(
+                    destination,
+                    source,
+                    routing_key,
+                    creation_arguments,
+                );
                 resolver.swear(res.clone());
                 res
             }
@@ -1141,6 +1271,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let ExchangeUnbindOptions { nowait } = options;
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Unbind(
             protocol::exchange::Unbind {
@@ -1165,10 +1296,21 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::ExchangeUnbindOk(resolver.clone()),
+                Reply::ExchangeUnbindOk(
+                    resolver.clone(),
+                    destination.into(),
+                    source.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {
+                ..Default::default()
+            })?;
+        }
         promise_out.await?;
         promise.await
     }
@@ -1178,8 +1320,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::ExchangeUnbindOk(resolver)) => {
-                let res = Ok(());
+            Some(Reply::ExchangeUnbindOk(
+                resolver,
+                destination,
+                source,
+                routing_key,
+                creation_arguments,
+            )) => {
+                let res = self.on_exchange_unbind_ok_received(
+                    destination,
+                    source,
+                    routing_key,
+                    creation_arguments,
+                );
                 resolver.swear(res.clone());
                 res
             }
@@ -1204,6 +1357,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let QueueDeclareOptions {
             passive,
             durable,
@@ -1236,7 +1390,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueDeclareOk(resolver.clone()),
+                Reply::QueueDeclareOk(resolver.clone(), options, creation_arguments),
                 Box::new(resolver),
             )),
         );
@@ -1255,8 +1409,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueDeclareOk(resolver)) => {
-                self.on_queue_declare_ok_received(method, resolver)
+            Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => {
+                self.on_queue_declare_ok_received(method, resolver, options, creation_arguments)
             }
             _ => self.handle_invalid_contents(
                 format!(
@@ -1281,6 +1435,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let QueueBindOptions { nowait } = options;
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Bind(protocol::queue::Bind {
             queue: queue.into(),
@@ -1303,10 +1458,21 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueBindOk(resolver.clone()),
+                Reply::QueueBindOk(
+                    resolver.clone(),
+                    queue.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
+        if nowait {
+            self.receive_queue_bind_ok(protocol::queue::BindOk {
+                ..Default::default()
+            })?;
+        }
         promise_out.await?;
         promise.await
     }
@@ -1316,8 +1482,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueBindOk(resolver)) => {
-                let res = Ok(());
+            Some(Reply::QueueBindOk(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            )) => {
+                let res = self.on_queue_bind_ok_received(
+                    queue,
+                    exchange,
+                    routing_key,
+                    creation_arguments,
+                );
                 resolver.swear(res.clone());
                 res
             }
@@ -1449,6 +1626,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Unbind(
             protocol::queue::Unbind {
                 queue: queue.into(),
@@ -1470,7 +1648,13 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::QueueUnbindOk(resolver.clone()),
+                Reply::QueueUnbindOk(
+                    resolver.clone(),
+                    queue.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                    creation_arguments,
+                ),
                 Box::new(resolver),
             )),
         );
@@ -1483,8 +1667,19 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::QueueUnbindOk(resolver)) => {
-                let res = Ok(());
+            Some(Reply::QueueUnbindOk(
+                resolver,
+                queue,
+                exchange,
+                routing_key,
+                creation_arguments,
+            )) => {
+                let res = self.on_queue_unbind_ok_received(
+                    queue,
+                    exchange,
+                    routing_key,
+                    creation_arguments,
+                );
                 resolver.swear(res.clone());
                 res
             }
@@ -1550,17 +1745,19 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub async fn basic_consume(
+    async fn do_basic_consume(
         &self,
         queue: &str,
         consumer_tag: &str,
         options: BasicConsumeOptions,
         arguments: FieldTable,
+        original: Option<Consumer>,
     ) -> Result<Consumer> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        let creation_arguments = arguments.clone();
         let BasicConsumeOptions {
             no_local,
             no_ack,
@@ -1592,13 +1789,21 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicConsumeOk(resolver.clone(), self.channel_closer.clone(), queue.into()),
+                Reply::BasicConsumeOk(
+                    resolver.clone(),
+                    self.channel_closer.clone(),
+                    queue.into(),
+                    options,
+                    creation_arguments,
+                    original,
+                ),
                 Box::new(resolver),
             )),
         );
         if nowait {
             self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
                 consumer_tag: consumer_tag.into(),
+                ..Default::default()
             })?;
         }
         promise_out.await?;
@@ -1610,9 +1815,22 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicConsumeOk(resolver, channel_closer, queue)) => {
-                self.on_basic_consume_ok_received(method, resolver, channel_closer, queue)
-            }
+            Some(Reply::BasicConsumeOk(
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+                original,
+            )) => self.on_basic_consume_ok_received(
+                method,
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+                original,
+            ),
             _ => self.handle_invalid_contents(
                 format!(
                     "unexepcted basic consume-ok received on channel {}",
@@ -1661,6 +1879,7 @@ impl Channel {
         if nowait {
             self.receive_basic_cancel_ok(protocol::basic::CancelOk {
                 consumer_tag: consumer_tag.into(),
+                ..Default::default()
             })?;
         }
         promise_out.await?;
@@ -1756,10 +1975,11 @@ impl Channel {
         self.on_basic_deliver_received(method)
     }
     #[allow(clippy::too_many_arguments)]
-    pub async fn basic_get(
+    async fn do_basic_get(
         &self,
         queue: &str,
         options: BasicGetOptions,
+        original: Option<PromiseResolver<Option<BasicGetMessage>>>,
     ) -> Result<Option<BasicGetMessage>> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1780,11 +2000,12 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.get.Ok".into());
         }
+        let resolver = original.unwrap_or(resolver);
         self.send_method_frame(
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone(), queue.into()),
+                Reply::BasicGetOk(resolver.clone(), queue.into(), options),
                 Box::new(resolver),
             )),
         );
@@ -1797,8 +2018,8 @@ impl Channel {
         }
 
         match self.frames.next_expected_reply(self.id) {
-            Some(Reply::BasicGetOk(resolver, queue)) => {
-                self.on_basic_get_ok_received(method, resolver, queue)
+            Some(Reply::BasicGetOk(resolver, queue, options)) => {
+                self.on_basic_get_ok_received(method, resolver, queue, options)
             }
             _ => self.handle_invalid_contents(
                 format!("unexepcted basic get-ok received on channel {}", self.id),

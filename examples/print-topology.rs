@@ -1,7 +1,8 @@
 use futures_lite::stream::StreamExt;
 use lapin::{
-    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Result,
+    options::*,
+    types::{AMQPValue, FieldTable},
+    Connection, ConnectionProperties, ExchangeKind, Result,
 };
 use tracing::info;
 
@@ -32,6 +33,38 @@ fn main() -> Result<()> {
 
         info!(?queue, "Declared queue");
 
+        channel_a
+            .exchange_declare(
+                "test-exchange",
+                ExchangeKind::Direct,
+                ExchangeDeclareOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+        channel_a
+            .queue_bind(
+                queue.name().as_str(),
+                "test-exchange",
+                "test-rk",
+                QueueBindOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+
+        let mut dloptions = FieldTable::default();
+        dloptions.insert("x-message-ttl".into(), AMQPValue::LongUInt(2000));
+        dloptions.insert(
+            "x-dead-letter-exchange".into(),
+            AMQPValue::LongString("test-exchange".into()),
+        );
+        dloptions.insert(
+            "x-dead-letter-routing-key".into(),
+            AMQPValue::LongString("test-rk".into()),
+        );
+        channel_a
+            .queue_declare("trash-queue", QueueDeclareOptions::default(), dloptions)
+            .await?;
+
         let mut consumer = channel_b
             .basic_consume(
                 "hello",
@@ -49,20 +82,11 @@ fn main() -> Result<()> {
         })
         .detach();
 
-        let payload = b"Hello world!";
+        println!(
+            "Topology: {}",
+            serde_json::to_string_pretty(&conn.topology()).unwrap()
+        );
 
-        loop {
-            let confirm = channel_a
-                .basic_publish(
-                    "",
-                    "hello",
-                    BasicPublishOptions::default(),
-                    payload.to_vec(),
-                    BasicProperties::default(),
-                )
-                .await?
-                .await?;
-            assert_eq!(confirm, Confirmation::NotRequested);
-        }
+        Ok(())
     })
 }

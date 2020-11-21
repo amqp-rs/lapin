@@ -6,7 +6,10 @@ use crate::{
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
+    registry::Registry,
     socket_state::SocketStateHandle,
+    topology_internal::ChannelDefinitionInternal,
+    types::LongLongUInt,
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
     Error, Promise, Result,
 };
@@ -19,6 +22,7 @@ use tracing::{debug, error, level_enabled, trace, Level};
 pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
     connection_status: ConnectionStatus,
+    global_registry: Registry,
     internal_rpc: InternalRPCHandle,
     executor: Arc<dyn Executor>,
     frames: Frames,
@@ -29,6 +33,7 @@ impl Channels {
     pub(crate) fn new(
         configuration: Configuration,
         connection_status: ConnectionStatus,
+        global_registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -37,6 +42,7 @@ impl Channels {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
             connection_status,
+            global_registry,
             internal_rpc,
             executor,
             frames,
@@ -47,6 +53,7 @@ impl Channels {
     pub(crate) fn create(&self, connection_closer: Arc<ConnectionCloser>) -> Result<Channel> {
         self.inner.lock().create(
             self.connection_status.clone(),
+            self.global_registry.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
             self.executor.clone(),
@@ -60,6 +67,7 @@ impl Channels {
             .create_channel(
                 0,
                 self.connection_status.clone(),
+                self.global_registry.clone(),
                 self.internal_rpc.clone(),
                 self.frames.clone(),
                 self.executor.clone(),
@@ -91,7 +99,7 @@ impl Channels {
         &self,
         id: u16,
         class_id: u16,
-        size: u64,
+        size: LongLongUInt,
         properties: BasicProperties,
     ) -> Result<()> {
         self.get(id)
@@ -254,6 +262,16 @@ impl Channels {
     pub(crate) fn set_error_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
     }
+
+    pub(crate) fn topology(&self) -> Vec<ChannelDefinitionInternal> {
+        self.inner
+            .lock()
+            .channels
+            .values()
+            .filter(|c| c.id() != 0)
+            .map(Channel::topology)
+            .collect()
+    }
 }
 
 impl fmt::Debug for Channels {
@@ -291,10 +309,12 @@ impl Inner {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_channel(
         &mut self,
         id: u16,
         connection_status: ConnectionStatus,
+        global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -305,6 +325,7 @@ impl Inner {
             id,
             self.configuration.clone(),
             connection_status,
+            global_registry,
             self.waker.clone(),
             internal_rpc,
             frames,
@@ -318,6 +339,7 @@ impl Inner {
     fn create(
         &mut self,
         connection_status: ConnectionStatus,
+        global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn Executor>,
@@ -339,6 +361,7 @@ impl Inner {
                 return Ok(self.create_channel(
                     id,
                     connection_status,
+                    global_registry,
                     internal_rpc,
                     frames,
                     executor,

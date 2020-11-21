@@ -29,19 +29,11 @@ impl Confirmation {
     }
 
     pub fn is_ack(&self) -> bool {
-        if let Confirmation::Ack(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Confirmation::Ack(_))
     }
 
     pub fn is_nack(&self) -> bool {
-        if let Confirmation::Nack(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Confirmation::Nack(_))
     }
 }
 

@@ -157,13 +157,69 @@
     }
   },
   "queue": {
+    "bind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "queue",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
+        "nowait_hook": true
+      }
+    },
+    "bind-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["queue", "exchange", "routing_key", "creation_arguments"]
+        }
+      }
+    },
     "declare": {
       "metadata": {
         "confirmation": {
           "type": "Queue"
         },
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "options",
+            "type": "QueueDeclareOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
         "nowait_hook": {
-          "fields": ["queue: queue.into()"]
+          "fields": ["queue: queue.into()"],
+          "nonexhaustive_args": true
         }
       }
     },
@@ -179,7 +235,9 @@
         "confirmation": {
           "type": "LongUInt"
         },
-        "nowait_hook": true
+        "nowait_hook": {
+          "nonexhaustive_args": true
+        }
       }
     },
     "purge": {
@@ -188,18 +246,208 @@
           "type": "LongUInt"
         }
       }
+    },
+    "unbind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "queue",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ]
+      }
+    },
+    "unbind-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["queue", "exchange", "routing_key", "creation_arguments"]
+        }
+      }
     }
   },
   "exchange": {
+    "bind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "destination",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "source",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
+        "nowait_hook": true
+      }
+    },
+    "bind-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["destination", "source", "routing_key", "creation_arguments"]
+        }
+      }
+    },
     "declare": {
       "metadata": {
-        "require_wrapper": true
+        "require_wrapper": true,
+        "extra_args": [
+          {
+            "name": "exchange_kind",
+            "type": "ExchangeKind"
+          }
+        ],
+        "confirmation": {
+          "type": "()"
+        },
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "exchange_kind",
+            "type": "ExchangeKind"
+          },
+          {
+            "name": "options",
+            "type": "ExchangeDeclareOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
+        "nowait_hook": true
+      }
+    },
+    "declare-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["resolver", "exchange", "exchange_kind", "options", "creation_arguments"]
+        }
+      }
+    },
+    "delete": {
+      "metadata": {
+        "state": [
+          {
+            "name": "exchange",
+            "type": "ShortString",
+            "use_str_ref": true
+          }
+        ],
+        "nowait_hook": true
+      }
+    },
+    "delete-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["exchange"]
+        }
+      }
+    },
+    "unbind": {
+      "metadata": {
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "state": [
+          {
+            "name": "destination",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "source",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "routing_key",
+            "type": "ShortString",
+            "use_str_ref": true
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          }
+        ],
+        "nowait_hook": true
+      }
+    },
+    "unbind-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": ["destination", "source", "routing_key", "creation_arguments"]
+        }
       }
     }
   },
   "basic": {
     "consume": {
       "metadata": {
+        "require_wrapper": true,
+        "init_clones": [
+          {
+            "from": "arguments",
+            "to": "creation_arguments"
+          }
+        ],
+        "extra_args": [
+          {
+            "name": "original",
+            "type": "Option<Consumer>"
+          }
+        ],
         "state": [
           {
             "name": "channel_closer",
@@ -210,22 +458,32 @@
             "name": "queue",
             "type": "ShortString",
             "use_str_ref": true
+          },
+          {
+            "name": "options",
+            "type": "BasicConsumeOptions"
+          },
+          {
+            "name": "creation_arguments",
+            "type": "FieldTable"
+          },
+          {
+            "name": "original",
+            "type": "Option<Consumer>"
           }
         ],
         "confirmation": {
           "type": "Consumer"
         },
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"],
-          "exhaustive_args": true
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
     "cancel": {
       "metadata": {
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"],
-          "exhaustive_args": true
+          "fields": ["consumer_tag: consumer_tag.into()"]
         }
       }
     },
@@ -252,16 +510,28 @@
     },
     "get": {
       "metadata": {
-        "confirmation": {
-          "type": "Option<BasicGetMessage>"
-        },
+        "require_wrapper": true,
+        "extra_args": [
+          {
+            "name": "original",
+            "type": "Option<PromiseResolver<Option<BasicGetMessage>>>"
+          }
+        ],
         "state": [
           {
             "name": "queue",
             "type": "ShortString",
             "use_str_ref": true
+          },
+          {
+            "name": "options",
+            "type": "BasicGetOptions"
           }
-        ]
+        ],
+        "resolver_hook": "let resolver = original.unwrap_or(resolver);",
+        "confirmation": {
+          "type": "Option<BasicGetMessage>"
+        }
       }
     },
     "ack": {

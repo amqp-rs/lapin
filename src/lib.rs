@@ -69,9 +69,9 @@
 //!         async_global_executor::spawn(async move {
 //!             info!("will consume");
 //!             while let Some(delivery) = consumer.next().await {
-//!                 let (channel, delivery) = delivery.expect("error in consumer");
-//!                 channel
-//!                     .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+//!                 let (_, delivery) = delivery.expect("error in consumer");
+//!                 delivery
+//!                     .ack(BasicAckOptions::default())
 //!                     .await
 //!                     .expect("ack");
 //!             }
@@ -123,11 +123,16 @@ pub mod message;
 pub mod publisher_confirm;
 pub mod reactor;
 pub mod socket_state;
+pub mod topology;
+
+pub type DeliveryTag = u64;
 
 type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
+mod acker;
 mod acknowledgement;
+mod basic_get_delivery;
 mod buffer;
 mod channel;
 mod channel_closer;
@@ -142,6 +147,7 @@ mod connection_status;
 mod consumer;
 mod consumer_canceler;
 mod consumer_status;
+mod consumers;
 mod error;
 mod error_handler;
 mod exchange;
@@ -151,8 +157,9 @@ mod internal_rpc;
 mod io_loop;
 mod parsing;
 mod queue;
-mod queues;
+mod registry;
 mod returned_messages;
 mod stream;
 mod thread;
+mod topology_internal;
 mod wakers;

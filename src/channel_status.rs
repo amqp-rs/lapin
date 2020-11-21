@@ -1,6 +1,6 @@
 use crate::{
-    channel_receiver_state::ChannelReceiverStates,
-    types::{ShortString, ShortUInt},
+    channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
+    types::{LongLongUInt, ShortUInt},
     Result,
 };
 use parking_lot::Mutex;
@@ -53,28 +53,22 @@ impl ChannelStatus {
         self.0.lock().receiver_state.receiver_state()
     }
 
-    pub(crate) fn set_will_receive(
-        &self,
-        class_id: ShortUInt,
-        queue_name: Option<ShortString>,
-        request_id_or_consumer_tag: Option<ShortString>,
-    ) {
-        self.0.lock().receiver_state.set_will_receive(
-            class_id,
-            queue_name,
-            request_id_or_consumer_tag,
-        );
+    pub(crate) fn set_will_receive(&self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
+        self.0
+            .lock()
+            .receiver_state
+            .set_will_receive(class_id, delivery_cause);
     }
 
     pub(crate) fn set_content_length<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, bool),
+        Handler: FnOnce(&DeliveryCause, bool),
         OnInvalidClass: FnOnce(String) -> Result<()>,
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
         channel_id: u16,
         class_id: ShortUInt,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
@@ -93,12 +87,12 @@ impl ChannelStatus {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&Option<ShortString>, &Option<ShortString>, usize, bool),
+        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
         channel_id: u16,
-        length: usize,
+        length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {

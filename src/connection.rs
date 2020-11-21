@@ -9,10 +9,14 @@ use crate::{
     frames::Frames,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    options::{ExchangeBindOptions, QueueBindOptions},
     reactor::DefaultReactorBuilder,
+    registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
+    topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
+    topology_internal::TopologyInternal,
     types::ShortUInt,
     uri::AMQPUri,
     Error, Promise, Result,
@@ -36,6 +40,7 @@ use tracing::{level_enabled, Level};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
+    global_registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -50,9 +55,11 @@ impl Connection {
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
+        let global_registry = Registry::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
+            global_registry.clone(),
             waker,
             internal_rpc.clone(),
             frames,
@@ -62,6 +69,7 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
+            global_registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -121,6 +129,102 @@ impl Connection {
         }
         let channel = self.channels.create(self.closer.clone())?;
         channel.clone().channel_open(channel).await
+    }
+
+    /// Restore the specified topology
+    pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
+        self.restore_internal(topology.into()).await
+    }
+
+    pub(crate) async fn restore_internal(
+        &self,
+        topology: TopologyInternal,
+    ) -> Result<RestoredTopology> {
+        let mut restored = RestoredTopology::default();
+
+        // First, recreate all channels
+        for c in &topology.channels {
+            restored
+                .channels
+                .push(RestoredChannel::new(if let Some(c) = c.channel.clone() {
+                    let channel = c.clone();
+                    c.reset();
+                    c.channel_open(channel).await?
+                } else {
+                    self.create_channel().await?
+                }));
+        }
+
+        // Then, ensure we have at least one channel to restore everything else
+        let channel = if let Some(chan) = restored.channels.get(0) {
+            chan.channel.clone()
+        } else {
+            self.create_channel().await?
+        };
+
+        // First, redeclare all exchanges
+        for ex in &topology.exchanges {
+            channel
+                .exchange_declare(
+                    ex.name.as_str(),
+                    ex.kind.clone().unwrap_or_default(),
+                    ex.options.unwrap_or_default(),
+                    ex.arguments.clone().unwrap_or_default(),
+                )
+                .await?;
+        }
+
+        // Second, redeclare all exchange bindings
+        for ex in &topology.exchanges {
+            for binding in &ex.bindings {
+                channel
+                    .exchange_bind(
+                        ex.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        ExchangeBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+
+        // Third, redeclare all "global" (e.g. non exclusive) queues
+        for queue in &topology.queues {
+            if queue.is_declared() {
+                restored.queues.push(
+                    channel
+                        .queue_declare(
+                            queue.name.as_str(),
+                            queue.options.unwrap_or_default(),
+                            queue.arguments.clone().unwrap_or_default(),
+                        )
+                        .await?,
+                );
+            }
+        }
+
+        // Fourth, redeclare all global queues bindings
+        for queue in &topology.queues {
+            for binding in &queue.bindings {
+                channel
+                    .queue_bind(
+                        queue.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        QueueBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+
+        // Fifth, restore all channel-specific queues/bindings/consumers
+        for (n, ch) in topology.channels.iter().enumerate() {
+            let c = &mut restored.channels[n];
+            c.channel.clone().restore(ch, c).await?;
+        }
+        Ok(restored)
     }
 
     /// Block current thread while the connection is still active.
@@ -269,6 +373,21 @@ impl Connection {
         promise_out.await?;
         promise_in.await
     }
+
+    /// Get the current topology
+    ///
+    /// This includes exchanges, queues, bindings and consumers declared by this Connection
+    pub fn topology(&self) -> TopologyDefinition {
+        self.topology_internal().into()
+    }
+
+    pub(crate) fn topology_internal(&self) -> TopologyInternal {
+        TopologyInternal {
+            exchanges: self.global_registry.exchanges_topology(),
+            queues: self.global_registry.queues_topology(false),
+            channels: self.channels.topology(),
+        }
+    }
 }
 
 impl fmt::Debug for Connection {
@@ -325,9 +444,10 @@ impl Connect for &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel_receiver_state::ChannelReceiverState;
+    use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::channel_status::ChannelState;
-    use crate::types::ShortString;
+    use crate::options::BasicConsumeOptions;
+    use crate::types::{FieldTable, ShortString};
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{basic, AMQPClass};
@@ -337,7 +457,6 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
         let executor = DefaultExecutor::default().unwrap();
@@ -355,13 +474,19 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
-        queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels
-            .get(channel.id())
-            .map(|c| c.register_queue(queue));
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            queue_name.clone(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
+        if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_consumer(consumer_tag.clone(), consumer);
+            c.register_queue(queue_name.clone(), Default::default(), Default::default());
+        }
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -369,7 +494,7 @@ mod tests {
                 delivery_tag: 1,
                 redelivered: false,
                 exchange: "".into(),
-                routing_key: queue_name.clone(),
+                routing_key: queue_name,
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
@@ -377,8 +502,7 @@ mod tests {
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
+                DeliveryCause::Consume(consumer_tag.clone()),
             );
             assert_eq!(channel_state, expected_state);
         }
@@ -395,15 +519,12 @@ mod tests {
             );
             conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().receiver_state();
-            let expected_state = ChannelReceiverState::ReceivingContent(
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
-                2,
-            );
+            let expected_state =
+                ChannelReceiverState::ReceivingContent(DeliveryCause::Consume(consumer_tag), 2);
             assert_eq!(channel_state, expected_state);
         }
         {
-            let body_frame = AMQPFrame::Body(channel.id(), "{}".as_bytes().to_vec());
+            let body_frame = AMQPFrame::Body(channel.id(), b"{}".to_vec());
             conn.channels.handle_frame(body_frame).unwrap();
             let channel_state = channel.status().state();
             let expected_state = ChannelState::Connected;
@@ -416,7 +537,6 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         use crate::consumer::Consumer;
-        use crate::queue::{Queue, QueueState};
 
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
@@ -434,13 +554,19 @@ mod tests {
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
-        let mut queue: QueueState = Queue::new(queue_name.clone(), 0, 0).into();
         let consumer_tag = ShortString::from("consumer-tag");
-        let consumer = Consumer::new(consumer_tag.clone(), executor, None);
-        queue.register_consumer(consumer_tag.clone(), consumer);
-        conn.channels
-            .get(channel.id())
-            .map(|c| c.register_queue(queue));
+        let consumer = Consumer::new(
+            consumer_tag.clone(),
+            executor,
+            None,
+            queue_name.clone(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        );
+        if let Some(c) = conn.channels.get(channel.id()) {
+            c.register_consumer(consumer_tag.clone(), consumer);
+            c.register_queue(queue_name.clone(), Default::default(), Default::default());
+        }
         // Now test the state machine behaviour
         {
             let method = AMQPClass::Basic(basic::AMQPMethod::Deliver(basic::Deliver {
@@ -448,7 +574,7 @@ mod tests {
                 delivery_tag: 1,
                 redelivered: false,
                 exchange: "".into(),
-                routing_key: queue_name.clone(),
+                routing_key: queue_name,
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
@@ -456,8 +582,7 @@ mod tests {
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
-                Some(queue_name.clone()),
-                Some(consumer_tag.clone()),
+                DeliveryCause::Consume(consumer_tag),
             );
             assert_eq!(channel_state, expected_state);
         }

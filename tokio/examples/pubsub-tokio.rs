@@ -7,7 +7,8 @@ use tokio::runtime::Runtime;
 use tokio_amqp::*;
 use tracing::info;
 
-async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }
@@ -15,7 +16,7 @@ async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let conn = Connection::connect(&addr, ConnectionProperties::default().with_tokio(rt)).await?;
+    let conn = Connection::connect(&addr, ConnectionProperties::default().with_tokio()).await?;
 
     info!("CONNECTED");
 
@@ -43,9 +44,9 @@ async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
 
     consumer.set_delegate(move |delivery: DeliveryResult| async move {
         let delivery = delivery.expect("error caught in in consumer");
-        if let Some((channel, delivery)) = delivery {
-            channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+        if let Some((_, delivery)) = delivery {
+            delivery
+                .ack(BasicAckOptions::default())
                 .await
                 .expect("failed to ack");
         }
@@ -66,9 +67,4 @@ async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
             .await?;
         assert_eq!(confirm, Confirmation::NotRequested);
     }
-}
-
-fn main() {
-    let rt = Arc::new(Runtime::new().expect("failed to create runtime"));
-    rt.block_on(tokio_main(rt.clone())).expect("error");
 }

@@ -5,7 +5,8 @@ use crate::{
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
-    types::ShortString,
+    options::BasicConsumeOptions,
+    types::{FieldTable, LongLongUInt, ShortString},
     wakers::Wakers,
     BasicProperties, Channel, Error, Result,
 };
@@ -66,8 +67,8 @@ impl<
 ///   [`Channel::basic_consume`], the server implicitely acknowledges each message after it has been
 ///   sent.
 /// * If the flag [`BasicConsumeOptions::no_ack`] is set to `false`, a message has to be explicitely
-///   acknowledged or rejected with [`Channel::basic_ack`],
-///   [`Channel::basic_reject`] or [`Channel::basic_nack`]. See the documentation at [`Delivery`]
+///   acknowledged or rejected with [`Acker::ack`],
+///   [`Acker::nack`] or [`Acker::reject`]. See the documentation at [`Delivery`]
 ///   for further information.
 ///
 /// Also see the RabbitMQ documentation about
@@ -112,9 +113,9 @@ impl<
 ///         .await?;
 ///
 ///     while let Some(delivery) = consumer.next().await {
-///         let (channel, delivery) = delivery.expect("error in consumer");
-///         channel
-///             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+///         let (_, delivery) = delivery.expect("error in consumer");
+///         delivery
+///             .ack(BasicAckOptions::default())
 ///             .await?;
 ///     }
 ///     Ok(())
@@ -123,10 +124,10 @@ impl<
 ///
 /// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
 /// [`Channel::basic_qos`]: ./struct.Channel.html#method.basic_qos
-/// [`Channel::basic_ack`]: ./struct.Channel.html#method.basic_ack
-/// [`Channel::basic_reject`]: ./struct.Channel.html#method.basic_reject
-/// [`Channel::basic_nack`]: ./struct.Channel.html#method.basic_nack
 /// [`Channel::basic_cancel`]: ./struct.Channel.html#method.basic_cancel
+/// [`Acker::ack`]: ./struct.Acker.html#method.ack
+/// [`Acker::reject`]: ./struct.Acker.html#method.reject
+/// [`Acker::nack`]: ./struct.Acker.html#method.nack
 /// [`DeliveryResult`]: ./message/type.DeliveryResult.html
 /// [`BasicConsumeOptions::no_ack`]: ./options/struct.BasicConsumeOptions.html#structfield.no_ack
 /// [`set_delegate`]: #method.set_delegate
@@ -136,6 +137,9 @@ pub struct Consumer {
     status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
+    queue: ShortString,
+    options: BasicConsumeOptions,
+    arguments: FieldTable,
 }
 
 impl Consumer {
@@ -143,6 +147,9 @@ impl Consumer {
         consumer_tag: ShortString,
         executor: Arc<dyn Executor>,
         channel_closer: Option<Arc<ChannelCloser>>,
+        queue: ShortString,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
     ) -> Self {
         let status = ConsumerStatus::default();
         Self {
@@ -154,6 +161,9 @@ impl Consumer {
             status,
             channel_closer,
             consumer_canceler: None,
+            queue,
+            options,
+            arguments,
         }
     }
 
@@ -168,6 +178,9 @@ impl Consumer {
                 self.status.clone(),
                 internal_rpc_handle,
             ))),
+            queue: self.queue.clone(),
+            options: self.options,
+            arguments: self.arguments.clone(),
         }
     }
 
@@ -184,6 +197,19 @@ impl Consumer {
         self.status.state()
     }
 
+    /// Get the name of the queue we're consuming
+    pub fn queue(&self) -> ShortString {
+        self.queue.clone()
+    }
+
+    pub(crate) fn options(&self) -> BasicConsumeOptions {
+        self.options
+    }
+
+    pub(crate) fn arguments(&self) -> FieldTable {
+        self.arguments.clone()
+    }
+
     /// Automatically spawns the delegate on the executor for each message.
     ///
     /// Enables parallel handling of the messages.
@@ -197,27 +223,34 @@ impl Consumer {
         status.set_delegate();
     }
 
-    pub(crate) fn start_new_delivery(&mut self, delivery: Delivery) {
-        self.inner.lock().current_message = Some(delivery)
+    pub(crate) fn reset(&self) {
+        self.inner.lock().reset(self.options.no_ack);
     }
 
-    pub(crate) fn set_delivery_properties(&mut self, properties: BasicProperties) {
-        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
-            delivery.properties = properties;
-        }
+    pub(crate) fn start_new_delivery(&self, delivery: Delivery) {
+        self.inner.lock().current_message = Some(delivery);
     }
 
-    pub(crate) fn receive_delivery_content(&mut self, payload: Vec<u8>) {
-        if let Some(delivery) = self.inner.lock().current_message.as_mut() {
-            delivery.receive_content(payload);
-        }
+    pub(crate) fn handle_content_header_frame(
+        &self,
+        channel: &Channel,
+        size: LongLongUInt,
+        properties: BasicProperties,
+    ) {
+        self.inner
+            .lock()
+            .handle_content_header_frame(channel, size, properties);
     }
 
-    pub(crate) fn new_delivery_complete(&mut self, channel: Channel) {
-        let mut inner = self.inner.lock();
-        if let Some(delivery) = inner.current_message.take() {
-            inner.new_delivery(channel, delivery);
-        }
+    pub(crate) fn handle_body_frame(
+        &self,
+        channel: &Channel,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+    ) {
+        self.inner
+            .lock()
+            .handle_body_frame(channel, remaining_size, payload);
     }
 
     pub(crate) fn drop_prefetched_messages(&self) {
@@ -274,22 +307,59 @@ impl ConsumerInner {
         }
     }
 
+    fn reset(&mut self, no_ack: bool) {
+        if !no_ack {
+            while let Some(_) = self.next_delivery() {}
+        }
+        self.current_message = None;
+    }
+
     fn next_delivery(&mut self) -> Option<DeliveryResult> {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn new_delivery(&mut self, channel: Channel, delivery: Delivery) {
-        trace!(consumer_tag=%self.tag, "new_delivery");
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor
-                .spawn(delegate.on_new_delivery(Ok(Some((channel, delivery)))));
-        } else {
-            self.deliveries_in
-                .send(Ok(Some((channel, delivery))))
-                .expect("failed to send delivery to consumer");
+    fn handle_content_header_frame(
+        &mut self,
+        channel: &Channel,
+        size: LongLongUInt,
+        properties: BasicProperties,
+    ) {
+        if let Some(delivery) = self.current_message.as_mut() {
+            delivery.properties = properties;
         }
-        self.wakers.wake();
+        if size == 0 {
+            self.new_delivery_complete(channel);
+        }
+    }
+
+    fn handle_body_frame(
+        &mut self,
+        channel: &Channel,
+        remaining_size: LongLongUInt,
+        payload: Vec<u8>,
+    ) {
+        if let Some(delivery) = self.current_message.as_mut() {
+            delivery.receive_content(payload);
+        }
+        if remaining_size == 0 {
+            self.new_delivery_complete(channel);
+        }
+    }
+
+    fn new_delivery_complete(&mut self, channel: &Channel) {
+        if let Some(delivery) = self.current_message.take() {
+            trace!(consumer_tag=%self.tag, "new_delivery");
+            if let Some(delegate) = self.delegate.as_ref() {
+                let delegate = delegate.clone();
+                self.executor
+                    .spawn(delegate.on_new_delivery(Ok(Some((channel.clone(), delivery)))));
+            } else {
+                self.deliveries_in
+                    .send(Ok(Some((channel.clone(), delivery))))
+                    .expect("failed to send delivery to consumer");
+            }
+            self.wakers.wake();
+        }
     }
 
     fn drop_prefetched_messages(&mut self) {
@@ -394,6 +464,9 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             DefaultExecutor::default().unwrap(),
             None,
+            "test".into(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
         );
         {
             let mut next = consumer.next();
@@ -427,6 +500,9 @@ mod futures_tests {
             ShortString::from("test-consumer"),
             DefaultExecutor::default().unwrap(),
             None,
+            "test".into(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
         );
         {
             let mut next = consumer.next();

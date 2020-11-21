@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "1.4.3"
+version = "1.5.0"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -27,7 +27,7 @@ vendored-openssl          = ["amq-protocol/vendored-openssl"]
 members = [".", "async-global-executor", "async-lapin", "async-std", "bastion", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
-version = "=6.0.0-rc12"
+version = "^6.0.2"
 optional = true
 
 [build-dependencies.serde_json]
@@ -35,7 +35,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "=6.0.0-rc12"
+version = "^6.0.2"
 default-features = false
 
 [dependencies.async-global-executor]
@@ -46,6 +46,10 @@ features = ["async-io"]
 version = "^0.9"
 default-features = false
 features = ["async"]
+
+[dependencies.serde]
+version  = "^1.0"
+features = ["derive"]
 
 [dependencies.tracing]
 version = "^0.1"
@@ -60,6 +64,7 @@ parking_lot = "^0.11"
 pinky-swear = "^5.0"
 
 [dev-dependencies]
+serde_json = "^1.0"
 waker-fn = "^1.1"
 
 [dev-dependencies.tracing-subscriber]

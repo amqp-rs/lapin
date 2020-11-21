@@ -52,8 +52,8 @@ fn main() {
                 .set_delegate(move |delivery: DeliveryResult| async move {
                     info!(message=?delivery, "received message");
                     if let Ok(Some((channel, delivery))) = delivery {
-                        channel
-                            .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+                        delivery
+                            .ack(BasicAckOptions::default())
                             .await
                             .expect("basic_ack");
                         channel

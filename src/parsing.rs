@@ -64,11 +64,11 @@ impl<'a> InputIter for ParsingContext<'a> {
     }
 
     #[inline]
-    fn slice_index(&self, count: usize) -> Option<usize> {
+    fn slice_index(&self, count: usize) -> Result<usize, Needed> {
         if self.input_len() >= count {
-            Some(count)
+            Ok(count)
         } else {
-            None
+            Err(Needed::new(count - self.input_len()))
         }
     }
 }
