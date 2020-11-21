@@ -1,6 +1,6 @@
 [package]
 name = "lapin-async-global-executor"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-global-executor"
@@ -20,13 +20,13 @@ version = "^1.4.3"
 default-features = false
 
 [dependencies.async-lapin]
-version = "^1.0"
+version = "^1.1"
 path = "../async-lapin"
 default-features = false
 optional = true
 
 [dependencies.lapin]
-version = "^1.5"
+version = "^1.6"
 path = ".."
 default-features = false
 
