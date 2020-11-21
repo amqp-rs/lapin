@@ -5,7 +5,7 @@ use crate::{
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
     BasicProperties, Channel, Result,
 };
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 /// Type wrapping the output of a consumer
 ///
@@ -114,6 +114,20 @@ impl BasicGetMessage {
     }
 }
 
+impl Deref for BasicGetMessage {
+    type Target = Delivery;
+
+    fn deref(&self) -> &Self::Target {
+        &self.delivery
+    }
+}
+
+impl DerefMut for BasicGetMessage {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.delivery
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct BasicReturnMessage {
     pub delivery: Delivery,
@@ -137,5 +151,19 @@ impl BasicReturnMessage {
 
     pub fn error(&self) -> Option<AMQPError> {
         AMQPError::from_id(self.reply_code, self.reply_text.clone())
+    }
+}
+
+impl Deref for BasicReturnMessage {
+    type Target = Delivery;
+
+    fn deref(&self) -> &Self::Target {
+        &self.delivery
+    }
+}
+
+impl DerefMut for BasicReturnMessage {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.delivery
     }
 }

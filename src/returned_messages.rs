@@ -81,7 +81,7 @@ impl Inner {
         confirm_mode: bool,
     ) {
         if let Some(message) = self.current_message.as_mut() {
-            message.delivery.properties = properties;
+            message.properties = properties;
         }
         if size == 0 {
             self.new_delivery_complete(confirm_mode);
@@ -95,7 +95,7 @@ impl Inner {
         confirm_mode: bool,
     ) {
         if let Some(message) = self.current_message.as_mut() {
-            message.delivery.receive_content(payload);
+            message.receive_content(payload);
         }
         if remaining_size == 0 {
             self.new_delivery_complete(confirm_mode);

@@ -76,7 +76,7 @@ impl Inner {
 
     fn handle_content_header_frame(&mut self, size: LongLongUInt, properties: BasicProperties) {
         if let Some(inner) = self.0.as_mut() {
-            inner.message.delivery.properties = properties;
+            inner.message.properties = properties;
         }
         if size == 0 {
             self.new_delivery_complete();
@@ -85,7 +85,7 @@ impl Inner {
 
     fn handle_body_frame(&mut self, remaining_size: LongLongUInt, payload: Vec<u8>) {
         if let Some(inner) = self.0.as_mut() {
-            inner.message.delivery.receive_content(payload);
+            inner.message.receive_content(payload);
         }
         if remaining_size == 0 {
             self.new_delivery_complete();
