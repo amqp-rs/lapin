@@ -36,7 +36,7 @@ pub async fn consume() -> Result<()> {
 
     consumer.set_delegate(move |delivery: DeliveryResult| async move {
         let delivery = delivery.expect("error caught in in consumer");
-        if let Some((_, delivery)) = delivery {
+        if let Some(delivery) = delivery {
             delivery
                 .ack(BasicAckOptions::default())
                 .await

@@ -8,7 +8,7 @@ use crate::{
     options::BasicConsumeOptions,
     types::{FieldTable, LongLongUInt, ShortString},
     wakers::Wakers,
-    BasicProperties, Channel, Error, Result,
+    BasicProperties, Error, Result,
 };
 use flume::{Receiver, Sender};
 use futures_lite::Stream;
@@ -113,7 +113,7 @@ impl<
 ///         .await?;
 ///
 ///     while let Some(delivery) = consumer.next().await {
-///         let (_, delivery) = delivery.expect("error in consumer");
+///         let delivery = delivery.expect("error in consumer");
 ///         delivery
 ///             .ack(BasicAckOptions::default())
 ///             .await?;
@@ -233,24 +233,16 @@ impl Consumer {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        channel: &Channel,
         size: LongLongUInt,
         properties: BasicProperties,
     ) {
         self.inner
             .lock()
-            .handle_content_header_frame(channel, size, properties);
+            .handle_content_header_frame(size, properties);
     }
 
-    pub(crate) fn handle_body_frame(
-        &self,
-        channel: &Channel,
-        remaining_size: LongLongUInt,
-        payload: Vec<u8>,
-    ) {
-        self.inner
-            .lock()
-            .handle_body_frame(channel, remaining_size, payload);
+    pub(crate) fn handle_body_frame(&self, remaining_size: LongLongUInt, payload: Vec<u8>) {
+        self.inner.lock().handle_body_frame(remaining_size, payload);
     }
 
     pub(crate) fn drop_prefetched_messages(&self) {
@@ -318,44 +310,34 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn handle_content_header_frame(
-        &mut self,
-        channel: &Channel,
-        size: LongLongUInt,
-        properties: BasicProperties,
-    ) {
+    fn handle_content_header_frame(&mut self, size: LongLongUInt, properties: BasicProperties) {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.properties = properties;
         }
         if size == 0 {
-            self.new_delivery_complete(channel);
+            self.new_delivery_complete();
         }
     }
 
-    fn handle_body_frame(
-        &mut self,
-        channel: &Channel,
-        remaining_size: LongLongUInt,
-        payload: Vec<u8>,
-    ) {
+    fn handle_body_frame(&mut self, remaining_size: LongLongUInt, payload: Vec<u8>) {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.receive_content(payload);
         }
         if remaining_size == 0 {
-            self.new_delivery_complete(channel);
+            self.new_delivery_complete();
         }
     }
 
-    fn new_delivery_complete(&mut self, channel: &Channel) {
+    fn new_delivery_complete(&mut self) {
         if let Some(delivery) = self.current_message.take() {
             trace!(consumer_tag=%self.tag, "new_delivery");
             if let Some(delegate) = self.delegate.as_ref() {
                 let delegate = delegate.clone();
                 self.executor
-                    .spawn(delegate.on_new_delivery(Ok(Some((channel.clone(), delivery)))));
+                    .spawn(delegate.on_new_delivery(Ok(Some(delivery))));
             } else {
                 self.deliveries_in
-                    .send(Ok(Some((channel.clone(), delivery))))
+                    .send(Ok(Some(delivery)))
                     .expect("failed to send delivery to consumer");
             }
             self.wakers.wake();
@@ -401,7 +383,7 @@ impl ConsumerInner {
 }
 
 impl Stream for Consumer {
-    type Item = Result<(Channel, Delivery)>;
+    type Item = Result<Delivery>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("consumer poll_next");
@@ -413,14 +395,13 @@ impl Stream for Consumer {
         inner.wakers.register(cx.waker());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
-                Ok(Some((channel, delivery))) => {
+                Ok(Some(delivery)) => {
                     trace!(
-                        channel=%channel.id(),
                         consumer_tag=%inner.tag,
                         delivery_tag=?delivery.delivery_tag,
                         "delivery"
                     );
-                    Poll::Ready(Some(Ok((channel, delivery))))
+                    Poll::Ready(Some(Ok(delivery)))
                 }
                 Ok(None) => {
                     trace!(consumer_tag=%inner.tag, "consumer canceled");

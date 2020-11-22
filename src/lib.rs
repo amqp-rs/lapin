@@ -69,7 +69,7 @@
 //!         async_global_executor::spawn(async move {
 //!             info!("will consume");
 //!             while let Some(delivery) = consumer.next().await {
-//!                 let (_, delivery) = delivery.expect("error in consumer");
+//!                 let delivery = delivery.expect("error in consumer");
 //!                 delivery
 //!                     .ack(BasicAckOptions::default())
 //!                     .await

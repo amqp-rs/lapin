@@ -40,7 +40,7 @@ fn main() -> Result<()> {
             .await?;
 
         let delivery = consumer.next().await;
-        assert_eq!(b"test payload".to_vec(), delivery.unwrap()?.1.data);
+        assert_eq!(b"test payload".to_vec(), delivery.unwrap()?.data);
 
         channel_a
             .basic_cancel(consumer.tag().as_str(), BasicCancelOptions::default())

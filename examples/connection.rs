@@ -40,6 +40,7 @@ fn main() {
             info!(?queue, "Declared queue");
 
             info!("will consume");
+            let channel = channel_b.clone();
             channel_b
                 .basic_consume(
                     "hello",
@@ -49,17 +50,20 @@ fn main() {
                 )
                 .await
                 .expect("basic_consume")
-                .set_delegate(move |delivery: DeliveryResult| async move {
-                    info!(message=?delivery, "received message");
-                    if let Ok(Some((channel, delivery))) = delivery {
-                        delivery
-                            .ack(BasicAckOptions::default())
-                            .await
-                            .expect("basic_ack");
-                        channel
-                            .basic_cancel("my_consumer", BasicCancelOptions::default())
-                            .await
-                            .expect("basic_cancel");
+                .set_delegate(move |delivery: DeliveryResult| {
+                    let channel = channel.clone();
+                    async move {
+                        info!(message=?delivery, "received message");
+                        if let Ok(Some(delivery)) = delivery {
+                            delivery
+                                .ack(BasicAckOptions::default())
+                                .await
+                                .expect("basic_ack");
+                            channel
+                                .basic_cancel("my_consumer", BasicCancelOptions::default())
+                                .await
+                                .expect("basic_cancel");
+                        }
                     }
                 });
             info!(state=?conn.status().state());

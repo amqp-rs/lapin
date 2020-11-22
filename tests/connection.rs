@@ -27,7 +27,7 @@ impl ConsumerDelegate for Subscriber {
         Box::pin(async move {
             info!(message=?delivery, "received message");
 
-            if let Some((_, delivery)) = delivery.unwrap() {
+            if let Some(delivery) = delivery.unwrap() {
                 info!(data=%std::str::from_utf8(&delivery.data).unwrap());
 
                 assert_eq!(delivery.data, b"Hello world!");

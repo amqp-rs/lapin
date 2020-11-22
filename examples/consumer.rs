@@ -47,7 +47,7 @@ fn main() {
 
         while let Some(delivery) = consumer.next().await {
             info!(message=?delivery, "received message");
-            if let Ok((_, delivery)) = delivery {
+            if let Ok(delivery) = delivery {
                 delivery
                     .ack(BasicAckOptions::default())
                     .await

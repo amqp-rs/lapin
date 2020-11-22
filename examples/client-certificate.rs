@@ -77,7 +77,7 @@ fn main() {
             .expect("basic_consume")
             .set_delegate(move |delivery: DeliveryResult| async move {
                 info!(message=?delivery, "received message");
-                if let Ok(Some((_, delivery))) = delivery {
+                if let Ok(Some(delivery)) = delivery {
                     delivery
                         .ack(BasicAckOptions::default())
                         .await

@@ -429,12 +429,8 @@ impl Channel {
             size,
             |delivery_cause, confirm_mode| match delivery_cause {
                 DeliveryCause::Consume(consumer_tag) => {
-                    self.consumers.handle_content_header_frame(
-                        &self,
-                        consumer_tag,
-                        size,
-                        properties,
-                    );
+                    self.consumers
+                        .handle_content_header_frame(consumer_tag, size, properties);
                 }
                 DeliveryCause::Get => {
                     self.basic_get_delivery
@@ -472,7 +468,7 @@ impl Channel {
             |delivery_cause, remaining_size, confirm_mode| match delivery_cause {
                 DeliveryCause::Consume(consumer_tag) => {
                     self.consumers
-                        .handle_body_frame(&self, consumer_tag, remaining_size, payload);
+                        .handle_body_frame(consumer_tag, remaining_size, payload);
                 }
                 DeliveryCause::Get => {
                     self.basic_get_delivery

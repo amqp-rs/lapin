@@ -3,16 +3,16 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     protocol::AMQPError,
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
-    BasicProperties, Channel, Result,
+    BasicProperties, Result,
 };
 use std::ops::{Deref, DerefMut};
 
 /// Type wrapping the output of a consumer
 ///
-/// - Ok(Some((channel, delivery))) carries the delivery alongside its channel
+/// - Ok(Some(delivery)) carries the delivery alongside its channel
 /// - Ok(None) means that the consumer got canceled
 /// - Err(error) carries the error and is always followed by Ok(None)
-pub type DeliveryResult = Result<Option<(Channel, Delivery)>>;
+pub type DeliveryResult = Result<Option<Delivery>>;
 
 /// A received AMQP message.
 ///
