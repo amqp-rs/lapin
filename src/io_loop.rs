@@ -246,10 +246,7 @@ impl IoLoop {
 
     fn attempt_flush(&mut self) -> Result<()> {
         let res = self.flush();
-        if let Err(e) = self
-            .socket_state
-            .handle_flush_result(res)
-        {
+        if let Err(e) = self.socket_state.handle_flush_result(res) {
             error!("error flushing: {:?}", e);
             self.critical_error(e)?;
         }
