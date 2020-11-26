@@ -89,6 +89,14 @@ impl SocketState {
         Ok(())
     }
 
+    pub(crate) fn handle_flush_result(
+        &mut self,
+        result: Result<()>,
+    ) -> Result<()> {
+        self.handle_io_result(result, false)?;
+        Ok(())
+    }
+
     pub(crate) fn handle(&self) -> SocketStateHandle {
         self.handle.clone()
     }

@@ -210,6 +210,7 @@ impl IoLoop {
                 return Ok(());
             }
         }
+        self.attempt_flush()?;
         self.write()?;
         if self.connection_status.closed() {
             self.status = Status::Stop;
@@ -243,6 +244,18 @@ impl IoLoop {
         Err(error)
     }
 
+    fn attempt_flush(&mut self) -> Result<()> {
+        let res = self.flush();
+        if let Err(e) = self
+            .socket_state
+            .handle_flush_result(res)
+        {
+            error!("error flushing: {:?}", e);
+            self.critical_error(e)?;
+        }
+        self.poll_internal_rpc()
+    }
+
     fn handle_read_result(&mut self, result: Result<()>) -> Result<()> {
         if let Err(e) = self
             .socket_state
@@ -271,10 +284,6 @@ impl IoLoop {
     }
 
     fn write(&mut self) -> Result<()> {
-        if self.socket_state.writable() {
-            let res = self.flush();
-            self.handle_write_result(res)?;
-        }
         while self.can_write() {
             let res = self.write_to_stream();
             self.handle_write_result(res)?;
