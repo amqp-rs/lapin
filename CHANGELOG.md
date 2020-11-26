@@ -1,3 +1,9 @@
+### 1.6.1 (2020-11-28)
+
+#### Bug Fixes
+
+* Flush more often onto socket
+
 ### 1.6.0 (2020-11-21)
 
 #### Features
