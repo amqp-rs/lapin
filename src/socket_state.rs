@@ -75,6 +75,8 @@ impl SocketState {
         if let Err(err) = result {
             if err.interrupted() {
                 self.handle.wake();
+            } else if err.wouldblock() {
+                // ignore, let the reactor handle that
             } else {
                 return Err(err);
             }
