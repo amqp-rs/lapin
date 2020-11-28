@@ -181,10 +181,7 @@ mod unix {
             self.write(cx, |socket| socket.flush())
         }
 
-        fn poll_close(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<futures_io::Result<()>> {
+        fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<futures_io::Result<()>> {
             self.poll_flush(cx)
         }
     }

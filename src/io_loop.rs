@@ -2,21 +2,18 @@ use crate::{
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
-    executor::Executor,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::{AsyncRW, Reactor},
+    reactor::AsyncRW,
     socket_state::{SocketEvent, SocketState},
-    tcp::HandshakeResult,
     thread::ThreadHandle,
-    Configuration, ConnectionStatus, Error, PromiseResolver, Result, TcpStream,
+    Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use std::{
     collections::VecDeque,
-    convert::TryFrom,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
@@ -61,16 +58,9 @@ impl IoLoop {
         frames: Frames,
         socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
-        stream: HandshakeResult,
-        reactor: Arc<dyn Reactor + Send + Sync>,
-        executor: Arc<dyn Executor>,
+        stream: Pin<Box<dyn AsyncRW + Send>>,
+        heartbeat: Heartbeat,
     ) -> Result<Self> {
-        let stream = TcpStream::try_from(stream)?;
-        let (s, r) = flume::unbounded();
-        executor.spawn_blocking(Box::new(move || drop(s.send(stream.handshake()))));
-        let stream = r.recv_async().await.unwrap()?;
-        let stream = reactor.register(stream)?.into();
-        let heartbeat = Heartbeat::new(channels.clone(), executor, reactor);
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE as usize,
             configuration.frame_max() as usize,

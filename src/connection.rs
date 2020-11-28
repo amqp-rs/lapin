@@ -7,6 +7,7 @@ use crate::{
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
     executor::{DefaultExecutor, Executor},
     frames::Frames,
+    heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     options::{ExchangeBindOptions, QueueBindOptions},
@@ -19,7 +20,7 @@ use crate::{
     topology_internal::TopologyInternal,
     types::ShortUInt,
     uri::AMQPUri,
-    Error, Promise, Result,
+    Error, Promise, Result, TcpStream,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -296,10 +297,27 @@ impl Connection {
             .map(Ok)
             .unwrap_or_else(DefaultExecutor::default)?;
 
-        let (connect_promise, resolver) = pinky_swear::PinkySwear::<HandshakeResult>::new();
+        let (connect_promise, resolver) = pinky_swear::PinkySwear::<Result<TcpStream>>::new();
         let connect_uri = uri.clone();
         executor.spawn_blocking(Box::new(move || {
-            resolver.swear(connect(&connect_uri));
+            let mut res = connect(&connect_uri);
+            loop {
+                match res {
+                    Ok(stream) => {
+                        resolver.swear(Ok(stream));
+                        break;
+                    }
+                    Err(mid) => match mid.into_mid_handshake_tls_stream() {
+                        Err(err) => {
+                            resolver.swear(Err(err.into()));
+                            break;
+                        }
+                        Ok(mid) => {
+                            res = mid.handshake();
+                        }
+                    },
+                }
+            }
         }));
 
         let reactor = options
@@ -354,7 +372,9 @@ impl Connection {
             uri.query.auth_mechanism.unwrap_or_default(),
             options,
         ));
-        let handshake_result = connect_promise.await;
+        let stream = connect_promise.await?;
+        let stream = reactor.register(stream)?.into();
+        let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
         IoLoop::new(
@@ -365,9 +385,8 @@ impl Connection {
             frames,
             socket_state,
             io_loop_handle,
-            handshake_result,
-            reactor,
-            executor,
+            stream,
+            heartbeat,
         )
         .await
         .and_then(IoLoop::start)?;

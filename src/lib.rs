@@ -101,7 +101,8 @@
 pub use amq_protocol::{
     auth,
     protocol::{self, BasicProperties},
-    tcp, types, uri,
+    tcp::{self, TcpStream},
+    types, uri,
 };
 
 pub use channel::{options, Channel};
@@ -115,7 +116,6 @@ pub use consumer_status::ConsumerState;
 pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
-pub use stream::TcpStream;
 
 pub mod executor;
 pub mod heartbeat;
@@ -159,7 +159,6 @@ mod parsing;
 mod queue;
 mod registry;
 mod returned_messages;
-mod stream;
 mod thread;
 mod topology_internal;
 mod wakers;
