@@ -16,6 +16,7 @@ default = ["lapin/default"]
 
 [dependencies]
 async-io = "^1.2"
+async-trait = "^0.1"
 parking_lot = "^0.11"
 
 [dependencies.lapin]

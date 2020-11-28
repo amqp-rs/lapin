@@ -7,7 +7,7 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::{AsyncRW, ReactorBuilder, ReactorHandle},
+    reactor::{AsyncRW, Reactor},
     socket_state::{SocketEvent, SocketState},
     tcp::HandshakeResult,
     thread::ThreadHandle,
@@ -42,7 +42,6 @@ pub struct IoLoop {
     frames: Frames,
     heartbeat: Heartbeat,
     socket_state: SocketState,
-    reactor: Box<dyn ReactorHandle + Send>,
     connection_io_loop_handle: ThreadHandle,
     stream: Pin<Box<dyn AsyncRW + Send>>,
     status: Status,
@@ -63,22 +62,19 @@ impl IoLoop {
         socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
         stream: HandshakeResult,
-        reactor_builder: &dyn ReactorBuilder,
+        reactor: Arc<dyn Reactor + Send + Sync>,
         executor: Arc<dyn Executor>,
     ) -> Result<Self> {
         let stream = TcpStream::try_from(stream)?;
         let (s, r) = flume::unbounded();
         executor.spawn_blocking(Box::new(move || drop(s.send(stream.handshake()))));
         let stream = r.recv_async().await.unwrap()?;
-
-        let heartbeat = Heartbeat::new(channels.clone());
-        let mut reactor = reactor_builder.build(heartbeat.clone(), executor);
-        let reactor_handle = reactor.handle();
+        let stream = reactor.register(stream)?.into();
+        let heartbeat = Heartbeat::new(channels.clone(), executor, reactor);
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE as usize,
             configuration.frame_max() as usize,
         );
-        let stream = reactor.register(stream)?.into();
 
         Ok(Self {
             connection_status,
@@ -88,7 +84,6 @@ impl IoLoop {
             frames,
             heartbeat,
             socket_state,
-            reactor: reactor_handle,
             connection_io_loop_handle,
             stream,
             status: Status::Initial,
@@ -119,7 +114,7 @@ impl IoLoop {
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
                 self.heartbeat.set_timeout(heartbeat);
-                self.reactor.start_heartbeat();
+                self.heartbeat.start();
             }
             self.status = Status::Connected;
         }

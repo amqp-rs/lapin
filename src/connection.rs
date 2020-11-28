@@ -10,7 +10,7 @@ use crate::{
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     options::{ExchangeBindOptions, QueueBindOptions},
-    reactor::DefaultReactorBuilder,
+    reactor::DefaultReactor,
     registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
@@ -302,10 +302,10 @@ impl Connection {
             resolver.swear(connect(&connect_uri));
         }));
 
-        let reactor_builder = options
-            .reactor_builder
+        let reactor = options
+            .reactor
             .take()
-            .unwrap_or_else(|| Arc::new(DefaultReactorBuilder));
+            .unwrap_or_else(|| Arc::new(DefaultReactor));
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
@@ -366,7 +366,7 @@ impl Connection {
             socket_state,
             io_loop_handle,
             handshake_result,
-            &*reactor_builder,
+            reactor,
             executor,
         )
         .await

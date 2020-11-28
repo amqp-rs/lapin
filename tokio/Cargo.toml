@@ -25,6 +25,7 @@ default-features = false
 features = ["net", "rt", "time"]
 
 [dependencies]
+async-trait = "^0.1"
 parking_lot = "^0.11"
 
 [dev-dependencies.tokio]

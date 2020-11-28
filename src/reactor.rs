@@ -1,82 +1,28 @@
-use crate::{executor::Executor, heartbeat::Heartbeat, Result, TcpStream};
+use crate::{Result, TcpStream};
 use async_io::{Async, Timer};
+use async_trait::async_trait;
 use futures_lite::io::{AsyncRead, AsyncWrite};
-use std::{fmt, sync::Arc};
+use std::{fmt, time::Duration};
 
 pub trait AsyncRW: AsyncRead + AsyncWrite {}
 impl<IO: AsyncRead + AsyncWrite> AsyncRW for IO {}
 
-pub trait ReactorBuilder: fmt::Debug + Send + Sync {
-    fn build(&self, heartbeat: Heartbeat, executor: Arc<dyn Executor>) -> Box<dyn Reactor + Send>;
-}
-
+#[async_trait]
 pub trait Reactor: fmt::Debug + Send {
-    fn register(&mut self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>>;
-    fn handle(&self) -> Box<dyn ReactorHandle + Send> {
-        Box::new(DummyHandle)
-    }
-}
-
-pub trait ReactorHandle {
-    fn start_heartbeat(&self) {}
-}
-
-#[derive(Clone)]
-struct DummyHandle;
-
-impl ReactorHandle for DummyHandle {}
-
-pub(crate) struct DefaultReactorBuilder;
-
-impl ReactorBuilder for DefaultReactorBuilder {
-    fn build(&self, heartbeat: Heartbeat, executor: Arc<dyn Executor>) -> Box<dyn Reactor + Send> {
-        Box::new(DefaultReactor(DefaultReactorHandle {
-            heartbeat,
-            executor,
-        }))
-    }
-}
-
-impl fmt::Debug for DefaultReactorBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DefaultReactorBuilder").finish()
-    }
+    fn register(&self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>>;
+    async fn sleep(&self, dur: Duration);
 }
 
 #[derive(Debug)]
-pub(crate) struct DefaultReactor(DefaultReactorHandle);
+pub(crate) struct DefaultReactor;
 
+#[async_trait]
 impl Reactor for DefaultReactor {
-    fn register(&mut self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>> {
+    fn register(&self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>> {
         Ok(Box::new(Async::new(socket)?))
     }
 
-    fn handle(&self) -> Box<dyn ReactorHandle + Send> {
-        Box::new(self.0.clone())
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct DefaultReactorHandle {
-    heartbeat: Heartbeat,
-    executor: Arc<dyn Executor>,
-}
-
-impl fmt::Debug for DefaultReactorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DefaultReactorHandle").finish()
-    }
-}
-
-impl ReactorHandle for DefaultReactorHandle {
-    fn start_heartbeat(&self) {
-        self.executor
-            .spawn(Box::pin(heartbeat(self.heartbeat.clone())));
-    }
-}
-
-async fn heartbeat(heartbeat: Heartbeat) {
-    while let Some(timeout) = heartbeat.poll_timeout() {
-        Timer::after(timeout).await;
+    async fn sleep(&self, dur: Duration) {
+        Timer::after(dur).await;
     }
 }

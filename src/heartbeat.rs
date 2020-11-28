@@ -1,4 +1,4 @@
-use crate::channels::Channels;
+use crate::{channels::Channels, executor::Executor, reactor::Reactor};
 use parking_lot::Mutex;
 use std::{
     fmt,
@@ -9,29 +9,41 @@ use std::{
 #[derive(Clone)]
 pub struct Heartbeat {
     channels: Channels,
+    executor: Arc<dyn Executor>,
+    reactor: Arc<dyn Reactor + Send + Sync>,
     inner: Arc<Mutex<Inner>>,
 }
 
 impl Heartbeat {
-    pub(crate) fn new(channels: Channels) -> Self {
+    pub(crate) fn new(
+        channels: Channels,
+        executor: Arc<dyn Executor>,
+        reactor: Arc<dyn Reactor + Send + Sync>,
+    ) -> Self {
         let inner = Default::default();
-        Self { channels, inner }
+        Self {
+            channels,
+            executor,
+            reactor,
+            inner,
+        }
     }
 
     pub(crate) fn set_timeout(&self, timeout: Duration) {
         self.inner.lock().timeout = Some(timeout);
     }
 
-    pub fn get_heartbeat(&self) -> Option<Duration> {
-        self.inner.lock().timeout
+    pub(crate) fn start(&self) {
+        let heartbeat = self.clone();
+        self.executor.spawn(Box::pin(async move {
+            while let Some(dur) = heartbeat.poll_timeout() {
+                heartbeat.reactor.sleep(dur).await;
+            }
+        }));
     }
 
-    pub fn poll_timeout(&self) -> Option<Duration> {
+    fn poll_timeout(&self) -> Option<Duration> {
         self.inner.lock().poll_timeout(&self.channels)
-    }
-
-    pub fn send(&self) {
-        self.channels.send_heartbeat();
     }
 
     pub(crate) fn update_last_write(&self) {

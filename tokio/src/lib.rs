@@ -1,4 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties, Result};
+use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 use tokio::runtime::Handle;
 
@@ -30,7 +30,7 @@ impl LapinTokioExt for ConnectionProperties {
 
     #[cfg(unix)]
     fn with_tokio_reactor(self) -> Self {
-        self.with_reactor(unix::TokioReactorBuilder::new(Handle::current()))
+        self.with_reactor(unix::TokioReactor(Handle::current()))
     }
 }
 
@@ -49,130 +49,25 @@ impl Executor for TokioExecutor {
 
 #[cfg(unix)]
 mod unix {
-    use super::*;
+    use async_trait::async_trait;
     use lapin::{
-        heartbeat::Heartbeat,
-        reactor::{Reactor, ReactorBuilder, ReactorHandle, Slot},
-        socket_state::{SocketEvent, SocketStateHandle},
-        tcp::{TcpStream, TcpStreamWrapper},
+        reactor::{AsyncRW, Reactor},
+        Result, TcpStream,
     };
-    use parking_lot::Mutex;
-    use std::{collections::HashMap, fmt, sync::Arc};
-    use tokio::{io::unix::AsyncFd, time::sleep};
+    use std::time::Duration;
+    use tokio::{io::unix::AsyncFd, runtime::Handle};
 
     #[derive(Debug)]
-    pub(crate) struct TokioReactorBuilder(Handle);
+    pub(super) struct TokioReactor(pub(super) Handle);
 
-    impl TokioReactorBuilder {
-        pub(crate) fn new(handle: Handle) -> Self {
-            Self(handle)
-        }
-    }
-
-    #[derive(Debug)]
-    struct TokioReactor(TokioReactorHandle);
-
-    #[derive(Clone)]
-    struct TokioReactorHandle {
-        heartbeat: Heartbeat,
-        executor: Arc<dyn Executor>,
-        handle: Handle,
-        inner: Arc<Mutex<Inner>>,
-    }
-
-    #[derive(Default)]
-    struct Inner {
-        slot: Slot,
-        slots: HashMap<Slot, (Arc<AsyncFd<TcpStreamWrapper>>, SocketStateHandle)>,
-    }
-
-    impl fmt::Debug for TokioReactorHandle {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("TokioReactorHandle").finish()
-        }
-    }
-
-    impl Inner {
-        fn register(
-            &mut self,
-            socket: Arc<AsyncFd<TcpStreamWrapper>>,
-            socket_state: SocketStateHandle,
-        ) -> Result<usize> {
-            let slot = self.slot;
-            self.slot += 1;
-            self.slots.insert(slot, (socket, socket_state));
-            Ok(slot)
-        }
-    }
-
-    impl ReactorBuilder for TokioReactorBuilder {
-        fn build(
-            &self,
-            heartbeat: Heartbeat,
-            executor: Arc<dyn Executor>,
-        ) -> Box<dyn Reactor + Send> {
-            Box::new(TokioReactor(TokioReactorHandle {
-                heartbeat,
-                executor,
-                handle: self.0.clone(),
-                inner: Arc::new(Mutex::new(Default::default())),
-            }))
-        }
-    }
-
+    #[async_trait]
     impl Reactor for TokioReactor {
-        fn register(
-            &mut self,
-            socket: &mut TcpStream,
-            socket_state: SocketStateHandle,
-        ) -> Result<Slot> {
-            let _enter = self.0.handle.enter();
-            let socket = Arc::new(AsyncFd::new(unsafe { TcpStreamWrapper::new(socket) })?);
-            let slot = self.0.inner.lock().register(socket, socket_state)?;
-            self.0.poll_read(slot);
-            self.0.poll_write(slot);
-            Ok(slot)
+        fn register(&self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>> {
+            Ok(Box::new(AsyncFd::new(socket)?))
         }
 
-        fn handle(&self) -> Box<dyn ReactorHandle + Send> {
-            Box::new(self.0.clone())
+        async fn sleep(&self, dur: Duration) {
+            tokio::time::sleep(dur).await;
         }
-    }
-
-    impl ReactorHandle for TokioReactorHandle {
-        fn start_heartbeat(&self) {
-            self.executor
-                .spawn(Box::pin(heartbeat(self.heartbeat.clone())));
-        }
-
-        fn poll_read(&self, slot: usize) {
-            if let Some((socket, socket_state)) = self.inner.lock().slots.get(&slot) {
-                self.executor
-                    .spawn(Box::pin(poll_read(socket.clone(), socket_state.clone())));
-            }
-        }
-
-        fn poll_write(&self, slot: usize) {
-            if let Some((socket, socket_state)) = self.inner.lock().slots.get(&slot) {
-                self.executor
-                    .spawn(Box::pin(poll_write(socket.clone(), socket_state.clone())));
-            }
-        }
-    }
-
-    async fn heartbeat(heartbeat: Heartbeat) {
-        while let Some(timeout) = heartbeat.poll_timeout() {
-            sleep(timeout).await;
-        }
-    }
-
-    async fn poll_read(socket: Arc<AsyncFd<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-        socket.readable().await.unwrap().clear_ready();
-        socket_state.send(SocketEvent::Readable);
-    }
-
-    async fn poll_write(socket: Arc<AsyncFd<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-        socket.writable().await.unwrap().clear_ready();
-        socket_state.send(SocketEvent::Writable);
     }
 }
