@@ -385,7 +385,6 @@ impl Channel {
         }
         self.on_connection_start_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn connection_start_ok(
         &self,
         client_properties: FieldTable,
@@ -425,7 +424,6 @@ impl Channel {
         }
         self.on_connection_secure_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn connection_secure_ok(&self, response: &str) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -452,7 +450,6 @@ impl Channel {
         }
         self.on_connection_tune_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn connection_tune_ok(
         &self,
         channel_max: ShortUInt,
@@ -478,7 +475,6 @@ impl Channel {
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_open(
         &self,
         virtual_host: &str,
@@ -538,7 +534,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_close(
         &self,
         reply_code: ShortUInt,
@@ -587,7 +582,6 @@ impl Channel {
         }
         self.on_connection_close_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_close_ok(&self, error: Error) -> Result<()> {
         if !self.status.closing() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -628,7 +622,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_blocked(&self, reason: &str) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -655,7 +648,6 @@ impl Channel {
         }
         self.on_connection_blocked_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_unblocked(&self) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -680,7 +672,6 @@ impl Channel {
         }
         self.on_connection_unblocked_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connection_update_secret(
         &self,
         new_secret: &str,
@@ -742,7 +733,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn channel_open(&self, channel: Channel) -> Result<Channel> {
         if !self.status.initializing() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -787,7 +777,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn channel_flow(&self, options: ChannelFlowOptions) -> Result<Boolean> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -824,7 +813,6 @@ impl Channel {
         }
         self.on_channel_flow_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn channel_flow_ok(&self, options: ChannelFlowOkOptions) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -858,7 +846,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     async fn do_channel_close(
         &self,
         reply_code: ShortUInt,
@@ -906,7 +893,6 @@ impl Channel {
         }
         self.on_channel_close_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn channel_close_ok(&self, error: Error) -> Result<()> {
         if !self.status.closing() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -945,7 +931,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn access_request(&self, realm: &str, options: AccessRequestOptions) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1010,7 +995,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     async fn do_exchange_declare(
         &self,
         exchange: &str,
@@ -1102,7 +1086,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     /// Delete an exchange
     pub async fn exchange_delete(
         &self,
@@ -1166,7 +1149,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn exchange_bind(
         &self,
         destination: &str,
@@ -1252,7 +1234,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn exchange_unbind(
         &self,
         destination: &str,
@@ -1338,7 +1319,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn queue_declare(
         &self,
         queue: &str,
@@ -1414,7 +1394,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn queue_bind(
         &self,
         queue: &str,
@@ -1495,7 +1474,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn queue_purge(&self, queue: &str, options: QueuePurgeOptions) -> Result<LongUInt> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1543,7 +1521,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn queue_delete(&self, queue: &str, options: QueueDeleteOptions) -> Result<LongUInt> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1604,7 +1581,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn queue_unbind(
         &self,
         queue: &str,
@@ -1680,7 +1656,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_qos(
         &self,
         prefetch_count: ShortUInt,
@@ -1734,7 +1709,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     async fn do_basic_consume(
         &self,
         queue: &str,
@@ -1830,7 +1804,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_cancel(
         &self,
         consumer_tag: &str,
@@ -1880,7 +1853,6 @@ impl Channel {
         }
         self.on_basic_cancel_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn basic_cancel_ok(&self, consumer_tag: &str) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1917,7 +1889,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_publish(
         &self,
         exchange: &str,
@@ -1962,7 +1933,6 @@ impl Channel {
         }
         self.on_basic_deliver_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     async fn do_basic_get(
         &self,
         queue: &str,
@@ -2023,7 +1993,6 @@ impl Channel {
         }
         self.on_basic_get_empty_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_ack(
         &self,
         delivery_tag: LongLongUInt,
@@ -2055,7 +2024,6 @@ impl Channel {
         }
         self.on_basic_ack_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_reject(
         &self,
         delivery_tag: LongLongUInt,
@@ -2081,7 +2049,6 @@ impl Channel {
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2100,7 +2067,6 @@ impl Channel {
         self.on_basic_recover_async_sent();
         promise.await
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_recover(&self, options: BasicRecoverOptions) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2151,7 +2117,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn basic_nack(
         &self,
         delivery_tag: LongLongUInt,
@@ -2184,7 +2149,6 @@ impl Channel {
         }
         self.on_basic_nack_received(method)
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn tx_select(&self) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2229,7 +2193,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn tx_commit(&self) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2274,7 +2237,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn tx_rollback(&self) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2321,7 +2283,6 @@ impl Channel {
             ),
         }
     }
-    #[allow(clippy::too_many_arguments)]
     pub async fn confirm_select(&self, options: ConfirmSelectOptions) -> Result<()> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));

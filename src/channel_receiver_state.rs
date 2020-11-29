@@ -20,7 +20,6 @@ impl ChannelReceiverStates {
         ));
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn set_content_length<
         Handler: FnOnce(&DeliveryCause, bool),
         OnInvalidClass: FnOnce(String) -> Result<()>,

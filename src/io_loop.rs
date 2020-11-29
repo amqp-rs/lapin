@@ -49,7 +49,6 @@ pub struct IoLoop {
 }
 
 impl IoLoop {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,

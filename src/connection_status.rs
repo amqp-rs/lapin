@@ -80,7 +80,6 @@ impl ConnectionStatus {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 pub(crate) enum ConnectionStep {
     ProtocolHeader(
         PromiseResolver<Connection>,

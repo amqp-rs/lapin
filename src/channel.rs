@@ -86,7 +86,6 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: u16,
         configuration: Configuration,
@@ -1044,7 +1043,6 @@ impl Channel {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn on_basic_consume_ok_received(
         &self,
         method: protocol::basic::ConsumeOk,
