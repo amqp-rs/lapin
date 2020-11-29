@@ -1,4 +1,4 @@
-use crate::protocol;
+use crate::{protocol, ChannelId, FrameSize, Heartbeat};
 use parking_lot::RwLock;
 use std::{fmt, sync::Arc};
 
@@ -8,37 +8,37 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub fn channel_max(&self) -> u16 {
+    pub fn channel_max(&self) -> ChannelId {
         self.inner.read().channel_max
     }
 
-    pub(crate) fn set_channel_max(&self, channel_max: u16) {
+    pub(crate) fn set_channel_max(&self, channel_max: ChannelId) {
         self.inner.write().channel_max = channel_max;
     }
 
-    pub fn frame_max(&self) -> u32 {
+    pub fn frame_max(&self) -> FrameSize {
         self.inner.read().frame_max
     }
 
-    pub(crate) fn set_frame_max(&self, frame_max: u32) {
-        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE as u32);
+    pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
+        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE as FrameSize);
         self.inner.write().frame_max = frame_max;
     }
 
-    pub fn heartbeat(&self) -> u16 {
+    pub fn heartbeat(&self) -> Heartbeat {
         self.inner.read().heartbeat
     }
 
-    pub(crate) fn set_heartbeat(&self, heartbeat: u16) {
+    pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
         self.inner.write().heartbeat = heartbeat;
     }
 }
 
 #[derive(Default)]
 struct Inner {
-    channel_max: u16,
-    frame_max: u32,
-    heartbeat: u16,
+    channel_max: ChannelId,
+    frame_max: FrameSize,
+    heartbeat: Heartbeat,
 }
 
 impl fmt::Debug for Configuration {

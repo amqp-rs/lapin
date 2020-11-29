@@ -1,7 +1,4 @@
-use crate::{
-    types::{LongLongUInt, ShortString, ShortUInt},
-    ChannelId, Result,
-};
+use crate::{types::ShortString, ChannelId, Identifier, PayloadSize, Result};
 use std::collections::VecDeque;
 
 #[derive(Debug, Default)]
@@ -13,7 +10,7 @@ impl ChannelReceiverStates {
         self.0.front().unwrap().clone()
     }
 
-    pub(crate) fn set_will_receive(&mut self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
+    pub(crate) fn set_will_receive(&mut self, class_id: Identifier, delivery_cause: DeliveryCause) {
         self.0.push_back(ChannelReceiverState::WillReceiveContent(
             class_id,
             delivery_cause,
@@ -27,8 +24,8 @@ impl ChannelReceiverStates {
     >(
         &mut self,
         channel_id: ChannelId,
-        class_id: ShortUInt,
-        length: LongLongUInt,
+        class_id: Identifier,
+        length: PayloadSize,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
@@ -61,12 +58,12 @@ impl ChannelReceiverStates {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool),
+        Handler: FnOnce(&DeliveryCause, PayloadSize, bool),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
         channel_id: ChannelId,
-        length: LongLongUInt,
+        length: PayloadSize,
         handler: Handler,
         error_handler: OnError,
         confirm_mode: bool,
@@ -97,8 +94,8 @@ impl ChannelReceiverStates {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ChannelReceiverState {
-    WillReceiveContent(ShortUInt, DeliveryCause),
-    ReceivingContent(DeliveryCause, LongLongUInt),
+    WillReceiveContent(Identifier, DeliveryCause),
+    ReceivingContent(DeliveryCause, PayloadSize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

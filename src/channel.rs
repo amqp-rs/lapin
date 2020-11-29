@@ -24,7 +24,8 @@ use crate::{
     topology_internal::ChannelDefinitionInternal,
     types::*,
     BasicProperties, ChannelId, Configuration, Connection, ConnectionStatus, DeliveryTag, Error,
-    ExchangeKind, Promise, PromiseResolver, Result,
+    ExchangeKind, FrameSize, Heartbeat, Identifier, MessageCount, PayloadSize, Promise,
+    PromiseResolver, ReplyCode, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use serde::{Deserialize, Serialize};
@@ -262,7 +263,7 @@ impl Channel {
         self.waker.wake()
     }
 
-    fn assert_channel0(&self, class_id: u16, method_id: u16) -> Result<()> {
+    fn assert_channel0(&self, class_id: Identifier, method_id: Identifier) -> Result<()> {
         if self.id == 0 {
             Ok(())
         } else {
@@ -284,7 +285,7 @@ impl Channel {
         }
     }
 
-    pub async fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Result<()> {
+    pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
         self.do_channel_close(reply_code, reply_text, 0, 0).await
     }
 
@@ -404,7 +405,12 @@ impl Channel {
             .unwrap_or_else(|| PublisherConfirm::not_requested(self.returned_messages.clone())))
     }
 
-    fn handle_invalid_contents(&self, error: String, class_id: u16, method_id: u16) -> Result<()> {
+    fn handle_invalid_contents(
+        &self,
+        error: String,
+        class_id: Identifier,
+        method_id: Identifier,
+    ) -> Result<()> {
         error!(%error);
         let error = AMQPError::new(AMQPHardError::UNEXPECTEDFRAME.into(), error.into());
         self.internal_rpc.close_connection(
@@ -418,8 +424,8 @@ impl Channel {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        class_id: u16,
-        size: LongLongUInt,
+        class_id: Identifier,
+        size: PayloadSize,
         properties: BasicProperties,
     ) -> Result<()> {
         self.status.set_content_length(
@@ -463,7 +469,7 @@ impl Channel {
     pub(crate) fn handle_body_frame(&self, payload: Vec<u8>) -> Result<()> {
         self.status.receive(
             self.id,
-            payload.len() as LongLongUInt,
+            payload.len() as PayloadSize,
             |delivery_cause, remaining_size, confirm_mode| match delivery_cause {
                 DeliveryCause::Consume(consumer_tag) => {
                     self.consumers
@@ -502,7 +508,12 @@ impl Channel {
         }
     }
 
-    fn acknowledgement_error(&self, error: AMQPError, class_id: u16, method_id: u16) -> Result<()> {
+    fn acknowledgement_error(
+        &self,
+        error: AMQPError,
+        class_id: Identifier,
+        method_id: Identifier,
+    ) -> Result<()> {
         error!("Got a bad acknowledgement from server, closing channel");
         let channel = self.clone();
         let err = error.clone();
@@ -573,8 +584,8 @@ impl Channel {
     fn tune_connection_configuration(
         &self,
         channel_max: ChannelId,
-        frame_max: u32,
-        heartbeat: u16,
+        frame_max: FrameSize,
+        heartbeat: Heartbeat,
     ) {
         // If we disable the heartbeat (0) but the server don't, follow it and enable it too
         // If both us and the server want heartbeat enabled, pick the lowest value.
@@ -605,7 +616,7 @@ impl Channel {
             }
         }
         if self.configuration.frame_max() == 0 {
-            self.configuration.set_frame_max(u32::max_value());
+            self.configuration.set_frame_max(FrameSize::max_value());
         }
     }
 
@@ -929,7 +940,7 @@ impl Channel {
     fn on_queue_delete_ok_received(
         &self,
         method: protocol::queue::DeleteOk,
-        resolver: PromiseResolver<LongUInt>,
+        resolver: PromiseResolver<MessageCount>,
         queue: ShortString,
     ) -> Result<()> {
         self.local_registry.deregister_queue(queue.as_str());
@@ -941,7 +952,7 @@ impl Channel {
     fn on_queue_purge_ok_received(
         &self,
         method: protocol::queue::PurgeOk,
-        resolver: PromiseResolver<LongUInt>,
+        resolver: PromiseResolver<MessageCount>,
     ) -> Result<()> {
         resolver.swear(Ok(method.message_count));
         Ok(())

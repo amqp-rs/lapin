@@ -1,4 +1,6 @@
-use crate::{channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, ChannelId};
+use crate::{
+    channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, ChannelId, ReplyCode,
+};
 use std::fmt;
 
 pub(crate) struct ChannelCloser {
@@ -8,7 +10,11 @@ pub(crate) struct ChannelCloser {
 }
 
 impl ChannelCloser {
-    pub(crate) fn new(id: ChannelId, status: ChannelStatus, internal_rpc: InternalRPCHandle) -> Self {
+    pub(crate) fn new(
+        id: ChannelId,
+        status: ChannelStatus,
+        internal_rpc: InternalRPCHandle,
+    ) -> Self {
         Self {
             id,
             status,
@@ -31,7 +37,7 @@ impl Drop for ChannelCloser {
         if self.status.auto_close(self.id) {
             self.internal_rpc.close_channel(
                 self.id,
-                protocol::constants::REPLY_SUCCESS as u16,
+                protocol::constants::REPLY_SUCCESS as ReplyCode,
                 "OK".to_string(),
             );
         }

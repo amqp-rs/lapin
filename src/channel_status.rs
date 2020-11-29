@@ -1,7 +1,6 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
-    types::{LongLongUInt, ShortUInt},
-    ChannelId, Result,
+    ChannelId, Identifier, PayloadSize, Result,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -53,7 +52,7 @@ impl ChannelStatus {
         self.0.lock().receiver_state.receiver_state()
     }
 
-    pub(crate) fn set_will_receive(&self, class_id: ShortUInt, delivery_cause: DeliveryCause) {
+    pub(crate) fn set_will_receive(&self, class_id: Identifier, delivery_cause: DeliveryCause) {
         self.0
             .lock()
             .receiver_state
@@ -67,8 +66,8 @@ impl ChannelStatus {
     >(
         &self,
         channel_id: ChannelId,
-        class_id: ShortUInt,
-        length: LongLongUInt,
+        class_id: Identifier,
+        length: PayloadSize,
         handler: Handler,
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
@@ -87,12 +86,12 @@ impl ChannelStatus {
     }
 
     pub(crate) fn receive<
-        Handler: FnOnce(&DeliveryCause, LongLongUInt, bool),
+        Handler: FnOnce(&DeliveryCause, PayloadSize, bool),
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
         channel_id: ChannelId,
-        length: LongLongUInt,
+        length: PayloadSize,
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {

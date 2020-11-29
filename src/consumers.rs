@@ -1,9 +1,6 @@
 use crate::{
-    consumer::Consumer,
-    message::Delivery,
-    topology_internal::ConsumerDefinitionInternal,
-    types::{LongLongUInt, ShortString},
-    BasicProperties, Error,
+    consumer::Consumer, message::Delivery, topology_internal::ConsumerDefinitionInternal,
+    types::ShortString, BasicProperties, Error, PayloadSize,
 };
 use parking_lot::Mutex;
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash, sync::Arc};
@@ -37,7 +34,7 @@ impl Consumers {
     pub(crate) fn handle_content_header_frame<S: Hash + Eq + ?Sized>(
         &self,
         consumer_tag: &S,
-        size: LongLongUInt,
+        size: PayloadSize,
         properties: BasicProperties,
     ) where
         ShortString: Borrow<S>,
@@ -50,7 +47,7 @@ impl Consumers {
     pub(crate) fn handle_body_frame<S: Hash + Eq + ?Sized>(
         &self,
         consumer_tag: &S,
-        remaining_size: LongLongUInt,
+        remaining_size: PayloadSize,
         payload: Vec<u8>,
     ) where
         ShortString: Borrow<S>,

@@ -125,8 +125,15 @@ pub mod reactor;
 pub mod socket_state;
 pub mod topology;
 
-pub type ChannelId = types::ShortUInt;
+pub type ChannelId = Identifier;
+pub type ConsumerCount = types::LongUInt;
 pub type DeliveryTag = types::LongLongUInt;
+pub type FrameSize = types::LongUInt;
+pub type Heartbeat = types::ShortUInt;
+pub type Identifier = types::ShortUInt;
+pub type MessageCount = types::LongUInt;
+pub type PayloadSize = types::LongLongUInt;
+pub type ReplyCode = types::ShortUInt;
 
 type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;

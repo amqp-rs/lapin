@@ -1,9 +1,7 @@
 use crate::{
-    message::BasicGetMessage,
-    options::BasicGetOptions,
-    topology_internal::BasicGetDefinitionInternal,
-    types::{LongLongUInt, ShortString},
-    BasicProperties, PromiseResolver,
+    message::BasicGetMessage, options::BasicGetOptions,
+    topology_internal::BasicGetDefinitionInternal, types::ShortString, BasicProperties,
+    PayloadSize, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -26,13 +24,13 @@ impl BasicGetDelivery {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        size: LongLongUInt,
+        size: PayloadSize,
         properties: BasicProperties,
     ) {
         self.0.lock().handle_content_header_frame(size, properties);
     }
 
-    pub(crate) fn handle_body_frame(&self, remaining_size: LongLongUInt, payload: Vec<u8>) {
+    pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
         self.0.lock().handle_body_frame(remaining_size, payload);
     }
 
@@ -74,7 +72,7 @@ impl Inner {
         });
     }
 
-    fn handle_content_header_frame(&mut self, size: LongLongUInt, properties: BasicProperties) {
+    fn handle_content_header_frame(&mut self, size: PayloadSize, properties: BasicProperties) {
         if let Some(inner) = self.0.as_mut() {
             inner.message.properties = properties;
         }
@@ -83,7 +81,7 @@ impl Inner {
         }
     }
 
-    fn handle_body_frame(&mut self, remaining_size: LongLongUInt, payload: Vec<u8>) {
+    fn handle_body_frame(&mut self, remaining_size: PayloadSize, payload: Vec<u8>) {
         if let Some(inner) = self.0.as_mut() {
             inner.message.receive_content(payload);
         }

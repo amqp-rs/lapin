@@ -1,15 +1,19 @@
-use crate::types::ShortString;
+use crate::{types::ShortString, ConsumerCount, MessageCount};
 use std::borrow::Borrow;
 
 #[derive(Clone, Debug)]
 pub struct Queue {
     name: ShortString,
-    message_count: u32,
-    consumer_count: u32,
+    message_count: MessageCount,
+    consumer_count: ConsumerCount,
 }
 
 impl Queue {
-    pub(crate) fn new(name: ShortString, message_count: u32, consumer_count: u32) -> Self {
+    pub(crate) fn new(
+        name: ShortString,
+        message_count: MessageCount,
+        consumer_count: ConsumerCount,
+    ) -> Self {
         Self {
             name,
             message_count,
@@ -21,11 +25,11 @@ impl Queue {
         &self.name
     }
 
-    pub fn message_count(&self) -> u32 {
+    pub fn message_count(&self) -> MessageCount {
         self.message_count
     }
 
-    pub fn consumer_count(&self) -> u32 {
+    pub fn consumer_count(&self) -> ConsumerCount {
         self.consumer_count
     }
 }

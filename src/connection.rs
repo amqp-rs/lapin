@@ -18,9 +18,8 @@ use crate::{
     thread::ThreadHandle,
     topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
     topology_internal::TopologyInternal,
-    types::ShortUInt,
     uri::AMQPUri,
-    Error, Promise, Result, TcpStream,
+    Error, Promise, ReplyCode, Result, TcpStream,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -249,7 +248,7 @@ impl Connection {
         &self.status
     }
 
-    pub async fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Result<()> {
+    pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
         if let Some(channel0) = self.channels.get(0) {
             channel0
                 .connection_close(reply_code, reply_text, 0, 0)

@@ -1,4 +1,6 @@
-use crate::{connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
+use crate::{
+    connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol, ReplyCode,
+};
 
 pub(crate) struct ConnectionCloser {
     status: ConnectionStatus,
@@ -18,7 +20,7 @@ impl Drop for ConnectionCloser {
     fn drop(&mut self) {
         if self.status.auto_close() {
             self.internal_rpc.close_connection(
-                protocol::constants::REPLY_SUCCESS as u16,
+                protocol::constants::REPLY_SUCCESS as ReplyCode,
                 "OK".to_string(),
                 0,
                 0,

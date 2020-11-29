@@ -1,6 +1,6 @@
 use crate::{
-    message::BasicReturnMessage, publisher_confirm::Confirmation, types::LongLongUInt,
-    BasicProperties, Promise,
+    message::BasicReturnMessage, publisher_confirm::Confirmation, BasicProperties, PayloadSize,
+    Promise,
 };
 use parking_lot::Mutex;
 use std::{collections::VecDeque, fmt, sync::Arc};
@@ -18,7 +18,7 @@ impl ReturnedMessages {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        size: LongLongUInt,
+        size: PayloadSize,
         properties: BasicProperties,
         confirm_mode: bool,
     ) {
@@ -29,7 +29,7 @@ impl ReturnedMessages {
 
     pub(crate) fn handle_body_frame(
         &self,
-        remaining_size: LongLongUInt,
+        remaining_size: PayloadSize,
         payload: Vec<u8>,
         confirm_mode: bool,
     ) {
@@ -76,7 +76,7 @@ pub struct Inner {
 impl Inner {
     fn handle_content_header_frame(
         &mut self,
-        size: LongLongUInt,
+        size: PayloadSize,
         properties: BasicProperties,
         confirm_mode: bool,
     ) {
@@ -90,7 +90,7 @@ impl Inner {
 
     fn handle_body_frame(
         &mut self,
-        remaining_size: LongLongUInt,
+        remaining_size: PayloadSize,
         payload: Vec<u8>,
         confirm_mode: bool,
     ) {

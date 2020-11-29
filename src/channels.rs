@@ -9,9 +9,8 @@ use crate::{
     registry::Registry,
     socket_state::SocketStateHandle,
     topology_internal::ChannelDefinitionInternal,
-    types::LongLongUInt,
     BasicProperties, Channel, ChannelId, ChannelState, Configuration, ConnectionState,
-    ConnectionStatus, Error, Promise, Result,
+    ConnectionStatus, Error, Identifier, PayloadSize, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use parking_lot::Mutex;
@@ -98,8 +97,8 @@ impl Channels {
     pub(crate) fn handle_content_header_frame(
         &self,
         id: ChannelId,
-        class_id: u16,
-        size: LongLongUInt,
+        class_id: Identifier,
+        size: PayloadSize,
         properties: BasicProperties,
     ) -> Result<()> {
         self.get(id)

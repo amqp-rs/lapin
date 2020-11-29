@@ -233,7 +233,7 @@
           }
         ],
         "confirmation": {
-          "type": "LongUInt"
+          "type": "MessageCount"
         },
         "nowait_hook": {
           "nonexhaustive_args": true
@@ -243,7 +243,7 @@
     "purge": {
       "metadata": {
         "confirmation": {
-          "type": "LongUInt"
+          "type": "MessageCount"
         }
       }
     },

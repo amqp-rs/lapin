@@ -6,9 +6,9 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     options::BasicConsumeOptions,
-    types::{FieldTable, LongLongUInt, ShortString},
+    types::{FieldTable, ShortString},
     wakers::Wakers,
-    BasicProperties, ChannelId, Error, Result,
+    BasicProperties, ChannelId, Error, PayloadSize, Result,
 };
 use flume::{Receiver, Sender};
 use futures_lite::Stream;
@@ -237,7 +237,7 @@ impl Consumer {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        size: LongLongUInt,
+        size: PayloadSize,
         properties: BasicProperties,
     ) {
         self.inner
@@ -245,7 +245,7 @@ impl Consumer {
             .handle_content_header_frame(size, properties);
     }
 
-    pub(crate) fn handle_body_frame(&self, remaining_size: LongLongUInt, payload: Vec<u8>) {
+    pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
         self.inner.lock().handle_body_frame(remaining_size, payload);
     }
 
@@ -314,7 +314,7 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn handle_content_header_frame(&mut self, size: LongLongUInt, properties: BasicProperties) {
+    fn handle_content_header_frame(&mut self, size: PayloadSize, properties: BasicProperties) {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.properties = properties;
         }
@@ -323,7 +323,7 @@ impl ConsumerInner {
         }
     }
 
-    fn handle_body_frame(&mut self, remaining_size: LongLongUInt, payload: Vec<u8>) {
+    fn handle_body_frame(&mut self, remaining_size: PayloadSize, payload: Vec<u8>) {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.receive_content(payload);
         }

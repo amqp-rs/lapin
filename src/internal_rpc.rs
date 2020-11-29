@@ -3,8 +3,7 @@ use crate::{
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
-    types::ShortUInt,
-    ChannelId, DeliveryTag, Error, PromiseResolver, Result,
+    ChannelId, DeliveryTag, Error, Identifier, PromiseResolver, ReplyCode, Result,
 };
 use flume::{Receiver, Sender};
 use std::{fmt, future::Future, sync::Arc};
@@ -75,7 +74,7 @@ impl InternalRPCHandle {
     pub(crate) fn close_channel(
         &self,
         channel_id: ChannelId,
-        reply_code: ShortUInt,
+        reply_code: ReplyCode,
         reply_text: String,
     ) {
         self.send(InternalCommand::CloseChannel(
@@ -85,10 +84,10 @@ impl InternalRPCHandle {
 
     pub(crate) fn close_connection(
         &self,
-        reply_code: ShortUInt,
+        reply_code: ReplyCode,
         reply_text: String,
-        class_id: ShortUInt,
-        method_id: ShortUInt,
+        class_id: Identifier,
+        method_id: Identifier,
     ) {
         self.send(InternalCommand::CloseConnection(
             reply_code, reply_text, class_id, method_id,
@@ -173,8 +172,8 @@ enum InternalCommand {
         PromiseResolver<()>,
     ),
     CancelConsumer(ChannelId, String),
-    CloseChannel(ChannelId, ShortUInt, String),
-    CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
+    CloseChannel(ChannelId, ReplyCode, String),
+    CloseConnection(ReplyCode, String, Identifier, Identifier),
     SendConnectionCloseOk(Error),
     RemoveChannel(ChannelId, Error),
     SetConnectionClosing,

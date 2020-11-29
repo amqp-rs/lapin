@@ -1,9 +1,6 @@
 use crate::{
-    acker::Acker,
-    internal_rpc::InternalRPCHandle,
-    protocol::AMQPError,
-    types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
-    BasicProperties, ChannelId, Result,
+    acker::Acker, internal_rpc::InternalRPCHandle, protocol::AMQPError, types::ShortString,
+    BasicProperties, ChannelId, DeliveryTag, MessageCount, ReplyCode, Result,
 };
 use std::ops::{Deref, DerefMut};
 
@@ -27,7 +24,7 @@ pub type DeliveryResult = Result<Option<Delivery>>;
 pub struct Delivery {
     /// The delivery tag of the message. Use this for
     /// acknowledging the message.
-    pub delivery_tag: LongLongUInt,
+    pub delivery_tag: DeliveryTag,
 
     /// The exchange of the message. May be an empty string
     /// if the default exchange is used.
@@ -54,7 +51,7 @@ pub struct Delivery {
 impl Delivery {
     pub(crate) fn new(
         channel_id: ChannelId,
-        delivery_tag: LongLongUInt,
+        delivery_tag: DeliveryTag,
         exchange: ShortString,
         routing_key: ShortString,
         redelivered: bool,
@@ -87,17 +84,17 @@ impl Deref for Delivery {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BasicGetMessage {
     pub delivery: Delivery,
-    pub message_count: LongUInt,
+    pub message_count: MessageCount,
 }
 
 impl BasicGetMessage {
     pub(crate) fn new(
         channel_id: ChannelId,
-        delivery_tag: LongLongUInt,
+        delivery_tag: DeliveryTag,
         exchange: ShortString,
         routing_key: ShortString,
         redelivered: bool,
-        message_count: LongUInt,
+        message_count: MessageCount,
         internal_rpc: InternalRPCHandle,
     ) -> Self {
         Self {
@@ -131,7 +128,7 @@ impl DerefMut for BasicGetMessage {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BasicReturnMessage {
     pub delivery: Delivery,
-    pub reply_code: ShortUInt,
+    pub reply_code: ReplyCode,
     pub reply_text: ShortString,
 }
 
@@ -139,7 +136,7 @@ impl BasicReturnMessage {
     pub(crate) fn new(
         exchange: ShortString,
         routing_key: ShortString,
-        reply_code: ShortUInt,
+        reply_code: ReplyCode,
         reply_text: ShortString,
     ) -> Self {
         Self {

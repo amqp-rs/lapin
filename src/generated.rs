@@ -228,8 +228,8 @@ pub(crate) enum Reply {
         ShortString,
         FieldTable,
     ),
-    QueuePurgeOk(PromiseResolver<LongUInt>),
-    QueueDeleteOk(PromiseResolver<LongUInt>, ShortString),
+    QueuePurgeOk(PromiseResolver<MessageCount>),
+    QueueDeleteOk(PromiseResolver<MessageCount>, ShortString),
     QueueUnbindOk(
         PromiseResolver<()>,
         ShortString,
@@ -1474,7 +1474,11 @@ impl Channel {
             ),
         }
     }
-    pub async fn queue_purge(&self, queue: &str, options: QueuePurgeOptions) -> Result<LongUInt> {
+    pub async fn queue_purge(
+        &self,
+        queue: &str,
+        options: QueuePurgeOptions,
+    ) -> Result<MessageCount> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
@@ -1521,7 +1525,11 @@ impl Channel {
             ),
         }
     }
-    pub async fn queue_delete(&self, queue: &str, options: QueueDeleteOptions) -> Result<LongUInt> {
+    pub async fn queue_delete(
+        &self,
+        queue: &str,
+        options: QueueDeleteOptions,
+    ) -> Result<MessageCount> {
         if !self.status.connected() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
