@@ -1,6 +1,6 @@
 use crate::{
     types::{LongLongUInt, ShortString, ShortUInt},
-    Result,
+    ChannelId, Result,
 };
 use std::collections::VecDeque;
 
@@ -26,7 +26,7 @@ impl ChannelReceiverStates {
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
-        channel_id: u16,
+        channel_id: ChannelId,
         class_id: ShortUInt,
         length: LongLongUInt,
         handler: Handler,
@@ -65,7 +65,7 @@ impl ChannelReceiverStates {
         OnError: FnOnce(String) -> Result<()>,
     >(
         &mut self,
-        channel_id: u16,
+        channel_id: ChannelId,
         length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,

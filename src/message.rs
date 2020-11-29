@@ -3,7 +3,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     protocol::AMQPError,
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
-    BasicProperties, Result,
+    BasicProperties, ChannelId, Result,
 };
 use std::ops::{Deref, DerefMut};
 
@@ -53,7 +53,7 @@ pub struct Delivery {
 
 impl Delivery {
     pub(crate) fn new(
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: LongLongUInt,
         exchange: ShortString,
         routing_key: ShortString,
@@ -92,7 +92,7 @@ pub struct BasicGetMessage {
 
 impl BasicGetMessage {
     pub(crate) fn new(
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: LongLongUInt,
         exchange: ShortString,
         routing_key: ShortString,

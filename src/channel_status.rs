@@ -1,7 +1,7 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     types::{LongLongUInt, ShortUInt},
-    Result,
+    ChannelId, Result,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -44,7 +44,7 @@ impl ChannelStatus {
         self.0.lock().state = state;
     }
 
-    pub(crate) fn auto_close(&self, id: u16) -> bool {
+    pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
         id != 0 && self.0.lock().state == ChannelState::Connected
     }
 
@@ -66,7 +66,7 @@ impl ChannelStatus {
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         class_id: ShortUInt,
         length: LongLongUInt,
         handler: Handler,
@@ -91,7 +91,7 @@ impl ChannelStatus {
         OnError: FnOnce(String) -> Result<()>,
     >(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         length: LongLongUInt,
         handler: Handler,
         error_handler: OnError,

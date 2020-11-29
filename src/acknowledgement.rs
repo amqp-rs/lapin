@@ -2,7 +2,7 @@ use crate::{
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    DeliveryTag, Error, Promise, Result,
+    ChannelId, DeliveryTag, Error, Promise, Result,
 };
 use parking_lot::Mutex;
 use std::{
@@ -25,7 +25,7 @@ impl Acknowledgements {
     pub(crate) fn register_pending(
         &self,
         delivery_tag: DeliveryTag,
-        channel_id: u16,
+        channel_id: ChannelId,
     ) -> PublisherConfirm {
         self.0.lock().register_pending(delivery_tag, channel_id)
     }
@@ -35,11 +35,11 @@ impl Acknowledgements {
         Some(promise.await)
     }
 
-    pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
+    pub(crate) fn ack(&self, delivery_tag: DeliveryTag, channel_id: ChannelId) -> AMQPResult {
         self.0.lock().drop_pending(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
+    pub(crate) fn nack(&self, delivery_tag: DeliveryTag, channel_id: ChannelId) -> AMQPResult {
         self.0.lock().drop_pending(delivery_tag, false, channel_id)
     }
 
@@ -51,19 +51,27 @@ impl Acknowledgements {
         self.0.lock().drop_all(false);
     }
 
-    pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
+    pub(crate) fn ack_all_before(
+        &self,
+        delivery_tag: DeliveryTag,
+        channel_id: ChannelId,
+    ) -> AMQPResult {
         self.0
             .lock()
             .complete_pending_before(delivery_tag, true, channel_id)
     }
 
-    pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag, channel_id: u16) -> AMQPResult {
+    pub(crate) fn nack_all_before(
+        &self,
+        delivery_tag: DeliveryTag,
+        channel_id: ChannelId,
+    ) -> AMQPResult {
         self.0
             .lock()
             .complete_pending_before(delivery_tag, false, channel_id)
     }
 
-    pub(crate) fn on_channel_error(&self, channel_id: u16, error: Error) {
+    pub(crate) fn on_channel_error(&self, channel_id: ChannelId, error: Error) {
         self.0.lock().on_channel_error(channel_id, error);
     }
 }
@@ -82,7 +90,7 @@ impl fmt::Debug for Acknowledgements {
 
 struct Inner {
     last: Option<(DeliveryTag, Promise<Confirmation>)>,
-    pending: HashMap<DeliveryTag, (u16, ConfirmationBroadcaster)>,
+    pending: HashMap<DeliveryTag, (ChannelId, ConfirmationBroadcaster)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -95,7 +103,11 @@ impl Inner {
         }
     }
 
-    fn register_pending(&mut self, delivery_tag: DeliveryTag, channel_id: u16) -> PublisherConfirm {
+    fn register_pending(
+        &mut self,
+        delivery_tag: DeliveryTag,
+        channel_id: ChannelId,
+    ) -> PublisherConfirm {
         let broadcaster = ConfirmationBroadcaster::default();
         let promise =
             PublisherConfirm::new(broadcaster.subscribe(), self.returned_messages.clone());
@@ -123,7 +135,7 @@ impl Inner {
             .pending
             .drain()
             .map(|tup| tup.1)
-            .collect::<Vec<(u16, ConfirmationBroadcaster)>>()
+            .collect::<Vec<(ChannelId, ConfirmationBroadcaster)>>()
         {
             self.complete_pending(success, resolver);
         }
@@ -133,7 +145,7 @@ impl Inner {
         &mut self,
         delivery_tag: DeliveryTag,
         success: bool,
-        channel_id: u16,
+        channel_id: ChannelId,
     ) -> AMQPResult {
         if let Some((_, resolver)) = self.pending.remove(&delivery_tag) {
             self.complete_pending(success, resolver);
@@ -156,7 +168,7 @@ impl Inner {
         &mut self,
         delivery_tag: DeliveryTag,
         success: bool,
-        channel_id: u16,
+        channel_id: ChannelId,
     ) -> AMQPResult {
         let mut res = Ok(());
         for tag in self
@@ -173,7 +185,7 @@ impl Inner {
         res
     }
 
-    fn on_channel_error(&mut self, channel_id: u16, error: Error) {
+    fn on_channel_error(&mut self, channel_id: ChannelId, error: Error) {
         for (_, resolver) in self
             .pending
             .values()

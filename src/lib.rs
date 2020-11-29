@@ -125,7 +125,8 @@ pub mod reactor;
 pub mod socket_state;
 pub mod topology;
 
-pub type DeliveryTag = u64;
+pub type ChannelId = types::ShortUInt;
+pub type DeliveryTag = types::LongLongUInt;
 
 type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;

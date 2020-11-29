@@ -1,10 +1,11 @@
 use crate::{
     consumer_status::{ConsumerState, ConsumerStatus},
     internal_rpc::InternalRPCHandle,
+    ChannelId,
 };
 
 pub(crate) struct ConsumerCanceler {
-    channel_id: u16,
+    channel_id: ChannelId,
     consumer_tag: String,
     status: ConsumerStatus,
     internal_rpc: InternalRPCHandle,
@@ -12,7 +13,7 @@ pub(crate) struct ConsumerCanceler {
 
 impl ConsumerCanceler {
     pub(crate) fn new(
-        channel_id: u16,
+        channel_id: ChannelId,
         consumer_tag: String,
         status: ConsumerStatus,
         internal_rpc: InternalRPCHandle,

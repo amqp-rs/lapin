@@ -1,5 +1,6 @@
 use crate::{
     channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
+    ChannelId,
 };
 use amq_protocol::frame::{GenError, ParserError, ProtocolVersion};
 use std::{error, fmt, io, sync::Arc};
@@ -17,7 +18,7 @@ pub enum Error {
     ChannelsLimitReached,
     InvalidProtocolVersion(ProtocolVersion),
 
-    InvalidChannel(u16),
+    InvalidChannel(ChannelId),
     InvalidChannelState(ChannelState),
     InvalidConnectionState(ConnectionState),
 

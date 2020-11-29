@@ -1,4 +1,4 @@
-use crate::{channel::Reply, Error, Promise, PromiseResolver, Result};
+use crate::{channel::Reply, ChannelId, Error, Promise, PromiseResolver, Result};
 use amq_protocol::frame::AMQPFrame;
 use parking_lot::Mutex;
 use pinky_swear::Cancellable;
@@ -28,7 +28,7 @@ pub(crate) struct Frames {
 impl Frames {
     pub(crate) fn push(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
@@ -51,7 +51,7 @@ impl Frames {
         self.inner.lock().pop(flow)
     }
 
-    pub(crate) fn next_expected_reply(&self, channel_id: u16) -> Option<Reply> {
+    pub(crate) fn next_expected_reply(&self, channel_id: ChannelId) -> Option<Reply> {
         self.inner
             .lock()
             .expected_replies
@@ -68,7 +68,7 @@ impl Frames {
         self.inner.lock().drop_pending(error);
     }
 
-    pub(crate) fn clear_expected_replies(&self, channel_id: u16, error: Error) {
+    pub(crate) fn clear_expected_replies(&self, channel_id: ChannelId, error: Error) {
         self.inner.lock().clear_expected_replies(channel_id, error);
     }
 }
@@ -80,7 +80,7 @@ struct Inner {
     retry_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
-    expected_replies: HashMap<u16, VecDeque<ExpectedReply>>,
+    expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
 }
 
 impl Default for Inner {
@@ -108,7 +108,7 @@ impl fmt::Debug for Frames {
 impl Inner {
     fn push(
         &mut self,
-        channel_id: u16,
+        channel_id: ChannelId,
         frame: AMQPFrame,
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
@@ -218,7 +218,7 @@ impl Inner {
         }
     }
 
-    fn clear_expected_replies(&mut self, channel_id: u16, error: Error) {
+    fn clear_expected_replies(&mut self, channel_id: ChannelId, error: Error) {
         if let Some(replies) = self.expected_replies.remove(&channel_id) {
             Self::cancel_expected_replies(replies, error);
         }

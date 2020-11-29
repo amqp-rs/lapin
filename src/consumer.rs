@@ -8,7 +8,7 @@ use crate::{
     options::BasicConsumeOptions,
     types::{FieldTable, LongLongUInt, ShortString},
     wakers::Wakers,
-    BasicProperties, Error, Result,
+    BasicProperties, ChannelId, Error, Result,
 };
 use flume::{Receiver, Sender};
 use futures_lite::Stream;
@@ -167,7 +167,11 @@ impl Consumer {
         }
     }
 
-    pub(crate) fn external(&self, channel_id: u16, internal_rpc_handle: InternalRPCHandle) -> Self {
+    pub(crate) fn external(
+        &self,
+        channel_id: ChannelId,
+        internal_rpc_handle: InternalRPCHandle,
+    ) -> Self {
         Self {
             inner: self.inner.clone(),
             status: self.status.clone(),

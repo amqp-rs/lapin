@@ -4,7 +4,7 @@ use crate::{
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::ShortUInt,
-    DeliveryTag, Error, PromiseResolver, Result,
+    ChannelId, DeliveryTag, Error, PromiseResolver, Result,
 };
 use flume::{Receiver, Sender};
 use std::{fmt, future::Future, sync::Arc};
@@ -25,7 +25,7 @@ pub(crate) struct InternalRPCHandle {
 impl InternalRPCHandle {
     pub(crate) fn basic_ack(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: DeliveryTag,
         options: BasicAckOptions,
         resolver: PromiseResolver<()>,
@@ -40,7 +40,7 @@ impl InternalRPCHandle {
 
     pub(crate) fn basic_nack(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: DeliveryTag,
         options: BasicNackOptions,
         resolver: PromiseResolver<()>,
@@ -55,7 +55,7 @@ impl InternalRPCHandle {
 
     pub(crate) fn basic_reject(
         &self,
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: DeliveryTag,
         options: BasicRejectOptions,
         resolver: PromiseResolver<()>,
@@ -68,11 +68,16 @@ impl InternalRPCHandle {
         ));
     }
 
-    pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String) {
+    pub(crate) fn cancel_consumer(&self, channel_id: ChannelId, consumer_tag: String) {
         self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag));
     }
 
-    pub(crate) fn close_channel(&self, channel_id: u16, reply_code: ShortUInt, reply_text: String) {
+    pub(crate) fn close_channel(
+        &self,
+        channel_id: ChannelId,
+        reply_code: ShortUInt,
+        reply_text: String,
+    ) {
         self.send(InternalCommand::CloseChannel(
             channel_id, reply_code, reply_text,
         ));
@@ -94,7 +99,7 @@ impl InternalRPCHandle {
         self.send(InternalCommand::SendConnectionCloseOk(error));
     }
 
-    pub(crate) fn remove_channel(&self, channel_id: u16, error: Error) {
+    pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
         self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
 
@@ -154,14 +159,24 @@ impl fmt::Debug for InternalRPCHandle {
 
 #[derive(Debug)]
 enum InternalCommand {
-    BasicAck(u16, DeliveryTag, BasicAckOptions, PromiseResolver<()>),
-    BasicNack(u16, DeliveryTag, BasicNackOptions, PromiseResolver<()>),
-    BasicReject(u16, DeliveryTag, BasicRejectOptions, PromiseResolver<()>),
-    CancelConsumer(u16, String),
-    CloseChannel(u16, ShortUInt, String),
+    BasicAck(ChannelId, DeliveryTag, BasicAckOptions, PromiseResolver<()>),
+    BasicNack(
+        ChannelId,
+        DeliveryTag,
+        BasicNackOptions,
+        PromiseResolver<()>,
+    ),
+    BasicReject(
+        ChannelId,
+        DeliveryTag,
+        BasicRejectOptions,
+        PromiseResolver<()>,
+    ),
+    CancelConsumer(ChannelId, String),
+    CloseChannel(ChannelId, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
     SendConnectionCloseOk(Error),
-    RemoveChannel(u16, Error),
+    RemoveChannel(ChannelId, Error),
     SetConnectionClosing,
     SetConnectionClosed(Error),
     SetConnectionError(Error),

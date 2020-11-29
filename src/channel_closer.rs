@@ -1,14 +1,14 @@
-use crate::{channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol};
+use crate::{channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, ChannelId};
 use std::fmt;
 
 pub(crate) struct ChannelCloser {
-    id: u16,
+    id: ChannelId,
     status: ChannelStatus,
     internal_rpc: InternalRPCHandle,
 }
 
 impl ChannelCloser {
-    pub(crate) fn new(id: u16, status: ChannelStatus, internal_rpc: InternalRPCHandle) -> Self {
+    pub(crate) fn new(id: ChannelId, status: ChannelStatus, internal_rpc: InternalRPCHandle) -> Self {
         Self {
             id,
             status,

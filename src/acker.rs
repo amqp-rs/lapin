@@ -1,19 +1,19 @@
 use crate::{
     internal_rpc::InternalRPCHandle,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
-    DeliveryTag, Promise, PromiseResolver, Result,
+    ChannelId, DeliveryTag, Promise, PromiseResolver, Result,
 };
 
 #[derive(Default, Debug, Clone)]
 pub struct Acker {
-    channel_id: u16,
+    channel_id: ChannelId,
     delivery_tag: DeliveryTag,
     internal_rpc: Option<InternalRPCHandle>,
 }
 
 impl Acker {
     pub(crate) fn new(
-        channel_id: u16,
+        channel_id: ChannelId,
         delivery_tag: DeliveryTag,
         internal_rpc: Option<InternalRPCHandle>,
     ) -> Self {

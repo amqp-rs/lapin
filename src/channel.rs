@@ -23,8 +23,8 @@ use crate::{
     topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
-    BasicProperties, Configuration, Connection, ConnectionStatus, DeliveryTag, Error, ExchangeKind,
-    Promise, PromiseResolver, Result,
+    BasicProperties, ChannelId, Configuration, Connection, ConnectionStatus, DeliveryTag, Error,
+    ExchangeKind, Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ use tracing::{error, info, level_enabled, trace, Level};
 /// [`Connection::create_channel`]: ./struct.Connection.html#method.create_channel
 #[derive(Clone)]
 pub struct Channel {
-    id: u16,
+    id: ChannelId,
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
@@ -87,7 +87,7 @@ impl fmt::Debug for Channel {
 
 impl Channel {
     pub(crate) fn new(
-        channel_id: u16,
+        channel_id: ChannelId,
         configuration: Configuration,
         connection_status: ConnectionStatus,
         global_registry: Registry,
@@ -231,7 +231,7 @@ impl Channel {
         self.status.set_state(state);
     }
 
-    pub fn id(&self) -> u16 {
+    pub fn id(&self) -> ChannelId {
         self.id
     }
 
@@ -570,7 +570,12 @@ impl Channel {
         }
     }
 
-    fn tune_connection_configuration(&self, channel_max: u16, frame_max: u32, heartbeat: u16) {
+    fn tune_connection_configuration(
+        &self,
+        channel_max: ChannelId,
+        frame_max: u32,
+        heartbeat: u16,
+    ) {
         // If we disable the heartbeat (0) but the server don't, follow it and enable it too
         // If both us and the server want heartbeat enabled, pick the lowest value.
         if self.configuration.heartbeat() == 0
@@ -589,7 +594,7 @@ impl Channel {
             }
         }
         if self.configuration.channel_max() == 0 {
-            self.configuration.set_channel_max(u16::max_value());
+            self.configuration.set_channel_max(ChannelId::max_value());
         }
 
         if frame_max != 0 {

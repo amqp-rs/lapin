@@ -10,8 +10,8 @@ use crate::{
     socket_state::SocketStateHandle,
     topology_internal::ChannelDefinitionInternal,
     types::LongLongUInt,
-    BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
-    Error, Promise, Result,
+    BasicProperties, Channel, ChannelId, ChannelState, Configuration, ConnectionState,
+    ConnectionStatus, Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use parking_lot::Mutex;
@@ -76,11 +76,11 @@ impl Channels {
             .set_state(ChannelState::Connected);
     }
 
-    pub(crate) fn get(&self, id: u16) -> Option<Channel> {
+    pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
         self.inner.lock().channels.get(&id).cloned()
     }
 
-    pub(crate) fn remove(&self, id: u16, error: Error) -> Result<()> {
+    pub(crate) fn remove(&self, id: ChannelId, error: Error) -> Result<()> {
         self.frames.clear_expected_replies(id, error);
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
@@ -89,7 +89,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn receive_method(&self, id: u16, method: AMQPClass) -> Result<()> {
+    pub(crate) fn receive_method(&self, id: ChannelId, method: AMQPClass) -> Result<()> {
         self.get(id)
             .map(|channel| channel.receive_method(method))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
@@ -97,7 +97,7 @@ impl Channels {
 
     pub(crate) fn handle_content_header_frame(
         &self,
-        id: u16,
+        id: ChannelId,
         class_id: u16,
         size: LongLongUInt,
         properties: BasicProperties,
@@ -107,7 +107,7 @@ impl Channels {
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
-    pub(crate) fn handle_body_frame(&self, id: u16, payload: Vec<u8>) -> Result<()> {
+    pub(crate) fn handle_body_frame(&self, id: ChannelId, payload: Vec<u8>) -> Result<()> {
         self.get(id)
             .map(|channel| channel.handle_body_frame(payload))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
@@ -293,8 +293,8 @@ impl fmt::Debug for Channels {
 }
 
 struct Inner {
-    channels: HashMap<u16, Channel>,
-    channel_id: IdSequence<u16>,
+    channels: HashMap<ChannelId, Channel>,
+    channel_id: IdSequence<ChannelId>,
     configuration: Configuration,
     waker: SocketStateHandle,
 }
@@ -311,7 +311,7 @@ impl Inner {
 
     fn create_channel(
         &mut self,
-        id: u16,
+        id: ChannelId,
         connection_status: ConnectionStatus,
         global_registry: Registry,
         internal_rpc: InternalRPCHandle,
