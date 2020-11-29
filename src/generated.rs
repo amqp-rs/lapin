@@ -1068,9 +1068,7 @@ impl Channel {
             )),
         );
         if nowait {
-            self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {
-                ..Default::default()
-            })?;
+            self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {})?;
         }
         promise_out.await?;
         promise.await
@@ -1142,9 +1140,7 @@ impl Channel {
             )),
         );
         if nowait {
-            self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {
-                ..Default::default()
-            })?;
+            self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {})?;
         }
         promise_out.await?;
         promise.await
@@ -1219,9 +1215,7 @@ impl Channel {
             )),
         );
         if nowait {
-            self.receive_exchange_bind_ok(protocol::exchange::BindOk {
-                ..Default::default()
-            })?;
+            self.receive_exchange_bind_ok(protocol::exchange::BindOk {})?;
         }
         promise_out.await?;
         promise.await
@@ -1307,9 +1301,7 @@ impl Channel {
             )),
         );
         if nowait {
-            self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {
-                ..Default::default()
-            })?;
+            self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {})?;
         }
         promise_out.await?;
         promise.await
@@ -1469,9 +1461,7 @@ impl Channel {
             )),
         );
         if nowait {
-            self.receive_queue_bind_ok(protocol::queue::BindOk {
-                ..Default::default()
-            })?;
+            self.receive_queue_bind_ok(protocol::queue::BindOk {})?;
         }
         promise_out.await?;
         promise.await
@@ -1803,7 +1793,6 @@ impl Channel {
         if nowait {
             self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
                 consumer_tag: consumer_tag.into(),
-                ..Default::default()
             })?;
         }
         promise_out.await?;
@@ -1879,7 +1868,6 @@ impl Channel {
         if nowait {
             self.receive_basic_cancel_ok(protocol::basic::CancelOk {
                 consumer_tag: consumer_tag.into(),
-                ..Default::default()
             })?;
         }
         promise_out.await?;
