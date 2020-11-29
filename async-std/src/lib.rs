@@ -1,4 +1,4 @@
-use async_lapin::*;
+use async_lapin::LapinAsyncIoExt;
 use lapin::{executor::Executor, ConnectionProperties};
 use std::{future::Future, pin::Pin};
 
