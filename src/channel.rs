@@ -1044,6 +1044,7 @@ impl Channel {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn on_basic_consume_ok_received(
         &self,
         method: protocol::basic::ConsumeOk,

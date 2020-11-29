@@ -301,7 +301,7 @@ impl ConsumerInner {
 
     fn reset(&mut self, no_ack: bool) {
         if !no_ack {
-            while let Some(_) = self.next_delivery() {}
+            while self.next_delivery().is_some() {}
         }
         self.current_message = None;
     }

@@ -22,7 +22,7 @@ impl Registry {
             .queues
             .values()
             .filter(|q| q.is_exclusive() == exclusive)
-            .map(|q| q.clone())
+            .cloned()
             .collect()
     }
 
