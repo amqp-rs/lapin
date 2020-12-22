@@ -1,3 +1,9 @@
+### 1.6.2 (2020-12-23)
+
+#### Bug Fixes
+
+* Fix a potential race condition when automatically canceling consumer on drop
+
 ### 1.6.1 (2020-11-28)
 
 #### Bug Fixes
