@@ -1,5 +1,6 @@
 use crate::{
     channels::Channels,
+    consumer_status::ConsumerStatus,
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
@@ -68,8 +69,8 @@ impl InternalRPCHandle {
         ));
     }
 
-    pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String) {
-        self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag));
+    pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String, consumer_status: ConsumerStatus) {
+        self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag, consumer_status));
     }
 
     pub(crate) fn close_channel(&self, channel_id: u16, reply_code: ShortUInt, reply_text: String) {
@@ -152,7 +153,7 @@ enum InternalCommand {
     BasicAck(u16, DeliveryTag, BasicAckOptions, PromiseResolver<()>),
     BasicNack(u16, DeliveryTag, BasicNackOptions, PromiseResolver<()>),
     BasicReject(u16, DeliveryTag, BasicRejectOptions, PromiseResolver<()>),
-    CancelConsumer(u16, String),
+    CancelConsumer(u16, String, ConsumerStatus),
     CloseChannel(u16, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
     SendConnectionCloseOk(Error),
@@ -216,11 +217,11 @@ impl InternalRPC {
                     )
                 })
                 .unwrap_or(Ok(())),
-            CancelConsumer(channel_id, consumer_tag) => channels
+            CancelConsumer(channel_id, consumer_tag, consumer_status) => channels
                 .get(channel_id)
                 .map(|channel| {
                     self.handle.register_internal_future(
-                        channel.basic_cancel(&consumer_tag, BasicCancelOptions::default()),
+                        channel.do_basic_cancel(&consumer_tag, BasicCancelOptions::default(), Some(consumer_status)),
                     )
                 })
                 .unwrap_or(Ok(())),

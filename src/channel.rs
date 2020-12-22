@@ -8,6 +8,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
+    consumer_status::ConsumerStatus,
     consumers::Consumers,
     executor::Executor,
     frames::{ExpectedReply, Frames},
@@ -513,6 +514,23 @@ impl Channel {
                     .register_pending(delivery_tag, self.id),
             )
         } else {
+            None
+        }
+    }
+
+    pub fn basic_cancel(
+        &self,
+        consumer_tag: &str,
+        options: BasicCancelOptions,
+    ) -> Promise<()> {
+        self.do_basic_cancel(consumer_tag, options, None)
+    }
+
+    fn before_basic_cancel(&self, consumer_tag: &str, consumer_status: Option<ConsumerStatus>) -> Option<Promise<()>> {
+        if !consumer_status.map_or(false, |consumer_status| consumer_status.state().is_active()) {
+            Some(Promise::new_with_data(Ok(())))
+        } else {
+            self.consumers.start_cancel(consumer_tag);
             None
         }
     }

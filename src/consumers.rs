@@ -26,6 +26,15 @@ impl Consumers {
         Ok(())
     }
 
+    pub(crate) fn start_cancel<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S)
+    where
+        ShortString: Borrow<S>,
+    {
+        if let Some(consumer) = self.0.lock().get(consumer_tag) {
+            consumer.start_cancel();
+        }
+    }
+
     pub(crate) fn start_delivery<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S, message: Delivery)
     where
         ShortString: Borrow<S>,
