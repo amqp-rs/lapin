@@ -1,3 +1,10 @@
+### 1.6.4 (2020-12-23)
+
+#### Bug Fixes
+
+* Cleanup basic cancel handling
+* Fix undocumented rabbitmq behaviour on channel close with expected replies
+
 ### 1.6.3 (2020-12-23)
 
 #### Bug Fixes
