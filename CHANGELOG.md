@@ -1,3 +1,9 @@
+### 1.6.3 (2020-12-23)
+
+#### Bug Fixes
+
+* Better handling of automatic consumer cancelation when connection is closing
+
 ### 1.6.2 (2020-12-23)
 
 #### Bug Fixes
