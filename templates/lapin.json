@@ -484,17 +484,8 @@
     },
     "cancel": {
       "metadata": {
-        "internal": true,
-        "require_wrapper": true,
-        "extra_args": [
-          {
-            "name": "consumer_status",
-            "type": "Option<ConsumerStatus>"
-          }
-        ],
         "start_hook": {
-          "params": ["consumer_tag", "consumer_status"],
-          "returns_early": true
+          "params": ["consumer_tag"]
         },
         "nowait_hook": {
           "fields": ["consumer_tag: consumer_tag.into()"]

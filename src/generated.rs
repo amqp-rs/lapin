@@ -868,7 +868,7 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn do_channel_close(
+    pub fn do_channel_close(
         &self,
         reply_code: ShortUInt,
         reply_text: &str,
@@ -1021,7 +1021,7 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn do_exchange_declare(
+    pub fn do_exchange_declare(
         &self,
         exchange: &str,
         kind: &str,
@@ -1749,7 +1749,7 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn do_basic_consume(
+    pub fn do_basic_consume(
         &self,
         queue: &str,
         consumer_tag: &str,
@@ -1848,19 +1848,12 @@ impl Channel {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn do_basic_cancel(
-        &self,
-        consumer_tag: &str,
-        options: BasicCancelOptions,
-        consumer_status: Option<ConsumerStatus>,
-    ) -> Promise<()> {
+    pub fn basic_cancel(&self, consumer_tag: &str, options: BasicCancelOptions) -> Promise<()> {
         if !self.status.connected() {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 
-        if let Some(res) = self.before_basic_cancel(consumer_tag, consumer_status) {
-            return res;
-        }
+        self.before_basic_cancel(consumer_tag);
         let BasicCancelOptions { nowait } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
             protocol::basic::Cancel {
@@ -1987,7 +1980,7 @@ impl Channel {
         self.on_basic_deliver_received(method)
     }
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn do_basic_get(
+    pub fn do_basic_get(
         &self,
         queue: &str,
         options: BasicGetOptions,

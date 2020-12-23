@@ -8,7 +8,6 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
-    consumer_status::ConsumerStatus,
     consumers::Consumers,
     executor::Executor,
     frames::{ExpectedReply, Frames},
@@ -523,21 +522,8 @@ impl Channel {
         }
     }
 
-    pub fn basic_cancel(
-        &self,
-        consumer_tag: &str,
-        options: BasicCancelOptions,
-    ) -> Promise<()> {
-        self.do_basic_cancel(consumer_tag, options, None)
-    }
-
-    fn before_basic_cancel(&self, consumer_tag: &str, consumer_status: Option<ConsumerStatus>) -> Option<Promise<()>> {
-        if !consumer_status.map_or(false, |consumer_status| consumer_status.state().is_active()) {
-            Some(Promise::new_with_data(Ok(())))
-        } else {
-            self.consumers.start_cancel_one(consumer_tag);
-            None
-        }
+    fn before_basic_cancel(&self, consumer_tag: &str) {
+        self.consumers.start_cancel_one(consumer_tag);
     }
 
     fn acknowledgement_error(&self, error: AMQPError, class_id: u16, method_id: u16) -> Result<()> {
