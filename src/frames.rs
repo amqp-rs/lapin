@@ -241,8 +241,11 @@ impl Inner {
     }
 
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
-        for ExpectedReply(_, cancel) in replies {
-            cancel.cancel(error.clone());
+        for ExpectedReply(reply, cancel) in replies {
+            match reply {
+                Reply::BasicCancelOk(pinky) => pinky.swear(Ok(())),
+                _ => cancel.cancel(error.clone()),
+            }
         }
     }
 }
