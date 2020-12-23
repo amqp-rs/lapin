@@ -1,3 +1,9 @@
+### 1.6.5 (2020-12-23)
+
+#### Bug Fixes
+
+* Treat close and error as success for consumers cancel as it forcibly implies cancelation
+
 ### 1.6.4 (2020-12-23)
 
 #### Bug Fixes
