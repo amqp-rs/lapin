@@ -551,7 +551,7 @@ impl Channel {
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Promise<()> {
-        if !self.status.connected() {
+        if !self.status.closing() {
             return Promise::new_with_data(Err(Error::InvalidChannelState(self.status.state())));
         }
 

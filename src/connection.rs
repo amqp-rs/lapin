@@ -234,6 +234,7 @@ impl Connection {
     }
 
     pub fn close(&self, reply_code: ShortUInt, reply_text: &str) -> Promise<()> {
+        self.channels.set_connection_closing();
         self.channels
             .get(0)
             .map(|channel0| channel0.connection_close(reply_code, reply_text, 0, 0))
