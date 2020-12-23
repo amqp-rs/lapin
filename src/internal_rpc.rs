@@ -220,9 +220,13 @@ impl InternalRPC {
             CancelConsumer(channel_id, consumer_tag, consumer_status) => channels
                 .get(channel_id)
                 .map(|channel| {
-                    self.handle.register_internal_future(
-                        channel.do_basic_cancel(&consumer_tag, BasicCancelOptions::default(), Some(consumer_status)),
-                    )
+                    if channel.status().connected() {
+                        self.handle.register_internal_future(
+                            channel.do_basic_cancel(&consumer_tag, BasicCancelOptions::default(), Some(consumer_status)),
+                        )
+                    } else {
+                        Ok(())
+                    }
                 })
                 .unwrap_or(Ok(())),
             CloseChannel(channel_id, reply_code, reply_text) => channels
