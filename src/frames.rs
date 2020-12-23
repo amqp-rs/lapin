@@ -1,5 +1,8 @@
 use crate::{channel::Reply, Error, Promise, PromiseResolver};
-use amq_protocol::{frame::AMQPFrame, protocol::{AMQPClass, basic::AMQPMethod}};
+use amq_protocol::{
+    frame::AMQPFrame,
+    protocol::{basic::AMQPMethod, AMQPClass},
+};
 use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use pinky_swear::Cancellable;
@@ -59,8 +62,14 @@ impl Frames {
             .map(|t| t.0)
     }
 
-    pub(crate) fn next_expected_close_ok_reply(&self, channel_id: u16, error: Error) -> Option<Reply> {
-        self.inner.lock().next_expected_close_ok_reply(channel_id, error)
+    pub(crate) fn next_expected_close_ok_reply(
+        &self,
+        channel_id: u16,
+        error: Error,
+    ) -> Option<Reply> {
+        self.inner
+            .lock()
+            .next_expected_close_ok_reply(channel_id, error)
     }
 
     pub(crate) fn has_pending(&self) -> bool {
@@ -218,7 +227,9 @@ impl Inner {
         for (frame, resolver) in std::mem::take(frames) {
             if let Some(resolver) = resolver {
                 match frame {
-                    AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Cancel(_))) => resolver.swear(Ok(())),
+                    AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Cancel(_))) => {
+                        resolver.swear(Ok(()))
+                    }
                     _ => resolver.swear(Err(error.clone())),
                 }
             }

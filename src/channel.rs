@@ -565,7 +565,8 @@ impl Channel {
     }
 
     fn next_expected_close_ok_reply(&self) -> Option<Reply> {
-        self.frames.next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed))
+        self.frames
+            .next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed))
     }
 
     fn before_channel_close(&self) {

@@ -30,8 +30,11 @@ impl Drop for ConsumerCanceler {
     fn drop(&mut self) {
         let status = self.status.lock();
         if status.state() == ConsumerState::Active {
-            self.internal_rpc
-                .cancel_consumer(self.channel_id, self.consumer_tag.clone(), self.status.clone());
+            self.internal_rpc.cancel_consumer(
+                self.channel_id,
+                self.consumer_tag.clone(),
+                self.status.clone(),
+            );
         }
     }
 }

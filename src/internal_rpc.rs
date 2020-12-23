@@ -69,8 +69,17 @@ impl InternalRPCHandle {
         ));
     }
 
-    pub(crate) fn cancel_consumer(&self, channel_id: u16, consumer_tag: String, consumer_status: ConsumerStatus) {
-        self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag, consumer_status));
+    pub(crate) fn cancel_consumer(
+        &self,
+        channel_id: u16,
+        consumer_tag: String,
+        consumer_status: ConsumerStatus,
+    ) {
+        self.send(InternalCommand::CancelConsumer(
+            channel_id,
+            consumer_tag,
+            consumer_status,
+        ));
     }
 
     pub(crate) fn close_channel(&self, channel_id: u16, reply_code: ShortUInt, reply_text: String) {
