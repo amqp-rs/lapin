@@ -195,6 +195,11 @@ impl Channel {
         Ok(())
     }
 
+    fn set_closing(&self) {
+        self.set_state(ChannelState::Closing);
+        self.consumers.start_cancel();
+    }
+
     fn set_closed(&self, error: Error) -> Result<()> {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
@@ -530,7 +535,7 @@ impl Channel {
         if !consumer_status.map_or(false, |consumer_status| consumer_status.state().is_active()) {
             Some(Promise::new_with_data(Ok(())))
         } else {
-            self.consumers.start_cancel(consumer_tag);
+            self.consumers.start_cancel_one(consumer_tag);
             None
         }
     }
@@ -579,7 +584,7 @@ impl Channel {
     }
 
     fn before_channel_close(&self) {
-        self.set_state(ChannelState::Closing);
+        self.set_closing();
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) -> Result<()> {
@@ -877,7 +882,7 @@ impl Channel {
                 info!("Channel closed on channel {}: {:?}", self.id, method);
                 Error::InvalidChannelState(ChannelState::Closing)
             });
-        self.set_state(ChannelState::Closing);
+        self.set_closing();
         self.internal_rpc
             .register_internal_future(self.channel_close_ok(error))
     }

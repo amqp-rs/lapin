@@ -26,7 +26,7 @@ impl Consumers {
         Ok(())
     }
 
-    pub(crate) fn start_cancel<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S)
+    pub(crate) fn start_cancel_one<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S)
     where
         ShortString: Borrow<S>,
     {
@@ -82,6 +82,12 @@ impl Consumers {
             .values()
             .map(Consumer::drop_prefetched_messages)
             .fold(Ok(()), Result::and)
+    }
+
+    pub(crate) fn start_cancel(&self) {
+        for consumer in self.0.lock().values() {
+            consumer.start_cancel();
+        }
     }
 
     pub(crate) fn cancel(&self) -> Result<()> {
