@@ -580,10 +580,6 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
-        let end_hook_res = self.on_connection_close_sent();
-        if let Err(err) = end_hook_res {
-            return Promise::new_with_data(Err(err));
-        }
         promise
     }
 

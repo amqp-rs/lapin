@@ -555,11 +555,6 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_close_sent(&self) -> Result<()> {
-        self.internal_rpc.set_connection_closing();
-        Ok(())
-    }
-
     fn on_connection_close_ok_sent(&self, error: Error) -> Result<()> {
         if let Error::ProtocolError(_) = error {
             self.internal_rpc.set_connection_error(error);

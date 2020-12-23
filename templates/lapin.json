@@ -51,8 +51,7 @@
     "close": {
       "metadata": {
         "channel_deinit": true,
-        "internal": true,
-        "end_hook": true
+        "internal": true
       }
     },
     "close-ok": {
