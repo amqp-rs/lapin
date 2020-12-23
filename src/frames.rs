@@ -1,5 +1,5 @@
 use crate::{channel::Reply, Error, Promise, PromiseResolver};
-use amq_protocol::frame::AMQPFrame;
+use amq_protocol::{frame::AMQPFrame, protocol::{AMQPClass, basic::AMQPMethod}};
 use log::{log_enabled, trace, Level::Trace};
 use parking_lot::Mutex;
 use pinky_swear::Cancellable;
@@ -215,9 +215,12 @@ impl Inner {
         frames: &mut VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
         error: Error,
     ) {
-        for (_, resolver) in std::mem::take(frames) {
+        for (frame, resolver) in std::mem::take(frames) {
             if let Some(resolver) = resolver {
-                resolver.swear(Err(error.clone()));
+                match frame {
+                    AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Cancel(_))) => resolver.swear(Ok(())),
+                    _ => resolver.swear(Err(error.clone())),
+                }
             }
         }
     }
