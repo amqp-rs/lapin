@@ -940,7 +940,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.next_expected_close_ok_reply() {
             Some(Reply::ChannelCloseOk(resolver)) => {
                 let res = self.on_channel_close_ok_received();
                 resolver.swear(res.clone());

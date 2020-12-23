@@ -124,6 +124,7 @@
       "metadata": {
         "channel_deinit": true,
         "received_hook": true,
+        "expected_reply_getter": "self.next_expected_close_ok_reply()",
         "extra_args": [
           {
             "name": "error",
