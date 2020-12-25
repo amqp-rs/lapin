@@ -1,5 +1,8 @@
 use crate::{channel::Reply, ChannelId, Error, Promise, PromiseResolver, Result};
-use amq_protocol::{frame::AMQPFrame, protocol::{AMQPClass, basic::AMQPMethod}};
+use amq_protocol::{
+    frame::AMQPFrame,
+    protocol::{basic::AMQPMethod, AMQPClass},
+};
 use parking_lot::Mutex;
 use pinky_swear::Cancellable;
 use std::{
