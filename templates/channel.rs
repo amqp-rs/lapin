@@ -165,7 +165,7 @@ impl Channel {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
 
-    match self.frames.next_expected_reply(self.id) {
+    match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.next_expected_reply(self.id){{/if ~}} {
       Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}

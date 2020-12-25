@@ -1,3 +1,34 @@
+### 1.6.6 (2020-12-25)
+
+#### Bug Fixes
+
+* Fix an issue with automatic connection close on drop
+
+### 1.6.5 (2020-12-23)
+
+#### Bug Fixes
+
+* Treat close and error as success for consumers cancel as it forcibly implies cancelation
+
+### 1.6.4 (2020-12-23)
+
+#### Bug Fixes
+
+* Cleanup basic cancel handling
+* Fix undocumented rabbitmq behaviour on channel close with expected replies
+
+### 1.6.3 (2020-12-23)
+
+#### Bug Fixes
+
+* Better handling of automatic consumer cancelation when connection is closing
+
+### 1.6.2 (2020-12-23)
+
+#### Bug Fixes
+
+* Fix a potential race condition when automatically canceling consumer on drop
+
 ### 1.6.1 (2020-11-28)
 
 #### Bug Fixes

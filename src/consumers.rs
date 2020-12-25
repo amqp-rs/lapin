@@ -22,6 +22,15 @@ impl Consumers {
         }
     }
 
+    pub(crate) fn start_cancel_one<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S)
+    where
+        ShortString: Borrow<S>,
+    {
+        if let Some(consumer) = self.0.lock().get(consumer_tag) {
+            consumer.start_cancel();
+        }
+    }
+
     pub(crate) fn start_delivery<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S, message: Delivery)
     where
         ShortString: Borrow<S>,
@@ -60,6 +69,12 @@ impl Consumers {
     pub(crate) fn drop_prefetched_messages(&self) {
         for consumer in self.0.lock().values() {
             consumer.drop_prefetched_messages();
+        }
+    }
+
+    pub(crate) fn start_cancel(&self) {
+        for consumer in self.0.lock().values() {
+            consumer.start_cancel();
         }
     }
 

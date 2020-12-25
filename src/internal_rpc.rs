@@ -1,5 +1,6 @@
 use crate::{
     channels::Channels,
+    consumer_status::ConsumerStatus,
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
@@ -67,8 +68,17 @@ impl InternalRPCHandle {
         ));
     }
 
-    pub(crate) fn cancel_consumer(&self, channel_id: ChannelId, consumer_tag: String) {
-        self.send(InternalCommand::CancelConsumer(channel_id, consumer_tag));
+    pub(crate) fn cancel_consumer(
+        &self,
+        channel_id: ChannelId,
+        consumer_tag: String,
+        consumer_status: ConsumerStatus,
+    ) {
+        self.send(InternalCommand::CancelConsumer(
+            channel_id,
+            consumer_tag,
+            consumer_status,
+        ));
     }
 
     pub(crate) fn close_channel(
@@ -89,6 +99,7 @@ impl InternalRPCHandle {
         class_id: Identifier,
         method_id: Identifier,
     ) {
+        self.set_connection_closing();
         self.send(InternalCommand::CloseConnection(
             reply_code, reply_text, class_id, method_id,
         ));
@@ -171,7 +182,7 @@ enum InternalCommand {
         BasicRejectOptions,
         PromiseResolver<()>,
     ),
-    CancelConsumer(ChannelId, String),
+    CancelConsumer(ChannelId, String, ConsumerStatus),
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(ReplyCode, String, Identifier, Identifier),
     SendConnectionCloseOk(Error),
@@ -230,14 +241,16 @@ impl InternalRPC {
                         )
                     })
                     .unwrap_or_default(),
-                CancelConsumer(channel_id, consumer_tag) => channels
+                CancelConsumer(channel_id, consumer_tag, consumer_status) => channels
                     .get(channel_id)
                     .map(|channel| {
-                        handle.register_internal_future(async move {
-                            channel
-                                .basic_cancel(&consumer_tag, BasicCancelOptions::default())
-                                .await
-                        })
+                        if channel.status().connected() && consumer_status.state().is_active() {
+                            handle.register_internal_future(async move {
+                                channel
+                                    .basic_cancel(&consumer_tag, BasicCancelOptions::default())
+                                    .await
+                            })
+                        }
                     })
                     .unwrap_or_default(),
                 CloseChannel(channel_id, reply_code, reply_text) => channels

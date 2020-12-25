@@ -253,6 +253,10 @@ impl Consumer {
         self.inner.lock().drop_prefetched_messages();
     }
 
+    pub(crate) fn start_cancel(&self) {
+        self.status.lock().start_cancel();
+    }
+
     pub(crate) fn cancel(&self) {
         self.inner.lock().cancel();
     }

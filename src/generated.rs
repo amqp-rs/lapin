@@ -541,7 +541,7 @@ impl Channel {
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Result<()> {
-        if !self.status.connected() {
+        if !self.status.closing() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
@@ -570,7 +570,6 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
-        self.on_connection_close_sent();
         promise_out.await?;
         promise.await
     }
@@ -915,7 +914,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.next_expected_close_ok_reply() {
             Some(Reply::ChannelCloseOk(resolver)) => {
                 let res = self.on_channel_close_ok_received();
                 resolver.swear(res.clone());
@@ -1821,6 +1820,7 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
+        self.before_basic_cancel(consumer_tag);
         let BasicCancelOptions { nowait } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
             protocol::basic::Cancel {

@@ -202,6 +202,11 @@ impl Channel {
         Ok(())
     }
 
+    fn set_closing(&self) {
+        self.set_state(ChannelState::Closing);
+        self.consumers.start_cancel();
+    }
+
     fn set_closed(&self, error: Error) {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
@@ -508,6 +513,10 @@ impl Channel {
         }
     }
 
+    fn before_basic_cancel(&self, consumer_tag: &str) {
+        self.consumers.start_cancel_one(consumer_tag);
+    }
+
     fn acknowledgement_error(
         &self,
         error: AMQPError,
@@ -545,10 +554,6 @@ impl Channel {
             .set_connection_step(ConnectionStep::Open(resolver));
     }
 
-    fn on_connection_close_sent(&self) {
-        self.internal_rpc.set_connection_closing();
-    }
-
     fn on_connection_close_ok_sent(&self, error: Error) {
         if let Error::ProtocolError(_) = error {
             self.internal_rpc.set_connection_error(error);
@@ -557,8 +562,13 @@ impl Channel {
         }
     }
 
+    fn next_expected_close_ok_reply(&self) -> Option<Reply> {
+        self.frames
+            .next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed))
+    }
+
     fn before_channel_close(&self) {
-        self.set_state(ChannelState::Closing);
+        self.set_closing();
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) {
@@ -878,7 +888,7 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Channel closed");
                 Error::InvalidChannelState(ChannelState::Closing)
             });
-        self.set_state(ChannelState::Closing);
+        self.set_closing();
         let channel = self.clone();
         self.internal_rpc
             .register_internal_future(async move { channel.channel_close_ok(error).await });

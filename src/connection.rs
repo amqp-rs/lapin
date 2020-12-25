@@ -249,6 +249,7 @@ impl Connection {
     }
 
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
+        self.channels.set_connection_closing();
         if let Some(channel0) = self.channels.get(0) {
             channel0
                 .connection_close(reply_code, reply_text, 0, 0)

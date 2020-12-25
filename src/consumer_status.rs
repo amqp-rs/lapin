@@ -1,5 +1,5 @@
 use parking_lot::{Mutex, MutexGuard};
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 #[derive(Clone, Default)]
 pub(crate) struct ConsumerStatus(Arc<Mutex<ConsumerStatusInner>>);
@@ -18,11 +18,31 @@ impl ConsumerStatus {
     }
 }
 
+impl fmt::Debug for ConsumerStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug = f.debug_struct("ConsumerStatus");
+        if let Some(inner) = self.try_lock() {
+            debug.field("state", &inner.state());
+        }
+        debug.finish()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConsumerState {
     Active,
     ActiveWithDelegate,
+    Canceling,
     Canceled,
+}
+
+impl ConsumerState {
+    pub fn is_active(self) -> bool {
+        match self {
+            ConsumerState::Active | ConsumerState::ActiveWithDelegate => true,
+            _ => false,
+        }
+    }
 }
 
 impl Default for ConsumerState {
@@ -43,6 +63,10 @@ impl ConsumerStatusInner {
         if self.0 == ConsumerState::Active {
             self.0 = ConsumerState::ActiveWithDelegate;
         }
+    }
+
+    pub(crate) fn start_cancel(&mut self) {
+        self.0 = ConsumerState::Canceling;
     }
 
     pub(crate) fn cancel(&mut self) {
