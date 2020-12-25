@@ -1,3 +1,9 @@
+### 1.6.6 (2020-12-25)
+
+#### Bug Fixes
+
+* Fix an issue with automatic connection close on drop
+
 ### 1.6.5 (2020-12-23)
 
 #### Bug Fixes
