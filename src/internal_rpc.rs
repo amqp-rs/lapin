@@ -95,6 +95,7 @@ impl InternalRPCHandle {
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) {
+        self.set_connection_closing();
         self.send(InternalCommand::CloseConnection(
             reply_code, reply_text, class_id, method_id,
         ));
