@@ -37,6 +37,6 @@ impl Executor for DefaultExecutor {
     }
 
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
-        async_global_executor::spawn(blocking::unblock(f)).detach();
+        async_global_executor::spawn(async_global_executor::spawn_blocking(f)).detach();
     }
 }

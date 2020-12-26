@@ -39,7 +39,7 @@ version = "7.0.0-alpha.4"
 default-features = false
 
 [dependencies.async-global-executor]
-version = "^1.0.2"
+version = "^2.0"
 features = ["async-io"]
 
 [dependencies.flume]
