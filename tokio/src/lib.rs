@@ -57,7 +57,6 @@ mod unix {
     };
     use std::{
         io::{IoSlice, IoSliceMut, Read, Write},
-        os::unix::io::{AsRawFd, RawFd},
         pin::Pin,
         task::{Context, Poll},
         time::Duration,
@@ -70,13 +69,7 @@ mod unix {
     #[async_trait]
     impl Reactor for TokioReactor {
         fn register(&self, socket: TcpStream) -> Result<Box<dyn AsyncRW + Send>> {
-            let raw_fd = socket.as_raw_fd();
-            Ok(Box::new(AsyncFdWrapper {
-                fd: AsyncFd::new(raw_fd)?,
-                socket,
-                readable: false,
-                writable: false,
-            }))
+            Ok(Box::new(AsyncFdWrapper(AsyncFd::new(socket)?)))
         }
 
         async fn sleep(&self, dur: Duration) {
@@ -84,57 +77,36 @@ mod unix {
         }
     }
 
-    struct AsyncFdWrapper {
-        fd: AsyncFd<RawFd>,
-        socket: TcpStream,
-        readable: bool,
-        writable: bool,
-    }
+    struct AsyncFdWrapper(AsyncFd<TcpStream>);
 
     impl AsyncFdWrapper {
-        fn read<F: FnOnce(&mut TcpStream) -> futures_io::Result<usize>>(
+        fn read<F: FnOnce(&mut AsyncFd<TcpStream>) -> futures_io::Result<usize>>(
             &mut self,
             cx: &mut Context<'_>,
             f: F,
-        ) -> Poll<futures_io::Result<usize>> {
-            if !self.readable {
-                match self.fd.poll_read_ready(cx) {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Ready(Ok(mut guard)) => guard.clear_ready(),
-                };
-                self.readable = true;
-            }
-            // We should use guard.with_io above, but cannot because we need &mut and self is
-            // already borrowed
-            Poll::Ready(match f(&mut self.socket) {
-                Err(e) if e.kind() == futures_io::ErrorKind::WouldBlock => {
-                    self.readable = false;
-                    Err(e)
-                }
-                other => other,
+        ) -> Option<Poll<futures_io::Result<usize>>> {
+            Some(match self.0.poll_read_ready_mut(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Ready(Ok(mut guard)) => match guard.try_io(f) {
+                    Ok(res) => Poll::Ready(res),
+                    Err(_) => return None,
+                },
             })
         }
 
-        fn write<R, F: FnOnce(&mut TcpStream) -> futures_io::Result<R>>(
+        fn write<R, F: FnOnce(&mut AsyncFd<TcpStream>) -> futures_io::Result<R>>(
             &mut self,
             cx: &mut Context<'_>,
             f: F,
-        ) -> Poll<futures_io::Result<R>> {
-            if !self.writable {
-                match self.fd.poll_write_ready(cx) {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Ready(Ok(mut guard)) => guard.retain_ready(),
-                };
-                self.writable = true;
-            }
-            Poll::Ready(match f(&mut self.socket) {
-                Err(e) if e.kind() == futures_io::ErrorKind::WouldBlock => {
-                    self.writable = false;
-                    Err(e)
-                }
-                other => other,
+        ) -> Option<Poll<futures_io::Result<R>>> {
+            Some(match self.0.poll_write_ready_mut(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Ready(Ok(mut guard)) => match guard.try_io(f) {
+                    Ok(res) => Poll::Ready(res),
+                    Err(_) => return None,
+                },
             })
         }
     }
@@ -145,7 +117,11 @@ mod unix {
             cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<futures_io::Result<usize>> {
-            self.read(cx, |socket| socket.read(buf))
+            loop {
+                if let Some(res) = self.read(cx, |socket| socket.get_mut().read(buf)) {
+                    return res;
+                }
+            }
         }
 
         fn poll_read_vectored(
@@ -153,7 +129,11 @@ mod unix {
             cx: &mut Context<'_>,
             bufs: &mut [IoSliceMut<'_>],
         ) -> Poll<futures_io::Result<usize>> {
-            self.read(cx, |socket| socket.read_vectored(bufs))
+            loop {
+                if let Some(res) = self.read(cx, |socket| socket.get_mut().read_vectored(bufs)) {
+                    return res;
+                }
+            }
         }
     }
 
@@ -163,7 +143,11 @@ mod unix {
             cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<futures_io::Result<usize>> {
-            self.write(cx, |socket| socket.write(buf))
+            loop {
+                if let Some(res) = self.write(cx, |socket| socket.get_mut().write(buf)) {
+                    return res;
+                }
+            }
         }
 
         fn poll_write_vectored(
@@ -171,14 +155,22 @@ mod unix {
             cx: &mut Context<'_>,
             bufs: &[IoSlice<'_>],
         ) -> Poll<futures_io::Result<usize>> {
-            self.write(cx, |socket| socket.write_vectored(bufs))
+            loop {
+                if let Some(res) = self.write(cx, |socket| socket.get_mut().write_vectored(bufs)) {
+                    return res;
+                }
+            }
         }
 
         fn poll_flush(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<futures_io::Result<()>> {
-            self.write(cx, |socket| socket.flush())
+            loop {
+                if let Some(res) = self.write(cx, |socket| socket.get_mut().flush()) {
+                    return res;
+                }
+            }
         }
 
         fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<futures_io::Result<()>> {
