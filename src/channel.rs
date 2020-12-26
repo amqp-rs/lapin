@@ -9,7 +9,6 @@ use crate::{
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
-    executor::Executor,
     frames::{ExpectedReply, Frames},
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -27,6 +26,7 @@ use crate::{
     PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use executor_trait::Executor;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{error, info, level_enabled, trace, Level};
@@ -56,7 +56,7 @@ pub struct Channel {
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
-    executor: Arc<dyn Executor>,
+    executor: Arc<dyn Executor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
 }
@@ -80,7 +80,6 @@ impl fmt::Debug for Channel {
             .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
             .field("frames", &self.frames)
-            .field("executor", &self.executor)
             .finish()
     }
 }
@@ -94,7 +93,7 @@ impl Channel {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();

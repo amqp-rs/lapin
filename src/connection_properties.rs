@@ -1,11 +1,12 @@
-use crate::{executor::Executor, reactor::Reactor, types::FieldTable};
+use crate::{reactor::Reactor, types::FieldTable};
+use executor_trait::Executor;
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ConnectionProperties {
     pub locale: String,
     pub client_properties: FieldTable,
-    pub executor: Option<Arc<dyn Executor>>,
+    pub executor: Option<Arc<dyn Executor + Send + Sync>>,
     pub reactor: Option<Arc<dyn Reactor + Send + Sync>>,
 }
 
@@ -21,7 +22,7 @@ impl Default for ConnectionProperties {
 }
 
 impl ConnectionProperties {
-    pub fn with_executor<E: Executor + 'static>(mut self, executor: E) -> Self {
+    pub fn with_executor<E: Executor + Send + Sync + 'static>(mut self, executor: E) -> Self {
         self.executor = Some(Arc::new(executor));
         self
     }

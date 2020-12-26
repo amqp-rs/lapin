@@ -1,12 +1,12 @@
 use crate::{
     channels::Channels,
     consumer_status::ConsumerStatus,
-    executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
     Error, PromiseResolver, Result,
 };
+use executor_trait::Executor;
 use flume::{Receiver, Sender};
 use std::{fmt, future::Future, sync::Arc};
 use tracing::trace;
@@ -20,7 +20,7 @@ pub(crate) struct InternalRPC {
 pub(crate) struct InternalRPCHandle {
     sender: Sender<Option<InternalCommand>>,
     waker: SocketStateHandle,
-    executor: Arc<dyn Executor>,
+    executor: Arc<dyn Executor + Send + Sync>,
 }
 
 impl InternalRPCHandle {
@@ -194,7 +194,7 @@ enum InternalCommand {
 }
 
 impl InternalRPC {
-    pub(crate) fn new(executor: Arc<dyn Executor>, waker: SocketStateHandle) -> Self {
+    pub(crate) fn new(executor: Arc<dyn Executor + Send + Sync>, waker: SocketStateHandle) -> Self {
         let (sender, rpc) = flume::unbounded();
         let handle = InternalRPCHandle {
             sender,

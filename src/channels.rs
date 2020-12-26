@@ -1,7 +1,6 @@
 use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
-    executor::Executor,
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -14,6 +13,7 @@ use crate::{
     Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
+use executor_trait::Executor;
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
 use tracing::{debug, error, level_enabled, trace, Level};
@@ -24,7 +24,7 @@ pub(crate) struct Channels {
     connection_status: ConnectionStatus,
     global_registry: Registry,
     internal_rpc: InternalRPCHandle,
-    executor: Arc<dyn Executor>,
+    executor: Arc<dyn Executor + Send + Sync>,
     frames: Frames,
     error_handler: ErrorHandler,
 }
@@ -37,7 +37,7 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
     ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
@@ -285,7 +285,6 @@ impl fmt::Debug for Channels {
         }
         debug
             .field("frames", &self.frames)
-            .field("executor", &self.executor)
             .field("connection_status", &self.connection_status)
             .field("error_handler", &self.error_handler)
             .finish()
@@ -316,7 +315,7 @@ impl Inner {
         global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
@@ -341,7 +340,7 @@ impl Inner {
         global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");

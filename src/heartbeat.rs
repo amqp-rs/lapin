@@ -1,4 +1,5 @@
-use crate::{channels::Channels, executor::Executor, reactor::Reactor};
+use crate::{channels::Channels, reactor::Reactor};
+use executor_trait::Executor;
 use parking_lot::Mutex;
 use std::{
     fmt,
@@ -9,7 +10,7 @@ use std::{
 #[derive(Clone)]
 pub struct Heartbeat {
     channels: Channels,
-    executor: Arc<dyn Executor>,
+    executor: Arc<dyn Executor + Send + Sync>,
     reactor: Arc<dyn Reactor + Send + Sync>,
     inner: Arc<Mutex<Inner>>,
 }
@@ -17,7 +18,7 @@ pub struct Heartbeat {
 impl Heartbeat {
     pub(crate) fn new(
         channels: Channels,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
         reactor: Arc<dyn Reactor + Send + Sync>,
     ) -> Self {
         let inner = Default::default();

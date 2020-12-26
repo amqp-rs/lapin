@@ -5,7 +5,6 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
-    executor::{DefaultExecutor, Executor},
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -24,6 +23,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
+use executor_trait::Executor;
 use std::{fmt, io, sync::Arc};
 use tracing::{level_enabled, Level};
 
@@ -52,7 +52,7 @@ impl Connection {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
@@ -295,31 +295,37 @@ impl Connection {
         let executor = options
             .executor
             .take()
-            .map(Ok)
-            .unwrap_or_else(DefaultExecutor::default)?;
+            .unwrap_or_else(|| Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
 
         let (connect_promise, resolver) = pinky_swear::PinkySwear::<Result<TcpStream>>::new();
         let connect_uri = uri.clone();
-        executor.spawn_blocking(Box::new(move || {
-            let mut res = connect(&connect_uri);
-            loop {
-                match res {
-                    Ok(stream) => {
-                        resolver.swear(Ok(stream));
-                        break;
-                    }
-                    Err(mid) => match mid.into_mid_handshake_tls_stream() {
-                        Err(err) => {
-                            resolver.swear(Err(err.into()));
-                            break;
+        executor.spawn({
+            let executor = executor.clone();
+            Box::pin(async move {
+                executor
+                    .spawn_blocking(Box::new(move || {
+                        let mut res = connect(&connect_uri);
+                        loop {
+                            match res {
+                                Ok(stream) => {
+                                    resolver.swear(Ok(stream));
+                                    break;
+                                }
+                                Err(mid) => match mid.into_mid_handshake_tls_stream() {
+                                    Err(err) => {
+                                        resolver.swear(Err(err.into()));
+                                        break;
+                                    }
+                                    Ok(mid) => {
+                                        res = mid.handshake();
+                                    }
+                                },
+                            }
                         }
-                        Ok(mid) => {
-                            res = mid.handshake();
-                        }
-                    },
-                }
-            }
-        }));
+                    }))
+                    .await;
+            })
+        });
 
         let reactor = options
             .reactor
@@ -480,7 +486,7 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
-        let executor = DefaultExecutor::default().unwrap();
+        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
@@ -561,7 +567,7 @@ mod tests {
         // Bootstrap connection state to a consuming state
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
-        let executor = DefaultExecutor::default().unwrap();
+        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
         let conn = Connection::new(
             waker,

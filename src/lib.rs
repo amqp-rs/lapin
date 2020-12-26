@@ -117,7 +117,6 @@ pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
 
-pub mod executor;
 pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;

@@ -2,7 +2,6 @@ use crate::{
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
     consumer_status::{ConsumerState, ConsumerStatus},
-    executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     options::BasicConsumeOptions,
@@ -11,6 +10,7 @@ use crate::{
     wakers::Wakers,
     BasicProperties, Error, Result,
 };
+use executor_trait::Executor;
 use flume::{Receiver, Sender};
 use futures_lite::Stream;
 use parking_lot::Mutex;
@@ -146,7 +146,7 @@ pub struct Consumer {
 impl Consumer {
     pub(crate) fn new(
         consumer_tag: ShortString,
-        executor: Arc<dyn Executor>,
+        executor: Arc<dyn Executor + Send + Sync>,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
         options: BasicConsumeOptions,
@@ -275,16 +275,14 @@ struct ConsumerInner {
     wakers: Wakers,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
-    executor: Arc<dyn Executor>,
+    executor: Arc<dyn Executor + Send + Sync>,
 }
 
 impl fmt::Debug for Consumer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Consumer");
         if let Some(inner) = self.inner.try_lock() {
-            debug
-                .field("tag", &inner.tag)
-                .field("executor", &inner.executor);
+            debug.field("tag", &inner.tag);
         }
         if let Some(status) = self.status.try_lock() {
             debug.field("state", &status.state());
@@ -294,7 +292,11 @@ impl fmt::Debug for Consumer {
 }
 
 impl ConsumerInner {
-    fn new(status: ConsumerStatus, consumer_tag: ShortString, executor: Arc<dyn Executor>) -> Self {
+    fn new(
+        status: ConsumerStatus,
+        consumer_tag: ShortString,
+        executor: Arc<dyn Executor + Send + Sync>,
+    ) -> Self {
         let (sender, receiver) = flume::unbounded();
         Self {
             status,
@@ -428,7 +430,6 @@ impl Stream for Consumer {
 #[cfg(test)]
 mod futures_tests {
     use super::*;
-    use crate::executor::DefaultExecutor;
 
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -452,7 +453,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            DefaultExecutor::default().unwrap(),
+            Arc::new(async_global_executor_trait::AsyncGlobalExecutor),
             None,
             "test".into(),
             BasicConsumeOptions::default(),
@@ -488,7 +489,7 @@ mod futures_tests {
 
         let mut consumer = Consumer::new(
             ShortString::from("test-consumer"),
-            DefaultExecutor::default().unwrap(),
+            Arc::new(async_global_executor_trait::AsyncGlobalExecutor),
             None,
             "test".into(),
             BasicConsumeOptions::default(),
