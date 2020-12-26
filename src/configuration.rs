@@ -1,4 +1,7 @@
-use crate::{protocol, ChannelId, FrameSize, Heartbeat};
+use crate::{
+    protocol,
+    types::{ChannelId, FrameSize, Heartbeat},
+};
 use parking_lot::RwLock;
 use std::{fmt, sync::Arc};
 

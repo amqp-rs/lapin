@@ -1,5 +1,8 @@
 use crate::{
-    channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, ChannelId, ReplyCode,
+    channel_status::ChannelStatus,
+    internal_rpc::InternalRPCHandle,
+    protocol,
+    types::{ChannelId, ReplyCode},
 };
 use std::fmt;
 

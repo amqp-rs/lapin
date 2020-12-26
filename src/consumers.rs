@@ -1,6 +1,9 @@
 use crate::{
-    consumer::Consumer, message::Delivery, topology_internal::ConsumerDefinitionInternal,
-    types::ShortString, BasicProperties, Error, PayloadSize,
+    consumer::Consumer,
+    message::Delivery,
+    topology_internal::ConsumerDefinitionInternal,
+    types::{PayloadSize, ShortString},
+    BasicProperties, Error,
 };
 use parking_lot::Mutex;
 use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash, sync::Arc};

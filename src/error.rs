@@ -1,6 +1,6 @@
 use crate::{
     channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
-    ChannelId,
+    types::ChannelId,
 };
 use amq_protocol::frame::{GenError, ParserError, ProtocolVersion};
 use std::{error, fmt, io, sync::Arc};

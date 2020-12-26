@@ -1,5 +1,6 @@
 use crate::{
-    connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol, ReplyCode,
+    connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol,
+    types::ReplyCode,
 };
 
 pub(crate) struct ConnectionCloser {

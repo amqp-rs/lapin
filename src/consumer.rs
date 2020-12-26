@@ -6,9 +6,10 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
     options::BasicConsumeOptions,
+    types::{ChannelId, PayloadSize},
     types::{FieldTable, ShortString},
     wakers::Wakers,
-    BasicProperties, ChannelId, Error, PayloadSize, Result,
+    BasicProperties, Error, Result,
 };
 use flume::{Receiver, Sender};
 use futures_lite::Stream;

@@ -1,4 +1,4 @@
-use crate::{channel::Reply, ChannelId, Error, Promise, PromiseResolver, Result};
+use crate::{channel::Reply, types::ChannelId, Error, Promise, PromiseResolver, Result};
 use amq_protocol::{
     frame::AMQPFrame,
     protocol::{basic::AMQPMethod, AMQPClass},

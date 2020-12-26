@@ -1,6 +1,7 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
-    ChannelId, Identifier, PayloadSize, Result,
+    types::{ChannelId, Identifier, PayloadSize},
+    Result,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};

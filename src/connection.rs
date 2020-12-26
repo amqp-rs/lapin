@@ -18,8 +18,9 @@ use crate::{
     thread::ThreadHandle,
     topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
     topology_internal::TopologyInternal,
+    types::ReplyCode,
     uri::AMQPUri,
-    Error, Promise, ReplyCode, Result, TcpStream,
+    Error, Promise, Result, TcpStream,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -532,7 +533,6 @@ mod tests {
                 60,
                 Box::new(AMQPContentHeader {
                     class_id: 60,
-                    weight: 0,
                     body_size: 2,
                     properties: BasicProperties::default(),
                 }),
@@ -612,7 +612,6 @@ mod tests {
                 60,
                 Box::new(AMQPContentHeader {
                     class_id: 60,
-                    weight: 0,
                     body_size: 0,
                     properties: BasicProperties::default(),
                 }),

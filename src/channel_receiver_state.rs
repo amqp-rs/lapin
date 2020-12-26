@@ -1,4 +1,7 @@
-use crate::{types::ShortString, ChannelId, Identifier, PayloadSize, Result};
+use crate::{
+    types::{ChannelId, Identifier, PayloadSize, ShortString},
+    Result,
+};
 use std::collections::VecDeque;
 
 #[derive(Debug, Default)]

@@ -23,9 +23,8 @@ use crate::{
     topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
-    BasicProperties, ChannelId, Configuration, Connection, ConnectionStatus, DeliveryTag, Error,
-    ExchangeKind, FrameSize, Heartbeat, Identifier, MessageCount, PayloadSize, Promise,
-    PromiseResolver, ReplyCode, Result,
+    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ExchangeKind, Promise,
+    PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use serde::{Deserialize, Serialize};
@@ -384,7 +383,6 @@ impl Channel {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
-            weight: 0,
             body_size: payload.len() as u64,
             properties,
         };

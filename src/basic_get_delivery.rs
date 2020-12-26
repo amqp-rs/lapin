@@ -1,7 +1,9 @@
 use crate::{
-    message::BasicGetMessage, options::BasicGetOptions,
-    topology_internal::BasicGetDefinitionInternal, types::ShortString, BasicProperties,
-    PayloadSize, PromiseResolver,
+    message::BasicGetMessage,
+    options::BasicGetOptions,
+    topology_internal::BasicGetDefinitionInternal,
+    types::{PayloadSize, ShortString},
+    BasicProperties, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};

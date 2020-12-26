@@ -1,4 +1,4 @@
-use crate::{types::ShortString, ConsumerCount, MessageCount};
+use crate::types::{ConsumerCount, MessageCount, ShortString};
 use std::borrow::Borrow;
 
 #[derive(Clone, Debug)]

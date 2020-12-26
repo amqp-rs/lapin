@@ -1,6 +1,6 @@
 use crate::{
-    message::BasicReturnMessage, publisher_confirm::Confirmation, BasicProperties, PayloadSize,
-    Promise,
+    message::BasicReturnMessage, publisher_confirm::Confirmation, types::PayloadSize,
+    BasicProperties, Promise,
 };
 use parking_lot::Mutex;
 use std::{collections::VecDeque, fmt, sync::Arc};

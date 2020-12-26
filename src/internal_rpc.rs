@@ -4,7 +4,8 @@ use crate::{
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
-    ChannelId, DeliveryTag, Error, Identifier, PromiseResolver, ReplyCode, Result,
+    types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
+    Error, PromiseResolver, Result,
 };
 use flume::{Receiver, Sender};
 use std::{fmt, future::Future, sync::Arc};

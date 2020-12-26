@@ -9,8 +9,9 @@ use crate::{
     registry::Registry,
     socket_state::SocketStateHandle,
     topology_internal::ChannelDefinitionInternal,
-    BasicProperties, Channel, ChannelId, ChannelState, Configuration, ConnectionState,
-    ConnectionStatus, Error, Identifier, PayloadSize, Promise, Result,
+    types::{ChannelId, Identifier, PayloadSize},
+    BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
+    Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use parking_lot::Mutex;

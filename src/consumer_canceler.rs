@@ -1,7 +1,7 @@
 use crate::{
     consumer_status::{ConsumerState, ConsumerStatus},
     internal_rpc::InternalRPCHandle,
-    ChannelId,
+    types::ChannelId,
 };
 
 pub(crate) struct ConsumerCanceler {

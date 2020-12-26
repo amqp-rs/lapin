@@ -1,6 +1,10 @@
 use crate::{
-    acker::Acker, internal_rpc::InternalRPCHandle, protocol::AMQPError, types::ShortString,
-    BasicProperties, ChannelId, DeliveryTag, MessageCount, ReplyCode, Result,
+    acker::Acker,
+    internal_rpc::InternalRPCHandle,
+    protocol::AMQPError,
+    types::ShortString,
+    types::{ChannelId, DeliveryTag, MessageCount, ReplyCode},
+    BasicProperties, Result,
 };
 use std::ops::{Deref, DerefMut};
 

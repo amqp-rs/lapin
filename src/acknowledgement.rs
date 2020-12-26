@@ -2,7 +2,8 @@ use crate::{
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
-    ChannelId, DeliveryTag, Error, Promise, Result,
+    types::{ChannelId, DeliveryTag},
+    Error, Promise, Result,
 };
 use parking_lot::Mutex;
 use std::{
