@@ -12,6 +12,7 @@ use crate::{
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
+use reactor_trait::AsyncIOHandle;
 use std::{
     collections::VecDeque,
     pin::Pin,
@@ -20,7 +21,6 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-use reactor_trait::AsyncIOHandle;
 use tracing::{error, trace};
 
 const FRAMES_STORAGE: usize = 32;
