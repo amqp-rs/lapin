@@ -1,5 +1,4 @@
 use lapin::ConnectionProperties;
-use tokio::runtime::Handle;
 
 pub trait LapinTokioExt {
     fn with_tokio(self) -> Self
@@ -24,7 +23,7 @@ pub trait LapinTokioExt {
 
 impl LapinTokioExt for ConnectionProperties {
     fn with_tokio_executor(self) -> Self {
-        self.with_executor(tokio_executor_trait::Tokio::default().with_handle(Handle::current()))
+        self.with_executor(tokio_executor_trait::Tokio::current())
     }
 
     #[cfg(unix)]
