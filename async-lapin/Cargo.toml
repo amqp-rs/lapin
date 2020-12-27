@@ -15,14 +15,15 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-async-io = "^1.2"
-async-trait = "^0.1"
-parking_lot = "^0.11"
+async-reactor-trait = "^0.1"
 
 [dependencies.lapin]
 version = "^1.6"
 path = ".."
 default-features = false
+
+[dev-dependencies]
+async-io = "^1.3"
 
 [dev-dependencies.tracing]
 version = "^0.1"

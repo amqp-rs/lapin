@@ -1,6 +1,7 @@
-use crate::{channels::Channels, reactor::Reactor};
+use crate::channels::Channels;
 use executor_trait::Executor;
 use parking_lot::Mutex;
+use reactor_trait::Reactor;
 use std::{
     fmt,
     sync::Arc,

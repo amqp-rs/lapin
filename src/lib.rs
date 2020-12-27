@@ -120,7 +120,6 @@ pub use queue::Queue;
 pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;
-pub mod reactor;
 pub mod socket_state;
 pub mod topology;
 

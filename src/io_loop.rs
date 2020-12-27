@@ -6,7 +6,6 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::AsyncRW,
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
     types::FrameSize,
@@ -21,6 +20,7 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
+use reactor_trait::AsyncIOHandle;
 use tracing::{error, trace};
 
 const FRAMES_STORAGE: usize = 32;
@@ -41,7 +41,7 @@ pub struct IoLoop {
     heartbeat: Heartbeat,
     socket_state: SocketState,
     connection_io_loop_handle: ThreadHandle,
-    stream: Pin<Box<dyn AsyncRW + Send>>,
+    stream: Pin<Box<dyn AsyncIOHandle + Send>>,
     status: Status,
     frame_size: FrameSize,
     receive_buffer: Buffer,
@@ -58,7 +58,7 @@ impl IoLoop {
         frames: Frames,
         socket_state: SocketState,
         connection_io_loop_handle: ThreadHandle,
-        stream: Pin<Box<dyn AsyncRW + Send>>,
+        stream: Pin<Box<dyn AsyncIOHandle + Send>>,
         heartbeat: Heartbeat,
     ) -> Result<Self> {
         let frame_size = std::cmp::max(

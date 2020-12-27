@@ -10,7 +10,6 @@ use crate::{
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     options::{ExchangeBindOptions, QueueBindOptions},
-    reactor::DefaultReactor,
     registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
@@ -24,6 +23,7 @@ use crate::{
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
 use executor_trait::Executor;
+use reactor_trait::IOHandle;
 use std::{fmt, io, sync::Arc};
 use tracing::{level_enabled, Level};
 
@@ -330,7 +330,7 @@ impl Connection {
         let reactor = options
             .reactor
             .take()
-            .unwrap_or_else(|| Arc::new(DefaultReactor));
+            .unwrap_or_else(|| Arc::new(async_reactor_trait::AsyncIo));
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
@@ -380,7 +380,7 @@ impl Connection {
             options,
         ));
         let stream = connect_promise.await?;
-        let stream = reactor.register(stream)?.into();
+        let stream = reactor.register(IOHandle::new(stream))?.into();
         let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));

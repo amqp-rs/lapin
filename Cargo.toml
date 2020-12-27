@@ -56,13 +56,13 @@ version = "^0.1"
 default-features = false
 
 [dependencies]
-async-io = "^1.0"
-async-trait = "^0.1"
-blocking = "^1.0"
+async-reactor-trait = "^0.1"
+async-trait = "^0.1.42"
 executor-trait = "^1.0"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.1"
+reactor-trait = "^0.1"
 waker-fn = "^1.1"
 
 [dev-dependencies]

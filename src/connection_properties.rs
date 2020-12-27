@@ -1,5 +1,6 @@
-use crate::{reactor::Reactor, types::FieldTable};
+use crate::types::FieldTable;
 use executor_trait::Executor;
+use reactor_trait::Reactor;
 use std::sync::Arc;
 
 #[derive(Clone)]

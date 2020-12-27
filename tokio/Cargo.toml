@@ -19,21 +19,18 @@ version = "^1.6"
 path = ".."
 default-features = false
 
+[dependencies]
+tokio-executor-trait = "^1.0"
+tokio-reactor-trait = "^0.1"
+
 [dependencies.tokio]
 version = "^1.0"
 default-features = false
-features = ["net", "rt", "time"]
-
-[dependencies]
-async-trait = "^0.1"
-futures-io = "^0.3"
-parking_lot = "^0.11"
-tokio-executor-trait = "^1.0"
 
 [dev-dependencies.tokio]
 version = "^1.0"
 default-features = false
-features = ["macros", "net", "rt", "rt-multi-thread", "time"]
+features = ["macros"]
 
 [dev-dependencies.tracing]
 version = "^0.1"
