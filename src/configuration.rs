@@ -24,7 +24,7 @@ impl Configuration {
     }
 
     pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
-        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE as FrameSize);
+        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE);
         self.inner.write().frame_max = frame_max;
     }
 

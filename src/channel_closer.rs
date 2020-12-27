@@ -1,8 +1,5 @@
 use crate::{
-    channel_status::ChannelStatus,
-    internal_rpc::InternalRPCHandle,
-    protocol,
-    types::{ChannelId, ReplyCode},
+    channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, types::ChannelId,
 };
 use std::fmt;
 
@@ -40,7 +37,7 @@ impl Drop for ChannelCloser {
         if self.status.auto_close(self.id) {
             self.internal_rpc.close_channel(
                 self.id,
-                protocol::constants::REPLY_SUCCESS as ReplyCode,
+                protocol::constants::REPLY_SUCCESS,
                 "OK".to_string(),
             );
         }

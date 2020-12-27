@@ -382,7 +382,7 @@ impl Channel {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
             class_id,
-            body_size: payload.len() as u64,
+            body_size: payload.len() as PayloadSize,
             properties,
         };
         let frame_max = self.configuration.frame_max();

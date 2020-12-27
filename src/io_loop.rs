@@ -9,6 +9,7 @@ use crate::{
     reactor::AsyncRW,
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
+    types::FrameSize,
     Configuration, ConnectionStatus, Error, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
@@ -42,10 +43,10 @@ pub struct IoLoop {
     connection_io_loop_handle: ThreadHandle,
     stream: Pin<Box<dyn AsyncRW + Send>>,
     status: Status,
-    frame_size: usize,
+    frame_size: FrameSize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
-    serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
+    serialized_frames: VecDeque<(FrameSize, Option<PromiseResolver<()>>)>,
 }
 
 impl IoLoop {
@@ -61,8 +62,8 @@ impl IoLoop {
         heartbeat: Heartbeat,
     ) -> Result<Self> {
         let frame_size = std::cmp::max(
-            protocol::constants::FRAME_MIN_SIZE as usize,
-            configuration.frame_max() as usize,
+            protocol::constants::FRAME_MIN_SIZE,
+            configuration.frame_max(),
         );
 
         Ok(Self {
@@ -77,8 +78,8 @@ impl IoLoop {
             stream,
             status: Status::Initial,
             frame_size,
-            receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
-            send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
+            receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
+            send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             serialized_frames: VecDeque::default(),
         })
     }
@@ -95,10 +96,12 @@ impl IoLoop {
 
     fn finish_setup(&mut self) -> Result<bool> {
         if self.connection_status.connected() {
-            let frame_max = self.configuration.frame_max() as usize;
+            let frame_max = self.configuration.frame_max();
             self.frame_size = std::cmp::max(self.frame_size, frame_max);
-            self.receive_buffer.grow(FRAMES_STORAGE * self.frame_size);
-            self.send_buffer.grow(FRAMES_STORAGE * self.frame_size);
+            self.receive_buffer
+                .grow(FRAMES_STORAGE * self.frame_size as usize);
+            self.send_buffer
+                .grow(FRAMES_STORAGE * self.frame_size as usize);
             let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
@@ -289,7 +292,7 @@ impl IoLoop {
                 trace!("wrote {} bytes", sz);
                 self.send_buffer.consume(sz);
 
-                let mut written = sz as u64;
+                let mut written = sz as FrameSize;
                 while written > 0 {
                     if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
                         if written < to_write {
@@ -355,7 +358,9 @@ impl IoLoop {
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
-                Ok(sz) => self.serialized_frames.push_back((sz, resolver)),
+                Ok(sz) => self
+                    .serialized_frames
+                    .push_back((sz as FrameSize, resolver)),
                 Err(e) => {
                     self.send_buffer.rollback(checkpoint);
                     match e {
