@@ -35,7 +35,7 @@ async fn connect() -> Result<Connection> {
             let tls_builder = NativeTlsConnector::builder();
             // Perform here your custom TLS setup, with tls_builder.identity or whatever else you need
             stream.into_native_tls(
-                tls_builder.build().expect("TLS configuration failed"),
+                &tls_builder.build().expect("TLS configuration failed"),
                 &uri.authority.host,
             )
         })
