@@ -14,14 +14,14 @@ license = "MIT"
 [features]
 default = ["lapin/default"]
 
-[dependencies.lapin]
-version = "^1.6"
-path = ".."
-default-features = false
-
 [dependencies]
 tokio-executor-trait = "^1.0"
 tokio-reactor-trait = "^0.1"
+
+[dependencies.lapin]
+version = "=2.0.0-alpha.1"
+path = ".."
+default-features = false
 
 [dependencies.tokio]
 version = "^1.0"

@@ -18,9 +18,12 @@ default = ["lapin/default"]
 bastion-executor-trait = "^0.4"
 
 [dependencies.lapin]
-version = "^1.6"
+version = "=2.0.0-alpha.1"
 path = ".."
 default-features = false
+
+[dev-dependencies]
+bastion = "^0.4"
 
 [dev-dependencies.tracing]
 version = "^0.1"
@@ -29,6 +32,3 @@ default-features = false
 [dev-dependencies.tracing-subscriber]
 version = "^0.2"
 features = ["fmt"]
-
-[dev-dependencies]
-bastion = "^0.4"
