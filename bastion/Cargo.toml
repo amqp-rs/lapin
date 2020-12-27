@@ -14,13 +14,13 @@ license = "MIT"
 [features]
 default = ["lapin/default"]
 
+[dependencies]
+bastion-executor-trait = "^0.4"
+
 [dependencies.lapin]
 version = "^1.6"
 path = ".."
 default-features = false
-
-[dependencies]
-bastion-executor = "^0.4"
 
 [dev-dependencies.tracing]
 version = "^0.1"

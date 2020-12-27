@@ -1,5 +1,4 @@
-use lapin::{executor::Executor, ConnectionProperties};
-use std::{future::Future, pin::Pin};
+use lapin::ConnectionProperties;
 use tokio::runtime::Handle;
 
 pub trait LapinTokioExt {
@@ -25,25 +24,12 @@ pub trait LapinTokioExt {
 
 impl LapinTokioExt for ConnectionProperties {
     fn with_tokio_executor(self) -> Self {
-        self.with_executor(TokioExecutor(Handle::current()))
+        self.with_executor(tokio_executor_trait::Tokio::default().with_handle(Handle::current()))
     }
 
     #[cfg(unix)]
     fn with_tokio_reactor(self) -> Self {
         self.with_reactor(unix::TokioReactor(Handle::current()))
-    }
-}
-
-#[derive(Debug)]
-struct TokioExecutor(Handle);
-
-impl Executor for TokioExecutor {
-    fn spawn(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        self.0.spawn(f);
-    }
-
-    fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send>) {
-        self.0.spawn_blocking(f);
     }
 }
 

@@ -13,13 +13,10 @@ license = "MIT"
 
 [features]
 default = ["lapin/default", "async-io"]
-async-io = ["async-global-executor/async-io", "async-lapin"]
+async-io = ["async-global-executor-trait/async-io", "async-lapin"]
 
-[dependencies]
-blocking = "^1.0"
-
-[dependencies.async-global-executor]
-version = "^2.0"
+[dependencies.async-global-executor-trait]
+version = "^1.0"
 default-features = false
 
 [dependencies.async-lapin]
@@ -32,6 +29,9 @@ optional = true
 version = "^1.6"
 path = ".."
 default-features = false
+
+[dev-dependencies]
+async-global-executor = "^2.0"
 
 [dev-dependencies.tracing]
 version = "^0.1"
