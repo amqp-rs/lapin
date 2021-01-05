@@ -16,7 +16,7 @@ default = ["lapin/default", "async-io"]
 async-io = ["async-global-executor-trait/async-io", "async-lapin"]
 
 [dependencies.async-global-executor-trait]
-version = "^1.0"
+version = "^2.0"
 default-features = false
 
 [dependencies.async-lapin]

@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-bastion-executor-trait = "^0.4"
+bastion-executor-trait = "^0.5"
 
 [dependencies.lapin]
 version = "=2.0.0-alpha.1"
