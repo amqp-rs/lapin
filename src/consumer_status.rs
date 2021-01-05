@@ -38,10 +38,10 @@ pub enum ConsumerState {
 
 impl ConsumerState {
     pub fn is_active(self) -> bool {
-        match self {
-            ConsumerState::Active | ConsumerState::ActiveWithDelegate => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            ConsumerState::Active | ConsumerState::ActiveWithDelegate
+        )
     }
 }
 
