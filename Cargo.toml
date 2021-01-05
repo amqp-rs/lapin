@@ -56,13 +56,13 @@ version = "^0.1"
 default-features = false
 
 [dependencies]
-async-reactor-trait = "^0.1"
+async-reactor-trait = "^0.2"
 async-trait = "^0.1.42"
 executor-trait = "^2.0"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.1"
-reactor-trait = "^0.1"
+reactor-trait = "^0.2"
 waker-fn = "^1.1"
 
 [dev-dependencies]
