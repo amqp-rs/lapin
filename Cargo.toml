@@ -39,7 +39,7 @@ version = "7.0.0-alpha.5"
 default-features = false
 
 [dependencies.async-global-executor-trait]
-version = "^1.0"
+version = "^2.0"
 features = ["async-io"]
 
 [dependencies.flume]
@@ -58,7 +58,7 @@ default-features = false
 [dependencies]
 async-reactor-trait = "^0.1"
 async-trait = "^0.1.42"
-executor-trait = "^1.0"
+executor-trait = "^2.0"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.1"

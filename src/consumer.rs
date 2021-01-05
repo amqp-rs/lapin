@@ -10,7 +10,7 @@ use crate::{
     wakers::Wakers,
     BasicProperties, Error, Result,
 };
-use executor_trait::Executor;
+use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
 use futures_lite::Stream;
 use parking_lot::Mutex;
@@ -146,7 +146,7 @@ pub struct Consumer {
 impl Consumer {
     pub(crate) fn new(
         consumer_tag: ShortString,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
         options: BasicConsumeOptions,
@@ -275,7 +275,7 @@ struct ConsumerInner {
     wakers: Wakers,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
-    executor: Arc<dyn Executor + Send + Sync>,
+    executor: Arc<dyn FullExecutor + Send + Sync>,
 }
 
 impl fmt::Debug for Consumer {
@@ -295,7 +295,7 @@ impl ConsumerInner {
     fn new(
         status: ConsumerStatus,
         consumer_tag: ShortString,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
     ) -> Self {
         let (sender, receiver) = flume::unbounded();
         Self {

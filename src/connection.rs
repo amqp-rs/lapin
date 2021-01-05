@@ -22,7 +22,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
-use executor_trait::Executor;
+use executor_trait::FullExecutor;
 use reactor_trait::IOHandle;
 use std::{fmt, io, sync::Arc};
 use tracing::{level_enabled, Level};
@@ -52,7 +52,7 @@ impl Connection {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();

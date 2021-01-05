@@ -26,7 +26,7 @@ use crate::{
     PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use executor_trait::Executor;
+use executor_trait::FullExecutor;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{error, info, level_enabled, trace, Level};
@@ -56,7 +56,7 @@ pub struct Channel {
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
-    executor: Arc<dyn Executor + Send + Sync>,
+    executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
 }
@@ -93,7 +93,7 @@ impl Channel {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();

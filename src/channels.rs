@@ -13,7 +13,7 @@ use crate::{
     Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
-use executor_trait::Executor;
+use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt, sync::Arc};
 use tracing::{debug, error, level_enabled, trace, Level};
@@ -24,7 +24,7 @@ pub(crate) struct Channels {
     connection_status: ConnectionStatus,
     global_registry: Registry,
     internal_rpc: InternalRPCHandle,
-    executor: Arc<dyn Executor + Send + Sync>,
+    executor: Arc<dyn FullExecutor + Send + Sync>,
     frames: Frames,
     error_handler: ErrorHandler,
 }
@@ -37,7 +37,7 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
     ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
@@ -315,7 +315,7 @@ impl Inner {
         global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
@@ -340,7 +340,7 @@ impl Inner {
         global_registry: Registry,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn Executor + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");
