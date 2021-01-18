@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     async_global_executor::block_on(async {
         let conn = Connection::connect(
             &addr,
-            ConnectionProperties::default().with_default_executor(8),
+            ConnectionProperties::default().with_default_executor(8).with_connection_name("pubsub-example".into()),
         )
         .await?;
 

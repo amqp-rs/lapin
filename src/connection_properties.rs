@@ -1,7 +1,7 @@
 use crate::{
     executor::{DefaultExecutor, Executor},
     reactor::ReactorBuilder,
-    types::FieldTable,
+    types::{AMQPValue, FieldTable, LongString},
 };
 use std::sync::Arc;
 
@@ -25,6 +25,11 @@ impl Default for ConnectionProperties {
 }
 
 impl ConnectionProperties {
+    pub fn with_connection_name(mut self, connection_name: LongString) -> Self {
+        self.client_properties.insert("connection_name".into(), AMQPValue::LongString(connection_name));
+        self
+    }
+
     pub fn with_executor<E: Executor + 'static>(mut self, executor: E) -> Self {
         self.executor = Some(Arc::new(executor));
         self
