@@ -1,4 +1,4 @@
-use crate::types::FieldTable;
+use crate::types::{AMQPValue, FieldTable, LongString};
 use executor_trait::FullExecutor;
 use reactor_trait::Reactor;
 use std::sync::Arc;
@@ -23,6 +23,14 @@ impl Default for ConnectionProperties {
 }
 
 impl ConnectionProperties {
+    pub fn with_connection_name(mut self, connection_name: LongString) -> Self {
+        self.client_properties.insert(
+            "connection_name".into(),
+            AMQPValue::LongString(connection_name),
+        );
+        self
+    }
+
     pub fn with_executor<E: FullExecutor + Send + Sync + 'static>(mut self, executor: E) -> Self {
         self.executor = Some(Arc::new(executor));
         self
