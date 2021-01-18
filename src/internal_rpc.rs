@@ -194,7 +194,10 @@ enum InternalCommand {
 }
 
 impl InternalRPC {
-    pub(crate) fn new(executor: Arc<dyn FullExecutor + Send + Sync>, waker: SocketStateHandle) -> Self {
+    pub(crate) fn new(
+        executor: Arc<dyn FullExecutor + Send + Sync>,
+        waker: SocketStateHandle,
+    ) -> Self {
         let (sender, rpc) = flume::unbounded();
         let handle = InternalRPCHandle {
             sender,
