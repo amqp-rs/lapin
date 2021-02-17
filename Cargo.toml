@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "1.6.6"
+version = "1.6.7"
 edition = "2018"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -55,7 +55,7 @@ parking_lot = "^0.11"
 pinky-swear = "^4.4"
 
 [dev-dependencies]
-async-global-executor = "^1.4"
+async-global-executor = "^2.0"
 env_logger = "^0.8"
 futures-test = "^0.3"
 futures-util = "^0.3"

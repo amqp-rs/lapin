@@ -1,6 +1,6 @@
 [package]
 name = "async-lapin"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-io"
@@ -24,6 +24,6 @@ path = ".."
 default-features = false
 
 [dev-dependencies]
-async-global-executor = "^1.4"
+async-global-executor = "^2.0"
 env_logger = "^0.8"
 log = "^0.4"

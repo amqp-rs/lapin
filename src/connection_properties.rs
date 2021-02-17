@@ -26,7 +26,10 @@ impl Default for ConnectionProperties {
 
 impl ConnectionProperties {
     pub fn with_connection_name(mut self, connection_name: LongString) -> Self {
-        self.client_properties.insert("connection_name".into(), AMQPValue::LongString(connection_name));
+        self.client_properties.insert(
+            "connection_name".into(),
+            AMQPValue::LongString(connection_name),
+        );
         self
     }
 
