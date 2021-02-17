@@ -513,6 +513,7 @@ impl Channel {
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
         if self.status.confirm() {
             let delivery_tag = self.delivery_tag.next();
+            trace!("Publishing with delivery_tag {}", delivery_tag);
             Some(
                 self.acknowledgements
                     .register_pending(delivery_tag, self.id),
