@@ -11,7 +11,6 @@ use crate::{
     consumers::Consumers,
     executor::Executor,
     frames::{ExpectedReply, Frames},
-    id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
@@ -41,7 +40,6 @@ pub struct Channel {
     global_registry: Registry,
     local_registry: Registry,
     acknowledgements: Acknowledgements,
-    delivery_tag: IdSequence<DeliveryTag>,
     consumers: Consumers,
     basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
@@ -67,7 +65,6 @@ impl fmt::Debug for Channel {
             .field("status", &self.status)
             .field("connection_status", &self.connection_status)
             .field("acknowledgements", &self.acknowledgements)
-            .field("delivery_tag", &self.delivery_tag)
             .field("consumers", &self.consumers)
             .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
@@ -108,8 +105,7 @@ impl Channel {
             connection_status,
             global_registry,
             local_registry: Registry::default(),
-            acknowledgements: Acknowledgements::new(returned_messages.clone()),
-            delivery_tag: IdSequence::new(false),
+            acknowledgements: Acknowledgements::new(channel_id, returned_messages.clone()),
             consumers: Consumers::default(),
             basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
@@ -216,7 +212,7 @@ impl Channel {
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
-        self.acknowledgements.on_channel_error(self.id, error);
+        self.acknowledgements.on_channel_error(error);
     }
 
     pub(crate) fn cancel_consumers(&self) -> Result<()> {
@@ -244,7 +240,6 @@ impl Channel {
             global_registry: self.global_registry.clone(),
             local_registry: self.local_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
-            delivery_tag: self.delivery_tag.clone(),
             consumers: self.consumers.clone(),
             basic_get_delivery: self.basic_get_delivery.clone(),
             returned_messages: self.returned_messages.clone(),
@@ -512,12 +507,7 @@ impl Channel {
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
         if self.status.confirm() {
-            let delivery_tag = self.delivery_tag.next();
-            trace!("Publishing with delivery_tag {}", delivery_tag);
-            Some(
-                self.acknowledgements
-                    .register_pending(delivery_tag, self.id),
-            )
+            Some(self.acknowledgements.register_pending())
         } else {
             None
         }
@@ -1111,7 +1101,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .ack_all_before(method.delivery_tag, self.id)
+                        .ack_all_before(method.delivery_tag)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -1124,7 +1114,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .ack(method.delivery_tag, self.id)
+                    .ack(method.delivery_tag)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,
@@ -1142,7 +1132,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .nack_all_before(method.delivery_tag, self.id)
+                        .nack_all_before(method.delivery_tag)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -1155,7 +1145,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .nack(method.delivery_tag, self.id)
+                    .nack(method.delivery_tag)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,
