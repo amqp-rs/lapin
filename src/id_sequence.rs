@@ -1,42 +1,6 @@
-use parking_lot::Mutex;
-use std::{fmt, ops::AddAssign, sync::Arc};
+use std::{fmt, ops::AddAssign};
 
-#[derive(Clone)]
-pub(crate) struct IdSequence<T>(Arc<Mutex<Inner<T>>>);
-
-impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
-    pub(crate) fn new(allow_zero: bool) -> Self {
-        Self(Arc::new(Mutex::new(Inner::new(allow_zero))))
-    }
-
-    pub(crate) fn current(&self) -> T {
-        self.0.lock().id
-    }
-
-    pub(crate) fn next(&self) -> T {
-        self.0.lock().next()
-    }
-
-    pub(crate) fn set_max(&self, max: T) {
-        self.0.lock().set_max(max)
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for IdSequence<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut debug = f.debug_struct("IdSequence");
-        if let Some(inner) = self.0.try_lock() {
-            debug
-                .field("allow_zero", &inner.allow_zero)
-                .field("max", &inner.max)
-                .field("id", &inner.id);
-        }
-        debug.finish()
-    }
-}
-
-#[derive(Debug)]
-struct Inner<T> {
+pub(crate) struct IdSequence<T> {
     allow_zero: bool,
     zero: T,
     one: T,
@@ -44,8 +8,8 @@ struct Inner<T> {
     id: T,
 }
 
-impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> Inner<T> {
-    fn new(allow_zero: bool) -> Self {
+impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
+    pub(crate) fn new(allow_zero: bool) -> Self {
         Self {
             allow_zero,
             zero: 0.into(),
@@ -55,11 +19,15 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
         }
     }
 
-    fn set_max(&mut self, max: T) {
+    pub(crate) fn current(&self) -> T {
+        self.id
+    }
+
+    pub(crate) fn set_max(&mut self, max: T) {
         self.max = if max == self.zero { None } else { Some(max) };
     }
 
-    fn next(&mut self) -> T {
+    pub(crate) fn next(&mut self) -> T {
         if !self.allow_zero && self.id == self.zero {
             self.id += self.one;
         }
@@ -79,5 +47,15 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
         } else {
             true
         }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for IdSequence<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IdSequence")
+            .field("allow_zero", &self.allow_zero)
+            .field("max", &self.max)
+            .field("id", &self.id)
+            .finish()
     }
 }
