@@ -137,10 +137,11 @@ impl Inner {
             Err(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 format!(
-                    "invalid {} received for inexistant delivery_tag {} on channel {}, was expecting one of {:?}",
+                    "invalid {} received for inexistant delivery_tag {} on channel {}, current is {}, was expecting one of {:?}",
                     if success { "ack" } else { "nack" },
                     delivery_tag,
                     self.channel_id,
+                    self.delivery_tag.current(),
                     self.pending.keys()
                 )
                 .into(),

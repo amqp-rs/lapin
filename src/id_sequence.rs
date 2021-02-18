@@ -9,6 +9,10 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
         Self(Arc::new(Mutex::new(Inner::new(allow_zero))))
     }
 
+    pub(crate) fn current(&self) -> T {
+        self.0.lock().id
+    }
+
     pub(crate) fn next(&self) -> T {
         self.0.lock().next()
     }
