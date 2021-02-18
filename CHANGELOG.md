@@ -1,3 +1,10 @@
+### 1.6.8 (2020-02-18)
+
+#### Misc
+
+* Simplify acknowledgements internal handling
+* Logging updates
+
 ### 1.6.7 (2020-02-17)
 
 #### Misc
