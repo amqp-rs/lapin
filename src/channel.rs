@@ -749,6 +749,7 @@ impl Channel {
 
             let channel = self.clone();
             let configuration = self.configuration.clone();
+            let vhost = self.connection_status.vhost();
             self.internal_rpc.register_internal_future(async move {
                 channel
                     .connection_tune_ok(
@@ -756,11 +757,7 @@ impl Channel {
                         configuration.frame_max(),
                         configuration.heartbeat(),
                     )
-                    .await
-            });
-            let channel = self.clone();
-            let vhost = self.connection_status.vhost();
-            self.internal_rpc.register_internal_future(async move {
+                    .await?;
                 channel.connection_open(&vhost, connection, resolver).await
             });
             Ok(())
