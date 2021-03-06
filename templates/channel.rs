@@ -53,7 +53,7 @@ impl Channel {
       {{/each ~}}
       m => {
         error!(method=?m, "The client should not receive this method");
-        self.handle_invalid_contents(format!("unexepcted method received on channel {}", self.id), m.get_amqp_class_id(), m.get_amqp_method_id())
+        self.handle_invalid_contents(format!("unexpected method received on channel {}", self.id), m.get_amqp_class_id(), m.get_amqp_method_id())
       }
     }
   }
@@ -183,7 +183,7 @@ impl Channel {
         {{/unless ~}}
       },
       _ => {
-        self.handle_invalid_contents(format!("unexepcted {{class.name}} {{method.name}} received on channel {}", self.id), method.get_amqp_class_id(), method.get_amqp_method_id())
+        self.handle_invalid_contents(format!("unexpected {{class.name}} {{method.name}} received on channel {}", self.id), method.get_amqp_class_id(), method.get_amqp_method_id())
       },
     }
   }

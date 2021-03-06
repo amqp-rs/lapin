@@ -155,7 +155,7 @@ impl Inner {
             Err(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 format!(
-                    "invalid {} recevied for inexistant delivery_tag {} on channel {}",
+                    "invalid {} received for non-existent delivery_tag {} on channel {}",
                     if success { "ack" } else { "nack" },
                     delivery_tag,
                     channel_id
