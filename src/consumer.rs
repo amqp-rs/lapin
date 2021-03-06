@@ -62,12 +62,12 @@ impl<
 ///
 /// ## Message acknowledgment
 ///
-/// There are two ways for acknowledging a message:
+/// There are two ways of acknowledging a message:
 ///
 /// * If the flag [`BasicConsumeOptions::no_ack`] is set to `true` while obtaining the consumer from
 ///   [`Channel::basic_consume`], the server implicitely acknowledges each message after it has been
 ///   sent.
-/// * If the flag [`BasicConsumeOptions::no_ack`] is set to `false`, a message has to be explicitely
+/// * If the flag [`BasicConsumeOptions::no_ack`] is set to `false`, a message has to be explicitly
 ///   acknowledged or rejected with [`Acker::ack`],
 ///   [`Acker::nack`] or [`Acker::reject`]. See the documentation at [`Delivery`]
 ///   for further information.

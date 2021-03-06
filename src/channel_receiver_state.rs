@@ -84,7 +84,7 @@ impl ChannelReceiverStates {
                 }
                 Ok(())
             } else {
-                error_handler(format!("unexpectedly large content body frame received on channel {} ({} ybtes, expected {} bytes)", channel_id, length, len))
+                error_handler(format!("unexpectedly large content body frame received on channel {} ({} bytes, expected {} bytes)", channel_id, length, len))
             }
         } else {
             error_handler(format!(
