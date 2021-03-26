@@ -370,7 +370,7 @@ impl Channel {
             m => {
                 error!(method=?m, "The client should not receive this method");
                 self.handle_invalid_contents(
-                    format!("unexepcted method received on channel {}", self.id),
+                    format!("unexpected method received on channel {}", self.id),
                     m.get_amqp_class_id(),
                     m.get_amqp_method_id(),
                 )
@@ -416,7 +416,6 @@ impl Channel {
         self.on_connection_start_ok_sent(resolver, connection, credentials);
         promise.await
     }
-
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -442,7 +441,6 @@ impl Channel {
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
-
     fn receive_connection_tune(&self, method: protocol::connection::Tune) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -513,7 +511,6 @@ impl Channel {
     }
     fn receive_connection_open_ok(&self, method: protocol::connection::OpenOk) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
-
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
@@ -526,7 +523,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection open-ok received on channel {}",
+                    "unexpected connection open-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -573,7 +570,6 @@ impl Channel {
         promise_out.await?;
         promise.await
     }
-
     fn receive_connection_close(&self, method: protocol::connection::Close) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -600,7 +596,6 @@ impl Channel {
     }
     fn receive_connection_close_ok(&self, method: protocol::connection::CloseOk) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
-
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
@@ -613,7 +608,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection close-ok received on channel {}",
+                    "unexpected connection close-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -639,7 +634,6 @@ impl Channel {
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
-
     fn receive_connection_blocked(&self, method: protocol::connection::Blocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -663,7 +657,6 @@ impl Channel {
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
-
     fn receive_connection_unblocked(&self, method: protocol::connection::Unblocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -711,7 +704,6 @@ impl Channel {
         method: protocol::connection::UpdateSecretOk,
     ) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
-
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
@@ -724,7 +716,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection update-secret-ok received on channel {}",
+                    "unexpected connection update-secret-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -770,7 +762,7 @@ impl Channel {
                 self.on_channel_open_ok_received(method, resolver, channel)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted channel open-ok received on channel {}", self.id),
+                format!("unexpected channel open-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -805,7 +797,6 @@ impl Channel {
         promise_out.await?;
         promise.await
     }
-
     fn receive_channel_flow(&self, method: protocol::channel::Flow) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -839,7 +830,7 @@ impl Channel {
                 self.on_channel_flow_ok_received(method, resolver)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted channel flow-ok received on channel {}", self.id),
+                format!("unexpected channel flow-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -885,7 +876,6 @@ impl Channel {
         promise_out.await?;
         promise.await
     }
-
     fn receive_channel_close(&self, method: protocol::channel::Close) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -922,7 +912,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted channel close-ok received on channel {}",
+                    "unexpected channel close-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -945,7 +935,6 @@ impl Channel {
         let method = AMQPClass::Access(protocol::access::AMQPMethod::Request(
             protocol::access::Request {
                 realm: realm.into(),
-
                 exclusive,
                 passive,
                 active,
@@ -986,7 +975,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted access request-ok received on channel {}",
+                    "unexpected access request-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1018,7 +1007,6 @@ impl Channel {
             protocol::exchange::Declare {
                 exchange: exchange.into(),
                 kind: kind.into(),
-
                 passive,
                 durable,
                 auto_delete,
@@ -1077,7 +1065,7 @@ impl Channel {
             ),
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange declare-ok received on channel {}",
+                    "unexpected exchange declare-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1099,7 +1087,6 @@ impl Channel {
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Delete(
             protocol::exchange::Delete {
                 exchange: exchange.into(),
-
                 if_unused,
                 nowait,
             },
@@ -1140,7 +1127,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange delete-ok received on channel {}",
+                    "unexpected exchange delete-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1167,7 +1154,6 @@ impl Channel {
                 destination: destination.into(),
                 source: source.into(),
                 routing_key: routing_key.into(),
-
                 nowait,
                 arguments,
             },
@@ -1225,7 +1211,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange bind-ok received on channel {}",
+                    "unexpected exchange bind-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1252,7 +1238,6 @@ impl Channel {
                 destination: destination.into(),
                 source: source.into(),
                 routing_key: routing_key.into(),
-
                 nowait,
                 arguments,
             },
@@ -1310,7 +1295,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange unbind-ok received on channel {}",
+                    "unexpected exchange unbind-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1339,7 +1324,6 @@ impl Channel {
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Declare(
             protocol::queue::Declare {
                 queue: queue.into(),
-
                 passive,
                 durable,
                 exclusive,
@@ -1385,7 +1369,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted queue declare-ok received on channel {}",
+                    "unexpected queue declare-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1411,7 +1395,6 @@ impl Channel {
             queue: queue.into(),
             exchange: exchange.into(),
             routing_key: routing_key.into(),
-
             nowait,
             arguments,
         }));
@@ -1467,7 +1450,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue bind-ok received on channel {}", self.id),
+                format!("unexpected queue bind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1485,7 +1468,6 @@ impl Channel {
         let QueuePurgeOptions { nowait } = options;
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Purge(protocol::queue::Purge {
             queue: queue.into(),
-
             nowait,
         }));
 
@@ -1518,7 +1500,7 @@ impl Channel {
                 self.on_queue_purge_ok_received(method, resolver)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue purge-ok received on channel {}", self.id),
+                format!("unexpected queue purge-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1541,7 +1523,6 @@ impl Channel {
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Delete(
             protocol::queue::Delete {
                 queue: queue.into(),
-
                 if_unused,
                 if_empty,
                 nowait,
@@ -1582,7 +1563,7 @@ impl Channel {
                 self.on_queue_delete_ok_received(method, resolver, queue)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue delete-ok received on channel {}", self.id),
+                format!("unexpected queue delete-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1657,7 +1638,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue unbind-ok received on channel {}", self.id),
+                format!("unexpected queue unbind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1675,7 +1656,6 @@ impl Channel {
         let BasicQosOptions { global } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
             prefetch_count,
-
             global,
         }));
 
@@ -1710,7 +1690,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic qos-ok received on channel {}", self.id),
+                format!("unexpected basic qos-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1739,7 +1719,6 @@ impl Channel {
             protocol::basic::Consume {
                 queue: queue.into(),
                 consumer_tag: consumer_tag.into(),
-
                 no_local,
                 no_ack,
                 exclusive,
@@ -1803,7 +1782,7 @@ impl Channel {
             ),
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted basic consume-ok received on channel {}",
+                    "unexpected basic consume-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1825,7 +1804,6 @@ impl Channel {
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
             protocol::basic::Cancel {
                 consumer_tag: consumer_tag.into(),
-
                 nowait,
             },
         ));
@@ -1854,7 +1832,6 @@ impl Channel {
         promise_out.await?;
         promise.await
     }
-
     fn receive_basic_cancel(&self, method: protocol::basic::Cancel) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1891,7 +1868,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic cancel-ok received on channel {}", self.id),
+                format!("unexpected basic cancel-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1918,7 +1895,6 @@ impl Channel {
             protocol::basic::Publish {
                 exchange: exchange.into(),
                 routing_key: routing_key.into(),
-
                 mandatory,
                 immediate,
             },
@@ -1927,14 +1903,12 @@ impl Channel {
         self.send_method_frame_with_body(method, payload, properties, start_hook_res)
             .await
     }
-
     fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
         self.on_basic_return_received(method)
     }
-
     fn receive_basic_deliver(&self, method: protocol::basic::Deliver) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -1954,7 +1928,6 @@ impl Channel {
         let BasicGetOptions { no_ack } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Get(protocol::basic::Get {
             queue: queue.into(),
-
             no_ack,
         }));
 
@@ -1988,13 +1961,12 @@ impl Channel {
                 self.on_basic_get_ok_received(method, resolver, queue, options)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic get-ok received on channel {}", self.id),
+                format!("unexpected basic get-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
         }
     }
-
     fn receive_basic_get_empty(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2013,7 +1985,6 @@ impl Channel {
         let BasicAckOptions { multiple } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
             delivery_tag,
-
             multiple,
         }));
 
@@ -2025,7 +1996,6 @@ impl Channel {
         self.on_basic_ack_sent(multiple, delivery_tag);
         promise.await
     }
-
     fn receive_basic_ack(&self, method: protocol::basic::Ack) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2045,7 +2015,6 @@ impl Channel {
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
             protocol::basic::Reject {
                 delivery_tag,
-
                 requeue,
             },
         ));
@@ -2117,7 +2086,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted basic recover-ok received on channel {}",
+                    "unexpected basic recover-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -2137,7 +2106,6 @@ impl Channel {
         let BasicNackOptions { multiple, requeue } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
             delivery_tag,
-
             multiple,
             requeue,
         }));
@@ -2150,7 +2118,6 @@ impl Channel {
         self.on_basic_nack_sent(multiple, delivery_tag);
         promise.await
     }
-
     fn receive_basic_nack(&self, method: protocol::basic::Nack) -> Result<()> {
         if !self.status.can_receive_messages() {
             return Err(Error::InvalidChannelState(self.status.state()));
@@ -2195,7 +2162,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx select-ok received on channel {}", self.id),
+                format!("unexpected tx select-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2239,7 +2206,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx commit-ok received on channel {}", self.id),
+                format!("unexpected tx commit-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2285,7 +2252,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx rollback-ok received on channel {}", self.id),
+                format!("unexpected tx rollback-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2333,7 +2300,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted confirm select-ok received on channel {}",
+                    "unexpected confirm select-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
