@@ -644,16 +644,20 @@ impl Channel {
             let mechanism_str = mechanism.to_string();
             let locale = options.locale.clone();
 
-            if !String::from_utf8(method.mechanisms.as_bytes().to_vec())
-                .map_or(false, |mechanisms| {
-                    mechanisms.split_whitespace().any(|m| m == mechanism_str)
-                })
+            if !method
+                .mechanisms
+                .to_string()
+                .split_whitespace()
+                .any(|m| m == mechanism_str)
             {
                 error!(%mechanism, "unsupported mechanism");
             }
-            if !String::from_utf8(method.locales.as_bytes().to_vec()).map_or(false, |locales| {
-                locales.split_whitespace().any(|l| l == locale)
-            }) {
+            if !method
+                .locales
+                .to_string()
+                .split_whitespace()
+                .any(|l| l == locale)
+            {
                 error!(%locale, "unsupported locale");
             }
 
