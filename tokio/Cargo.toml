@@ -19,7 +19,7 @@ tokio-executor-trait = "^2.0"
 tokio-reactor-trait = "^0.2"
 
 [dependencies.lapin]
-version = "=2.0.0-alpha.2"
+version = "=2.0.0-alpha.3"
 path = ".."
 default-features = false
 
