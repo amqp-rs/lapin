@@ -156,6 +156,7 @@ mod consumer_status;
 mod consumers;
 mod error;
 mod error_handler;
+mod error_holder;
 mod exchange;
 mod frames;
 mod id_sequence;

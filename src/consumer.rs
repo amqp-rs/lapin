@@ -2,6 +2,7 @@ use crate::{
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
     consumer_status::{ConsumerState, ConsumerStatus},
+    error_holder::ErrorHolder,
     executor::Executor,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
@@ -183,6 +184,10 @@ impl Consumer {
         }
     }
 
+    pub(crate) fn error(&self) -> ErrorHolder {
+        self.inner.lock().error.clone()
+    }
+
     /// Gets the consumer tag.
     ///
     /// If no consumer tag was specified when obtaining the consumer from the channel,
@@ -276,6 +281,7 @@ struct ConsumerInner {
     deliveries_in: Sender<DeliveryResult>,
     deliveries_out: Receiver<DeliveryResult>,
     task: Option<Waker>,
+    error: ErrorHolder,
     tag: ShortString,
     delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
     executor: Arc<dyn Executor>,
@@ -331,6 +337,7 @@ impl ConsumerInner {
             deliveries_in: sender,
             deliveries_out: receiver,
             task: None,
+            error: ErrorHolder::default(),
             tag: consumer_tag,
             delegate: None,
             executor,
@@ -427,6 +434,7 @@ impl ConsumerInner {
 
     fn set_error(&mut self, error: Error) -> Result<()> {
         trace!("set_error; consumer_tag={}", self.tag);
+        self.error.set(error.clone());
         if let Some(delegate) = self.delegate.as_ref() {
             let delegate = delegate.clone();
             self.executor.spawn(delegate.on_new_delivery(Err(error)))?;

@@ -846,20 +846,23 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = AMQPError::try_from(method.clone())
-            .map(|error| {
-                error!(
-                    "Channel closed on channel {} by {}:{} => {:?} => {}",
-                    self.id, method.class_id, method.method_id, error, method.reply_text
-                );
-                Error::ProtocolError(error)
-            })
-            .unwrap_or_else(|error| {
-                error!("{}", error);
-                info!("Channel closed on channel {}: {:?}", self.id, method);
-                Error::InvalidChannelState(ChannelState::Closing)
-            });
-        self.set_closing();
+        let error = AMQPError::try_from(method.clone()).map(|error| {
+            error!(
+                "Channel closed on channel {} by {}:{} => {:?} => {}",
+                self.id, method.class_id, method.method_id, error, method.reply_text
+            );
+            Error::ProtocolError(error)
+        });
+        if let Ok(error) = error.as_ref() {
+            let _ = self.set_error(error.clone()); // Only error case here can be from spawning a thread in the default executor
+        } else {
+            self.set_closing();
+        }
+        let error = error.unwrap_or_else(|error| {
+            error!("{}", error);
+            info!("Channel closed on channel {}: {:?}", self.id, method);
+            Error::InvalidChannelState(ChannelState::Closing)
+        });
         self.internal_rpc
             .register_internal_future(self.channel_close_ok(error))
     }
@@ -1065,8 +1068,8 @@ impl Channel {
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        self.consumers.start_delivery(
-            &method.consumer_tag,
+        let consumer_tag = method.consumer_tag.clone();
+        self.consumers.start_delivery(&consumer_tag, |error| {
             Delivery::new(
                 self.id,
                 method.delivery_tag,
@@ -1074,10 +1077,11 @@ impl Channel {
                 method.routing_key,
                 method.redelivered,
                 Some(self.internal_rpc.clone()),
-            ),
-        );
+                Some(error),
+            )
+        });
         self.status
-            .set_will_receive(class_id, DeliveryCause::Consume(method.consumer_tag));
+            .set_will_receive(class_id, DeliveryCause::Consume(consumer_tag));
         Ok(())
     }
 

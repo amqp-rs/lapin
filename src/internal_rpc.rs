@@ -1,6 +1,7 @@
 use crate::{
     channels::Channels,
     consumer_status::ConsumerStatus,
+    error_holder::ErrorHolder,
     executor::Executor,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
@@ -30,12 +31,14 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicAckOptions,
         resolver: PromiseResolver<()>,
+        error: Option<ErrorHolder>,
     ) {
         self.send(InternalCommand::BasicAck(
             channel_id,
             delivery_tag,
             options,
             resolver,
+            error,
         ));
     }
 
@@ -45,12 +48,14 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicNackOptions,
         resolver: PromiseResolver<()>,
+        error: Option<ErrorHolder>,
     ) {
         self.send(InternalCommand::BasicNack(
             channel_id,
             delivery_tag,
             options,
             resolver,
+            error,
         ));
     }
 
@@ -60,12 +65,14 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicRejectOptions,
         resolver: PromiseResolver<()>,
+        error: Option<ErrorHolder>,
     ) {
         self.send(InternalCommand::BasicReject(
             channel_id,
             delivery_tag,
             options,
             resolver,
+            error,
         ));
     }
 
@@ -160,9 +167,27 @@ impl fmt::Debug for InternalRPCHandle {
 
 #[derive(Debug)]
 enum InternalCommand {
-    BasicAck(u16, DeliveryTag, BasicAckOptions, PromiseResolver<()>),
-    BasicNack(u16, DeliveryTag, BasicNackOptions, PromiseResolver<()>),
-    BasicReject(u16, DeliveryTag, BasicRejectOptions, PromiseResolver<()>),
+    BasicAck(
+        u16,
+        DeliveryTag,
+        BasicAckOptions,
+        PromiseResolver<()>,
+        Option<ErrorHolder>,
+    ),
+    BasicNack(
+        u16,
+        DeliveryTag,
+        BasicNackOptions,
+        PromiseResolver<()>,
+        Option<ErrorHolder>,
+    ),
+    BasicReject(
+        u16,
+        DeliveryTag,
+        BasicRejectOptions,
+        PromiseResolver<()>,
+        Option<ErrorHolder>,
+    ),
     CancelConsumer(u16, String, ConsumerStatus),
     CloseChannel(u16, ShortUInt, String),
     CloseConnection(ShortUInt, String, ShortUInt, ShortUInt),
@@ -202,24 +227,39 @@ impl InternalRPC {
 
         trace!("Handling internal RPC command: {:?}", command);
         match command {
-            BasicAck(channel_id, delivery_tag, options, resolver) => {
+            BasicAck(channel_id, delivery_tag, options, resolver, error) => {
                 let channel = get_channel(channel_id);
                 self.handle.register_internal_future_with_resolver(
-                    async move { channel?.basic_ack(delivery_tag, options).await },
+                    async move {
+                        if let Some(error) = error {
+                            error.check()?;
+                        }
+                        channel?.basic_ack(delivery_tag, options).await
+                    },
                     resolver,
                 )
             }
-            BasicNack(channel_id, delivery_tag, options, resolver) => {
+            BasicNack(channel_id, delivery_tag, options, resolver, error) => {
                 let channel = get_channel(channel_id);
                 self.handle.register_internal_future_with_resolver(
-                    async move { channel?.basic_nack(delivery_tag, options).await },
+                    async move {
+                        if let Some(error) = error {
+                            error.check()?;
+                        }
+                        channel?.basic_nack(delivery_tag, options).await
+                    },
                     resolver,
                 )
             }
-            BasicReject(channel_id, delivery_tag, options, resolver) => {
+            BasicReject(channel_id, delivery_tag, options, resolver, error) => {
                 let channel = get_channel(channel_id);
                 self.handle.register_internal_future_with_resolver(
-                    async move { channel?.basic_reject(delivery_tag, options).await },
+                    async move {
+                        if let Some(error) = error {
+                            error.check()?;
+                        }
+                        channel?.basic_reject(delivery_tag, options).await
+                    },
                     resolver,
                 )
             }

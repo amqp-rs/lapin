@@ -1,5 +1,6 @@
 use crate::{
     acker::Acker,
+    error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
     protocol::AMQPError,
     types::{LongLongUInt, LongUInt, ShortString, ShortUInt},
@@ -59,6 +60,7 @@ impl Delivery {
         routing_key: ShortString,
         redelivered: bool,
         internal_rpc: Option<InternalRPCHandle>,
+        error: Option<ErrorHolder>,
     ) -> Self {
         Self {
             delivery_tag,
@@ -67,7 +69,7 @@ impl Delivery {
             redelivered,
             properties: BasicProperties::default(),
             data: Vec::default(),
-            acker: Acker::new(channel_id, delivery_tag, internal_rpc),
+            acker: Acker::new(channel_id, delivery_tag, internal_rpc, error),
         }
     }
 
@@ -108,6 +110,7 @@ impl BasicGetMessage {
                 routing_key,
                 redelivered,
                 Some(internal_rpc),
+                None,
             ),
             message_count,
         }
@@ -143,7 +146,15 @@ impl BasicReturnMessage {
         reply_text: ShortString,
     ) -> Self {
         Self {
-            delivery: Delivery::new(0, 0, exchange, routing_key, false, None),
+            delivery: Delivery::new(
+                0,
+                0,
+                exchange,
+                routing_key,
+                false,
+                None,
+                None,
+            ),
             reply_code,
             reply_text,
         }
