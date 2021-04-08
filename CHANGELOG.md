@@ -1,3 +1,9 @@
+### 1.6.9 (2020-04-08)
+
+#### Bug Fixes
+
+* Fix hang in Acker when acking twice (which is invalid)
+
 ### 1.6.8 (2020-02-18)
 
 #### Misc
