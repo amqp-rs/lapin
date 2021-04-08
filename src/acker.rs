@@ -2,8 +2,11 @@ use crate::{
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
-    DeliveryTag, Promise, PromiseResolver, Result,
+    protocol::{AMQPError, AMQPSoftError},
+    DeliveryTag, Error, Promise, PromiseResolver, Result,
 };
+
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 #[derive(Default, Debug, Clone)]
 pub struct Acker {
@@ -11,6 +14,7 @@ pub struct Acker {
     delivery_tag: DeliveryTag,
     internal_rpc: Option<InternalRPCHandle>,
     error: Option<ErrorHolder>,
+    used: Arc<AtomicBool>,
 }
 
 impl Acker {
@@ -25,9 +29,11 @@ impl Acker {
             delivery_tag,
             internal_rpc,
             error,
+            used: Arc::default(),
         }
     }
 
+    // FIXME: consume self and drop used
     pub async fn ack(&self, options: BasicAckOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_ack(
@@ -41,6 +47,7 @@ impl Acker {
         .await
     }
 
+    // FIXME: consume self and drop used
     pub async fn nack(&self, options: BasicNackOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_nack(
@@ -54,6 +61,7 @@ impl Acker {
         .await
     }
 
+    // FIXME: consume self and drop used
     pub async fn reject(&self, options: BasicRejectOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_reject(
@@ -68,6 +76,9 @@ impl Acker {
     }
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
+        if self.used.swap(true, Ordering::SeqCst) {
+            return Err(Error::ProtocolError(AMQPError::new(AMQPSoftError::PRECONDITIONFAILED.into(), "Attempted to use an already used Acker".into())));
+        }
         if let Some(error) = self.error.as_ref() {
             error.check()?;
         }
