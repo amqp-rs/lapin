@@ -46,11 +46,13 @@ impl Acker {
     }
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
-        let (promise, resolver) = Promise::new();
         if let Some(internal_rpc) = self.internal_rpc.as_ref() {
+            let (promise, resolver) = Promise::new();
             f(internal_rpc, resolver);
+            promise.await
+        } else {
+            Ok(())
         }
-        promise.await
     }
 }
 
