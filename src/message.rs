@@ -146,15 +146,7 @@ impl BasicReturnMessage {
         reply_text: ShortString,
     ) -> Self {
         Self {
-            delivery: Delivery::new(
-                0,
-                0,
-                exchange,
-                routing_key,
-                false,
-                None,
-                None,
-            ),
+            delivery: Delivery::new(0, 0, exchange, routing_key, false, None, None),
             reply_code,
             reply_text,
         }
