@@ -198,73 +198,64 @@ impl InternalRPC {
     fn run(&self, command: InternalCommand, channels: &Channels) -> Result<()> {
         use InternalCommand::*;
 
+        let get_channel = |id| channels.get(id).ok_or(Error::InvalidChannel(id));
+
         trace!("Handling internal RPC command: {:?}", command);
         match command {
-            BasicAck(channel_id, delivery_tag, options, resolver) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle.register_internal_future_with_resolver(
-                        channel.basic_ack(delivery_tag, options),
-                        resolver,
-                    )
-                })
-                .unwrap_or(Ok(())),
-            BasicNack(channel_id, delivery_tag, options, resolver) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle.register_internal_future_with_resolver(
-                        channel.basic_nack(delivery_tag, options),
-                        resolver,
-                    )
-                })
-                .unwrap_or(Ok(())),
-            BasicReject(channel_id, delivery_tag, options, resolver) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle.register_internal_future_with_resolver(
-                        channel.basic_reject(delivery_tag, options),
-                        resolver,
-                    )
-                })
-                .unwrap_or(Ok(())),
-            CancelConsumer(channel_id, consumer_tag, consumer_status) => channels
-                .get(channel_id)
-                .map(|channel| {
+            BasicAck(channel_id, delivery_tag, options, resolver) => {
+                let channel = get_channel(channel_id);
+                self.handle.register_internal_future_with_resolver(
+                    async move { channel?.basic_ack(delivery_tag, options).await },
+                    resolver,
+                )
+            }
+            BasicNack(channel_id, delivery_tag, options, resolver) => {
+                let channel = get_channel(channel_id);
+                self.handle.register_internal_future_with_resolver(
+                    async move { channel?.basic_nack(delivery_tag, options).await },
+                    resolver,
+                )
+            }
+            BasicReject(channel_id, delivery_tag, options, resolver) => {
+                let channel = get_channel(channel_id);
+                self.handle.register_internal_future_with_resolver(
+                    async move { channel?.basic_reject(delivery_tag, options).await },
+                    resolver,
+                )
+            }
+            CancelConsumer(channel_id, consumer_tag, consumer_status) => {
+                let channel = get_channel(channel_id);
+                self.handle.register_internal_future(async move {
+                    let channel = channel?;
                     if channel.status().connected() && consumer_status.state().is_active() {
-                        self.handle.register_internal_future(
-                            channel.basic_cancel(&consumer_tag, BasicCancelOptions::default()),
-                        )
+                        channel
+                            .basic_cancel(&consumer_tag, BasicCancelOptions::default())
+                            .await
                     } else {
                         Ok(())
                     }
                 })
-                .unwrap_or(Ok(())),
-            CloseChannel(channel_id, reply_code, reply_text) => channels
-                .get(channel_id)
-                .map(|channel| {
-                    self.handle
-                        .register_internal_future(channel.close(reply_code, &reply_text))
+            }
+            CloseChannel(channel_id, reply_code, reply_text) => {
+                let channel = get_channel(channel_id);
+                self.handle.register_internal_future(async move {
+                    channel?.close(reply_code, &reply_text).await
                 })
-                .unwrap_or(Ok(())),
-            CloseConnection(reply_code, reply_text, class_id, method_id) => channels
-                .get(0)
-                .map(|channel0| {
-                    self.handle
-                        .register_internal_future(channel0.connection_close(
-                            reply_code,
-                            &reply_text,
-                            class_id,
-                            method_id,
-                        ))
+            }
+            CloseConnection(reply_code, reply_text, class_id, method_id) => {
+                let channel0 = get_channel(0);
+                self.handle.register_internal_future(async move {
+                    channel0?
+                        .connection_close(reply_code, &reply_text, class_id, method_id)
+                        .await
                 })
-                .unwrap_or(Ok(())),
-            SendConnectionCloseOk(error) => channels
-                .get(0)
-                .map(|channel| {
-                    self.handle
-                        .register_internal_future(channel.connection_close_ok(error))
+            }
+            SendConnectionCloseOk(error) => {
+                let channel0 = get_channel(0);
+                self.handle.register_internal_future(async move {
+                    channel0?.connection_close_ok(error).await
                 })
-                .unwrap_or(Ok(())),
+            }
             RemoveChannel(channel_id, error) => channels.remove(channel_id, error),
             SetConnectionClosing => {
                 channels.set_connection_closing();
