@@ -1,3 +1,9 @@
+### 1.7.0 (2020-04-16)
+
+#### Bug Fixes
+
+* Fix handling of soft errors
+
 ### 1.6.9 (2020-04-08)
 
 #### Bug Fixes
