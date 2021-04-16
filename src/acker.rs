@@ -6,7 +6,10 @@ use crate::{
     DeliveryTag, Error, Promise, PromiseResolver, Result,
 };
 
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct Acker {
@@ -77,7 +80,10 @@ impl Acker {
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
         if self.used.swap(true, Ordering::SeqCst) {
-            return Err(Error::ProtocolError(AMQPError::new(AMQPSoftError::PRECONDITIONFAILED.into(), "Attempted to use an already used Acker".into())));
+            return Err(Error::ProtocolError(AMQPError::new(
+                AMQPSoftError::PRECONDITIONFAILED.into(),
+                "Attempted to use an already used Acker".into(),
+            )));
         }
         if let Some(error) = self.error.as_ref() {
             error.check()?;
