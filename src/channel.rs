@@ -190,9 +190,14 @@ impl Channel {
         Ok(())
     }
 
-    fn set_closing(&self) {
+    fn set_closing(&self, error: Option<Error>) {
         self.set_state(ChannelState::Closing);
-        self.consumers.start_cancel();
+        if let Some(error) = error {
+            self.error_publisher_confirms(error.clone());
+            let _ = self.error_consumers(error.clone()); // ignore the error here, only happens with default executor if we cannot spawn a thread
+        } else {
+            self.consumers.start_cancel();
+        }
     }
 
     fn set_closed(&self, error: Error) -> Result<()> {
@@ -561,7 +566,7 @@ impl Channel {
     }
 
     fn before_channel_close(&self) {
-        self.set_closing();
+        self.set_closing(None);
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) -> Result<()> {
@@ -853,11 +858,7 @@ impl Channel {
             );
             Error::ProtocolError(error)
         });
-        if let Ok(error) = error.as_ref() {
-            let _ = self.set_error(error.clone()); // Only error case here can be from spawning a thread in the default executor
-        } else {
-            self.set_closing();
-        }
+        self.set_closing(error.clone().ok());
         let error = error.unwrap_or_else(|error| {
             error!("{}", error);
             info!("Channel closed on channel {}: {:?}", self.id, method);
