@@ -36,7 +36,6 @@ jobs:
           args: --all -- --check
 
   docs:
-    name: Docs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
