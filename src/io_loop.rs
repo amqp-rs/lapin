@@ -1,5 +1,5 @@
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, ReadState},
     channels::Channels,
     connection_status::ConnectionState,
     frames::Frames,
@@ -334,18 +334,26 @@ impl IoLoop {
             ConnectionState::Closed => Ok(()),
             ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
             _ => {
-                let res = self
+                match self
                     .receive_buffer
-                    .poll_read_from(readable_context, Pin::new(&mut self.stream))?;
-
-                if let Some(sz) = self.socket_state.handle_read_poll(res) {
-                    if sz > 0 {
-                        trace!("read {} bytes", sz);
-                        self.receive_buffer.fill(sz);
-                    } else {
-                        error!("Socket was readable but we read 0, marking as wouldblock");
+                    .poll_read_from(readable_context, Pin::new(&mut self.stream)) {
+                    Poll::Pending => {
                         self.socket_state.handle_read_poll(Poll::Pending);
                     }
+                    Poll::Ready(ReadState::NoSpace) => {
+                        error!("Socket was readable but there is no space, marking as wouldblock");
+                        self.socket_state.handle_read_poll(Poll::Pending);
+                    }
+                    Poll::Ready(ReadState::Space(Ok(sz))) => {
+                        if sz == 0 {
+                            trace!("Connection closed");
+                            return Err(Error::InvalidConnectionState(ConnectionState::Closed));
+                        } else {
+                            trace!("read {} bytes", sz);
+                            self.receive_buffer.fill(sz);
+                        }
+                    }
+                    Poll::Ready(ReadState::Space(Err(e))) => return Err(Error::IOError(e.into())),
                 }
                 Ok(())
             }

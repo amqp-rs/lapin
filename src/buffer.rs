@@ -22,6 +22,11 @@ pub(crate) struct Checkpoint {
     backwards: bool,
 }
 
+pub(crate) enum ReadState {
+    NoSpace,
+    Space(io::Result<usize>),
+}
+
 impl Buffer {
     pub(crate) fn with_capacity(capacity: usize) -> Buffer {
         Buffer {
@@ -147,9 +152,9 @@ impl Buffer {
         &mut self,
         cx: &mut Context<'_>,
         reader: Pin<&mut T>,
-    ) -> Poll<io::Result<usize>> {
+    ) -> Poll<ReadState> {
         if self.available_space() == 0 {
-            Poll::Ready(Ok(0))
+            Poll::Ready(ReadState::NoSpace)
         } else if self.end >= self.position {
             let (start, end) = self.memory.split_at_mut(self.end);
             reader.poll_read_vectored(
@@ -158,9 +163,9 @@ impl Buffer {
                     IoSliceMut::new(&mut end[..]),
                     IoSliceMut::new(&mut start[..self.position]),
                 ][..],
-            )
+            ).map(ReadState::Space)
         } else {
-            reader.poll_read(cx, &mut self.memory[self.end..self.position])
+            reader.poll_read(cx, &mut self.memory[self.end..self.position]).map(ReadState::Space)
         }
     }
 

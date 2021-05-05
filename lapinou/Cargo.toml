@@ -1,6 +1,6 @@
 [package]
 name = "lapinou"
-version = "1.1.0"
+version = "2.0.0-alpha.3"
 edition = "2018"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with smol"
@@ -18,7 +18,7 @@ default = ["async-lapin/default"]
 smol-executor-trait = "^2.0"
 
 [dependencies.async-lapin]
-version = "^1.1"
+version = "=2.0.0-alpha.3"
 path = "../async-lapin"
 default-features = false
 
