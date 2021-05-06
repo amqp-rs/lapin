@@ -1,3 +1,9 @@
+### 1.7.1 (2020-05-06)
+
+#### Bug Fixes
+
+* Fix handling of unresponsive servers
+
 ### 1.7.0 (2020-04-16)
 
 #### Bug Fixes
