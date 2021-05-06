@@ -25,10 +25,6 @@ use std::{
 
 const FRAMES_STORAGE: usize = 32;
 
-// The amount of Read(0) we tolerate before onsidering the connection as broken.
-// This might seem high but better safe than sorry.
-const BAD_READS_TOLERANCE: u8 = 16;
-
 #[derive(Debug, PartialEq)]
 enum Status {
     Initial,
@@ -54,7 +50,6 @@ pub struct IoLoop {
     receive_buffer: Buffer,
     send_buffer: Buffer,
     serialized_frames: VecDeque<(u64, Option<PromiseResolver<()>>)>,
-    bad_reads: u8,
 }
 
 impl IoLoop {
@@ -100,7 +95,6 @@ impl IoLoop {
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size),
             serialized_frames: VecDeque::default(),
-            bad_reads: 0,
         })
     }
 
@@ -358,19 +352,14 @@ impl IoLoop {
                 let sz = self.receive_buffer.read_from(&mut self.stream)?;
 
                 if sz > 0 {
-                    self.bad_reads = 0;
                     trace!("read {} bytes", sz);
                     self.receive_buffer.fill(sz);
                 } else {
-                    self.bad_reads += 1;
-                    let io_error_kind = if self.bad_reads > BAD_READS_TOLERANCE {
-                        error!("Socket was readable but we read 0 {} times in a row, mark the connection as broken", BAD_READS_TOLERANCE);
-                        io::ErrorKind::ConnectionAborted
-                    } else {
-                        error!("Socket was readable but we read 0, marking as wouldblock");
-                        io::ErrorKind::WouldBlock
-                    };
-                    self.handle_read_result(Err(io::Error::from(io_error_kind).into()))?;
+                    error!("Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken");
+                    self.handle_read_result(Err(io::Error::from(
+                        io::ErrorKind::ConnectionAborted,
+                    )
+                    .into()))?;
                 }
                 self.poll_internal_rpc()
             }
