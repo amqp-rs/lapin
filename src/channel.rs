@@ -10,7 +10,6 @@ use crate::{
     consumer::Consumer,
     consumers::Consumers,
     frames::{ExpectedReply, Frames},
-    id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
@@ -49,7 +48,6 @@ pub struct Channel {
     global_registry: Registry,
     local_registry: Registry,
     acknowledgements: Acknowledgements,
-    delivery_tag: IdSequence<DeliveryTag>,
     consumers: Consumers,
     basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
@@ -75,7 +73,6 @@ impl fmt::Debug for Channel {
             .field("status", &self.status)
             .field("connection_status", &self.connection_status)
             .field("acknowledgements", &self.acknowledgements)
-            .field("delivery_tag", &self.delivery_tag)
             .field("consumers", &self.consumers)
             .field("basic_get_delivery", &self.basic_get_delivery)
             .field("returned_messages", &self.returned_messages)
@@ -114,8 +111,7 @@ impl Channel {
             connection_status,
             global_registry,
             local_registry: Registry::default(),
-            acknowledgements: Acknowledgements::new(returned_messages.clone()),
-            delivery_tag: IdSequence::new(false),
+            acknowledgements: Acknowledgements::new(channel_id, returned_messages.clone()),
             consumers: Consumers::default(),
             basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
@@ -200,9 +196,14 @@ impl Channel {
         Ok(())
     }
 
-    fn set_closing(&self) {
+    fn set_closing(&self, error: Option<Error>) {
         self.set_state(ChannelState::Closing);
-        self.consumers.start_cancel();
+        if let Some(error) = error {
+            self.error_publisher_confirms(error.clone());
+            let _ = self.error_consumers(error.clone()); // ignore the error here, only happens with default executor if we cannot spawn a thread
+        } else {
+            self.consumers.start_cancel();
+        }
     }
 
     fn set_closed(&self, error: Error) {
@@ -220,7 +221,7 @@ impl Channel {
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
-        self.acknowledgements.on_channel_error(self.id, error);
+        self.acknowledgements.on_channel_error(error);
     }
 
     pub(crate) fn cancel_consumers(&self) {
@@ -248,7 +249,6 @@ impl Channel {
             global_registry: self.global_registry.clone(),
             local_registry: self.local_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
-            delivery_tag: self.delivery_tag.clone(),
             consumers: self.consumers.clone(),
             basic_get_delivery: self.basic_get_delivery.clone(),
             returned_messages: self.returned_messages.clone(),
@@ -500,11 +500,7 @@ impl Channel {
 
     fn before_basic_publish(&self) -> Option<PublisherConfirm> {
         if self.status.confirm() {
-            let delivery_tag = self.delivery_tag.next();
-            Some(
-                self.acknowledgements
-                    .register_pending(delivery_tag, self.id),
-            )
+            Some(self.acknowledgements.register_pending())
         } else {
             None
         }
@@ -565,7 +561,7 @@ impl Channel {
     }
 
     fn before_channel_close(&self) {
-        self.set_closing();
+        self.set_closing(None);
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) {
@@ -875,20 +871,19 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = AMQPError::try_from(method.clone())
-            .map(|error| {
-                error!(
-                    channel=%self.id, ?method, ?error,
-                    "Channel closed"
-                );
-                Error::ProtocolError(error)
-            })
-            .unwrap_or_else(|error| {
-                error!(%error);
-                info!(channel=%self.id, ?method, "Channel closed");
-                Error::InvalidChannelState(ChannelState::Closing)
-            });
-        self.set_closing();
+        let error = AMQPError::try_from(method.clone()).map(|error| {
+            error!(
+                channel=%self.id, ?method, ?error,
+                "Channel closed"
+            );
+            Error::ProtocolError(error)
+        });
+        self.set_closing(error.clone().ok());
+        let error = error.unwrap_or_else(|error| {
+            error!(%error);
+            info!(channel=%self.id, ?method, "Channel closed");
+            Error::InvalidChannelState(ChannelState::Closing)
+        });
         let channel = self.clone();
         self.internal_rpc
             .register_internal_future(async move { channel.channel_close_ok(error).await });
@@ -1097,8 +1092,8 @@ impl Channel {
 
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        self.consumers.start_delivery(
-            &method.consumer_tag,
+        let consumer_tag = method.consumer_tag.clone();
+        self.consumers.start_delivery(&consumer_tag, |error| {
             Delivery::new(
                 self.id,
                 method.delivery_tag,
@@ -1106,10 +1101,11 @@ impl Channel {
                 method.routing_key,
                 method.redelivered,
                 Some(self.internal_rpc.clone()),
-            ),
-        );
+                Some(error),
+            )
+        });
         self.status
-            .set_will_receive(class_id, DeliveryCause::Consume(method.consumer_tag));
+            .set_will_receive(class_id, DeliveryCause::Consume(consumer_tag));
         Ok(())
     }
 
@@ -1134,7 +1130,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .ack_all_before(method.delivery_tag, self.id)
+                        .ack_all_before(method.delivery_tag)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -1147,7 +1143,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .ack(method.delivery_tag, self.id)
+                    .ack(method.delivery_tag)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,
@@ -1165,7 +1161,7 @@ impl Channel {
             if method.multiple {
                 if method.delivery_tag > 0 {
                     self.acknowledgements
-                        .nack_all_before(method.delivery_tag, self.id)
+                        .nack_all_before(method.delivery_tag)
                         .or_else(|err| {
                             self.acknowledgement_error(
                                 err,
@@ -1178,7 +1174,7 @@ impl Channel {
                 }
             } else {
                 self.acknowledgements
-                    .nack(method.delivery_tag, self.id)
+                    .nack(method.delivery_tag)
                     .or_else(|err| {
                         self.acknowledgement_error(
                             err,

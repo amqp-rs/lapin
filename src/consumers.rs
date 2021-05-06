@@ -1,5 +1,6 @@
 use crate::{
     consumer::Consumer,
+    error_holder::ErrorHolder,
     message::Delivery,
     topology_internal::ConsumerDefinitionInternal,
     types::{PayloadSize, ShortString},
@@ -34,12 +35,15 @@ impl Consumers {
         }
     }
 
-    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized>(&self, consumer_tag: &S, message: Delivery)
-    where
+    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized, F: FnOnce(ErrorHolder) -> Delivery>(
+        &self,
+        consumer_tag: &S,
+        message: F,
+    ) where
         ShortString: Borrow<S>,
     {
         if let Some(consumer) = self.0.lock().get_mut(consumer_tag) {
-            consumer.start_new_delivery(message);
+            consumer.start_new_delivery(message(consumer.error()));
         }
     }
 

@@ -15,6 +15,7 @@ use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use reactor_trait::AsyncIOHandle;
 use std::{
     collections::VecDeque,
+    io,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
@@ -343,8 +344,11 @@ impl IoLoop {
                         trace!("read {} bytes", sz);
                         self.receive_buffer.fill(sz);
                     } else {
-                        error!("Socket was readable but we read 0, marking as wouldblock");
-                        self.socket_state.handle_read_poll(Poll::Pending);
+                        error!("Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken");
+                        self.socket_state.handle_io_result(Err(io::Error::from(
+                            io::ErrorKind::ConnectionAborted,
+                        )
+                        .into()))?;
                     }
                 }
                 Ok(())

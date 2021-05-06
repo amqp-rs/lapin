@@ -1,3 +1,34 @@
+### 1.7.1 (2020-05-06)
+
+#### Bug Fixes
+
+* Fix handling of unresponsive servers
+
+### 1.7.0 (2020-04-16)
+
+#### Bug Fixes
+
+* Fix handling of soft errors
+
+### 1.6.9 (2020-04-08)
+
+#### Bug Fixes
+
+* Fix hang in Acker when acking twice (which is invalid)
+
+### 1.6.8 (2020-02-18)
+
+#### Misc
+
+* Simplify acknowledgements internal handling
+* Logging updates
+
+### 1.6.7 (2020-02-17)
+
+#### Misc
+
+* Logging updates
+
 ### 1.6.6 (2020-12-25)
 
 #### Bug Fixes
