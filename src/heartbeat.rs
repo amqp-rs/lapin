@@ -45,7 +45,21 @@ impl Heartbeat {
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
-        self.inner.lock().poll_timeout(&self.channels)
+        let mut inner = self.inner.lock();
+        if let Some(timeout) = inner.timeout.as_ref() {
+            let elapsed = inner.last_write.elapsed();
+            let dur_elapsed = timeout
+                .checked_sub(elapsed)
+                .map(|timeout| timeout.max(Duration::from_millis(1)));
+            if dur_elapsed.is_none() {
+                // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
+                inner.update_last_write();
+                self.channels.send_heartbeat();
+            }
+            dur_elapsed
+        } else {
+            None
+        }
     }
 
     pub(crate) fn update_last_write(&self) {
@@ -78,20 +92,6 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
-        self.timeout.map(|timeout| {
-            timeout
-                .checked_sub(self.last_write.elapsed())
-                .map(|timeout| timeout.max(Duration::from_millis(1)))
-                .unwrap_or_else(|| {
-                    // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
-                    self.update_last_write();
-                    channels.send_heartbeat();
-                    timeout
-                })
-        })
-    }
-
     fn update_last_write(&mut self) {
         self.last_write = Instant::now();
     }
