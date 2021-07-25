@@ -117,6 +117,7 @@ pub use error::{Error, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
 
+pub mod acker;
 pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;
@@ -126,7 +127,6 @@ pub mod topology;
 type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
 type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
 
-mod acker;
 mod acknowledgement;
 mod basic_get_delivery;
 mod buffer;
