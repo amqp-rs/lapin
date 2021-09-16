@@ -1,4 +1,4 @@
-use crate::{channel::Reply, types::ChannelId, Error, Promise, PromiseResolver, Result};
+use crate::{channel::Reply, types::ChannelId, Error, Promise, PromiseResolver};
 use amq_protocol::{
     frame::AMQPFrame,
     protocol::{basic::AMQPMethod, AMQPClass},
@@ -41,9 +41,8 @@ impl Frames {
             .push(channel_id, frame, resolver, expected_reply);
     }
 
-    pub(crate) async fn push_frames(&self, frames: Vec<AMQPFrame>) -> Result<()> {
-        let promise = self.inner.lock().push_frames(frames);
-        promise.await
+    pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
+        self.inner.lock().push_frames(frames)
     }
 
     pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
