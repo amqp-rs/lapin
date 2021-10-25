@@ -15,7 +15,7 @@ license = "MIT"
 default = ["lapin/default"]
 
 [dependencies]
-async-reactor-trait = "^0.2"
+async-reactor-trait = "^1.0"
 
 [dependencies.lapin]
 version = "=2.0.0-alpha.4"
@@ -30,5 +30,5 @@ version = "^0.1"
 default-features = false
 
 [dev-dependencies.tracing-subscriber]
-version = "^0.2"
+version = "^0.3"
 features = ["fmt"]

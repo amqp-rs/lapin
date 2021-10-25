@@ -27,7 +27,7 @@ vendored-openssl          = ["amq-protocol/vendored-openssl"]
 members = [".", "async-global-executor", "async-lapin", "async-std", "bastion", "lapinou", "tokio"]
 
 [build-dependencies.amq-protocol-codegen]
-version = "=7.0.0-alpha.7"
+version = "=7.0.0-beta.1"
 optional = true
 
 [build-dependencies.serde_json]
@@ -35,7 +35,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "=7.0.0-alpha.7"
+version = "=7.0.0-beta.1"
 default-features = false
 
 [dependencies.async-global-executor-trait]
@@ -56,13 +56,13 @@ version = "^0.1"
 default-features = false
 
 [dependencies]
-async-reactor-trait = "^0.2"
+async-reactor-trait = "^1.0"
 async-trait = "^0.1.42"
 executor-trait = "^2.0"
 futures-lite = "^1.7"
 parking_lot = "^0.11"
 pinky-swear = "^5.1"
-reactor-trait = "^0.2"
+reactor-trait = "^1.0"
 waker-fn = "^1.1"
 
 [dev-dependencies]
@@ -71,7 +71,7 @@ serde_json = "^1.0"
 waker-fn = "^1.1"
 
 [dev-dependencies.tracing-subscriber]
-version = "^0.2"
+version = "^0.3"
 features = ["fmt"]
 
 [[example]]

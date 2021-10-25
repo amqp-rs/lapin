@@ -16,7 +16,7 @@ default = ["lapin/default"]
 
 [dependencies]
 tokio-executor-trait = "^2.0"
-tokio-reactor-trait = "^0.2"
+tokio-reactor-trait = "^1.0"
 
 [dependencies.lapin]
 version = "=2.0.0-alpha.4"
@@ -33,5 +33,5 @@ version = "^0.1"
 default-features = false
 
 [dev-dependencies.tracing-subscriber]
-version = "^0.2"
+version = "^0.3"
 features = ["fmt"]
