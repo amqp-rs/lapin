@@ -23,7 +23,7 @@ path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "=2.0.0-alpha.4"
+version = "=2.0.0-beta.1"
 path = ".."
 default-features = false
 
