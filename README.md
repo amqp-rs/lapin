@@ -115,7 +115,7 @@ fn main() -> Result<()> {
                     "",
                     "hello",
                     BasicPublishOptions::default(),
-                    payload.to_vec(),
+                    payload,
                     BasicProperties::default(),
                 )
                 .await?

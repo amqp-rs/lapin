@@ -111,7 +111,7 @@ fn connection() {
                 "",
                 "hello-async",
                 BasicPublishOptions::default(),
-                payload.to_vec(),
+                payload,
                 BasicProperties::default(),
             )
             .await
@@ -129,7 +129,7 @@ fn connection() {
                 "",
                 "hello-async",
                 BasicPublishOptions::default(),
-                payload.to_vec(),
+                payload,
                 BasicProperties::default(),
             )
             .await

@@ -33,7 +33,7 @@ fn main() -> Result<()> {
                 "",
                 "trash-queue",
                 BasicPublishOptions::default(),
-                b"test payload".to_vec(),
+                b"test payload",
                 BasicProperties::default(),
             )
             .await?

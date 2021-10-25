@@ -1879,7 +1879,7 @@ impl Channel {
         exchange: &str,
         routing_key: &str,
         options: BasicPublishOptions,
-        payload: Vec<u8>,
+        payload: &[u8],
         properties: BasicProperties,
     ) -> Result<PublisherConfirm> {
         if !self.status.connected() {
