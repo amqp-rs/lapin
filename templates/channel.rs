@@ -185,8 +185,8 @@ impl Channel {
         res
         {{/unless ~}}
       },
-      _ => {
-        self.handle_invalid_contents(format!("unexpected {{class.name}} {{method.name}} received on channel {}", self.id), method.get_amqp_class_id(), method.get_amqp_method_id())
+      unexpected => {
+        self.handle_invalid_contents(format!("unexpected {{class.name}} {{method.name}} received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
       },
     }
   }
