@@ -521,10 +521,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected connection open-ok received on channel {}",
-                    self.id
+                    "unexpected connection open-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -606,10 +606,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected connection close-ok received on channel {}",
-                    self.id
+                    "unexpected connection close-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -708,20 +708,15 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.next_expected_reply(self.id){
             Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
                 res
-            }
-            _ => self.handle_invalid_contents(
-                format!(
-                    "unexpected connection update-secret-ok received on channel {}",
-                    self.id
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
+            },
+            unexpected => {
+                self.handle_invalid_contents(format!("unexpected connection update-secret-ok received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
+            },
         }
     }
     pub(crate) async fn channel_open(&self, channel: Channel) -> Result<Channel> {
@@ -761,8 +756,11 @@ impl Channel {
             Some(Reply::ChannelOpenOk(resolver, channel)) => {
                 self.on_channel_open_ok_received(method, resolver, channel)
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected channel open-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected channel open-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -829,8 +827,11 @@ impl Channel {
             Some(Reply::ChannelFlowOk(resolver)) => {
                 self.on_channel_flow_ok_received(method, resolver)
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected channel flow-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected channel flow-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -910,10 +911,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected channel close-ok received on channel {}",
-                    self.id
+                    "unexpected channel close-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -973,10 +974,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected access request-ok received on channel {}",
-                    self.id
+                    "unexpected access request-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1063,10 +1064,10 @@ impl Channel {
                 options,
                 creation_arguments,
             ),
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected exchange declare-ok received on channel {}",
-                    self.id
+                    "unexpected exchange declare-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1125,10 +1126,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected exchange delete-ok received on channel {}",
-                    self.id
+                    "unexpected exchange delete-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1209,10 +1210,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected exchange bind-ok received on channel {}",
-                    self.id
+                    "unexpected exchange bind-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1293,10 +1294,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected exchange unbind-ok received on channel {}",
-                    self.id
+                    "unexpected exchange unbind-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1367,10 +1368,10 @@ impl Channel {
             Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => {
                 self.on_queue_declare_ok_received(method, resolver, options, creation_arguments)
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected queue declare-ok received on channel {}",
-                    self.id
+                    "unexpected queue declare-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1449,8 +1450,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected queue bind-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected queue bind-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1499,8 +1503,11 @@ impl Channel {
             Some(Reply::QueuePurgeOk(resolver)) => {
                 self.on_queue_purge_ok_received(method, resolver)
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected queue purge-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected queue purge-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1562,8 +1569,11 @@ impl Channel {
             Some(Reply::QueueDeleteOk(resolver, queue)) => {
                 self.on_queue_delete_ok_received(method, resolver, queue)
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected queue delete-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected queue delete-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1637,8 +1647,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected queue unbind-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected queue unbind-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1689,8 +1702,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected basic qos-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic qos-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1780,10 +1796,10 @@ impl Channel {
                 creation_arguments,
                 original,
             ),
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected basic consume-ok received on channel {}",
-                    self.id
+                    "unexpected basic consume-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -1867,8 +1883,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected basic cancel-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic cancel-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1960,8 +1979,11 @@ impl Channel {
             Some(Reply::BasicGetOk(resolver, queue, options)) => {
                 self.on_basic_get_ok_received(method, resolver, queue, options)
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected basic get-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic get-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2084,10 +2106,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected basic recover-ok received on channel {}",
-                    self.id
+                    "unexpected basic recover-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
@@ -2161,8 +2183,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected tx select-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected tx select-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2205,8 +2230,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected tx commit-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected tx commit-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2251,8 +2279,11 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
-                format!("unexpected tx rollback-ok received on channel {}", self.id),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected tx rollback-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2298,10 +2329,10 @@ impl Channel {
                 resolver.swear(res.clone());
                 res
             }
-            _ => self.handle_invalid_contents(
+            unexpected => self.handle_invalid_contents(
                 format!(
-                    "unexpected confirm select-ok received on channel {}",
-                    self.id
+                    "unexpected confirm select-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
                 ),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),

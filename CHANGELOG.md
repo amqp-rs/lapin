@@ -1,29 +1,41 @@
-### 1.7.1 (2020-05-06)
+### 1.8.1 (2021-11-12)
+
+#### Misc
+
+* Logging updates
+
+### 1.8.0 (2021-08-22)
+
+#### Misc
+
+* Update to nom 7
+
+### 1.7.1 (2021-05-06)
 
 #### Bug Fixes
 
 * Fix handling of unresponsive servers
 
-### 1.7.0 (2020-04-16)
+### 1.7.0 (2021-04-16)
 
 #### Bug Fixes
 
 * Fix handling of soft errors
 
-### 1.6.9 (2020-04-08)
+### 1.6.9 (2021-04-08)
 
 #### Bug Fixes
 
 * Fix hang in Acker when acking twice (which is invalid)
 
-### 1.6.8 (2020-02-18)
+### 1.6.8 (2021-02-18)
 
 #### Misc
 
 * Simplify acknowledgements internal handling
 * Logging updates
 
-### 1.6.7 (2020-02-17)
+### 1.6.7 (2021-02-17)
 
 #### Misc
 
