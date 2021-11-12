@@ -370,7 +370,7 @@ impl Channel {
             m => {
                 error!("the client should not receive this method: {:?}", m);
                 self.handle_invalid_contents(
-                    format!("unexepcted method received on channel {}", self.id),
+                    format!("unexpected method received on channel {}", self.id),
                     m.get_amqp_class_id(),
                     m.get_amqp_method_id(),
                 )
@@ -535,7 +535,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection open-ok received on channel {}",
+                    "unexpected connection open-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -626,7 +626,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection close-ok received on channel {}",
+                    "unexpected connection close-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -735,7 +735,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted connection update-secret-ok received on channel {}",
+                    "unexpected connection update-secret-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -783,7 +783,7 @@ impl Channel {
                 self.on_channel_open_ok_received(method, resolver, channel)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted channel open-ok received on channel {}", self.id),
+                format!("unexpected channel open-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -857,7 +857,7 @@ impl Channel {
                 self.on_channel_flow_ok_received(method, resolver)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted channel flow-ok received on channel {}", self.id),
+                format!("unexpected channel flow-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -944,7 +944,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted channel close-ok received on channel {}",
+                    "unexpected channel close-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1008,7 +1008,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted access request-ok received on channel {}",
+                    "unexpected access request-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1103,7 +1103,7 @@ impl Channel {
             ),
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange declare-ok received on channel {}",
+                    "unexpected exchange declare-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1164,7 +1164,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange delete-ok received on channel {}",
+                    "unexpected exchange delete-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1251,7 +1251,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange bind-ok received on channel {}",
+                    "unexpected exchange bind-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1338,7 +1338,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted exchange unbind-ok received on channel {}",
+                    "unexpected exchange unbind-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1417,7 +1417,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted queue declare-ok received on channel {}",
+                    "unexpected queue declare-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1501,7 +1501,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue bind-ok received on channel {}", self.id),
+                format!("unexpected queue bind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1550,7 +1550,7 @@ impl Channel {
                 self.on_queue_purge_ok_received(method, resolver)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue purge-ok received on channel {}", self.id),
+                format!("unexpected queue purge-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1614,7 +1614,7 @@ impl Channel {
                 self.on_queue_delete_ok_received(method, resolver, queue)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue delete-ok received on channel {}", self.id),
+                format!("unexpected queue delete-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1689,7 +1689,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted queue unbind-ok received on channel {}", self.id),
+                format!("unexpected queue unbind-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1738,7 +1738,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic qos-ok received on channel {}", self.id),
+                format!("unexpected basic qos-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -1835,7 +1835,7 @@ impl Channel {
             ),
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted basic consume-ok received on channel {}",
+                    "unexpected basic consume-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -1922,7 +1922,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic cancel-ok received on channel {}", self.id),
+                format!("unexpected basic cancel-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2024,7 +2024,7 @@ impl Channel {
                 self.on_basic_get_ok_received(method, resolver, queue, options)
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted basic get-ok received on channel {}", self.id),
+                format!("unexpected basic get-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2158,7 +2158,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted basic recover-ok received on channel {}",
+                    "unexpected basic recover-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
@@ -2236,7 +2236,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx select-ok received on channel {}", self.id),
+                format!("unexpected tx select-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2280,7 +2280,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx commit-ok received on channel {}", self.id),
+                format!("unexpected tx commit-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2326,7 +2326,7 @@ impl Channel {
                 res
             }
             _ => self.handle_invalid_contents(
-                format!("unexepcted tx rollback-ok received on channel {}", self.id),
+                format!("unexpected tx rollback-ok received on channel {}", self.id),
                 method.get_amqp_class_id(),
                 method.get_amqp_method_id(),
             ),
@@ -2374,7 +2374,7 @@ impl Channel {
             }
             _ => self.handle_invalid_contents(
                 format!(
-                    "unexepcted confirm select-ok received on channel {}",
+                    "unexpected confirm select-ok received on channel {}",
                     self.id
                 ),
                 method.get_amqp_class_id(),
