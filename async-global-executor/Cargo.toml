@@ -26,7 +26,7 @@ default-features = false
 optional = true
 
 [dependencies.lapin]
-version = "=2.0.0-beta.1"
+version = "=2.0.0-beta.2"
 path = ".."
 default-features = false
 
