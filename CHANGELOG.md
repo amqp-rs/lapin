@@ -1,3 +1,9 @@
+### 1.9.0 (2021-11-23)
+
+#### Bug Fixes
+
+* Fix handling of RabbitMQ replies when they arrive unordered
+
 ### 1.8.1 (2021-11-12)
 
 #### Misc

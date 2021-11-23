@@ -515,7 +515,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ConnectionOpenOk(..))
+        }) {
             Some(Reply::ConnectionOpenOk(resolver, connection)) => {
                 let res = self.on_connection_open_ok_received(method, connection);
                 resolver.swear(res.clone());
@@ -600,7 +602,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ConnectionCloseOk(..))
+        }) {
             Some(Reply::ConnectionCloseOk(resolver)) => {
                 let res = self.on_connection_close_ok_received();
                 resolver.swear(res.clone());
@@ -708,7 +712,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id){
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))
+        }) {
             Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
@@ -752,7 +758,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ChannelOpenOk(..))
+        }) {
             Some(Reply::ChannelOpenOk(resolver, channel)) => {
                 self.on_channel_open_ok_received(method, resolver, channel)
             }
@@ -823,7 +831,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ChannelFlowOk(..))
+        }) {
             Some(Reply::ChannelFlowOk(resolver)) => {
                 self.on_channel_flow_ok_received(method, resolver)
             }
@@ -968,7 +978,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::AccessRequestOk(..))
+        }) {
             Some(Reply::AccessRequestOk(resolver)) => {
                 let res = self.on_access_request_ok_received(method);
                 resolver.swear(res.clone());
@@ -1050,7 +1062,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ExchangeDeclareOk(..))
+        }) {
             Some(Reply::ExchangeDeclareOk(
                 resolver,
                 exchange,
@@ -1120,7 +1134,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ExchangeDeleteOk(..))
+        }) {
             Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
                 let res = self.on_exchange_delete_ok_received(exchange);
                 resolver.swear(res.clone());
@@ -1193,7 +1209,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ExchangeBindOk(..))
+        }) {
             Some(Reply::ExchangeBindOk(
                 resolver,
                 destination,
@@ -1277,7 +1295,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ExchangeUnbindOk(..))
+        }) {
             Some(Reply::ExchangeUnbindOk(
                 resolver,
                 destination,
@@ -1364,7 +1384,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::QueueDeclareOk(..))
+        }) {
             Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => {
                 self.on_queue_declare_ok_received(method, resolver, options, creation_arguments)
             }
@@ -1433,7 +1455,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::QueueBindOk(..)))
+        {
             Some(Reply::QueueBindOk(
                 resolver,
                 queue,
@@ -1499,7 +1524,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::QueuePurgeOk(..)))
+        {
             Some(Reply::QueuePurgeOk(resolver)) => {
                 self.on_queue_purge_ok_received(method, resolver)
             }
@@ -1565,7 +1593,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::QueueDeleteOk(..))
+        }) {
             Some(Reply::QueueDeleteOk(resolver, queue)) => {
                 self.on_queue_delete_ok_received(method, resolver, queue)
             }
@@ -1630,7 +1660,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::QueueUnbindOk(..))
+        }) {
             Some(Reply::QueueUnbindOk(
                 resolver,
                 queue,
@@ -1696,7 +1728,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicQosOk(..)))
+        {
             Some(Reply::BasicQosOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
@@ -1779,7 +1814,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicConsumeOk(..))
+        }) {
             Some(Reply::BasicConsumeOk(
                 resolver,
                 channel_closer,
@@ -1877,7 +1914,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicCancelOk(..))
+        }) {
             Some(Reply::BasicCancelOk(resolver)) => {
                 let res = self.on_basic_cancel_ok_received(method);
                 resolver.swear(res.clone());
@@ -1975,7 +2014,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
+        {
             Some(Reply::BasicGetOk(resolver, queue, options)) => {
                 self.on_basic_get_ok_received(method, resolver, queue, options)
             }
@@ -2100,7 +2142,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicRecoverOk(..))
+        }) {
             Some(Reply::BasicRecoverOk(resolver)) => {
                 let res = self.on_basic_recover_ok_received();
                 resolver.swear(res.clone());
@@ -2177,7 +2221,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxSelectOk(..)))
+        {
             Some(Reply::TxSelectOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
@@ -2224,7 +2271,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxCommitOk(..)))
+        {
             Some(Reply::TxCommitOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
@@ -2273,7 +2323,10 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxRollbackOk(..)))
+        {
             Some(Reply::TxRollbackOk(resolver)) => {
                 let res = Ok(());
                 resolver.swear(res.clone());
@@ -2323,7 +2376,9 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.next_expected_reply(self.id) {
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::ConfirmSelectOk(..))
+        }) {
             Some(Reply::ConfirmSelectOk(resolver)) => {
                 let res = self.on_confirm_select_ok_received();
                 resolver.swear(res.clone());

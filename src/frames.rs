@@ -53,12 +53,21 @@ impl Frames {
         self.inner.lock().pop(flow)
     }
 
-    pub(crate) fn next_expected_reply(&self, channel_id: ChannelId) -> Option<Reply> {
+    pub(crate) fn find_expected_reply<P: FnMut(&ExpectedReply) -> bool>(
+        &self,
+        channel_id: ChannelId,
+        finder: P,
+    ) -> Option<Reply> {
         self.inner
             .lock()
             .expected_replies
             .get_mut(&channel_id)
-            .and_then(|replies| replies.pop_front())
+            .and_then(|replies| {
+                replies
+                    .iter()
+                    .position(finder)
+                    .and_then(|idx| replies.remove(idx))
+            })
             .map(|t| t.0)
     }
 
