@@ -168,7 +168,7 @@ impl Channel {
       return Err(Error::InvalidChannelState(self.status.state()));
     }
 
-    match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.next_expected_reply(self.id){{/if ~}} {
+    match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
       Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}})) => {
         {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}

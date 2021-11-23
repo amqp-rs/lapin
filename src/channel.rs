@@ -1028,7 +1028,10 @@ impl Channel {
     }
 
     fn on_basic_get_empty_received(&self, method: protocol::basic::GetEmpty) -> Result<()> {
-        match self.frames.next_expected_reply(self.id) {
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
+        {
             Some(Reply::BasicGetOk(resolver, ..)) => {
                 resolver.swear(Ok(None));
                 Ok(())
