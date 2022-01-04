@@ -13,7 +13,7 @@ use crate::{
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
-use futures_lite::Stream;
+use futures_core::stream::Stream;
 use parking_lot::Mutex;
 use std::{
     fmt,
@@ -294,6 +294,14 @@ impl fmt::Debug for Consumer {
             debug.field("state", &status.state());
         }
         debug.finish()
+    }
+}
+
+// This impl is there only to silence warnings
+impl Drop for Consumer {
+    fn drop(&mut self) {
+        drop(self.consumer_canceler.take());
+        drop(self.channel_closer.take());
     }
 }
 

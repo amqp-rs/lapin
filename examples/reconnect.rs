@@ -84,5 +84,5 @@ fn main() -> Result<()> {
 
     try_rabbit_stuff(addr);
 
-    async_global_executor::block_on(futures_lite::future::pending())
+    async_global_executor::block_on(std::future::pending())
 }
