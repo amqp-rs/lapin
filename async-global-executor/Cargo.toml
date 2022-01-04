@@ -1,7 +1,7 @@
 [package]
 name = "lapin-async-global-executor"
 version = "2.0.0"
-edition = "2018"
+edition = "2021"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-global-executor"
 repository = "https://github.com/CleverCloud/lapin"
@@ -10,6 +10,7 @@ documentation = "https://docs.rs/lapin-async-global-executor"
 keywords = ["amqp", "rabbitmq", "mio", "futures"]
 categories = ["database"]
 license = "MIT"
+rust-version = "1.56.0"
 
 [features]
 default = ["lapin/default", "async-io"]

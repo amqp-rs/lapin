@@ -2,7 +2,7 @@
 name = "bastion-amqp"
 version = "0.2.3"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
-edition = "2018"
+edition = "2021"
 description = "lapin integration with bastion"
 repository = "https://github.com/CleverCloud/lapin"
 readme = "README.md"
@@ -10,6 +10,7 @@ documentation = "https://docs.rs/bastion-amqp"
 keywords = ["amqp", "rabbitmq", "futures", "bastion"]
 categories = ["database"]
 license = "MIT"
+rust-version = "1.56.0"
 
 [features]
 default = ["lapin/default"]

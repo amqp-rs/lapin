@@ -5,7 +5,7 @@ main() {
     export LAPIN_CODEGEN_FILE="generated"
 
     cargo build --features=codegen-internal
-    rustfmt "${LAPIN_CODEGEN_DIR}/${LAPIN_CODEGEN_FILE}.rs" --edition=2018
+    rustfmt "${LAPIN_CODEGEN_DIR}/${LAPIN_CODEGEN_FILE}.rs" --edition=2021
 }
 
 main "${@}"
