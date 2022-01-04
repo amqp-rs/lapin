@@ -323,14 +323,9 @@ impl Channel {
     }
 
     pub async fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>> {
-        if self
-            .acknowledgements
-            .get_last_pending()
-            .await
-            .transpose()?
-            .is_some()
-        {
+        if let Some(last_pending) = self.acknowledgements.get_last_pending() {
             trace!("Waiting for pending confirms");
+            last_pending.await?;
         } else {
             trace!("No confirms to wait for");
         }

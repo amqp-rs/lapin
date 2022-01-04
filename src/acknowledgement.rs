@@ -32,9 +32,8 @@ impl Acknowledgements {
         self.0.lock().register_pending()
     }
 
-    pub(crate) async fn get_last_pending(&self) -> Option<crate::Result<Confirmation>> {
-        let (_, promise) = self.0.lock().last.take()?;
-        Some(promise.await)
+    pub(crate) fn get_last_pending(&self) -> Option<Promise<Confirmation>> {
+        Some(self.0.lock().last.take()?.1)
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> AMQPResult {
