@@ -2,10 +2,10 @@
 <img src="logo.jpg" width="30%"></img>
 
 [![API Docs](https://docs.rs/lapin/badge.svg)](https://docs.rs/lapin)
-[![Build status](https://github.com/CleverCloud/lapin/workflows/Build%20and%20test/badge.svg)](https://github.com/CleverCloud/lapin/actions)
+[![Build status](https://github.com/amqp-rs/lapin/workflows/Build%20and%20test/badge.svg)](https://github.com/amqp-rs/lapin/actions)
 [![Downloads](https://img.shields.io/crates/d/lapin.svg)](https://crates.io/crates/lapin)
-[![Coverage Status](https://coveralls.io/repos/github/CleverCloud/lapin/badge.svg?branch=master)](https://coveralls.io/github/CleverCloud/lapin?branch=master)
-[![Dependency Status](https://deps.rs/repo/github/CleverCloud/lapin/status.svg)](https://deps.rs/repo/github/CleverCloud/lapin)
+[![Coverage Status](https://coveralls.io/repos/github/amqp-rs/lapin/badge.svg?branch=main)](https://coveralls.io/github/amqp-rs/lapin?branch=main)
+[![Dependency Status](https://deps.rs/repo/github/amqp-rs/lapin/status.svg)](https://deps.rs/repo/github/amqp-rs/lapin)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
  <strong>

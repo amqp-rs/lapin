@@ -4,7 +4,7 @@ version = "1.1.0"
 edition = "2021"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with smol"
-repository = "https://github.com/CleverCloud/lapin"
+repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/lapinou"
 keywords = ["amqp", "rabbitmq", "mio", "futures", "smol"]
@@ -38,3 +38,6 @@ default-features = false
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
 features = ["fmt"]
+
+[badges]
+maintenance = { status = "deprecated" }

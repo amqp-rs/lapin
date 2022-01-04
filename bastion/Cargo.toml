@@ -4,7 +4,7 @@ version = "0.2.3"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
 edition = "2021"
 description = "lapin integration with bastion"
-repository = "https://github.com/CleverCloud/lapin"
+repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/bastion-amqp"
 keywords = ["amqp", "rabbitmq", "futures", "bastion"]
@@ -33,3 +33,6 @@ default-features = false
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
 features = ["fmt"]
+
+[badges]
+maintenance = { status = "deprecated" }

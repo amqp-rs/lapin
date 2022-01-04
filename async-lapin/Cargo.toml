@@ -4,7 +4,7 @@ version = "1.2.0"
 edition = "2021"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-io"
-repository = "https://github.com/CleverCloud/lapin"
+repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/async-lapin"
 keywords = ["amqp", "rabbitmq", "mio", "futures", "async-io"]
@@ -33,3 +33,6 @@ default-features = false
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
 features = ["fmt"]
+
+[badges]
+maintenance = { status = "deprecated" }

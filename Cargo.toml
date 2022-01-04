@@ -4,7 +4,7 @@ version = "2.0.0-beta.2"
 edition = "2021"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
-repository = "https://github.com/CleverCloud/lapin"
+repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/lapin"
 keywords = ["amqp", "rabbitmq", "mio", "futures"]
@@ -80,3 +80,6 @@ features = ["fmt"]
 [[example]]
 name = "custom_tls_connection"
 required-features = ["native-tls"]
+
+[badges]
+maintenance = { status = "actively-developed" }
