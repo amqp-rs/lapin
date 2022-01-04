@@ -155,7 +155,7 @@ impl Buffer {
             reader.poll_read_vectored(
                 cx,
                 &mut [
-                    IoSliceMut::new(&mut end[..]),
+                    IoSliceMut::new(&mut *end),
                     IoSliceMut::new(&mut start[..self.position]),
                 ][..],
             )

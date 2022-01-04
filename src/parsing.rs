@@ -26,7 +26,7 @@ impl<'a> From<[&'a [u8]; 2]> for ParsingContext<'a> {
 
 impl<'a> Clone for ParsingContext<'a> {
     fn clone(&self) -> Self {
-        [&self.buffers[0][..], &self.buffers[1][..]].into()
+        [self.buffers[0], self.buffers[1]].into()
     }
 }
 
@@ -87,7 +87,7 @@ impl<'a> InputTake for ParsingContext<'a> {
             self.buffers[0][..count].into()
         } else {
             let needed = count - self.buffers[0].len();
-            [&self.buffers[0][..], &self.buffers[1][..needed]].into()
+            [self.buffers[0], &self.buffers[1][..needed]].into()
         }
     }
 
@@ -95,14 +95,14 @@ impl<'a> InputTake for ParsingContext<'a> {
     fn take_split(&self, count: usize) -> (Self, Self) {
         if self.buffers[0].len() > count {
             (
-                [&self.buffers[0][count..], &self.buffers[1][..]].into(),
+                [&self.buffers[0][count..], self.buffers[1]].into(),
                 self.buffers[0][..count].into(),
             )
         } else {
             let needed = count - self.buffers[0].len();
             (
                 self.buffers[1][needed..].into(),
-                [&self.buffers[0][..], &self.buffers[1][..needed]].into(),
+                [self.buffers[0], &self.buffers[1][..needed]].into(),
             )
         }
     }
@@ -112,7 +112,7 @@ impl<'a> Slice<RangeFrom<usize>> for ParsingContext<'a> {
     #[inline]
     fn slice(&self, range: RangeFrom<usize>) -> Self {
         if range.start < self.buffers[0].len() {
-            [&self.buffers[0][range.start..], &self.buffers[1][..]].into()
+            [&self.buffers[0][range.start..], self.buffers[1]].into()
         } else {
             let needed = range.start - self.buffers[0].len();
             self.buffers[1][needed..].into()

@@ -94,6 +94,7 @@ impl Frames {
     }
 }
 
+#[derive(Default)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise RabbitMQ-server send us an UNEXPECTED_FRAME */
     /* After sending the Header frame, we need to send the associated Body frames before anything else for the same reason */
@@ -102,18 +103,6 @@ struct Inner {
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
-}
-
-impl Default for Inner {
-    fn default() -> Self {
-        Self {
-            publish_frames: VecDeque::default(),
-            retry_frames: VecDeque::default(),
-            frames: VecDeque::default(),
-            low_prio_frames: VecDeque::default(),
-            expected_replies: HashMap::default(),
-        }
-    }
 }
 
 impl fmt::Debug for Frames {

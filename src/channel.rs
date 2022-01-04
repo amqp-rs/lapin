@@ -200,7 +200,7 @@ impl Channel {
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
             self.error_publisher_confirms(error.clone());
-            let _ = self.error_consumers(error.clone()); // ignore the error here, only happens with default executor if we cannot spawn a thread
+            let _ = self.error_consumers(error); // ignore the error here, only happens with default executor if we cannot spawn a thread
         } else {
             self.consumers.start_cancel();
         }
