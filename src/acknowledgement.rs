@@ -4,7 +4,7 @@ use crate::{
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
     types::DeliveryTag,
-    Error, Promise, Result,
+    Error, Promise,
 };
 use parking_lot::Mutex;
 use std::{
@@ -18,7 +18,7 @@ use tracing::trace;
 pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);
 
 type AMQPResult = std::result::Result<(), AMQPError>;
-type ConfirmationBroadcaster = pinky_swear::PinkyBroadcaster<Result<Confirmation>>;
+type ConfirmationBroadcaster = pinky_swear::PinkyErrorBroadcaster<Confirmation, Error>;
 
 impl Acknowledgements {
     pub(crate) fn new(channel_id: u16, returned_messages: ReturnedMessages) -> Self {
@@ -32,7 +32,7 @@ impl Acknowledgements {
         self.0.lock().register_pending()
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<Promise<Confirmation>> {
+    pub(crate) fn get_last_pending(&self) -> Option<Promise<()>> {
         Some(self.0.lock().last.take()?.1)
     }
 
@@ -81,7 +81,7 @@ impl fmt::Debug for Acknowledgements {
 struct Inner {
     channel_id: u16,
     delivery_tag: IdSequence<DeliveryTag>,
-    last: Option<(DeliveryTag, Promise<Confirmation>)>,
+    last: Option<(DeliveryTag, Promise<()>)>,
     pending: HashMap<DeliveryTag, ConfirmationBroadcaster>,
     returned_messages: ReturnedMessages,
 }
@@ -100,9 +100,8 @@ impl Inner {
     fn register_pending(&mut self) -> PublisherConfirm {
         let delivery_tag = self.delivery_tag.next();
         trace!("Publishing with delivery_tag {}", delivery_tag);
-        let broadcaster = ConfirmationBroadcaster::default();
-        let promise =
-            PublisherConfirm::new(broadcaster.subscribe(), self.returned_messages.clone());
+        let (promise, broadcaster) = ConfirmationBroadcaster::new();
+        let promise = PublisherConfirm::new(promise, self.returned_messages.clone());
         if let Some((delivery_tag, promise)) = self.last.take() {
             if let Some(broadcaster) = self.pending.get(&delivery_tag) {
                 broadcaster.unsubscribe(promise);

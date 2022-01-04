@@ -12,7 +12,7 @@ pub struct PublisherConfirm {
     returned_messages: ReturnedMessages,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Confirmation {
     Ack(Option<Box<BasicReturnMessage>>),
     Nack(Option<Box<BasicReturnMessage>>),

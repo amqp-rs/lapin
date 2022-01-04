@@ -12,7 +12,7 @@ use std::sync::{
     Arc,
 };
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct Acker {
     channel_id: ChannelId,
     delivery_tag: DeliveryTag,

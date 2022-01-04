@@ -25,7 +25,7 @@ pub type DeliveryResult = Result<Option<Delivery>>;
 /// [`Acker::ack`]: ../struct.Acker.html#method.ack
 /// [`Acker::nack`]: ../struct.Acker.html#method.nack
 /// [`Acker::reject`]: ../struct.Acker.html#method.reject
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Delivery {
     /// The delivery tag of the message. Use this for
     /// acknowledging the message.
@@ -87,7 +87,7 @@ impl Deref for Delivery {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct BasicGetMessage {
     pub delivery: Delivery,
     pub message_count: MessageCount,
@@ -132,7 +132,7 @@ impl DerefMut for BasicGetMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct BasicReturnMessage {
     pub delivery: Delivery,
     pub reply_code: ReplyCode,

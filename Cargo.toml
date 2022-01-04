@@ -63,7 +63,7 @@ executor-trait = "^2.0"
 futures-core = "^0.3"
 futures-io = "^0.3"
 parking_lot = "^0.11"
-pinky-swear = "^5.2"
+pinky-swear = "^6.0"
 reactor-trait = "^1.0"
 waker-fn = "^1.1"
 
