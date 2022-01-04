@@ -37,7 +37,6 @@ impl Acker {
         }
     }
 
-    // FIXME: consume self and drop used
     pub async fn ack(&self, options: BasicAckOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_ack(
@@ -51,7 +50,6 @@ impl Acker {
         .await
     }
 
-    // FIXME: consume self and drop used
     pub async fn nack(&self, options: BasicNackOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_nack(
@@ -65,7 +63,6 @@ impl Acker {
         .await
     }
 
-    // FIXME: consume self and drop used
     pub async fn reject(&self, options: BasicRejectOptions) -> Result<()> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_reject(
