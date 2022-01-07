@@ -12,7 +12,7 @@ fn codegen() {
     use serde_json::{from_str, Value};
 
     let out_dir = std::env::var("LAPIN_CODEGEN_DIR")
-        .or(std::env::var("OUT_DIR"))
+        .or_else(|_| std::env::var("OUT_DIR"))
         .expect("OUT_DIR is not defined");
     let out_file = std::env::var("LAPIN_CODEGEN_FILE").unwrap_or_else(|_| "channel".to_string());
     let template = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/channel.rs"));
