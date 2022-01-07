@@ -16,8 +16,8 @@ rust-version = "1.56.0"
 default = ["lapin/default"]
 
 [dependencies]
-tokio-executor-trait = "^2.0"
-tokio-reactor-trait = "^1.0"
+tokio-executor-trait = "^2.1"
+tokio-reactor-trait = "^1.1"
 
 [dependencies.lapin]
 version = "=2.0.0-beta.3"

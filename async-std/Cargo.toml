@@ -16,7 +16,7 @@ rust-version = "1.56.0"
 default = ["async-lapin/default"]
 
 [dependencies]
-async-executor-trait = "^2.0"
+async-executor-trait = "^2.1"
 
 [dependencies.async-lapin]
 version = "^1.2"
