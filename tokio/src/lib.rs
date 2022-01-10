@@ -1,6 +1,8 @@
 use lapin::ConnectionProperties;
 
+#[deprecated(note = "use tokio-executor-trait and tokio-reactor-trait directly instead")]
 pub trait LapinTokioExt {
+    #[deprecated(note = "use tokio-executor-trait and tokio-reactor-trait directly instead")]
     fn with_tokio(self) -> Self
     where
         Self: Sized,
@@ -11,11 +13,13 @@ pub trait LapinTokioExt {
         this
     }
 
+    #[deprecated(note = "use tokio-executor-trait directly instead")]
     fn with_tokio_executor(self) -> Self
     where
         Self: Sized;
 
     #[cfg(unix)]
+    #[deprecated(note = "use tokio-reactor-trait directly instead")]
     fn with_tokio_reactor(self) -> Self
     where
         Self: Sized;

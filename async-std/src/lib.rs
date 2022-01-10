@@ -3,7 +3,9 @@ use lapin::ConnectionProperties;
 
 // ConnectionProperties extension
 
+#[deprecated(note = "use async-executor-trait and async-reactor-trait directly instead")]
 pub trait LapinAsyncStdExt {
+    #[deprecated(note = "use async-executor-trait and async-reactor-trait directly instead")]
     fn with_async_std(self) -> Self
     where
         Self: Sized,
@@ -11,10 +13,12 @@ pub trait LapinAsyncStdExt {
         self.with_async_std_executor().with_async_std_reactor()
     }
 
+    #[deprecated(note = "use async-executor-trait directly instead")]
     fn with_async_std_executor(self) -> Self
     where
         Self: Sized;
 
+    #[deprecated(note = "use async-reactor-trait directly instead")]
     fn with_async_std_reactor(self) -> Self
     where
         Self: Sized;

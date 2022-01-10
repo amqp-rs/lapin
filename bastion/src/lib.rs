@@ -1,6 +1,8 @@
 use lapin::ConnectionProperties;
 
+#[deprecated(note = "use bastion-executor-trait directly instead")]
 pub trait BastionExt {
+    #[deprecated(note = "use bastion-executor-trait directly instead")]
     fn with_bastion(self) -> Self
     where
         Self: Sized,
@@ -8,6 +10,7 @@ pub trait BastionExt {
         self.with_bastion_executor()
     }
 
+    #[deprecated(note = "use bastion-executor-trait directly instead")]
     fn with_bastion_executor(self) -> Self
     where
         Self: Sized;
