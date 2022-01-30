@@ -25,7 +25,7 @@ default-features = false
 features = ["net", "rt", "time"]
 
 [dependencies]
-parking_lot = "^0.11"
+parking_lot = "^0.12"
 
 [dev-dependencies]
 env_logger = "^0.8"

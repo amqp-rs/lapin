@@ -51,8 +51,8 @@ async-task = "^4.0"
 crossbeam-channel = "^0.5"
 futures-core = "^0.3"
 log = "^0.4"
-parking_lot = "^0.11"
-pinky-swear = "^4.4"
+parking_lot = "^0.12"
+pinky-swear = "^4.5"
 
 [dev-dependencies]
 async-global-executor = "^2.0"
