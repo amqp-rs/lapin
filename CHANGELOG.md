@@ -1,3 +1,9 @@
+### 1.10.0 (2022-01-30)
+
+#### Bug Fixes
+
+* Fix potential panic on shutdown
+
 ### 1.9.0 (2021-11-23)
 
 #### Bug Fixes
