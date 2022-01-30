@@ -169,12 +169,16 @@ mod unix {
     }
 
     async fn poll_read(socket: Arc<AsyncFd<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-        socket.readable().await.unwrap().clear_ready();
-        socket_state.send(SocketEvent::Readable);
+        if let Ok(mut events) = socket.readable().await {
+            events.clear_ready();
+            socket_state.send(SocketEvent::Readable);
+        }
     }
 
     async fn poll_write(socket: Arc<AsyncFd<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-        socket.writable().await.unwrap().clear_ready();
-        socket_state.send(SocketEvent::Writable);
+        if let Ok(mut events) = socket.writable().await {
+            events.clear_ready();
+            socket_state.send(SocketEvent::Writable);
+        }
     }
 }

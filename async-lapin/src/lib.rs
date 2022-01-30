@@ -135,11 +135,13 @@ async fn heartbeat(heartbeat: Heartbeat) {
 }
 
 async fn poll_read(socket: Arc<Async<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-    socket.readable().await.unwrap();
-    socket_state.send(SocketEvent::Readable);
+    if socket.readable().await.is_ok() {
+        socket_state.send(SocketEvent::Readable);
+    }
 }
 
 async fn poll_write(socket: Arc<Async<TcpStreamWrapper>>, socket_state: SocketStateHandle) {
-    socket.writable().await.unwrap();
-    socket_state.send(SocketEvent::Writable);
+    if socket.writable().await.is_ok() {
+        socket_state.send(SocketEvent::Writable);
+    }
 }
