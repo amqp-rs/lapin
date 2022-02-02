@@ -1,6 +1,6 @@
 [package]
 name = "async-amqp"
-version = "1.2.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-std"
@@ -19,12 +19,12 @@ default = ["async-lapin/default"]
 async-executor-trait = "^2.1"
 
 [dependencies.async-lapin]
-version = "^1.2"
+version = "^2.0"
 path = "../async-lapin"
 default-features = false
 
 [dependencies.lapin]
-version = "=2.0.0-beta.3"
+version = "^2.0"
 path = ".."
 default-features = false
 

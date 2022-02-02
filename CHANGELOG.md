@@ -1,3 +1,23 @@
+### 2.0.0 (2022-02-02)
+
+#### Misc
+
+* Make most of the API based on async fns
+* Update to amq-protocol 7.0
+* Reworked connector
+* Dropped third-party reactors/executors integration
+* New third-party reactors integration through reactor-trait
+* New third-party executors integration through executor-trait
+* Misc internal cleanups
+* Default reactor to async-io
+* Switch from log to tracing
+* Make most internals use async rust
+* Switch to edition 2021
+* Default to rustls for TLS handling
+* `basic_publish` no longer takes ownership of the data
+* Dropped Clone impl where it didn't make sense
+* Acker is now public
+
 ### 1.10.0 (2022-01-30)
 
 #### Bug Fixes

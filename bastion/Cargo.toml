@@ -1,6 +1,6 @@
 [package]
 name = "bastion-amqp"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
 edition = "2021"
 description = "lapin integration with bastion"
@@ -19,7 +19,7 @@ default = ["lapin/default"]
 bastion-executor-trait = "^0.5.3"
 
 [dependencies.lapin]
-version = "=2.0.0-beta.3"
+version = "^2.0"
 path = ".."
 default-features = false
 

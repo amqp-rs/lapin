@@ -1,6 +1,6 @@
 [package]
 name = "async-lapin"
-version = "1.3.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "lapin integration with async-io"
@@ -19,7 +19,7 @@ default = ["lapin/default"]
 async-reactor-trait = "^1.1"
 
 [dependencies.lapin]
-version = "=2.0.0-beta.3"
+version = "^2.0"
 path = ".."
 default-features = false
 
