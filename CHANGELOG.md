@@ -1,3 +1,9 @@
+### 2.0.2 (2022-02-23)
+
+#### Bug Fixes
+
+* Fix some potential hang with rustls
+
 ### 2.0.1 (2022-02-08)
 
 #### Misc
