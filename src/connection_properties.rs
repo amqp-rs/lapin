@@ -23,6 +23,7 @@ impl Default for ConnectionProperties {
 }
 
 impl ConnectionProperties {
+    #[must_use]
     pub fn with_connection_name(mut self, connection_name: LongString) -> Self {
         self.client_properties.insert(
             "connection_name".into(),
@@ -31,11 +32,13 @@ impl ConnectionProperties {
         self
     }
 
+    #[must_use]
     pub fn with_executor<E: FullExecutor + Send + Sync + 'static>(mut self, executor: E) -> Self {
         self.executor = Some(Arc::new(executor));
         self
     }
 
+    #[must_use]
     pub fn with_reactor<R: Reactor + Send + Sync + 'static>(mut self, reactor: R) -> Self {
         self.reactor = Some(Arc::new(reactor));
         self
