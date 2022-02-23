@@ -159,13 +159,10 @@ impl IoLoop {
                     let mut readable_context = Context::from_waker(&readable_waker);
                     let writable_waker = self.writable_waker();
                     let mut writable_context = Context::from_waker(&writable_waker);
-                    let noop_waker = waker_fn::waker_fn(|| {});
-                    let mut noop_context = Context::from_waker(&noop_waker);
                     while self.should_continue() {
                         if let Err(err) = self.run(
                             &mut readable_context,
                             &mut writable_context,
-                            &mut noop_context,
                         ) {
                             self.critical_error(err)?;
                         }
@@ -193,7 +190,6 @@ impl IoLoop {
         &mut self,
         readable_context: &mut Context<'_>,
         writable_context: &mut Context<'_>,
-        noop_context: &mut Context<'_>,
     ) -> Result<()> {
         trace!("io_loop run");
         self.poll_socket_events();
@@ -211,7 +207,7 @@ impl IoLoop {
             self.socket_state.wait();
         }
         self.poll_socket_events();
-        self.attempt_flush(noop_context)?;
+        self.attempt_flush(writable_context)?;
         self.write(writable_context)?;
         self.check_connection_state();
         if self.should_continue() {
@@ -243,8 +239,8 @@ impl IoLoop {
         Err(error)
     }
 
-    fn attempt_flush(&mut self, noop_context: &mut Context<'_>) -> Result<()> {
-        let res = self.flush(noop_context);
+    fn attempt_flush(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
+        let res = self.flush(writable_context);
         self.handle_io_result(res)
     }
 
