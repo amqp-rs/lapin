@@ -2,6 +2,88 @@ pub mod options {
     use super::*;
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicQosOptions {
+        #[serde(default)]
+        pub global: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicConsumeOptions {
+        #[serde(default)]
+        pub no_local: Boolean,
+        #[serde(default)]
+        pub no_ack: Boolean,
+        #[serde(default)]
+        pub exclusive: Boolean,
+        #[serde(default)]
+        pub nowait: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicCancelOptions {
+        #[serde(default)]
+        pub nowait: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicPublishOptions {
+        #[serde(default)]
+        pub mandatory: Boolean,
+        #[serde(default)]
+        pub immediate: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicDeliverOptions {
+        #[serde(default)]
+        pub redelivered: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicGetOptions {
+        #[serde(default)]
+        pub no_ack: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicGetOkOptions {
+        #[serde(default)]
+        pub redelivered: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicAckOptions {
+        #[serde(default)]
+        pub multiple: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicRejectOptions {
+        #[serde(default)]
+        pub requeue: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicRecoverAsyncOptions {
+        #[serde(default)]
+        pub requeue: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicRecoverOptions {
+        #[serde(default)]
+        pub requeue: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+    pub struct BasicNackOptions {
+        #[serde(default)]
+        pub multiple: Boolean,
+        #[serde(default)]
+        pub requeue: Boolean,
+    }
+
+    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ChannelFlowOptions {
         #[serde(default)]
         pub active: Boolean,
@@ -98,88 +180,6 @@ pub mod options {
     }
 
     #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicQosOptions {
-        #[serde(default)]
-        pub global: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicConsumeOptions {
-        #[serde(default)]
-        pub no_local: Boolean,
-        #[serde(default)]
-        pub no_ack: Boolean,
-        #[serde(default)]
-        pub exclusive: Boolean,
-        #[serde(default)]
-        pub nowait: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicCancelOptions {
-        #[serde(default)]
-        pub nowait: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicPublishOptions {
-        #[serde(default)]
-        pub mandatory: Boolean,
-        #[serde(default)]
-        pub immediate: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicDeliverOptions {
-        #[serde(default)]
-        pub redelivered: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicGetOptions {
-        #[serde(default)]
-        pub no_ack: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicGetOkOptions {
-        #[serde(default)]
-        pub redelivered: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicAckOptions {
-        #[serde(default)]
-        pub multiple: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicRejectOptions {
-        #[serde(default)]
-        pub requeue: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicRecoverAsyncOptions {
-        #[serde(default)]
-        pub requeue: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicRecoverOptions {
-        #[serde(default)]
-        pub requeue: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-    pub struct BasicNackOptions {
-        #[serde(default)]
-        pub multiple: Boolean,
-        #[serde(default)]
-        pub requeue: Boolean,
-    }
-
-    #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct ConfirmSelectOptions {
         #[serde(default)]
         pub nowait: Boolean,
@@ -191,6 +191,22 @@ use options::*;
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum Reply {
+    BasicQosOk(PromiseResolver<()>),
+    BasicConsumeOk(
+        PromiseResolver<Consumer>,
+        Option<Arc<ChannelCloser>>,
+        ShortString,
+        BasicConsumeOptions,
+        FieldTable,
+        Option<Consumer>,
+    ),
+    BasicCancelOk(PromiseResolver<()>),
+    BasicGetOk(
+        PromiseResolver<Option<BasicGetMessage>>,
+        ShortString,
+        BasicGetOptions,
+    ),
+    BasicRecoverOk(PromiseResolver<()>),
     ConnectionOpenOk(PromiseResolver<()>, Connection),
     ConnectionCloseOk(PromiseResolver<()>),
     ConnectionUpdateSecretOk(PromiseResolver<()>),
@@ -237,22 +253,6 @@ pub(crate) enum Reply {
         ShortString,
         FieldTable,
     ),
-    BasicQosOk(PromiseResolver<()>),
-    BasicConsumeOk(
-        PromiseResolver<Consumer>,
-        Option<Arc<ChannelCloser>>,
-        ShortString,
-        BasicConsumeOptions,
-        FieldTable,
-        Option<Consumer>,
-    ),
-    BasicCancelOk(PromiseResolver<()>),
-    BasicGetOk(
-        PromiseResolver<Option<BasicGetMessage>>,
-        ShortString,
-        BasicGetOptions,
-    ),
-    BasicRecoverOk(PromiseResolver<()>),
     TxSelectOk(PromiseResolver<()>),
     TxCommitOk(PromiseResolver<()>),
     TxRollbackOk(PromiseResolver<()>),
@@ -262,6 +262,31 @@ pub(crate) enum Reply {
 impl Channel {
     pub(crate) fn receive_method(&self, method: AMQPClass) -> Result<()> {
         match method {
+            AMQPClass::Basic(protocol::basic::AMQPMethod::QosOk(m)) => self.receive_basic_qos_ok(m),
+            AMQPClass::Basic(protocol::basic::AMQPMethod::ConsumeOk(m)) => {
+                self.receive_basic_consume_ok(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(m)) => {
+                self.receive_basic_cancel(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(m)) => {
+                self.receive_basic_cancel_ok(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::Return(m)) => {
+                self.receive_basic_return(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::Deliver(m)) => {
+                self.receive_basic_deliver(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::GetOk(m)) => self.receive_basic_get_ok(m),
+            AMQPClass::Basic(protocol::basic::AMQPMethod::GetEmpty(m)) => {
+                self.receive_basic_get_empty(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(m)) => self.receive_basic_ack(m),
+            AMQPClass::Basic(protocol::basic::AMQPMethod::RecoverOk(m)) => {
+                self.receive_basic_recover_ok(m)
+            }
+            AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(m)) => self.receive_basic_nack(m),
             AMQPClass::Connection(protocol::connection::AMQPMethod::Start(m)) => {
                 self.receive_connection_start(m)
             }
@@ -334,31 +359,6 @@ impl Channel {
             AMQPClass::Queue(protocol::queue::AMQPMethod::UnbindOk(m)) => {
                 self.receive_queue_unbind_ok(m)
             }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::QosOk(m)) => self.receive_basic_qos_ok(m),
-            AMQPClass::Basic(protocol::basic::AMQPMethod::ConsumeOk(m)) => {
-                self.receive_basic_consume_ok(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(m)) => {
-                self.receive_basic_cancel(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(m)) => {
-                self.receive_basic_cancel_ok(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::Return(m)) => {
-                self.receive_basic_return(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::Deliver(m)) => {
-                self.receive_basic_deliver(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::GetOk(m)) => self.receive_basic_get_ok(m),
-            AMQPClass::Basic(protocol::basic::AMQPMethod::GetEmpty(m)) => {
-                self.receive_basic_get_empty(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(m)) => self.receive_basic_ack(m),
-            AMQPClass::Basic(protocol::basic::AMQPMethod::RecoverOk(m)) => {
-                self.receive_basic_recover_ok(m)
-            }
-            AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(m)) => self.receive_basic_nack(m),
             AMQPClass::Tx(protocol::tx::AMQPMethod::SelectOk(m)) => self.receive_tx_select_ok(m),
             AMQPClass::Tx(protocol::tx::AMQPMethod::CommitOk(m)) => self.receive_tx_commit_ok(m),
             AMQPClass::Tx(protocol::tx::AMQPMethod::RollbackOk(m)) => {
@@ -378,6 +378,507 @@ impl Channel {
         }
     }
 
+    pub async fn basic_qos(
+        &self,
+        prefetch_count: ShortUInt,
+        options: BasicQosOptions,
+    ) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicQosOptions { global } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
+            prefetch_count,
+            global,
+        }));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.qos".into());
+        }
+        let ((promise, resolver), promise_out) = (Promise::new(), promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.qos.Ok".into());
+        }
+        self.send_method_frame(
+            method,
+            send_resolver,
+            Some(ExpectedReply(
+                Reply::BasicQosOk(resolver.clone()),
+                Box::new(resolver),
+            )),
+        );
+        promise_out.await?;
+        promise.await
+    }
+    fn receive_basic_qos_ok(&self, method: protocol::basic::QosOk) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicQosOk(..)))
+        {
+            Some(Reply::BasicQosOk(resolver)) => {
+                let res = Ok(());
+                resolver.swear(res.clone());
+                res
+            }
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic qos-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
+        }
+    }
+    async fn do_basic_consume(
+        &self,
+        queue: &str,
+        consumer_tag: &str,
+        options: BasicConsumeOptions,
+        arguments: FieldTable,
+        original: Option<Consumer>,
+    ) -> Result<Consumer> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let creation_arguments = arguments.clone();
+        let BasicConsumeOptions {
+            no_local,
+            no_ack,
+            exclusive,
+            nowait,
+        } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Consume(
+            protocol::basic::Consume {
+                queue: queue.into(),
+                consumer_tag: consumer_tag.into(),
+                no_local,
+                no_ack,
+                exclusive,
+                nowait,
+                arguments,
+            },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.consume".into());
+        }
+        let ((promise, resolver), promise_out) = (Promise::new(), promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.consume.Ok".into());
+        }
+        self.send_method_frame(
+            method,
+            send_resolver,
+            Some(ExpectedReply(
+                Reply::BasicConsumeOk(
+                    resolver.clone(),
+                    self.channel_closer.clone(),
+                    queue.into(),
+                    options,
+                    creation_arguments,
+                    original,
+                ),
+                Box::new(resolver),
+            )),
+        );
+        if nowait {
+            self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
+                consumer_tag: consumer_tag.into(),
+            })?;
+        }
+        promise_out.await?;
+        promise.await
+    }
+    fn receive_basic_consume_ok(&self, method: protocol::basic::ConsumeOk) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicConsumeOk(..))
+        }) {
+            Some(Reply::BasicConsumeOk(
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+                original,
+            )) => self.on_basic_consume_ok_received(
+                method,
+                resolver,
+                channel_closer,
+                queue,
+                options,
+                creation_arguments,
+                original,
+            ),
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic consume-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
+        }
+    }
+    pub async fn basic_cancel(
+        &self,
+        consumer_tag: &str,
+        options: BasicCancelOptions,
+    ) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        self.before_basic_cancel(consumer_tag);
+        let BasicCancelOptions { nowait } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
+            protocol::basic::Cancel {
+                consumer_tag: consumer_tag.into(),
+                nowait,
+            },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.cancel".into());
+        }
+        let ((promise, resolver), promise_out) = (Promise::new(), promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.cancel.Ok".into());
+        }
+        self.send_method_frame(
+            method,
+            send_resolver,
+            Some(ExpectedReply(
+                Reply::BasicCancelOk(resolver.clone()),
+                Box::new(resolver),
+            )),
+        );
+        if nowait {
+            self.receive_basic_cancel_ok(protocol::basic::CancelOk {
+                consumer_tag: consumer_tag.into(),
+            })?;
+        }
+        promise_out.await?;
+        promise.await
+    }
+    fn receive_basic_cancel(&self, method: protocol::basic::Cancel) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_cancel_received(method)
+    }
+    async fn basic_cancel_ok(&self, consumer_tag: &str) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(
+            protocol::basic::CancelOk {
+                consumer_tag: consumer_tag.into(),
+            },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.cancel-ok".into());
+        }
+        self.send_method_frame(method, send_resolver, None);
+        promise.await
+    }
+    fn receive_basic_cancel_ok(&self, method: protocol::basic::CancelOk) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicCancelOk(..))
+        }) {
+            Some(Reply::BasicCancelOk(resolver)) => {
+                let res = self.on_basic_cancel_ok_received(method);
+                resolver.swear(res.clone());
+                res
+            }
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic cancel-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
+        }
+    }
+    pub async fn basic_publish(
+        &self,
+        exchange: &str,
+        routing_key: &str,
+        options: BasicPublishOptions,
+        payload: &[u8],
+        properties: BasicProperties,
+    ) -> Result<PublisherConfirm> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let start_hook_res = self.before_basic_publish();
+        let BasicPublishOptions {
+            mandatory,
+            immediate,
+        } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Publish(
+            protocol::basic::Publish {
+                exchange: exchange.into(),
+                routing_key: routing_key.into(),
+                mandatory,
+                immediate,
+            },
+        ));
+
+        self.send_method_frame_with_body(method, payload, properties, start_hook_res)
+            .await
+    }
+    fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_return_received(method)
+    }
+    fn receive_basic_deliver(&self, method: protocol::basic::Deliver) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_deliver_received(method)
+    }
+    async fn do_basic_get(
+        &self,
+        queue: &str,
+        options: BasicGetOptions,
+        original: Option<PromiseResolver<Option<BasicGetMessage>>>,
+    ) -> Result<Option<BasicGetMessage>> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicGetOptions { no_ack } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Get(protocol::basic::Get {
+            queue: queue.into(),
+            no_ack,
+        }));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.get".into());
+        }
+        let ((promise, resolver), promise_out) = (Promise::new(), promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.get.Ok".into());
+        }
+        let resolver = original.unwrap_or(resolver);
+        self.send_method_frame(
+            method,
+            send_resolver,
+            Some(ExpectedReply(
+                Reply::BasicGetOk(resolver.clone(), queue.into(), options),
+                Box::new(resolver),
+            )),
+        );
+        promise_out.await?;
+        promise.await
+    }
+    fn receive_basic_get_ok(&self, method: protocol::basic::GetOk) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        match self
+            .frames
+            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
+        {
+            Some(Reply::BasicGetOk(resolver, queue, options)) => {
+                self.on_basic_get_ok_received(method, resolver, queue, options)
+            }
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic get-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
+        }
+    }
+    fn receive_basic_get_empty(&self, method: protocol::basic::GetEmpty) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_get_empty_received(method)
+    }
+    pub async fn basic_ack(
+        &self,
+        delivery_tag: LongLongUInt,
+        options: BasicAckOptions,
+    ) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicAckOptions { multiple } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
+            delivery_tag,
+            multiple,
+        }));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.ack".into());
+        }
+        self.send_method_frame(method, send_resolver, None);
+        self.on_basic_ack_sent(multiple, delivery_tag);
+        promise.await
+    }
+    fn receive_basic_ack(&self, method: protocol::basic::Ack) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_ack_received(method)
+    }
+    pub async fn basic_reject(
+        &self,
+        delivery_tag: LongLongUInt,
+        options: BasicRejectOptions,
+    ) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicRejectOptions { requeue } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
+            protocol::basic::Reject {
+                delivery_tag,
+                requeue,
+            },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.reject".into());
+        }
+        self.send_method_frame(method, send_resolver, None);
+        promise.await
+    }
+    pub async fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicRecoverAsyncOptions { requeue } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::RecoverAsync(
+            protocol::basic::RecoverAsync { requeue },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.recover-async".into());
+        }
+        self.send_method_frame(method, send_resolver, None);
+        self.on_basic_recover_async_sent();
+        promise.await
+    }
+    pub async fn basic_recover(&self, options: BasicRecoverOptions) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicRecoverOptions { requeue } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Recover(
+            protocol::basic::Recover { requeue },
+        ));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.recover".into());
+        }
+        let ((promise, resolver), promise_out) = (Promise::new(), promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.recover.Ok".into());
+        }
+        self.send_method_frame(
+            method,
+            send_resolver,
+            Some(ExpectedReply(
+                Reply::BasicRecoverOk(resolver.clone()),
+                Box::new(resolver),
+            )),
+        );
+        promise_out.await?;
+        promise.await
+    }
+    fn receive_basic_recover_ok(&self, method: protocol::basic::RecoverOk) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        match self.frames.find_expected_reply(self.id, |reply| {
+            matches!(&reply.0, Reply::BasicRecoverOk(..))
+        }) {
+            Some(Reply::BasicRecoverOk(resolver)) => {
+                let res = self.on_basic_recover_ok_received();
+                resolver.swear(res.clone());
+                res
+            }
+            unexpected => self.handle_invalid_contents(
+                format!(
+                    "unexpected basic recover-ok received on channel {}, was awaiting for {:?}",
+                    self.id, unexpected
+                ),
+                method.get_amqp_class_id(),
+                method.get_amqp_method_id(),
+            ),
+        }
+    }
+    pub async fn basic_nack(
+        &self,
+        delivery_tag: LongLongUInt,
+        options: BasicNackOptions,
+    ) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+
+        let BasicNackOptions { multiple, requeue } = options;
+        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
+            delivery_tag,
+            multiple,
+            requeue,
+        }));
+
+        let (promise, send_resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.nack".into());
+        }
+        self.send_method_frame(method, send_resolver, None);
+        self.on_basic_nack_sent(multiple, delivery_tag);
+        promise.await
+    }
+    fn receive_basic_nack(&self, method: protocol::basic::Nack) -> Result<()> {
+        if !self.status.can_receive_messages() {
+            return Err(Error::InvalidChannelState(self.status.state()));
+        }
+        self.on_basic_nack_received(method)
+    }
     fn receive_connection_start(&self, method: protocol::connection::Start) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
@@ -712,18 +1213,17 @@ impl Channel {
             return Err(Error::InvalidChannelState(self.status.state()));
         }
 
-        match self.frames.find_expected_reply(self.id, |reply| {
-            matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))
-        }) {
-            Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            },
-            unexpected => {
-                self.handle_invalid_contents(format!("unexpected connection update-secret-ok received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
-            },
-        }
+        match self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))){
+      Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
+        let res =        Ok(())
+;
+        resolver.swear(res.clone());
+        res
+},
+      unexpected => {
+        self.handle_invalid_contents(format!("unexpected connection update-secret-ok received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
+      },
+    }
     }
     pub(crate) async fn channel_open(&self, channel: Channel) -> Result<Channel> {
         if !self.status.initializing() {
@@ -1688,507 +2188,6 @@ impl Channel {
                 method.get_amqp_method_id(),
             ),
         }
-    }
-    pub async fn basic_qos(
-        &self,
-        prefetch_count: ShortUInt,
-        options: BasicQosOptions,
-    ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicQosOptions { global } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
-            prefetch_count,
-            global,
-        }));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.qos".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.qos.Ok".into());
-        }
-        self.send_method_frame(
-            method,
-            send_resolver,
-            Some(ExpectedReply(
-                Reply::BasicQosOk(resolver.clone()),
-                Box::new(resolver),
-            )),
-        );
-        promise_out.await?;
-        promise.await
-    }
-    fn receive_basic_qos_ok(&self, method: protocol::basic::QosOk) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        match self
-            .frames
-            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicQosOk(..)))
-        {
-            Some(Reply::BasicQosOk(resolver)) => {
-                let res = Ok(());
-                resolver.swear(res.clone());
-                res
-            }
-            unexpected => self.handle_invalid_contents(
-                format!(
-                    "unexpected basic qos-ok received on channel {}, was awaiting for {:?}",
-                    self.id, unexpected
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
-        }
-    }
-    async fn do_basic_consume(
-        &self,
-        queue: &str,
-        consumer_tag: &str,
-        options: BasicConsumeOptions,
-        arguments: FieldTable,
-        original: Option<Consumer>,
-    ) -> Result<Consumer> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let creation_arguments = arguments.clone();
-        let BasicConsumeOptions {
-            no_local,
-            no_ack,
-            exclusive,
-            nowait,
-        } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Consume(
-            protocol::basic::Consume {
-                queue: queue.into(),
-                consumer_tag: consumer_tag.into(),
-                no_local,
-                no_ack,
-                exclusive,
-                nowait,
-                arguments,
-            },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.consume".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.consume.Ok".into());
-        }
-        self.send_method_frame(
-            method,
-            send_resolver,
-            Some(ExpectedReply(
-                Reply::BasicConsumeOk(
-                    resolver.clone(),
-                    self.channel_closer.clone(),
-                    queue.into(),
-                    options,
-                    creation_arguments,
-                    original,
-                ),
-                Box::new(resolver),
-            )),
-        );
-        if nowait {
-            self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
-                consumer_tag: consumer_tag.into(),
-            })?;
-        }
-        promise_out.await?;
-        promise.await
-    }
-    fn receive_basic_consume_ok(&self, method: protocol::basic::ConsumeOk) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        match self.frames.find_expected_reply(self.id, |reply| {
-            matches!(&reply.0, Reply::BasicConsumeOk(..))
-        }) {
-            Some(Reply::BasicConsumeOk(
-                resolver,
-                channel_closer,
-                queue,
-                options,
-                creation_arguments,
-                original,
-            )) => self.on_basic_consume_ok_received(
-                method,
-                resolver,
-                channel_closer,
-                queue,
-                options,
-                creation_arguments,
-                original,
-            ),
-            unexpected => self.handle_invalid_contents(
-                format!(
-                    "unexpected basic consume-ok received on channel {}, was awaiting for {:?}",
-                    self.id, unexpected
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
-        }
-    }
-    pub async fn basic_cancel(
-        &self,
-        consumer_tag: &str,
-        options: BasicCancelOptions,
-    ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        self.before_basic_cancel(consumer_tag);
-        let BasicCancelOptions { nowait } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
-            protocol::basic::Cancel {
-                consumer_tag: consumer_tag.into(),
-                nowait,
-            },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.cancel".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.cancel.Ok".into());
-        }
-        self.send_method_frame(
-            method,
-            send_resolver,
-            Some(ExpectedReply(
-                Reply::BasicCancelOk(resolver.clone()),
-                Box::new(resolver),
-            )),
-        );
-        if nowait {
-            self.receive_basic_cancel_ok(protocol::basic::CancelOk {
-                consumer_tag: consumer_tag.into(),
-            })?;
-        }
-        promise_out.await?;
-        promise.await
-    }
-    fn receive_basic_cancel(&self, method: protocol::basic::Cancel) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_cancel_received(method)
-    }
-    async fn basic_cancel_ok(&self, consumer_tag: &str) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(
-            protocol::basic::CancelOk {
-                consumer_tag: consumer_tag.into(),
-            },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.cancel-ok".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        promise.await
-    }
-    fn receive_basic_cancel_ok(&self, method: protocol::basic::CancelOk) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        match self.frames.find_expected_reply(self.id, |reply| {
-            matches!(&reply.0, Reply::BasicCancelOk(..))
-        }) {
-            Some(Reply::BasicCancelOk(resolver)) => {
-                let res = self.on_basic_cancel_ok_received(method);
-                resolver.swear(res.clone());
-                res
-            }
-            unexpected => self.handle_invalid_contents(
-                format!(
-                    "unexpected basic cancel-ok received on channel {}, was awaiting for {:?}",
-                    self.id, unexpected
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
-        }
-    }
-    pub async fn basic_publish(
-        &self,
-        exchange: &str,
-        routing_key: &str,
-        options: BasicPublishOptions,
-        payload: &[u8],
-        properties: BasicProperties,
-    ) -> Result<PublisherConfirm> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let start_hook_res = self.before_basic_publish();
-        let BasicPublishOptions {
-            mandatory,
-            immediate,
-        } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Publish(
-            protocol::basic::Publish {
-                exchange: exchange.into(),
-                routing_key: routing_key.into(),
-                mandatory,
-                immediate,
-            },
-        ));
-
-        self.send_method_frame_with_body(method, payload, properties, start_hook_res)
-            .await
-    }
-    fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_return_received(method)
-    }
-    fn receive_basic_deliver(&self, method: protocol::basic::Deliver) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_deliver_received(method)
-    }
-    async fn do_basic_get(
-        &self,
-        queue: &str,
-        options: BasicGetOptions,
-        original: Option<PromiseResolver<Option<BasicGetMessage>>>,
-    ) -> Result<Option<BasicGetMessage>> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicGetOptions { no_ack } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Get(protocol::basic::Get {
-            queue: queue.into(),
-            no_ack,
-        }));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.get".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.get.Ok".into());
-        }
-        let resolver = original.unwrap_or(resolver);
-        self.send_method_frame(
-            method,
-            send_resolver,
-            Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone(), queue.into(), options),
-                Box::new(resolver),
-            )),
-        );
-        promise_out.await?;
-        promise.await
-    }
-    fn receive_basic_get_ok(&self, method: protocol::basic::GetOk) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        match self
-            .frames
-            .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
-        {
-            Some(Reply::BasicGetOk(resolver, queue, options)) => {
-                self.on_basic_get_ok_received(method, resolver, queue, options)
-            }
-            unexpected => self.handle_invalid_contents(
-                format!(
-                    "unexpected basic get-ok received on channel {}, was awaiting for {:?}",
-                    self.id, unexpected
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
-        }
-    }
-    fn receive_basic_get_empty(&self, method: protocol::basic::GetEmpty) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_get_empty_received(method)
-    }
-    pub async fn basic_ack(
-        &self,
-        delivery_tag: LongLongUInt,
-        options: BasicAckOptions,
-    ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicAckOptions { multiple } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
-            delivery_tag,
-            multiple,
-        }));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.ack".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        self.on_basic_ack_sent(multiple, delivery_tag);
-        promise.await
-    }
-    fn receive_basic_ack(&self, method: protocol::basic::Ack) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_ack_received(method)
-    }
-    pub async fn basic_reject(
-        &self,
-        delivery_tag: LongLongUInt,
-        options: BasicRejectOptions,
-    ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicRejectOptions { requeue } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
-            protocol::basic::Reject {
-                delivery_tag,
-                requeue,
-            },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.reject".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        promise.await
-    }
-    pub async fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicRecoverAsyncOptions { requeue } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::RecoverAsync(
-            protocol::basic::RecoverAsync { requeue },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.recover-async".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        self.on_basic_recover_async_sent();
-        promise.await
-    }
-    pub async fn basic_recover(&self, options: BasicRecoverOptions) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicRecoverOptions { requeue } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Recover(
-            protocol::basic::Recover { requeue },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.recover".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.recover.Ok".into());
-        }
-        self.send_method_frame(
-            method,
-            send_resolver,
-            Some(ExpectedReply(
-                Reply::BasicRecoverOk(resolver.clone()),
-                Box::new(resolver),
-            )),
-        );
-        promise_out.await?;
-        promise.await
-    }
-    fn receive_basic_recover_ok(&self, method: protocol::basic::RecoverOk) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        match self.frames.find_expected_reply(self.id, |reply| {
-            matches!(&reply.0, Reply::BasicRecoverOk(..))
-        }) {
-            Some(Reply::BasicRecoverOk(resolver)) => {
-                let res = self.on_basic_recover_ok_received();
-                resolver.swear(res.clone());
-                res
-            }
-            unexpected => self.handle_invalid_contents(
-                format!(
-                    "unexpected basic recover-ok received on channel {}, was awaiting for {:?}",
-                    self.id, unexpected
-                ),
-                method.get_amqp_class_id(),
-                method.get_amqp_method_id(),
-            ),
-        }
-    }
-    pub async fn basic_nack(
-        &self,
-        delivery_tag: LongLongUInt,
-        options: BasicNackOptions,
-    ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-
-        let BasicNackOptions { multiple, requeue } = options;
-        let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
-            delivery_tag,
-            multiple,
-            requeue,
-        }));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.nack".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        self.on_basic_nack_sent(multiple, delivery_tag);
-        promise.await
-    }
-    fn receive_basic_nack(&self, method: protocol::basic::Nack) -> Result<()> {
-        if !self.status.can_receive_messages() {
-            return Err(Error::InvalidChannelState(self.status.state()));
-        }
-        self.on_basic_nack_received(method)
     }
     pub async fn tx_select(&self) -> Result<()> {
         if !self.status.connected() {
