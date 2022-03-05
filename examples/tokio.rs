@@ -9,7 +9,8 @@ use lapin::{
 async fn main() {
     let uri = "amqp://localhost:5672";
     let options = ConnectionProperties::default()
-        // Use tokio executor and reactor
+        // Use tokio executor and reactor.
+        // At the moment the reactor is only available for unix.
         .with_executor(tokio_executor_trait::Tokio::current())
         .with_reactor(tokio_reactor_trait::Tokio);
 
