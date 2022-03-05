@@ -1,0 +1,10 @@
+[package]
+name = "tokio_example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lapin = "2.0.3"
+tokio = { version = "1.17.0", features = ["full"] }
+tokio-executor-trait = "2.1.0"
+tokio-reactor-trait = "1.1.0"
