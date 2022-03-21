@@ -745,8 +745,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.ack".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_basic_ack_sent(multiple, delivery_tag);
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     fn receive_basic_ack(&self, method: protocol::basic::Ack) -> Result<()> {
@@ -793,8 +793,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover-async".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_basic_recover_async_sent();
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     pub async fn basic_recover(&self, options: BasicRecoverOptions) -> Result<()> {
@@ -869,8 +869,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.nack".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_basic_nack_sent(multiple, delivery_tag);
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     fn receive_basic_nack(&self, method: protocol::basic::Nack) -> Result<()> {
@@ -913,8 +913,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.start-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_connection_start_ok_sent(resolver, connection, credentials);
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
@@ -998,6 +998,7 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.open.Ok".into());
         }
+        self.on_connection_open_sent(conn_resolver);
         self.send_method_frame(
             method,
             send_resolver,
@@ -1006,7 +1007,6 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
-        self.on_connection_open_sent(conn_resolver);
         promise_out.await?;
         promise.await
     }
@@ -1093,8 +1093,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_connection_close_ok_sent(error);
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     fn receive_connection_close_ok(&self, method: protocol::connection::CloseOk) -> Result<()> {
@@ -1406,8 +1406,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
         self.on_channel_close_ok_sent(error);
+        self.send_method_frame(method, send_resolver, None);
         promise.await
     }
     fn receive_channel_close_ok(&self, method: protocol::channel::CloseOk) -> Result<()> {
