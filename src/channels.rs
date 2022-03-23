@@ -136,6 +136,9 @@ impl Channels {
         }
 
         error!(%error, "Connection error");
+        if let Some(resolver) = self.connection_status.connection_resolver() {
+            resolver.swear(Err(error.clone()));
+        }
         self.connection_status.set_state(ConnectionState::Error);
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
