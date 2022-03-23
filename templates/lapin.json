@@ -19,7 +19,7 @@
             "type": "Credentials"
           }
         ],
-        "end_hook": {
+        "send_hook": {
           "params": ["resolver", "connection", "credentials"]
         }
       }
@@ -43,7 +43,7 @@
             "type": "PromiseResolver<Connection>"
           }
         ],
-        "end_hook": {
+        "send_hook": {
           "params": ["conn_resolver"]
         }
       }

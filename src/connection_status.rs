@@ -168,9 +168,9 @@ impl Inner {
     fn connection_step_name(&self) -> Option<&'static str> {
         if let ConnectionState::Connecting = self.state {
             self.connection_step.as_ref().map(|step| match step {
-                    ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
-                    ConnectionStep::StartOk(..) => "StartOk",
-                    ConnectionStep::Open(..) => "Open",
+                ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
+                ConnectionStep::StartOk(..) => "StartOk",
+                ConnectionStep::Open(..) => "Open",
             })
         } else {
             None

@@ -526,7 +526,7 @@ impl Channel {
         Err(Error::ProtocolError(err))
     }
 
-    fn on_connection_start_ok_sent(
+    fn before_connection_start_ok(
         &self,
         resolver: PromiseResolver<Connection>,
         connection: Connection,
@@ -536,7 +536,7 @@ impl Channel {
             .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
     }
 
-    fn on_connection_open_sent(&self, resolver: PromiseResolver<Connection>) {
+    fn before_connection_open(&self, resolver: PromiseResolver<Connection>) {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
     }

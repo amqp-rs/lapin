@@ -913,8 +913,8 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.start-ok".into());
         }
+        self.before_connection_start_ok(resolver, connection, credentials);
         self.send_method_frame(method, send_resolver, None);
-        self.on_connection_start_ok_sent(resolver, connection, credentials);
         promise.await
     }
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
@@ -998,6 +998,7 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.open.Ok".into());
         }
+        self.before_connection_open(conn_resolver);
         self.send_method_frame(
             method,
             send_resolver,
@@ -1006,7 +1007,6 @@ impl Channel {
                 Box::new(resolver),
             )),
         );
-        self.on_connection_open_sent(conn_resolver);
         promise_out.await?;
         promise.await
     }
