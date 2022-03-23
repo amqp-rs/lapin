@@ -31,6 +31,10 @@ impl ConnectionStatus {
         resolver.map(|(resolver, _connection)| resolver)
     }
 
+    pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
+        self.0.lock().connection_step_name()
+    }
+
     pub fn vhost(&self) -> String {
         self.0.lock().vhost.clone()
     }
@@ -156,6 +160,18 @@ impl Inner {
                     }
                     ConnectionStep::Open(resolver, ..) => (resolver, None),
                 })
+        } else {
+            None
+        }
+    }
+
+    fn connection_step_name(&self) -> Option<&'static str> {
+        if let ConnectionState::Connecting = self.state {
+            self.connection_step.as_ref().map(|step| match step {
+                    ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
+                    ConnectionStep::StartOk(..) => "StartOk",
+                    ConnectionStep::Open(..) => "Open",
+            })
         } else {
             None
         }

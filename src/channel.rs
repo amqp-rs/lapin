@@ -620,6 +620,7 @@ impl Channel {
     fn on_connection_start_received(&self, method: protocol::connection::Start) -> Result<()> {
         trace!(?method, "Server sent connection::Start");
         let state = self.connection_status.state();
+        let step = self.connection_status.connection_step_name();
         if let (
             ConnectionState::Connecting,
             Some(ConnectionStep::ProtocolHeader(
@@ -699,7 +700,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!(?state, "Invalid state");
+            error!(?state, ?step, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -710,6 +711,7 @@ impl Channel {
         trace!(?method, "Server sent connection::Secure");
 
         let state = self.connection_status.state();
+        let step = self.connection_status.connection_step_name();
         if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
             (state.clone(), self.connection_status.connection_step())
         {
@@ -721,7 +723,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!(?state, "Invalid state");
+            error!(?state, ?step, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -732,6 +734,7 @@ impl Channel {
         trace!(?method, "Server sent Connection::Tune");
 
         let state = self.connection_status.state();
+        let step = self.connection_status.connection_step_name();
         if let (
             ConnectionState::Connecting,
             Some(ConnectionStep::StartOk(resolver, connection, _)),
@@ -758,7 +761,7 @@ impl Channel {
             });
             Ok(())
         } else {
-            error!(?state, "Invalid state");
+            error!(?state, ?step, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
@@ -771,6 +774,7 @@ impl Channel {
         connection: Connection,
     ) -> Result<()> {
         let state = self.connection_status.state();
+        let step = self.connection_status.connection_step_name();
         if let (ConnectionState::Connecting, Some(ConnectionStep::Open(resolver))) =
             (state.clone(), self.connection_status.connection_step())
         {
@@ -778,7 +782,7 @@ impl Channel {
             resolver.swear(Ok(connection));
             Ok(())
         } else {
-            error!(?state, "Invalid state");
+            error!(?state, ?step, "Invalid state");
             let error = Error::InvalidConnectionState(state);
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
