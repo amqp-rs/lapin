@@ -805,9 +805,10 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 Error::InvalidConnectionState(ConnectionState::Closed)
             });
+        let connection_resolver = self.connection_status.connection_resolver();
         self.internal_rpc.set_connection_closing();
         self.frames.drop_pending(error.clone());
-        if let Some(resolver) = self.connection_status.connection_resolver() {
+        if let Some(resolver) = connection_resolver {
             resolver.swear(Err(error.clone()));
         }
         self.internal_rpc.send_connection_close_ok(error);
