@@ -1,3 +1,9 @@
+### 2.1.1 (2022-04-08)
+
+#### Bug Fixes
+
+Fix potential race condition on connection error
+
 ### 2.1.0 (2022-03-23)
 
 #### Bug Fixes
