@@ -379,8 +379,16 @@ impl Connection {
             uri.query.auth_mechanism.unwrap_or_default(),
             options,
         ));
-        let stream = connect_promise.await?;
-        let stream = reactor.register(IOHandle::new(stream))?.into();
+        let stream = connect_promise
+            .await
+            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
+            .map_err(|error| {
+                if let Some(resolver) = status.connection_resolver() {
+                    resolver.swear(Err(error.clone()));
+                }
+                error
+            })?
+            .into();
         let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
