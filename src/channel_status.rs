@@ -112,8 +112,9 @@ impl ChannelStatus {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ChannelState {
+    #[default]
     Initial,
     Connected,
     Closing,
@@ -121,11 +122,7 @@ pub enum ChannelState {
     Error,
 }
 
-impl Default for ChannelState {
-    fn default() -> Self {
-        ChannelState::Initial
-    }
-}
+
 
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -75,8 +75,8 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Error::IOError(e) => Some(&**e),
-            Error::ParsingError(e) => Some(&*e),
-            Error::ProtocolError(e) => Some(&*e),
+            Error::ParsingError(e) => Some(e),
+            Error::ProtocolError(e) => Some(e),
             Error::SerialisationError(e) => Some(&**e),
             _ => None,
         }
