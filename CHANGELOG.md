@@ -1,3 +1,9 @@
+### 2.1.2 (2023-05-18)
+
+#### Bug Fixes
+
+Fix memory leak on connection failure
+
 ### 2.1.1 (2022-04-08)
 
 #### Bug Fixes
