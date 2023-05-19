@@ -9,6 +9,7 @@ use crate::{
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
+    error_handler::ErrorHandler,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -54,6 +55,7 @@ pub struct Channel {
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
+    error_handler: ErrorHandler,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
@@ -118,6 +120,7 @@ impl Channel {
             waker,
             internal_rpc,
             frames,
+            error_handler: ErrorHandler::default(),
             executor,
             channel_closer,
             connection_closer,
@@ -126,6 +129,10 @@ impl Channel {
 
     pub fn status(&self) -> &ChannelStatus {
         &self.status
+    }
+
+    pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
+        self.error_handler.set_handler(handler);
     }
 
     pub(crate) fn reset(&self) {
@@ -217,7 +224,8 @@ impl Channel {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone());
-        self.internal_rpc.remove_channel(self.id, error);
+        self.internal_rpc.remove_channel(self.id, error.clone());
+        self.error_handler.on_error(error);
     }
 
     pub(crate) fn error_publisher_confirms(&self, error: Error) {
@@ -255,6 +263,7 @@ impl Channel {
             waker: self.waker.clone(),
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
+            error_handler: self.error_handler.clone(),
             executor: self.executor.clone(),
             channel_closer: None,
             connection_closer: self.connection_closer.clone(),
@@ -559,7 +568,8 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Error) {
-        self.set_closed(error);
+        self.set_closed(error.clone());
+        self.error_handler.on_error(error);
     }
 
     fn on_basic_recover_async_sent(&self) {
