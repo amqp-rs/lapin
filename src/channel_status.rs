@@ -122,8 +122,6 @@ pub enum ChannelState {
     Error,
 }
 
-
-
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ChannelStatus");

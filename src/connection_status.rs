@@ -107,8 +107,6 @@ pub enum ConnectionState {
     Error,
 }
 
-
-
 impl fmt::Debug for ConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ConnectionStatus");
