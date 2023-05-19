@@ -203,40 +203,40 @@ impl Channel {
         Ok(())
     }
 
-    fn set_closing(&self, error: Option<Error>) {
+    pub(crate) fn set_closing(&self, error: Option<Error>) {
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
             self.error_publisher_confirms(error.clone());
-            self.error_consumers(error); // ignore the error here, only happens with default executor if we cannot spawn a thread
+            self.error_consumers(error); // ignore the returned error here, only happens with default executor if we cannot spawn a thread
         } else {
             self.consumers.start_cancel();
         }
     }
 
-    fn set_closed(&self, error: Error) {
+    pub(crate) fn set_closed(&self, error: Error) {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
         self.cancel_consumers();
         self.internal_rpc.remove_channel(self.id, error);
     }
 
-    fn set_error(&self, error: Error) {
+    // Only called in case of a protocol failure
+    pub(crate) fn set_connection_error(&self, error: Error) {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone());
         self.internal_rpc.remove_channel(self.id, error.clone());
-        self.error_handler.on_error(error);
     }
 
-    pub(crate) fn error_publisher_confirms(&self, error: Error) {
+    fn error_publisher_confirms(&self, error: Error) {
         self.acknowledgements.on_channel_error(error);
     }
 
-    pub(crate) fn cancel_consumers(&self) {
+    fn cancel_consumers(&self) {
         self.consumers.cancel();
     }
 
-    pub(crate) fn error_consumers(&self, error: Error) {
+    fn error_consumers(&self, error: Error) {
         self.consumers.error(error);
     }
 
@@ -464,7 +464,7 @@ impl Channel {
                     0,
                 );
                 let error = Error::ProtocolError(error);
-                self.set_error(error.clone());
+                self.set_connection_error(error.clone());
                 Err(error)
             },
             |msg| self.handle_invalid_contents(msg, class_id, 0),

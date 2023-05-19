@@ -116,7 +116,7 @@ impl Channels {
     pub(crate) fn set_connection_closing(&self) {
         self.connection_status.set_state(ConnectionState::Closing);
         for channel in self.inner.lock().channels.values() {
-            channel.set_state(ChannelState::Closing);
+            channel.set_closing(None);
         }
     }
 
@@ -124,9 +124,7 @@ impl Channels {
         self.connection_status.set_state(ConnectionState::Closed);
         for (id, channel) in self.inner.lock().channels.drain() {
             self.frames.clear_expected_replies(id, error.clone());
-            channel.set_state(ChannelState::Closed);
-            channel.error_publisher_confirms(error.clone());
-            channel.cancel_consumers();
+            channel.set_closed(error.clone());
         }
     }
 
@@ -144,9 +142,7 @@ impl Channels {
         self.error_handler.on_error(error.clone());
         for (id, channel) in self.inner.lock().channels.drain() {
             self.frames.clear_expected_replies(id, error.clone());
-            channel.set_state(ChannelState::Error);
-            channel.error_publisher_confirms(error.clone());
-            channel.error_consumers(error.clone());
+            channel.set_connection_error(error.clone());
         }
     }
 
