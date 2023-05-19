@@ -383,9 +383,10 @@ impl Connection {
             .await
             .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
             .map_err(|error| {
-                if let Some(resolver) = status.connection_resolver() {
-                    resolver.swear(Err(error.clone()));
-                }
+                // We don't actually need the resolver as we already pass it around to the failing
+                // code which will propagate the error. We only want to flush the status internal
+                // state.
+                let _ = status.connection_resolver();
                 error
             })?
             .into();
