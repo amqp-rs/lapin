@@ -1,3 +1,9 @@
+### 2.2.1 (2023-05-19)
+
+#### Bug Fixes
+
+Don't call the channel error hook when we get closed with a non error code
+
 ### 2.2.0 (2023-05-19)
 
 #### Features
