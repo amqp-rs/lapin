@@ -1,3 +1,9 @@
+### 2.1.3 (2023-05-19)
+
+#### Bug Fixes
+
+Don't propagate the same error twice
+
 ### 2.1.2 (2023-05-18)
 
 #### Bug Fixes
