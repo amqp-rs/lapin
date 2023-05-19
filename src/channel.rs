@@ -567,9 +567,15 @@ impl Channel {
         self.set_closing(None);
     }
 
-    fn on_channel_close_ok_sent(&self, error: Error) {
-        self.set_closed(error.clone());
-        self.error_handler.on_error(error);
+    fn on_channel_close_ok_sent(&self, error: Option<Error>) {
+        self.set_closed(
+            error
+                .clone()
+                .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
+        );
+        if let Some(error) = error {
+            self.error_handler.on_error(error);
+        }
     }
 
     fn on_basic_recover_async_sent(&self) {
@@ -888,11 +894,7 @@ impl Channel {
             Error::ProtocolError(error)
         });
         self.set_closing(error.clone().ok());
-        let error = error.unwrap_or_else(|error| {
-            error!(%error);
-            info!(channel=%self.id, ?method, "Channel closed");
-            Error::InvalidChannelState(ChannelState::Closing)
-        });
+        let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
         self.internal_rpc
             .register_internal_future(async move { channel.channel_close_ok(error).await });
