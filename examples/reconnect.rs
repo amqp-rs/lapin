@@ -50,9 +50,10 @@ async fn rabbit_stuff(addr: String) -> Result<()> {
     async_global_executor::spawn(async move {
         info!("will consume");
         while let Some(delivery) = consumer.next().await {
-            let delivery = delivery.expect("error in consumer");
-            delivery.ack(BasicAckOptions::default()).await.expect("ack");
+            let delivery = delivery?;
+            delivery.ack(BasicAckOptions::default()).await?;
         }
+        Ok::<(), lapin::Error>(())
     })
     .detach();
 
