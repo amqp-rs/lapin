@@ -161,7 +161,8 @@ impl IoLoop {
                     let mut writable_context = Context::from_waker(&writable_waker);
                     while self.should_continue() {
                         if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
-                            self.critical_error(err)?;
+                            let _ = self.critical_error(err);
+                            break;
                         }
                     }
                     self.internal_rpc.stop();
