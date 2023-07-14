@@ -1,3 +1,9 @@
+### 2.3.1 (2023-07-14)
+
+#### Misc
+
+* Simplify channels cleanup logic on connection close
+
 ### 2.3.0 (2023-07-14)
 
 #### Bug Fixes
