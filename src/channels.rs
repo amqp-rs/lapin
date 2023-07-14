@@ -122,8 +122,8 @@ impl Channels {
 
     pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        for (id, channel) in self.inner.lock().take_channels().drain() {
-            self.frames.clear_expected_replies(id, error.clone());
+        for (id, channel) in self.inner.lock().channels.iter() {
+            self.frames.clear_expected_replies(*id, error.clone());
             channel.set_closed(error.clone());
         }
     }
@@ -140,8 +140,8 @@ impl Channels {
         self.connection_status.set_state(ConnectionState::Error);
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
-        for (id, channel) in self.inner.lock().take_channels().drain() {
-            self.frames.clear_expected_replies(id, error.clone());
+        for (id, channel) in self.inner.lock().channels.iter() {
+            self.frames.clear_expected_replies(*id, error.clone());
             channel.set_connection_error(error.clone());
         }
     }
@@ -368,14 +368,5 @@ impl Inner {
             id = self.channel_id.next();
         }
         Err(Error::ChannelsLimitReached)
-    }
-
-    fn take_channels(&mut self) -> HashMap<ChannelId, Channel> {
-        let channel0 = self.channels.get(&0).cloned();
-        let channels = std::mem::take(&mut self.channels);
-        if let Some(channel0) = channel0 {
-            self.channels.insert(0, channel0);
-        }
-        channels
     }
 }
