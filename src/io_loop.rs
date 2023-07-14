@@ -159,14 +159,15 @@ impl IoLoop {
                     let mut readable_context = Context::from_waker(&readable_waker);
                     let writable_waker = self.writable_waker();
                     let mut writable_context = Context::from_waker(&writable_waker);
+                    let mut res = Ok(());
                     while self.should_continue() {
                         if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
-                            self.critical_error(err)?;
+                            res = self.critical_error(err);
                         }
                     }
                     self.internal_rpc.stop();
                     self.heartbeat.cancel();
-                    Ok(())
+                    res
                 })?,
         );
         waker.wake();
