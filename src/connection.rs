@@ -387,8 +387,17 @@ impl Connection {
             uri.query.auth_mechanism.unwrap_or_default(),
             options,
         ));
-        let stream = connect_promise.await?;
-        let stream = reactor.register(IOHandle::new(stream))?.into();
+        let stream = connect_promise
+            .await
+            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
+            .map_err(|error| {
+                // We don't actually need the resolver as we already pass it around to the failing
+                // code which will propagate the error. We only want to flush the status internal
+                // state.
+                let _ = status.connection_resolver();
+                error
+            })?
+            .into();
         let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));

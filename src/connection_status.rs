@@ -96,20 +96,15 @@ pub(crate) enum ConnectionStep {
     Open(PromiseResolver<Connection>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum ConnectionState {
+    #[default]
     Initial,
     Connecting,
     Connected,
     Closing,
     Closed,
     Error,
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        ConnectionState::Initial
-    }
 }
 
 impl fmt::Debug for ConnectionStatus {

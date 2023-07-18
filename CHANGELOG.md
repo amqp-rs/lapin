@@ -1,14 +1,51 @@
+### 2.3.1 (2023-07-14)
+
+#### Misc
+
+* Simplify channels cleanup logic on connection close
+
+### 2.3.0 (2023-07-14)
+
+#### Bug Fixes
+
+* Fix an error when finalizing the connection close duz to missing channel 0.
+* Properly cleanup heartbeat sending when connection hit an error.
+
+### 2.2.1 (2023-05-19)
+
+#### Bug Fixes
+
+* Don't call the channel error hook when we get closed with a non error code
+
+### 2.2.0 (2023-05-19)
+
+#### Features
+
+* Introduce `Channel::on_error`
+
+### 2.1.3 (2023-05-19)
+
+#### Bug Fixes
+
+* Don't propagate the same error twice
+
+### 2.1.2 (2023-05-18)
+
+#### Bug Fixes
+
+* Fix memory leak on connection failure
+
 ### 2.1.1 (2022-04-08)
 
 #### Bug Fixes
 
-Fix potential race condition on connection error
+* Fix potential race condition on connection error
 
 ### 2.1.0 (2022-03-23)
 
 #### Bug Fixes
 
-Fix potential race condition on connection opening
+* Fix potential race condition on connection opening
 
 ### 2.0.3 (2022-02-25)
 
