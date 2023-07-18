@@ -296,9 +296,8 @@ impl Connection {
 
         #[cfg(feature = "default-runtime")]
         let executor =
-            executor.unwrap_or_else(|| Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
+            executor.or_else(|| Some(Arc::new(async_global_executor_trait::AsyncGlobalExecutor)));
 
-        #[cfg(not(feature = "default-runtime"))]
         let executor = executor
             .expect("executor should be provided with no default executor feature was enabled");
 
@@ -335,9 +334,8 @@ impl Connection {
         let reactor = options.reactor.take();
 
         #[cfg(feature = "default-runtime")]
-        let reactor = reactor.unwrap_or_else(|| Arc::new(async_reactor_trait::AsyncIo));
+        let reactor = reactor.or_else(|| Some(Arc::new(async_reactor_trait::AsyncIo)));
 
-        #[cfg(not(feature = "default-runtime"))]
         let reactor = reactor
             .expect("reactor should be provided with no default reactor feature was enabled");
 
