@@ -10,10 +10,32 @@
       "name": "trash-queue",
       "arguments": {
         "x-dead-letter-exchange": {
-          "LongString": "test-exchange"
+          "LongString": [
+            116,
+            101,
+            115,
+            116,
+            45,
+            101,
+            120,
+            99,
+            104,
+            97,
+            110,
+            103,
+            101
+          ]
         },
         "x-dead-letter-routing-key": {
-          "LongString": "test-rk"
+          "LongString": [
+            116,
+            101,
+            115,
+            116,
+            45,
+            114,
+            107
+          ]
         },
         "x-message-ttl": {
           "LongUInt": 2000
