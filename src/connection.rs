@@ -292,10 +292,14 @@ impl Connection {
         connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
         mut options: ConnectionProperties,
     ) -> Result<Connection> {
-        let executor = options
-            .executor
-            .take()
-            .unwrap_or_else(|| Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
+        let executor = options.executor.take();
+
+        #[cfg(feature = "default-runtime")]
+        let executor =
+            executor.or_else(|| Some(Arc::new(async_global_executor_trait::AsyncGlobalExecutor)));
+
+        let executor = executor
+            .expect("executor should be provided with no default executor feature was enabled");
 
         let (connect_promise, resolver) = pinky_swear::PinkySwear::<Result<TcpStream>>::new();
         let connect_uri = uri.clone();
@@ -327,10 +331,14 @@ impl Connection {
             })
         });
 
-        let reactor = options
-            .reactor
-            .take()
-            .unwrap_or_else(|| Arc::new(async_reactor_trait::AsyncIo));
+        let reactor = options.reactor.take();
+
+        #[cfg(feature = "default-runtime")]
+        let reactor = reactor.or_else(|| Some(Arc::new(async_reactor_trait::AsyncIo)));
+
+        let reactor = reactor
+            .expect("reactor should be provided with no default reactor feature was enabled");
+
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());

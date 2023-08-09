@@ -14,7 +14,8 @@ build = "build.rs"
 rust-version = "1.63.0"
 
 [features]
-default                   = ["rustls"]
+default                   = ["rustls", "default-runtime"]
+default-runtime           = ["async-global-executor-trait", "async-reactor-trait"]
 codegen                   = ["codegen-internal", "amq-protocol/codegen"]
 codegen-internal          = ["amq-protocol-codegen", "serde_json"]
 native-tls                = ["amq-protocol/native-tls"]
@@ -39,6 +40,11 @@ default-features = false
 [dependencies.async-global-executor-trait]
 version = "^2.1"
 features = ["async-io"]
+optional = true
+
+[dependencies.async-reactor-trait]
+version = "^1.1"
+optional = true
 
 [dependencies.flume]
 version = "^0.10"
@@ -54,7 +60,6 @@ version = "^0.1"
 default-features = false
 
 [dependencies]
-async-reactor-trait = "^1.1"
 async-trait = "^0.1.42"
 executor-trait = "^2.1"
 futures-core = "^0.3"
