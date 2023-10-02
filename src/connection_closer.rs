@@ -1,5 +1,6 @@
 use crate::{connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
 
+#[derive(Clone)]
 pub(crate) struct ConnectionCloser {
     status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,

@@ -38,6 +38,7 @@ use tracing::{level_enabled, Level};
 /// [`connect`]: ./struct.Connection.html#method.connect
 /// [`Channel`]: ./struct.Channel.html
 /// [`create_channel`]: ./struct.Connection.html#method.create_channel
+#[derive(Clone)]
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
