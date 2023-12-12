@@ -41,7 +41,7 @@ version = "^2.1"
 features = ["async-io"]
 
 [dependencies.flume]
-version = "^0.10"
+version = "^0.11"
 default-features = false
 features = ["async"]
 
@@ -66,7 +66,7 @@ waker-fn = "^1.1"
 
 [dev-dependencies]
 async-global-executor = "^2.0"
-futures-lite = "^1.7"
+futures-lite = "^2.0"
 serde_json = "^1.0"
 waker-fn = "^1.1"
 tokio = { version = "1.17.0", features = ["full"] }
