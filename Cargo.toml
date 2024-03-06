@@ -2,7 +2,10 @@
 name = "lapin"
 version = "2.3.4"
 edition = "2021"
-authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
+authors = [
+    "Geoffroy Couprie <geo.couprie@gmail.com>",
+    "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>",
+]
 description = "AMQP client library"
 repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
@@ -14,15 +17,15 @@ build = "build.rs"
 rust-version = "1.74.0"
 
 [features]
-default                   = ["rustls"]
-codegen                   = ["codegen-internal", "amq-protocol/codegen"]
-codegen-internal          = ["amq-protocol-codegen", "serde_json"]
-native-tls                = ["amq-protocol/native-tls"]
-openssl                   = ["amq-protocol/openssl"]
-rustls                    = ["rustls-native-certs"]
-rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
+default = ["rustls"]
+codegen = ["codegen-internal", "amq-protocol/codegen"]
+codegen-internal = ["amq-protocol-codegen", "serde_json"]
+native-tls = ["amq-protocol/native-tls"]
+openssl = ["amq-protocol/openssl"]
+rustls = ["rustls-native-certs"]
+rustls-native-certs = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
-vendored-openssl          = ["amq-protocol/vendored-openssl"]
+vendored-openssl = ["amq-protocol/vendored-openssl"]
 
 [build-dependencies.amq-protocol-codegen]
 version = "^7.0"
@@ -46,7 +49,7 @@ default-features = false
 features = ["async"]
 
 [dependencies.serde]
-version  = "^1.0"
+version = "^1.0"
 features = ["derive"]
 
 [dependencies.tracing]
@@ -72,6 +75,7 @@ waker-fn = "^1.1"
 tokio = { version = "1.17.0", features = ["full"] }
 tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
+uuid = { version = "1.7", features = ["v4"] }
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
