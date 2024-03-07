@@ -213,12 +213,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Delete the queue
     // before starting the server
-    open_channel()
-        .await
-        .map_err(|e| format!("Failed to open channel: {e}"))?
-        .queue_delete("rpc_queue", QueueDeleteOptions::default())
-        .await
-        .map_err(|e| format!("Failed to delete queue rpc_queue: {e}"))?;
+    // open_channel()
+    //     .await
+    //     .map_err(|e| format!("Failed to open channel: {e}"))?
+    //     .queue_delete("rpc_queue", QueueDeleteOptions::default())
+    //     .await
+    //     .map_err(|e| format!("Failed to delete queue rpc_queue: {e}"))?;
 
     // In practice, the server and client could run
     // on distinct machines
