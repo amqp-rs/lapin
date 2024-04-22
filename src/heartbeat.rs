@@ -1,4 +1,4 @@
-use crate::channels::Channels;
+use crate::{channels::Channels, ConnectionState, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Heartbeat {
@@ -52,6 +53,10 @@ impl Heartbeat {
         self.inner.lock().update_last_write();
     }
 
+    pub(crate) fn update_last_read(&mut self) {
+        self.inner.lock().update_last_read();
+    }
+
     pub(crate) fn cancel(&self) {
         self.inner.lock().timeout = None;
     }
@@ -64,6 +69,7 @@ impl fmt::Debug for Heartbeat {
 }
 
 struct Inner {
+    last_read: Instant,
     last_write: Instant,
     timeout: Option<Duration>,
 }
@@ -71,6 +77,7 @@ struct Inner {
 impl Default for Inner {
     fn default() -> Self {
         Self {
+            last_read: Instant::now(),
             last_write: Instant::now(),
             timeout: None,
         }
@@ -86,6 +93,18 @@ impl Inner {
                 .unwrap_or_else(|| {
                     // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
                     self.update_last_write();
+
+                    // If we haven't received a heartbeat in 2 * timeout, we consider the connection dead
+                    if Instant::now().duration_since(self.last_read) > 2 * timeout {
+                        let error = Error::InvalidConnectionState(ConnectionState::Error);
+                        error!("Heartbeat failed: {:?}", error);
+
+                        self.timeout = None;
+                        channels.set_connection_error(error.clone());
+
+                        return timeout;
+                    }
+
                     channels.send_heartbeat();
                     timeout
                 })
@@ -94,5 +113,9 @@ impl Inner {
 
     fn update_last_write(&mut self) {
         self.last_write = Instant::now();
+    }
+
+    fn update_last_read(&mut self) {
+        self.last_read = Instant::now();
     }
 }

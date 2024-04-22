@@ -228,6 +228,7 @@ impl IoLoop {
             resolver.swear(Err(error.clone()));
         }
         self.status = Status::Stop;
+        self.heartbeat.cancel();
         self.channels.set_connection_error(error.clone());
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
@@ -335,6 +336,8 @@ impl IoLoop {
 
                 if let Some(sz) = self.socket_state.handle_read_poll(res) {
                     if sz > 0 {
+                        self.heartbeat.update_last_read();
+
                         trace!("read {} bytes", sz);
                         self.receive_buffer.fill(sz);
                     } else {
