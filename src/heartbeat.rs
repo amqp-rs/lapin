@@ -1,4 +1,4 @@
-use crate::channels::Channels;
+use crate::{channels::Channels, ConnectionStatus};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -10,6 +10,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Heartbeat {
+    connection_status: ConnectionStatus,
     channels: Channels,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     reactor: Arc<dyn Reactor + Send + Sync>,
@@ -18,12 +19,14 @@ pub struct Heartbeat {
 
 impl Heartbeat {
     pub(crate) fn new(
+        connection_status: ConnectionStatus,
         channels: Channels,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         reactor: Arc<dyn Reactor + Send + Sync>,
     ) -> Self {
         let inner = Default::default();
         Self {
+            connection_status,
             channels,
             executor,
             reactor,
@@ -45,6 +48,11 @@ impl Heartbeat {
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
+        if !self.connection_status.connected() {
+            self.cancel();
+            return None;
+        }
+
         self.inner.lock().poll_timeout(&self.channels)
     }
 
