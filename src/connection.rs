@@ -249,7 +249,17 @@ impl Connection {
         &self.status
     }
 
+    /// Request a connection close.
+    ///
+    /// This method is only successful if the connection is in the connected state,
+    /// otherwise an [`InvalidConnectionState`] error is returned.
+    ///
+    /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidConnectionState(self.status.state()));
+        }
+
         self.channels.set_connection_closing();
         if let Some(channel0) = self.channels.get(0) {
             channel0
