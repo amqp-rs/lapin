@@ -15,7 +15,12 @@ use crate::{
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tracing::{debug, error, level_enabled, trace, Level};
 
 #[derive(Clone)]
@@ -80,6 +85,12 @@ impl Channels {
         self.inner.lock().channels.get(&id).cloned()
     }
 
+    pub(crate) fn get_for_frame(&self, id: ChannelId) -> Option<Channel> {
+        let mut inner = self.inner.lock();
+        inner.frame_received();
+        inner.channels.get(&id).cloned()
+    }
+
     pub(crate) fn remove(&self, id: ChannelId, error: Error) -> Result<()> {
         self.frames.clear_expected_replies(id, error);
         if self.inner.lock().channels.remove(&id).is_some() {
@@ -90,7 +101,7 @@ impl Channels {
     }
 
     pub(crate) fn receive_method(&self, id: ChannelId, method: AMQPClass) -> Result<()> {
-        self.get(id)
+        self.get_for_frame(id)
             .map(|channel| channel.receive_method(method))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
@@ -102,13 +113,13 @@ impl Channels {
         size: PayloadSize,
         properties: BasicProperties,
     ) -> Result<()> {
-        self.get(id)
+        self.get_for_frame(id)
             .map(|channel| channel.handle_content_header_frame(class_id, size, properties))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
 
     pub(crate) fn handle_body_frame(&self, id: ChannelId, payload: Vec<u8>) -> Result<()> {
-        self.get(id)
+        self.get_for_frame(id)
             .map(|channel| channel.handle_body_frame(payload))
             .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
     }
@@ -199,6 +210,7 @@ impl Channels {
             AMQPFrame::Heartbeat(channel_id) => {
                 if channel_id == 0 {
                     debug!("received heartbeat from server");
+                    self.inner.lock().frame_received();
                 } else {
                     error!(channel=%channel_id, "received invalid heartbeat");
                     let error = AMQPError::new(
@@ -271,6 +283,15 @@ impl Channels {
             .map(Channel::topology)
             .collect()
     }
+
+    pub(crate) fn check_connection(&self, timeout: Duration) {
+        let latest = self.inner.lock().latest_received_frame;
+        if latest.elapsed() > timeout {
+            // We didn't get any frame nor heartbeat from the server for too long
+            self.internal_rpc
+                .set_connection_error(Error::MissingHeartbeatError);
+        }
+    }
 }
 
 impl fmt::Debug for Channels {
@@ -294,6 +315,7 @@ struct Inner {
     channels: HashMap<ChannelId, Channel>,
     channel_id: IdSequence<ChannelId>,
     configuration: Configuration,
+    latest_received_frame: Instant,
     waker: SocketStateHandle,
 }
 
@@ -303,6 +325,9 @@ impl Inner {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
             configuration,
+            // Let's consider we just received a frame when setting everything up.
+            // This will get updated with the connection frames anyways.
+            latest_received_frame: Instant::now(),
             waker,
         }
     }
@@ -368,5 +393,9 @@ impl Inner {
             id = self.channel_id.next();
         }
         Err(Error::ChannelsLimitReached)
+    }
+
+    fn frame_received(&mut self) {
+        self.latest_received_frame = Instant::now();
     }
 }

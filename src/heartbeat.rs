@@ -80,6 +80,11 @@ impl Default for Inner {
 impl Inner {
     fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
         self.timeout.map(|timeout| {
+            // The value stored in timeout is half the configured heartbeat value as the spec
+            // recommends to send heartbeats at twice the configured pace.
+            // The specs tells us to close the connection after once twice the configured interval
+            // has passed.
+            channels.check_connection(timeout * 4);
             timeout
                 .checked_sub(self.last_write.elapsed())
                 .map(|timeout| timeout.max(Duration::from_millis(1)))
