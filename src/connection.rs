@@ -251,12 +251,12 @@ impl Connection {
 
     /// Request a connection close.
     ///
-    /// This method is only successful if the connection isn't in an error state.
-    /// Otherwise, [`InvalidConnectionState`] error is returned.
+    /// This method is only successful if the connection is in the connected state,
+    /// otherwise an [`InvalidConnectionState`] error is returned.
     ///
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
-        if self.status.errored() {
+        if !self.status.connected() {
             return Err(Error::InvalidConnectionState(self.status.state()));
         }
 
