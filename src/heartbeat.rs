@@ -1,4 +1,4 @@
-use crate::{channels::Channels, Error};
+use crate::{channels::Channels, ConnectionStatus, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -10,6 +10,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Heartbeat {
+    connection_status: ConnectionStatus,
     channels: Channels,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     reactor: Arc<dyn Reactor + Send + Sync>,
@@ -18,12 +19,14 @@ pub struct Heartbeat {
 
 impl Heartbeat {
     pub(crate) fn new(
+        connection_status: ConnectionStatus,
         channels: Channels,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         reactor: Arc<dyn Reactor + Send + Sync>,
     ) -> Self {
         let inner = Default::default();
         Self {
+            connection_status,
             channels,
             executor,
             reactor,
@@ -45,6 +48,11 @@ impl Heartbeat {
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
+        if !self.connection_status.connected() {
+            self.cancel();
+            return None;
+        }
+
         self.inner.lock().poll_timeout(&self.channels)
     }
 
@@ -85,25 +93,25 @@ impl Default for Inner {
 
 impl Inner {
     fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
-        self.timeout.map(|timeout| {
-            // The specs tells us to close the connection after once twice the configured interval has passed.
-            if Instant::now().duration_since(self.last_read) > 4 * timeout {
-                self.timeout = None;
-                channels.set_connection_error(Error::MissingHeartbeatError);
+        let timeout = self.timeout?;
 
-                return timeout;
-            }
+        // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
+        // The specs tells us to close the connection after twice the configured interval has passed.
+        if Instant::now().duration_since(self.last_read) > 4 * timeout {
+            self.timeout = None;
+            channels.set_connection_error(Error::MissingHeartbeatError);
+            return None;
+        }
 
-            timeout
-                .checked_sub(self.last_write.elapsed())
-                .map(|timeout| timeout.max(Duration::from_millis(1)))
-                .unwrap_or_else(|| {
-                    // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
-                    self.update_last_write();
-                    channels.send_heartbeat();
-                    timeout
-                })
-        })
+        timeout
+            .checked_sub(self.last_write.elapsed())
+            .map(|timeout| timeout.max(Duration::from_millis(1)))
+            .or_else(|| {
+                // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
+                self.update_last_write();
+                channels.send_heartbeat();
+                Some(timeout)
+            })
     }
 
     fn update_last_write(&mut self) {

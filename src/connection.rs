@@ -400,7 +400,7 @@ impl Connection {
                 error
             })?
             .into();
-        let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
+        let heartbeat = Heartbeat::new(status.clone(), channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
         IoLoop::new(
