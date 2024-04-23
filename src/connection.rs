@@ -157,7 +157,7 @@ impl Connection {
         }
 
         // Then, ensure we have at least one channel to restore everything else
-        let channel = if let Some(chan) = restored.channels.get(0) {
+        let channel = if let Some(chan) = restored.channels.first() {
             chan.channel.clone()
         } else {
             self.create_channel().await?
