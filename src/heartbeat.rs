@@ -1,4 +1,4 @@
-use crate::channels::Channels;
+use crate::{channels::Channels, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -52,6 +52,10 @@ impl Heartbeat {
         self.inner.lock().update_last_write();
     }
 
+    pub(crate) fn update_last_read(&mut self) {
+        self.inner.lock().update_last_read();
+    }
+
     pub(crate) fn cancel(&self) {
         self.inner.lock().timeout = None;
     }
@@ -64,6 +68,7 @@ impl fmt::Debug for Heartbeat {
 }
 
 struct Inner {
+    last_read: Instant,
     last_write: Instant,
     timeout: Option<Duration>,
 }
@@ -71,6 +76,7 @@ struct Inner {
 impl Default for Inner {
     fn default() -> Self {
         Self {
+            last_read: Instant::now(),
             last_write: Instant::now(),
             timeout: None,
         }
@@ -80,6 +86,14 @@ impl Default for Inner {
 impl Inner {
     fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
         self.timeout.map(|timeout| {
+            // The specs tells us to close the connection after once twice the configured interval has passed.
+            if Instant::now().duration_since(self.last_read) > 4 * timeout {
+                self.timeout = None;
+                channels.set_connection_error(Error::MissingHeartbeatError);
+
+                return timeout;
+            }
+
             timeout
                 .checked_sub(self.last_write.elapsed())
                 .map(|timeout| timeout.max(Duration::from_millis(1)))
@@ -94,5 +108,9 @@ impl Inner {
 
     fn update_last_write(&mut self) {
         self.last_write = Instant::now();
+    }
+
+    fn update_last_read(&mut self) {
+        self.last_read = Instant::now();
     }
 }
