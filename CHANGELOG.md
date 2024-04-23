@@ -1,3 +1,10 @@
+### 2.3.2 (2024-04-23)
+
+#### Bug Fixes
+
+* Don't allow trying to close an already closed connection
+* Make sure heartbeats are no longer sent after a connection error
+
 ### 2.3.1 (2023-07-14)
 
 #### Misc

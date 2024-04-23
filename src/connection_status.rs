@@ -150,9 +150,7 @@ impl Inner {
                 ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
                     (resolver, Some(connection))
                 }
-                ConnectionStep::StartOk(resolver, connection, ..) => {
-                    (resolver, Some(connection))
-                }
+                ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
                 ConnectionStep::Open(resolver, ..) => (resolver, None),
             })
     }
