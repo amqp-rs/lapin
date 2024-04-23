@@ -181,6 +181,7 @@ impl IoLoop {
     fn check_connection_state(&mut self) {
         if self.connection_status.closed() {
             self.status = Status::Stop;
+            self.heartbeat.cancel();
         }
     }
 
@@ -336,9 +337,9 @@ impl IoLoop {
 
                 if let Some(sz) = self.socket_state.handle_read_poll(res) {
                     if sz > 0 {
-                        self.heartbeat.update_last_read();
-
                         trace!("read {} bytes", sz);
+
+                        self.heartbeat.update_last_read();
                         self.receive_buffer.fill(sz);
                     } else {
                         error!("Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken");

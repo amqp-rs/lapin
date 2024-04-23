@@ -1,4 +1,4 @@
-use crate::{channels::Channels, ConnectionState, Error};
+use crate::{channels::Channels, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::error;
 
 #[derive(Clone)]
 pub struct Heartbeat {
@@ -87,24 +86,20 @@ impl Default for Inner {
 impl Inner {
     fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
         self.timeout.map(|timeout| {
+            // The specs tells us to close the connection after once twice the configured interval has passed.
+            if Instant::now().duration_since(self.last_read) > 4 * timeout {
+                self.timeout = None;
+                channels.set_connection_error(Error::MissingHeartbeatError);
+
+                return timeout;
+            }
+
             timeout
                 .checked_sub(self.last_write.elapsed())
                 .map(|timeout| timeout.max(Duration::from_millis(1)))
                 .unwrap_or_else(|| {
                     // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
                     self.update_last_write();
-
-                    // If we haven't received a heartbeat in 2 * timeout, we consider the connection dead
-                    if Instant::now().duration_since(self.last_read) > 2 * timeout {
-                        let error = Error::InvalidConnectionState(ConnectionState::Error);
-                        error!("Heartbeat failed: {:?}", error);
-
-                        self.timeout = None;
-                        channels.set_connection_error(error.clone());
-
-                        return timeout;
-                    }
-
                     channels.send_heartbeat();
                     timeout
                 })
