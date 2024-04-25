@@ -7,11 +7,11 @@ use crate::{
     Error, Promise, PromiseResolver, Result,
 };
 
-use tracing::warn;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use tracing::warn;
 
 #[derive(Clone, Debug)]
 pub struct Acker {
