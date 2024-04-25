@@ -12,7 +12,7 @@ use std::sync::{
     Arc,
 };
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Acker {
     channel_id: ChannelId,
     delivery_tag: DeliveryTag,
@@ -93,6 +93,10 @@ impl Acker {
         } else {
             Ok(())
         }
+    }
+
+    pub fn used(&self) -> bool {
+        self.used.load(Ordering::SeqCst)
     }
 }
 
