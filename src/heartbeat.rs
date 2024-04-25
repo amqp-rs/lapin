@@ -1,4 +1,4 @@
-use crate::{channels::Channels, ConnectionStatus, Error};
+use crate::{channels::Channels, killswitch::KillSwitch, ConnectionStatus, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use reactor_trait::Reactor;
@@ -12,6 +12,7 @@ use std::{
 pub struct Heartbeat {
     connection_status: ConnectionStatus,
     channels: Channels,
+    killswitch: KillSwitch,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     reactor: Arc<dyn Reactor + Send + Sync>,
     inner: Arc<Mutex<Inner>>,
@@ -24,10 +25,12 @@ impl Heartbeat {
         executor: Arc<dyn FullExecutor + Send + Sync>,
         reactor: Arc<dyn Reactor + Send + Sync>,
     ) -> Self {
+        let killswitch = Default::default();
         let inner = Default::default();
         Self {
             connection_status,
             channels,
+            killswitch,
             executor,
             reactor,
             inner,
@@ -36,6 +39,10 @@ impl Heartbeat {
 
     pub(crate) fn set_timeout(&self, timeout: Duration) {
         self.inner.lock().timeout = Some(timeout);
+    }
+
+    pub(crate) fn killswitch(&self) -> KillSwitch {
+        self.killswitch.clone()
     }
 
     pub(crate) fn start(&self) {
@@ -53,7 +60,9 @@ impl Heartbeat {
             return None;
         }
 
-        self.inner.lock().poll_timeout(&self.channels)
+        self.inner
+            .lock()
+            .poll_timeout(&self.channels, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
@@ -92,13 +101,14 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
+    fn poll_timeout(&mut self, channels: &Channels, killswitch: &KillSwitch) -> Option<Duration> {
         let timeout = self.timeout?;
 
         // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
         // The specs tells us to close the connection after twice the configured interval has passed.
         if Instant::now().duration_since(self.last_read) > 4 * timeout {
             self.timeout = None;
+            killswitch.kill();
             channels.set_connection_error(Error::MissingHeartbeatError);
             return None;
         }

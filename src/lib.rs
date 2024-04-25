@@ -152,6 +152,7 @@ mod frames;
 mod id_sequence;
 mod internal_rpc;
 mod io_loop;
+mod killswitch;
 mod parsing;
 mod queue;
 mod registry;

@@ -5,6 +5,7 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
+    killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
@@ -44,6 +45,7 @@ pub struct IoLoop {
     connection_io_loop_handle: ThreadHandle,
     stream: Pin<Box<dyn AsyncIOHandle + Send>>,
     status: Status,
+    killswitch: KillSwitch,
     frame_size: FrameSize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
@@ -66,6 +68,7 @@ impl IoLoop {
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
         );
+        let killswitch = heartbeat.killswitch();
 
         Ok(Self {
             connection_status,
@@ -78,6 +81,7 @@ impl IoLoop {
             connection_io_loop_handle,
             stream,
             status: Status::Initial,
+            killswitch,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
@@ -165,8 +169,17 @@ impl IoLoop {
                             res = self.critical_error(err);
                         }
                     }
-                    self.internal_rpc.stop();
                     self.heartbeat.cancel();
+                    let internal_rpc = self.internal_rpc.clone();
+                    if self.killswitch.killed() {
+                        internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
+                            self.stream
+                                .as_mut()
+                                .poll_close(cx)
+                                .map(|res| res.map_err(From::from))
+                        }));
+                    }
+                    internal_rpc.stop();
                     res
                 })?,
         );
@@ -174,13 +187,13 @@ impl IoLoop {
         Ok(())
     }
 
-    fn poll_socket_events(&mut self) {
-        self.socket_state.poll_events();
-    }
-
     fn stop(&mut self) {
         self.status = Status::Stop;
         self.heartbeat.cancel();
+    }
+
+    fn poll_socket_events(&mut self) {
+        self.socket_state.poll_events();
     }
 
     fn check_connection_state(&mut self) {
