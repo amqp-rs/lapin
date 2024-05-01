@@ -1,3 +1,13 @@
+### 2.3.4 (2024-05-01)
+
+#### Features
+
+* Allow closing Acker and checking if already used
+
+#### Bug Fixes
+
+* Close connection to server in case of missing heartbeat
+
 ### 2.3.3 (2024-04-24)
 
 #### Misc
