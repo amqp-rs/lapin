@@ -11,8 +11,9 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use tracing::warn;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Acker {
     channel_id: ChannelId,
     delivery_tag: DeliveryTag,
@@ -93,6 +94,18 @@ impl Acker {
         } else {
             Ok(())
         }
+    }
+
+    pub fn used(&self) -> bool {
+        self.used.load(Ordering::SeqCst)
+    }
+}
+
+// FIXME: remove in 3.0
+impl Default for Acker {
+    fn default() -> Self {
+        warn!("Use of deprecated Acker::default() which provides an unusable Acker");
+        Self::new(0, 0, None, None)
     }
 }
 

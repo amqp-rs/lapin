@@ -26,6 +26,8 @@ pub enum Error {
     ParsingError(ParserError),
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
+
+    MissingHeartbeatError,
 }
 
 impl Error {
@@ -67,6 +69,10 @@ impl fmt::Display for Error {
             Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
             Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
             Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
+
+            Error::MissingHeartbeatError => {
+                write!(f, "no heartbeat received from server for too long")
+            }
         }
     }
 }
@@ -75,8 +81,8 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Error::IOError(e) => Some(&**e),
-            Error::ParsingError(e) => Some(&*e),
-            Error::ProtocolError(e) => Some(&*e),
+            Error::ParsingError(e) => Some(e),
+            Error::ProtocolError(e) => Some(e),
             Error::SerialisationError(e) => Some(&**e),
             _ => None,
         }

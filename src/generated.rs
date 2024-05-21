@@ -1393,7 +1393,7 @@ impl Channel {
         }
         self.on_channel_close_received(method)
     }
-    async fn channel_close_ok(&self, error: Error) -> Result<()> {
+    async fn channel_close_ok(&self, error: Option<Error>) -> Result<()> {
         if !self.status.closing() {
             return Err(Error::InvalidChannelState(self.status.state()));
         }

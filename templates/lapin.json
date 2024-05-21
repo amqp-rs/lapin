@@ -127,7 +127,7 @@
         "extra_args": [
           {
             "name": "error",
-            "type": "Error"
+            "type": "Option<Error>"
           }
         ],
         "end_hook": {

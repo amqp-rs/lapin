@@ -157,7 +157,7 @@ impl Connection {
         }
 
         // Then, ensure we have at least one channel to restore everything else
-        let channel = if let Some(chan) = restored.channels.get(0) {
+        let channel = if let Some(chan) = restored.channels.first() {
             chan.channel.clone()
         } else {
             self.create_channel().await?
@@ -249,7 +249,17 @@ impl Connection {
         &self.status
     }
 
+    /// Request a connection close.
+    ///
+    /// This method is only successful if the connection is in the connected state,
+    /// otherwise an [`InvalidConnectionState`] error is returned.
+    ///
+    /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidConnectionState(self.status.state()));
+        }
+
         self.channels.set_connection_closing();
         if let Some(channel0) = self.channels.get(0) {
             channel0
@@ -379,9 +389,18 @@ impl Connection {
             uri.query.auth_mechanism.unwrap_or_default(),
             options,
         ));
-        let stream = connect_promise.await?;
-        let stream = reactor.register(IOHandle::new(stream))?.into();
-        let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
+        let stream = connect_promise
+            .await
+            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
+            .map_err(|error| {
+                // We don't actually need the resolver as we already pass it around to the failing
+                // code which will propagate the error. We only want to flush the status internal
+                // state.
+                let _ = status.connection_resolver();
+                error
+            })?
+            .into();
+        let heartbeat = Heartbeat::new(status.clone(), channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
         IoLoop::new(

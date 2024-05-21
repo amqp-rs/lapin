@@ -9,6 +9,7 @@ use crate::{
     connection_status::{ConnectionState, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
+    error_handler::ErrorHandler,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -54,6 +55,7 @@ pub struct Channel {
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
+    error_handler: ErrorHandler,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
@@ -118,6 +120,7 @@ impl Channel {
             waker,
             internal_rpc,
             frames,
+            error_handler: ErrorHandler::default(),
             executor,
             channel_closer,
             connection_closer,
@@ -126,6 +129,10 @@ impl Channel {
 
     pub fn status(&self) -> &ChannelStatus {
         &self.status
+    }
+
+    pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
+        self.error_handler.set_handler(handler);
     }
 
     pub(crate) fn reset(&self) {
@@ -196,39 +203,40 @@ impl Channel {
         Ok(())
     }
 
-    fn set_closing(&self, error: Option<Error>) {
+    pub(crate) fn set_closing(&self, error: Option<Error>) {
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
             self.error_publisher_confirms(error.clone());
-            let _ = self.error_consumers(error); // ignore the error here, only happens with default executor if we cannot spawn a thread
+            self.error_consumers(error); // ignore the returned error here, only happens with default executor if we cannot spawn a thread
         } else {
             self.consumers.start_cancel();
         }
     }
 
-    fn set_closed(&self, error: Error) {
+    pub(crate) fn set_closed(&self, error: Error) {
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
         self.cancel_consumers();
         self.internal_rpc.remove_channel(self.id, error);
     }
 
-    fn set_error(&self, error: Error) {
+    // Only called in case of a protocol failure
+    pub(crate) fn set_connection_error(&self, error: Error) {
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone());
-        self.internal_rpc.remove_channel(self.id, error);
+        self.internal_rpc.remove_channel(self.id, error.clone());
     }
 
-    pub(crate) fn error_publisher_confirms(&self, error: Error) {
+    fn error_publisher_confirms(&self, error: Error) {
         self.acknowledgements.on_channel_error(error);
     }
 
-    pub(crate) fn cancel_consumers(&self) {
+    fn cancel_consumers(&self) {
         self.consumers.cancel();
     }
 
-    pub(crate) fn error_consumers(&self, error: Error) {
+    fn error_consumers(&self, error: Error) {
         self.consumers.error(error);
     }
 
@@ -255,6 +263,7 @@ impl Channel {
             waker: self.waker.clone(),
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
+            error_handler: self.error_handler.clone(),
             executor: self.executor.clone(),
             channel_closer: None,
             connection_closer: self.connection_closer.clone(),
@@ -455,7 +464,7 @@ impl Channel {
                     0,
                 );
                 let error = Error::ProtocolError(error);
-                self.set_error(error.clone());
+                self.set_connection_error(error.clone());
                 Err(error)
             },
             |msg| self.handle_invalid_contents(msg, class_id, 0),
@@ -558,8 +567,15 @@ impl Channel {
         self.set_closing(None);
     }
 
-    fn on_channel_close_ok_sent(&self, error: Error) {
-        self.set_closed(error);
+    fn on_channel_close_ok_sent(&self, error: Option<Error>) {
+        self.set_closed(
+            error
+                .clone()
+                .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
+        );
+        if let Some(error) = error {
+            self.error_handler.on_error(error);
+        }
     }
 
     fn on_basic_recover_async_sent(&self) {
@@ -878,11 +894,7 @@ impl Channel {
             Error::ProtocolError(error)
         });
         self.set_closing(error.clone().ok());
-        let error = error.unwrap_or_else(|error| {
-            error!(%error);
-            info!(channel=%self.id, ?method, "Channel closed");
-            Error::InvalidChannelState(ChannelState::Closing)
-        });
+        let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
         self.internal_rpc
             .register_internal_future(async move { channel.channel_close_ok(error).await });

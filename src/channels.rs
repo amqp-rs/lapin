@@ -116,22 +116,21 @@ impl Channels {
     pub(crate) fn set_connection_closing(&self) {
         self.connection_status.set_state(ConnectionState::Closing);
         for channel in self.inner.lock().channels.values() {
-            channel.set_state(ChannelState::Closing);
+            channel.set_closing(None);
         }
     }
 
     pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        for (id, channel) in self.inner.lock().channels.drain() {
-            self.frames.clear_expected_replies(id, error.clone());
-            channel.set_state(ChannelState::Closed);
-            channel.error_publisher_confirms(error.clone());
-            channel.cancel_consumers();
+        for (id, channel) in self.inner.lock().channels.iter() {
+            self.frames.clear_expected_replies(*id, error.clone());
+            channel.set_closed(error.clone());
         }
     }
 
     pub(crate) fn set_connection_error(&self, error: Error) {
-        if let ConnectionState::Error = self.connection_status.state() {
+        // Do nothing if we were already in error
+        if let ConnectionState::Error = self.connection_status.set_state(ConnectionState::Error) {
             return;
         }
 
@@ -139,14 +138,12 @@ impl Channels {
         if let Some(resolver) = self.connection_status.connection_resolver() {
             resolver.swear(Err(error.clone()));
         }
-        self.connection_status.set_state(ConnectionState::Error);
+
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
-        for (id, channel) in self.inner.lock().channels.drain() {
-            self.frames.clear_expected_replies(id, error.clone());
-            channel.set_state(ChannelState::Error);
-            channel.error_publisher_confirms(error.clone());
-            channel.error_consumers(error.clone());
+        for (id, channel) in self.inner.lock().channels.iter() {
+            self.frames.clear_expected_replies(*id, error.clone());
+            channel.set_connection_error(error.clone());
         }
     }
 

@@ -2,9 +2,9 @@ name: Build and test
 
 on:
   push:
-    branches:
-      - main
   pull_request:
+  schedule:
+    - cron: "0 12 * * 1"
 
 jobs:
   build_and_test:
@@ -12,9 +12,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-#        os: [ubuntu-latest, windows-latest, macos-latest]
+        #os: [ubuntu-latest, windows-latest, macos-latest]
         os: [ubuntu-latest]
-        rust: [nightly, beta, stable, 1.56.0]
+        rust: [nightly, beta, stable, 1.74.0]
     steps:
       - uses: actions/checkout@v2
 

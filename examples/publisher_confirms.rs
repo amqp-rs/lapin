@@ -124,6 +124,7 @@ fn main() {
             .expect("publisher-confirms");
         assert!(confirm.is_ack());
         let message = confirm.take_message().unwrap();
+        let acker = message.delivery.acker.clone();
         assert_eq!(
             message,
             BasicReturnMessage {
@@ -134,7 +135,7 @@ fn main() {
                     redelivered: false,
                     properties: BasicProperties::default().with_priority(42),
                     data: payload.to_vec(),
-                    acker: Default::default(),
+                    acker,
                 },
                 reply_code: 312,
                 reply_text: "NO_ROUTE".into(),

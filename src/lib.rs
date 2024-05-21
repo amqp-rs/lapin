@@ -11,9 +11,9 @@
 //! ## Feature switches
 //!
 //! * `codegen`: generate code instead of using pregenerated one
-//! * `native-tls` (*default*): enable amqps support through native-tls
-//! * `openssl`: enable amqps support through openssl (preferred over native-tls when set)
-//! * `rustls`: enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
+//! * `native-tls`: enable amqps support through native-tls (preferred over rustls when set)
+//! * `openssl`: enable amqps support through openssl (preferred over rustls when set)
+//! * `rustls` (*default*): enable amqps support through rustls (uses rustls-native-certs by default)
 //! * `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
 //! * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
 //!
@@ -152,6 +152,7 @@ mod frames;
 mod id_sequence;
 mod internal_rpc;
 mod io_loop;
+mod killswitch;
 mod parsing;
 mod queue;
 mod registry;
