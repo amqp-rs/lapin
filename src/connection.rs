@@ -18,7 +18,7 @@ use crate::{
     topology_internal::TopologyInternal,
     types::ReplyCode,
     uri::AMQPUri,
-    Error, Promise, Result, TcpStream,
+    Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -307,7 +307,7 @@ impl Connection {
             .take()
             .unwrap_or_else(|| Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
 
-        let (connect_promise, resolver) = pinky_swear::PinkySwear::<Result<TcpStream>>::new();
+        let (connect_promise, resolver) = Promise::new();
         let connect_uri = uri.clone();
         executor.spawn({
             let executor = executor.clone();
