@@ -3,8 +3,6 @@ use std::{
     iter::{Chain, Copied, Enumerate},
     slice::Iter,
 };
-// FIXME: use through amq-protocol
-use nom::CompareResult;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsingContext<'a> {

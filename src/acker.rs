@@ -11,7 +11,6 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use tracing::warn;
 
 #[derive(Clone, Debug)]
 pub struct Acker {
