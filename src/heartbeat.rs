@@ -1,7 +1,6 @@
-use crate::{channels::Channels, killswitch::KillSwitch, ConnectionStatus, Error};
+use crate::{channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
-use reactor_trait::Reactor;
 use std::{
     fmt,
     sync::Arc,
@@ -14,7 +13,7 @@ pub struct Heartbeat {
     channels: Channels,
     killswitch: KillSwitch,
     executor: Arc<dyn FullExecutor + Send + Sync>,
-    reactor: Arc<dyn Reactor + Send + Sync>,
+    reactor: Arc<dyn FullReactor + Send + Sync>,
     inner: Arc<Mutex<Inner>>,
 }
 
@@ -23,7 +22,7 @@ impl Heartbeat {
         connection_status: ConnectionStatus,
         channels: Channels,
         executor: Arc<dyn FullExecutor + Send + Sync>,
-        reactor: Arc<dyn Reactor + Send + Sync>,
+        reactor: Arc<dyn FullReactor + Send + Sync>,
     ) -> Self {
         let killswitch = Default::default();
         let inner = Default::default();

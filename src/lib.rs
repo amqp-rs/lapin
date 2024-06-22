@@ -155,6 +155,7 @@ mod io_loop;
 mod killswitch;
 mod parsing;
 mod queue;
+mod reactor;
 mod registry;
 mod returned_messages;
 mod thread;

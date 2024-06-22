@@ -59,14 +59,14 @@ version = "^0.1"
 default-features = false
 
 [dependencies]
-async-reactor-trait = "^1.1"
+async-reactor-trait = "=2.0.0-alpha.1"
 async-trait = "^0.1.42"
 executor-trait = "^2.1"
 futures-core = "^0.3"
 futures-io = "^0.3"
 parking_lot = "^0.12"
 pinky-swear = "^6.1"
-reactor-trait = "^1.1"
+reactor-trait = "=2.0.0-alpha.1"
 waker-fn = "^1.1"
 
 [dev-dependencies]
@@ -74,9 +74,12 @@ async-global-executor = "^2.0"
 futures-lite = "^2.0"
 serde_json = "^1.0"
 waker-fn = "^1.1"
-tokio = { version = "1.17.0", features = ["full"] }
-tokio-executor-trait = "2.1.0"
-tokio-reactor-trait = "^1.1"
+tokio-executor-trait = "^2.1"
+tokio-reactor-trait = "=2.0.0-alpha.1"
+
+[dev-dependencies.tokio]
+version = "^1.17"
+features = ["full"]
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
