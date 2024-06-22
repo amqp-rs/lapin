@@ -101,14 +101,6 @@ impl Acker {
     }
 }
 
-// FIXME: remove in 3.0
-impl Default for Acker {
-    fn default() -> Self {
-        warn!("Use of deprecated Acker::default() which provides an unusable Acker");
-        Self::new(0, 0, None, None)
-    }
-}
-
 impl PartialEq for Acker {
     fn eq(&self, other: &Acker) -> bool {
         self.channel_id == other.channel_id && self.delivery_tag == other.delivery_tag
