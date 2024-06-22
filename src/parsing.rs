@@ -1,9 +1,10 @@
 use amq_protocol::frame::parsing::traits::*;
 use std::{
-    iter::{Chain, Cloned, Enumerate},
-    ops::RangeFrom,
+    iter::{Chain, Copied, Enumerate},
     slice::Iter,
 };
+// FIXME: use through amq-protocol
+use nom::CompareResult;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsingContext<'a> {
@@ -40,19 +41,50 @@ impl<'a> ParsingContext<'a> {
     }
 }
 
-impl<'a> InputIter for ParsingContext<'a> {
+impl<'a> Input for ParsingContext<'a> {
     type Item = u8;
-    type Iter = Enumerate<Self::IterElem>;
-    type IterElem = Cloned<Chain<Iter<'a, u8>, Iter<'a, u8>>>;
+    type Iter = Copied<Chain<Iter<'a, Self::Item>, Iter<'a, Self::Item>>>;
+    type IterIndices = Enumerate<Self::Iter>;
 
     #[inline]
-    fn iter_indices(&self) -> Self::Iter {
-        self.iter_elements().enumerate()
+    fn input_len(&self) -> usize {
+        self.buffers.iter().map(|buf| buf.len()).sum()
     }
 
     #[inline]
-    fn iter_elements(&self) -> Self::IterElem {
-        self.iter().cloned()
+    fn take(&self, count: usize) -> Self {
+        if self.buffers[0].len() > count {
+            self.buffers[0][..count].into()
+        } else {
+            let needed = count - self.buffers[0].len();
+            [self.buffers[0], &self.buffers[1][..needed]].into()
+        }
+    }
+
+    #[inline]
+    fn take_from(&self, index: usize) -> Self {
+        if self.buffers[0].len() > index {
+            [&self.buffers[0][index..], self.buffers[1]].into()
+        } else {
+            let needed = index - self.buffers[0].len();
+            self.buffers[1][needed..].into()
+        }
+    }
+
+    #[inline]
+    fn take_split(&self, index: usize) -> (Self, Self) {
+        if self.buffers[0].len() > index {
+            (
+                [&self.buffers[0][index..], self.buffers[1]].into(),
+                self.buffers[0][..index].into(),
+            )
+        } else {
+            let needed = index - self.buffers[0].len();
+            (
+                self.buffers[1][needed..].into(),
+                [self.buffers[0], &self.buffers[1][..needed]].into(),
+            )
+        }
     }
 
     #[inline]
@@ -61,6 +93,16 @@ impl<'a> InputIter for ParsingContext<'a> {
         P: Fn(Self::Item) -> bool,
     {
         self.iter().position(|b| predicate(*b))
+    }
+
+    #[inline]
+    fn iter_elements(&self) -> Self::Iter {
+        self.iter().copied()
+    }
+
+    #[inline]
+    fn iter_indices(&self) -> Self::IterIndices {
+        self.iter_elements().enumerate()
     }
 
     #[inline]
@@ -73,51 +115,30 @@ impl<'a> InputIter for ParsingContext<'a> {
     }
 }
 
-impl<'a> InputLength for ParsingContext<'a> {
+impl<'a, 'b> Compare<&'b [u8]> for ParsingContext<'a> {
     #[inline]
-    fn input_len(&self) -> usize {
-        self.buffers.iter().map(|buf| buf.len()).sum()
-    }
-}
-
-impl<'a> InputTake for ParsingContext<'a> {
-    #[inline]
-    fn take(&self, count: usize) -> Self {
-        if self.buffers[0].len() > count {
-            self.buffers[0][..count].into()
+    fn compare(&self, buf: &'b [u8]) -> CompareResult {
+        if self.iter().zip(buf).any(|(a, b)| a != b) {
+            CompareResult::Error
+        } else if self.input_len() >= buf.len() {
+            CompareResult::Ok
         } else {
-            let needed = count - self.buffers[0].len();
-            [self.buffers[0], &self.buffers[1][..needed]].into()
+            CompareResult::Incomplete
         }
     }
 
     #[inline]
-    fn take_split(&self, count: usize) -> (Self, Self) {
-        if self.buffers[0].len() > count {
-            (
-                [&self.buffers[0][count..], self.buffers[1]].into(),
-                self.buffers[0][..count].into(),
-            )
+    fn compare_no_case(&self, buf: &'b [u8]) -> CompareResult {
+        if self
+            .iter()
+            .zip(buf)
+            .any(|(a, b)| a.to_ascii_lowercase() != b.to_ascii_lowercase())
+        {
+            CompareResult::Error
+        } else if self.input_len() >= buf.len() {
+            CompareResult::Ok
         } else {
-            let needed = count - self.buffers[0].len();
-            (
-                self.buffers[1][needed..].into(),
-                [self.buffers[0], &self.buffers[1][..needed]].into(),
-            )
+            CompareResult::Incomplete
         }
     }
 }
-
-impl<'a> Slice<RangeFrom<usize>> for ParsingContext<'a> {
-    #[inline]
-    fn slice(&self, range: RangeFrom<usize>) -> Self {
-        if range.start < self.buffers[0].len() {
-            [&self.buffers[0][range.start..], self.buffers[1]].into()
-        } else {
-            let needed = range.start - self.buffers[0].len();
-            self.buffers[1][needed..].into()
-        }
-    }
-}
-
-impl<'a> UnspecializedInput for ParsingContext<'a> {}

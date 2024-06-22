@@ -24,8 +24,13 @@ rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 vendored-openssl          = ["amq-protocol/vendored-openssl"]
 
+# rustls crypto providers. Choose at least one. Otherwise, runtime errors.
+# See https://docs.rs/rustls/latest/rustls/#crate-features. for more info
+rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but doesn't build everywhere
+rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
+
 [build-dependencies.amq-protocol-codegen]
-version = "^7.0"
+version = "=8.0.0-alpha.1"
 optional = true
 
 [build-dependencies.serde_json]
@@ -33,7 +38,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "^7.0"
+version = "=8.0.0-alpha.1"
 default-features = false
 
 [dependencies.async-global-executor-trait]
@@ -64,6 +69,8 @@ pinky-swear = "^6.1"
 reactor-trait = "^1.1"
 waker-fn = "^1.1"
 
+nom = "8.0.0-alpha.2"
+
 [dev-dependencies]
 async-global-executor = "^2.0"
 futures-lite = "^2.0"
@@ -71,7 +78,7 @@ serde_json = "^1.0"
 waker-fn = "^1.1"
 tokio = { version = "1.17.0", features = ["full"] }
 tokio-executor-trait = "2.1.0"
-tokio-reactor-trait = "1.1.0"
+tokio-reactor-trait = "^1.1"
 
 [dev-dependencies.tracing-subscriber]
 version = "^0.3"
