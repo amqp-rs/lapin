@@ -18,7 +18,7 @@ use crate::{
     topology_internal::TopologyInternal,
     types::ReplyCode,
     uri::AMQPUri,
-    Error, Promise, Result, TcpStream,
+    Error, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -157,7 +157,7 @@ impl Connection {
         }
 
         // Then, ensure we have at least one channel to restore everything else
-        let channel = if let Some(chan) = restored.channels.get(0) {
+        let channel = if let Some(chan) = restored.channels.first() {
             chan.channel.clone()
         } else {
             self.create_channel().await?
@@ -249,7 +249,17 @@ impl Connection {
         &self.status
     }
 
+    /// Request a connection close.
+    ///
+    /// This method is only successful if the connection is in the connected state,
+    /// otherwise an [`InvalidConnectionState`] error is returned.
+    ///
+    /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
+        if !self.status.connected() {
+            return Err(Error::InvalidConnectionState(self.status.state()));
+        }
+
         self.channels.set_connection_closing();
         if let Some(channel0) = self.channels.get(0) {
             channel0
@@ -301,7 +311,7 @@ impl Connection {
         let executor = executor
             .expect("executor should be provided with no default executor feature was enabled");
 
-        let (connect_promise, resolver) = pinky_swear::PinkySwear::<Result<TcpStream>>::new();
+        let (connect_promise, resolver) = Promise::new();
         let connect_uri = uri.clone();
         executor.spawn({
             let executor = executor.clone();
@@ -398,7 +408,7 @@ impl Connection {
                 error
             })?
             .into();
-        let heartbeat = Heartbeat::new(channels.clone(), executor.clone(), reactor);
+        let heartbeat = Heartbeat::new(status.clone(), channels.clone(), executor.clone(), reactor);
         let internal_rpc_handle = internal_rpc.handle();
         executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
         IoLoop::new(

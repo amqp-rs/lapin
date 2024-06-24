@@ -1,6 +1,5 @@
-use crate::types::{AMQPValue, FieldTable, LongString};
+use crate::{reactor::FullReactor, types::{AMQPValue, FieldTable, LongString}};
 use executor_trait::FullExecutor;
-use reactor_trait::Reactor;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -8,7 +7,7 @@ pub struct ConnectionProperties {
     pub locale: String,
     pub client_properties: FieldTable,
     pub executor: Option<Arc<dyn FullExecutor + Send + Sync>>,
-    pub reactor: Option<Arc<dyn Reactor + Send + Sync>>,
+    pub reactor: Option<Arc<dyn FullReactor + Send + Sync>>,
 }
 
 impl Default for ConnectionProperties {
@@ -39,7 +38,7 @@ impl ConnectionProperties {
     }
 
     #[must_use]
-    pub fn with_reactor<R: Reactor + Send + Sync + 'static>(mut self, reactor: R) -> Self {
+    pub fn with_reactor<R: FullReactor + Send + Sync + 'static>(mut self, reactor: R) -> Self {
         self.reactor = Some(Arc::new(reactor));
         self
     }

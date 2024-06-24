@@ -13,8 +13,9 @@ impl ConnectionStatus {
         self.0.lock().state.clone()
     }
 
-    pub(crate) fn set_state(&self, state: ConnectionState) {
-        self.0.lock().state = state;
+    pub(crate) fn set_state(&self, state: ConnectionState) -> ConnectionState {
+        let mut inner = self.0.lock();
+        std::mem::replace(&mut inner.state, state)
     }
 
     pub(crate) fn connection_step(&self) -> Option<ConnectionStep> {
@@ -143,21 +144,15 @@ impl Default for Inner {
 
 impl Inner {
     fn connection_resolver(&mut self) -> Option<(PromiseResolver<Connection>, Option<Connection>)> {
-        if let ConnectionState::Connecting = self.state {
-            self.connection_step
-                .take()
-                .map(|connection_step| match connection_step {
-                    ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
-                        (resolver, Some(connection))
-                    }
-                    ConnectionStep::StartOk(resolver, connection, ..) => {
-                        (resolver, Some(connection))
-                    }
-                    ConnectionStep::Open(resolver, ..) => (resolver, None),
-                })
-        } else {
-            None
-        }
+        self.connection_step
+            .take()
+            .map(|connection_step| match connection_step {
+                ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
+                    (resolver, Some(connection))
+                }
+                ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
+                ConnectionStep::Open(resolver, ..) => (resolver, None),
+            })
     }
 
     fn connection_step_name(&self) -> Option<&'static str> {

@@ -1,7 +1,6 @@
-use crate::channels::Channels;
+use crate::{channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, Error};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
-use reactor_trait::Reactor;
 use std::{
     fmt,
     sync::Arc,
@@ -10,21 +9,27 @@ use std::{
 
 #[derive(Clone)]
 pub struct Heartbeat {
+    connection_status: ConnectionStatus,
     channels: Channels,
+    killswitch: KillSwitch,
     executor: Arc<dyn FullExecutor + Send + Sync>,
-    reactor: Arc<dyn Reactor + Send + Sync>,
+    reactor: Arc<dyn FullReactor + Send + Sync>,
     inner: Arc<Mutex<Inner>>,
 }
 
 impl Heartbeat {
     pub(crate) fn new(
+        connection_status: ConnectionStatus,
         channels: Channels,
         executor: Arc<dyn FullExecutor + Send + Sync>,
-        reactor: Arc<dyn Reactor + Send + Sync>,
+        reactor: Arc<dyn FullReactor + Send + Sync>,
     ) -> Self {
+        let killswitch = Default::default();
         let inner = Default::default();
         Self {
+            connection_status,
             channels,
+            killswitch,
             executor,
             reactor,
             inner,
@@ -33,6 +38,10 @@ impl Heartbeat {
 
     pub(crate) fn set_timeout(&self, timeout: Duration) {
         self.inner.lock().timeout = Some(timeout);
+    }
+
+    pub(crate) fn killswitch(&self) -> KillSwitch {
+        self.killswitch.clone()
     }
 
     pub(crate) fn start(&self) {
@@ -45,11 +54,22 @@ impl Heartbeat {
     }
 
     fn poll_timeout(&self) -> Option<Duration> {
-        self.inner.lock().poll_timeout(&self.channels)
+        if !self.connection_status.connected() {
+            self.cancel();
+            return None;
+        }
+
+        self.inner
+            .lock()
+            .poll_timeout(&self.channels, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
         self.inner.lock().update_last_write();
+    }
+
+    pub(crate) fn update_last_read(&mut self) {
+        self.inner.lock().update_last_read();
     }
 
     pub(crate) fn cancel(&self) {
@@ -64,6 +84,7 @@ impl fmt::Debug for Heartbeat {
 }
 
 struct Inner {
+    last_read: Instant,
     last_write: Instant,
     timeout: Option<Duration>,
 }
@@ -71,6 +92,7 @@ struct Inner {
 impl Default for Inner {
     fn default() -> Self {
         Self {
+            last_read: Instant::now(),
             last_write: Instant::now(),
             timeout: None,
         }
@@ -78,21 +100,34 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn poll_timeout(&mut self, channels: &Channels) -> Option<Duration> {
-        self.timeout.map(|timeout| {
-            timeout
-                .checked_sub(self.last_write.elapsed())
-                .map(|timeout| timeout.max(Duration::from_millis(1)))
-                .unwrap_or_else(|| {
-                    // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
-                    self.update_last_write();
-                    channels.send_heartbeat();
-                    timeout
-                })
-        })
+    fn poll_timeout(&mut self, channels: &Channels, killswitch: &KillSwitch) -> Option<Duration> {
+        let timeout = self.timeout?;
+
+        // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
+        // The specs tells us to close the connection after twice the configured interval has passed.
+        if Instant::now().duration_since(self.last_read) > 4 * timeout {
+            self.timeout = None;
+            killswitch.kill();
+            channels.set_connection_error(Error::MissingHeartbeatError);
+            return None;
+        }
+
+        timeout
+            .checked_sub(self.last_write.elapsed())
+            .map(|timeout| timeout.max(Duration::from_millis(1)))
+            .or_else(|| {
+                // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
+                self.update_last_write();
+                channels.send_heartbeat();
+                Some(timeout)
+            })
     }
 
     fn update_last_write(&mut self) {
         self.last_write = Instant::now();
+    }
+
+    fn update_last_read(&mut self) {
+        self.last_read = Instant::now();
     }
 }

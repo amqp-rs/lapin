@@ -18,14 +18,30 @@
 
 This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf), targeting especially RabbitMQ.
 
-## Feature switches
+## Features
 
-* `codegen`: generate code instead of using pregenerated one
-* `native-tls`: enable amqps support through native-tls
-* `openssl`: enable amqps support through openssl (preferred over native-tls when set)
-* `rustls` (*default*): enable amqps support through rustls (preferred over openssl when set, uses rustls-native-certs by default)
-* `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
-* `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
+- codegen: force code generation (default to pregenerated sources)
+- vendored-openssl: use a vendored openssl version instead of the system one (when using openssl backend)
+- verbose-errors: enable more verbose errors in the AMQP parser
+
+## TLS backends
+
+- native-tls
+- openssl
+- rustls (default)
+
+## Rustls certificates store
+
+- rustls-native-certs (default)
+- rustls-webpki-roots-certs
+
+## Warning about crypto backends for rustls
+
+A crypto implementation must be enabled in rustls using feature flags.
+We mimic what rustls does, providing one feature flag per implementation and enabling the same as rustls by default.
+Available options are:
+- `rustls--aws_lc_rs` (default)
+- `rustls--ring`
 
 ## Integration with third-party runtimes
 

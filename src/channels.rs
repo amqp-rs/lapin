@@ -129,7 +129,8 @@ impl Channels {
     }
 
     pub(crate) fn set_connection_error(&self, error: Error) {
-        if let ConnectionState::Error = self.connection_status.state() {
+        // Do nothing if we were already in error
+        if let ConnectionState::Error = self.connection_status.set_state(ConnectionState::Error) {
             return;
         }
 
@@ -137,7 +138,7 @@ impl Channels {
         if let Some(resolver) = self.connection_status.connection_resolver() {
             resolver.swear(Err(error.clone()));
         }
-        self.connection_status.set_state(ConnectionState::Error);
+
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
         for (id, channel) in self.inner.lock().channels.iter() {
