@@ -1,4 +1,6 @@
-use crate::{channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, Error};
+use crate::{
+    channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, Error,
+};
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
 use std::{

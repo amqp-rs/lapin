@@ -1,4 +1,7 @@
-use crate::{reactor::FullReactor, types::{AMQPValue, FieldTable, LongString}};
+use crate::{
+    reactor::FullReactor,
+    types::{AMQPValue, FieldTable, LongString},
+};
 use executor_trait::FullExecutor;
 use std::sync::Arc;
 
