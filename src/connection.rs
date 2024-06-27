@@ -302,15 +302,8 @@ impl Connection {
         connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
         mut options: ConnectionProperties,
     ) -> Result<Connection> {
-        let executor = options.executor.take();
-
-        #[cfg(feature = "default-runtime")]
-        let executor =
-            executor.or_else(|| Some(Arc::new(async_global_executor_trait::AsyncGlobalExecutor)));
-
-        let executor = executor
-            .expect("executor should be provided with no default executor feature was enabled");
-
+        let executor = options.take_executor()?;
+        let reactor = options.take_reactor()?;
         let (connect_promise, resolver) = Promise::new();
         let connect_uri = uri.clone();
         executor.spawn({
@@ -340,14 +333,6 @@ impl Connection {
                     .await;
             })
         });
-
-        let reactor = options.reactor.take();
-
-        #[cfg(feature = "default-runtime")]
-        let reactor = reactor.or_else(|| Some(Arc::new(async_reactor_trait::AsyncIo)));
-
-        let reactor = reactor
-            .expect("reactor should be provided with no default reactor feature was enabled");
 
         let socket_state = SocketState::default();
         let waker = socket_state.handle();

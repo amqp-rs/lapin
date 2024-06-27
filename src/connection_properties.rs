@@ -1,6 +1,7 @@
 use crate::{
     reactor::FullReactor,
     types::{AMQPValue, FieldTable, LongString},
+    Error, Result,
 };
 use executor_trait::FullExecutor;
 use std::sync::Arc;
@@ -44,5 +45,29 @@ impl ConnectionProperties {
     pub fn with_reactor<R: FullReactor + Send + Sync + 'static>(mut self, reactor: R) -> Self {
         self.reactor = Some(Arc::new(reactor));
         self
+    }
+
+    pub(crate) fn take_executor(&mut self) -> Result<Arc<dyn FullExecutor + Send + Sync>> {
+        if let Some(executor) = self.executor.take() {
+            return Ok(executor);
+        }
+
+        if cfg!(feature = "default-runtime") {
+            Ok(Arc::new(async_global_executor_trait::AsyncGlobalExecutor))
+        } else {
+            Err(Error::NoConfiguredExecutor)
+        }
+    }
+
+    pub(crate) fn take_reactor(&mut self) -> Result<Arc<dyn FullReactor + Send + Sync>> {
+        if let Some(reactor) = self.reactor.take() {
+            return Ok(reactor);
+        }
+
+        if cfg!(feature = "default-runtime") {
+            Ok(Arc::new(async_reactor_trait::AsyncIo))
+        } else {
+            Err(Error::NoConfiguredReactor)
+        }
     }
 }

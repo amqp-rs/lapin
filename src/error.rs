@@ -28,6 +28,9 @@ pub enum Error {
     SerialisationError(Arc<GenError>),
 
     MissingHeartbeatError,
+
+    NoConfiguredExecutor,
+    NoConfiguredReactor,
 }
 
 impl Error {
@@ -72,6 +75,19 @@ impl fmt::Display for Error {
 
             Error::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")
+            }
+
+            Error::NoConfiguredExecutor => {
+                write!(
+                    f,
+                    "an executor must be provided if the default-runtime feature is disabled"
+                )
+            }
+            Error::NoConfiguredReactor => {
+                write!(
+                    f,
+                    "a reactor must be provided if the default-runtime feature is disabled"
+                )
             }
         }
     }
