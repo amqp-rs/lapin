@@ -52,11 +52,13 @@ impl ConnectionProperties {
             return Ok(executor);
         }
 
-        if cfg!(feature = "default-runtime") {
-            Ok(Arc::new(async_global_executor_trait::AsyncGlobalExecutor))
-        } else {
-            Err(Error::NoConfiguredExecutor)
+        #[cfg(feature = "default-runtime")]
+        {
+            return Ok(Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
         }
+
+        #[allow(unreachable_code)]
+        Err(Error::NoConfiguredExecutor)
     }
 
     pub(crate) fn take_reactor(&mut self) -> Result<Arc<dyn FullReactor + Send + Sync>> {
@@ -64,10 +66,12 @@ impl ConnectionProperties {
             return Ok(reactor);
         }
 
-        if cfg!(feature = "default-runtime") {
-            Ok(Arc::new(async_reactor_trait::AsyncIo))
-        } else {
-            Err(Error::NoConfiguredReactor)
+        #[cfg(feature = "default-runtime")]
+        {
+            return Ok(Arc::new(async_reactor_trait::AsyncIo));
         }
+
+        #[allow(unreachable_code)]
+        Err(Error::NoConfiguredReactor)
     }
 }
