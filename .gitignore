@@ -2,3 +2,4 @@ path
 target
 Cargo.lock
 *~
+.env
