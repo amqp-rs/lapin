@@ -136,7 +136,7 @@ impl Channels {
 
         error!(%error, "Connection error");
         if let Some(resolver) = self.connection_status.connection_resolver() {
-            resolver.swear(Err(error.clone()));
+            resolver.reject(error.clone());
         }
 
         self.frames.drop_pending(error.clone());
@@ -190,7 +190,7 @@ impl Channels {
                 );
                 let error = Error::InvalidProtocolVersion(version);
                 if let Some(resolver) = self.connection_status.connection_resolver() {
-                    resolver.swear(Err(error.clone()));
+                    resolver.reject(error.clone());
                 }
                 return Err(error);
             }

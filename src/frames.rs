@@ -1,10 +1,11 @@
-use crate::{channel::Reply, types::ChannelId, Error, Promise, PromiseResolver};
+use crate::{
+    channel::Reply, promise::Cancelable, types::ChannelId, Error, Promise, PromiseResolver,
+};
 use amq_protocol::{
     frame::AMQPFrame,
     protocol::{basic::AMQPMethod, AMQPClass},
 };
 use parking_lot::Mutex;
-use pinky_swear::Cancellable;
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
@@ -12,10 +13,7 @@ use std::{
 };
 use tracing::{level_enabled, trace, Level};
 
-pub(crate) struct ExpectedReply(
-    pub(crate) Reply,
-    pub(crate) Box<dyn Cancellable<Error> + Send>,
-);
+pub(crate) struct ExpectedReply(pub(crate) Reply, pub(crate) Box<dyn Cancelable + Send>);
 
 impl fmt::Debug for ExpectedReply {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -151,7 +149,7 @@ impl Inner {
         if let Some(last_frame) = last_frame {
             self.low_prio_frames.push_back((last_frame, Some(resolver)));
         } else {
-            resolver.swear(Ok(()));
+            resolver.resolve(());
         }
         promise
     }
@@ -225,9 +223,9 @@ impl Inner {
             if let Some(resolver) = resolver {
                 match frame {
                     AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Cancel(_))) => {
-                        resolver.swear(Ok(()))
+                        resolver.resolve(())
                     }
-                    _ => resolver.swear(Err(error.clone())),
+                    _ => resolver.reject(error.clone()),
                 }
             }
         }
@@ -238,7 +236,7 @@ impl Inner {
         while let Some(reply) = expected_replies.pop_front() {
             match &reply.0 {
                 Reply::ChannelCloseOk(_) => return Some(reply.0),
-                Reply::BasicCancelOk(pinky) => pinky.swear(Ok(())), // Channel close means consumer is canceled automatically
+                Reply::BasicCancelOk(pinky) => pinky.resolve(()), // Channel close means consumer is canceled automatically
                 _ => reply.1.cancel(error.clone()),
             }
         }
@@ -254,7 +252,7 @@ impl Inner {
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
         for ExpectedReply(reply, cancel) in replies {
             match reply {
-                Reply::BasicCancelOk(pinky) => pinky.swear(Ok(())),
+                Reply::BasicCancelOk(pinky) => pinky.resolve(()),
                 _ => cancel.cancel(error.clone()),
             }
         }

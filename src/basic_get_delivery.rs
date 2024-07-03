@@ -94,7 +94,7 @@ impl Inner {
 
     fn new_delivery_complete(&mut self) {
         if let Some(inner) = self.0.take() {
-            inner.resolver.swear(Ok(Some(inner.message)));
+            inner.resolver.resolve(Some(inner.message));
         }
     }
 }

@@ -423,7 +423,7 @@ impl Channel {
         {
             Some(Reply::BasicQosOk(resolver)) => {
                 let res = Ok(());
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -608,7 +608,7 @@ impl Channel {
         }) {
             Some(Reply::BasicCancelOk(resolver)) => {
                 let res = self.on_basic_cancel_ok_received(method);
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -836,7 +836,7 @@ impl Channel {
         }) {
             Some(Reply::BasicRecoverOk(resolver)) => {
                 let res = self.on_basic_recover_ok_received();
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1021,7 +1021,7 @@ impl Channel {
         }) {
             Some(Reply::ConnectionOpenOk(resolver, connection)) => {
                 let res = self.on_connection_open_ok_received(method, connection);
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1108,7 +1108,7 @@ impl Channel {
         }) {
             Some(Reply::ConnectionCloseOk(resolver)) => {
                 let res = self.on_connection_close_ok_received();
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1217,7 +1217,7 @@ impl Channel {
       Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
         let res =        Ok(())
 ;
-        resolver.swear(res.clone());
+        resolver.complete(res.clone());
         res
 },
       unexpected => {
@@ -1418,7 +1418,7 @@ impl Channel {
         match self.next_expected_close_ok_reply() {
             Some(Reply::ChannelCloseOk(resolver)) => {
                 let res = self.on_channel_close_ok_received();
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1483,7 +1483,7 @@ impl Channel {
         }) {
             Some(Reply::AccessRequestOk(resolver)) => {
                 let res = self.on_access_request_ok_received(method);
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1639,7 +1639,7 @@ impl Channel {
         }) {
             Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
                 let res = self.on_exchange_delete_ok_received(exchange);
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1725,7 +1725,7 @@ impl Channel {
                     routing_key,
                     creation_arguments,
                 );
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1811,7 +1811,7 @@ impl Channel {
                     routing_key,
                     creation_arguments,
                 );
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -1972,7 +1972,7 @@ impl Channel {
                     routing_key,
                     creation_arguments,
                 );
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -2176,7 +2176,7 @@ impl Channel {
                     routing_key,
                     creation_arguments,
                 );
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -2226,7 +2226,7 @@ impl Channel {
         {
             Some(Reply::TxSelectOk(resolver)) => {
                 let res = Ok(());
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -2276,7 +2276,7 @@ impl Channel {
         {
             Some(Reply::TxCommitOk(resolver)) => {
                 let res = Ok(());
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -2328,7 +2328,7 @@ impl Channel {
         {
             Some(Reply::TxRollbackOk(resolver)) => {
                 let res = Ok(());
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(
@@ -2380,7 +2380,7 @@ impl Channel {
         }) {
             Some(Reply::ConfirmSelectOk(resolver)) => {
                 let res = self.on_confirm_select_ok_received();
-                resolver.swear(res.clone());
+                resolver.complete(res.clone());
                 res
             }
             unexpected => self.handle_invalid_contents(

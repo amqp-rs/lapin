@@ -243,13 +243,13 @@ impl IoLoop {
 
     fn critical_error(&mut self, error: Error) -> Result<()> {
         if let Some(resolver) = self.connection_status.connection_resolver() {
-            resolver.swear(Err(error.clone()));
+            resolver.reject(error.clone());
         }
         self.stop();
         self.channels.set_connection_error(error.clone());
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
-                resolver.swear(Err(error.clone()));
+                resolver.reject(error.clone());
             }
         }
         Err(error)
@@ -315,7 +315,7 @@ impl IoLoop {
                             written = 0;
                         } else {
                             if let Some(resolver) = resolver {
-                                resolver.swear(Ok(()));
+                                resolver.resolve(());
                             }
                             written -= to_write;
                         }

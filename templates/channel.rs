@@ -183,7 +183,7 @@ impl Channel {
         {{/if ~}}
         {{/if ~}}
         {{#unless method.metadata.confirmation.type ~}};
-        resolver.swear(res.clone());
+        resolver.complete(res.clone());
         res
         {{/unless ~}}
       },

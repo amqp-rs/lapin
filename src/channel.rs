@@ -795,7 +795,7 @@ impl Channel {
             (state.clone(), self.connection_status.connection_step())
         {
             self.connection_status.set_state(ConnectionState::Connected);
-            resolver.swear(Ok(connection));
+            resolver.resolve(connection);
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
@@ -825,7 +825,7 @@ impl Channel {
         self.internal_rpc.set_connection_closing();
         self.frames.drop_pending(error.clone());
         if let Some(resolver) = connection_resolver {
-            resolver.swear(Err(error.clone()));
+            resolver.reject(error.clone());
         }
         self.internal_rpc.send_connection_close_ok(error);
         Ok(())
@@ -858,7 +858,7 @@ impl Channel {
         channel: Channel,
     ) -> Result<()> {
         self.set_state(ChannelState::Connected);
-        resolver.swear(Ok(channel));
+        resolver.resolve(channel);
         Ok(())
     }
 
@@ -881,7 +881,7 @@ impl Channel {
         resolver: PromiseResolver<Boolean>,
     ) -> Result<()> {
         // Nothing to do here, the server just confirmed that we paused/resumed the receiving flow
-        resolver.swear(Ok(method.active));
+        resolver.resolve(method.active);
         Ok(())
     }
 
@@ -944,7 +944,7 @@ impl Channel {
     ) -> Result<()> {
         self.global_registry
             .register_exchange(exchange, kind, options, arguments);
-        resolver.swear(Ok(()));
+        resolver.resolve(());
         Ok(())
     }
 
@@ -961,7 +961,7 @@ impl Channel {
     ) -> Result<()> {
         self.local_registry.deregister_queue(queue.as_str());
         self.global_registry.deregister_queue(queue.as_str());
-        resolver.swear(Ok(method.message_count));
+        resolver.resolve(method.message_count);
         Ok(())
     }
 
@@ -970,7 +970,7 @@ impl Channel {
         method: protocol::queue::PurgeOk,
         resolver: PromiseResolver<MessageCount>,
     ) -> Result<()> {
-        resolver.swear(Ok(method.message_count));
+        resolver.resolve(method.message_count);
         Ok(())
     }
 
@@ -987,11 +987,11 @@ impl Channel {
         }
         self.global_registry
             .register_queue(method.queue.clone(), options, arguments);
-        resolver.swear(Ok(Queue::new(
+        resolver.resolve(Queue::new(
             method.queue,
             method.message_count,
             method.consumer_count,
-        )));
+        ));
         Ok(())
     }
 
@@ -1067,7 +1067,7 @@ impl Channel {
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
         {
             Some(Reply::BasicGetOk(resolver, ..)) => {
-                resolver.swear(Ok(None));
+                resolver.resolve(None);
                 Ok(())
             }
             _ => self.handle_invalid_contents(
@@ -1100,7 +1100,7 @@ impl Channel {
         });
         let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
         self.consumers.register(method.consumer_tag, consumer);
-        resolver.swear(Ok(external_consumer));
+        resolver.resolve(external_consumer);
         Ok(())
     }
 

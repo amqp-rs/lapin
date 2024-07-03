@@ -124,8 +124,7 @@ pub mod publisher_confirm;
 pub mod socket_state;
 pub mod topology;
 
-type Promise<T> = pinky_swear::PinkySwear<Result<T>>;
-type PromiseResolver<T> = pinky_swear::Pinky<Result<T>>;
+use promise::{Promise, PromiseResolver};
 
 mod acknowledgement;
 mod basic_get_delivery;
@@ -154,6 +153,7 @@ mod internal_rpc;
 mod io_loop;
 mod killswitch;
 mod parsing;
+mod promise;
 mod queue;
 mod reactor;
 mod registry;

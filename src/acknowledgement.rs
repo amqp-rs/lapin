@@ -1,5 +1,6 @@
 use crate::{
     id_sequence::IdSequence,
+    promise::PromisesBroadcaster,
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
@@ -18,7 +19,6 @@ use tracing::trace;
 pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);
 
 type AMQPResult = std::result::Result<(), AMQPError>;
-type ConfirmationBroadcaster = pinky_swear::PinkyErrorBroadcaster<Confirmation, Error>;
 
 impl Acknowledgements {
     pub(crate) fn new(channel_id: u16, returned_messages: ReturnedMessages) -> Self {
@@ -82,7 +82,7 @@ struct Inner {
     channel_id: u16,
     delivery_tag: IdSequence<DeliveryTag>,
     last: Option<(DeliveryTag, Promise<()>)>,
-    pending: HashMap<DeliveryTag, ConfirmationBroadcaster>,
+    pending: HashMap<DeliveryTag, PromisesBroadcaster<Confirmation>>,
     returned_messages: ReturnedMessages,
 }
 
@@ -100,7 +100,7 @@ impl Inner {
     fn register_pending(&mut self) -> PublisherConfirm {
         let delivery_tag = self.delivery_tag.next();
         trace!("Publishing with delivery_tag {}", delivery_tag);
-        let (promise, broadcaster) = ConfirmationBroadcaster::new();
+        let (promise, broadcaster) = PromisesBroadcaster::new();
         let promise = PublisherConfirm::new(promise, self.returned_messages.clone());
         if let Some((delivery_tag, promise)) = self.last.take() {
             if let Some(broadcaster) = self.pending.get(&delivery_tag) {
@@ -112,13 +112,13 @@ impl Inner {
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, resolver: ConfirmationBroadcaster) {
+    fn complete_pending(&mut self, success: bool, resolver: PromisesBroadcaster<Confirmation>) {
         let returned_message = self.returned_messages.get_waiting_message().map(Box::new);
-        resolver.swear(Ok(if success {
+        resolver.resolve(if success {
             Confirmation::Ack(returned_message)
         } else {
             Confirmation::Nack(returned_message)
-        }));
+        });
     }
 
     fn drop_all(&mut self, success: bool) {
@@ -170,7 +170,7 @@ impl Inner {
 
     fn on_channel_error(&mut self, error: Error) {
         for (_, resolver) in self.pending.drain() {
-            resolver.swear(Err(error.clone()));
+            resolver.reject(error.clone());
         }
     }
 }

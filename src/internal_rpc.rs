@@ -164,7 +164,7 @@ impl InternalRPCHandle {
     ) {
         self.executor.spawn(Box::pin(async move {
             let res = f.await;
-            resolver.swear(res);
+            resolver.complete(res);
         }));
     }
 }

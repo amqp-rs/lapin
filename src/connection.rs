@@ -315,12 +315,12 @@ impl Connection {
                         loop {
                             match res {
                                 Ok(stream) => {
-                                    resolver.swear(Ok(stream));
+                                    resolver.resolve(stream);
                                     break;
                                 }
                                 Err(mid) => match mid.into_mid_handshake_tls_stream() {
                                     Err(err) => {
-                                        resolver.swear(Err(err.into()));
+                                        resolver.reject(err.into());
                                         break;
                                     }
                                     Ok(mid) => {
