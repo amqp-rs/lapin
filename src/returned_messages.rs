@@ -113,20 +113,31 @@ impl Inner {
         }
     }
 
-    fn register_dropped_confirm(&mut self, promise: Promise<Confirmation>) {
+    fn process_dropped_confirm(
+        &mut self,
+        promise: Promise<Confirmation>,
+        messages: Option<&mut Vec<BasicReturnMessage>>,
+    ) {
+        let messages = messages.unwrap_or(&mut self.messages);
+
         if let Some(confirmation) = promise.try_wait() {
             if let Ok(Confirmation::Nack(Some(message))) | Ok(Confirmation::Ack(Some(message))) =
                 confirmation
             {
-                trace!("Dropped PublisherConfirm was carrying a message, storing it");
-                self.messages.push(*message);
+                trace!("PublisherConfirm was carrying a message, storing it");
+                messages.push(*message);
             } else {
-                trace!("Dropped PublisherConfirm was ready but didn't carry a message, discarding");
+                trace!("PublisherConfirm was ready but didn't carry a message, discarding");
             }
         } else {
-            trace!("Storing dropped PublisherConfirm for further use");
+            trace!("PublisherConfirm wasn't ready yet, storing it for further use");
             self.dropped_confirms.push(promise);
         }
+    }
+
+    fn register_dropped_confirm(&mut self, promise: Promise<Confirmation>) {
+        trace!("Registering new dropped PublisherConfirm");
+        self.process_dropped_confirm(promise, None)
     }
 
     fn drain(&mut self) -> Vec<BasicReturnMessage> {
@@ -139,19 +150,7 @@ impl Inner {
         let before = self.dropped_confirms.len();
         if before != 0 {
             for promise in std::mem::take(&mut self.dropped_confirms) {
-                if let Some(confirmation) = promise.try_wait() {
-                    if let Ok(Confirmation::Nack(Some(message)))
-                    | Ok(Confirmation::Ack(Some(message))) = confirmation
-                    {
-                        trace!("PublisherConfirm was carrying a message, storing it");
-                        messages.push(*message);
-                    } else {
-                        trace!("PublisherConfirm was ready but didn't carry a message, discarding");
-                    }
-                } else {
-                    trace!("PublisherConfirm wasn't ready yet, storing it back");
-                    self.dropped_confirms.push(promise);
-                }
+                self.process_dropped_confirm(promise, Some(&mut messages))
             }
             trace!(
                 %before,
