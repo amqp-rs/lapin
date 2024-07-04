@@ -80,32 +80,3 @@ impl<T> Cancelable for PromiseResolver<T> {
         self.reject(err)
     }
 }
-
-pub(crate) struct PromisesBroadcaster<T>(pinky_swear::PinkyErrorBroadcaster<T, Error>);
-
-impl<T: Send + 'static> PromisesBroadcaster<T> {
-    pub(crate) fn new() -> (Promise<T>, Self) {
-        let (promise, broadcaster) = pinky_swear::PinkyErrorBroadcaster::new();
-        (Promise(promise), Self(broadcaster))
-    }
-
-    pub(crate) fn resolve(&self, data: T) {
-        self.complete(Ok(data))
-    }
-
-    pub(crate) fn reject(&self, error: Error) {
-        self.complete(Err(error))
-    }
-
-    fn complete(&self, res: Result<T>) {
-        self.0.swear(res)
-    }
-
-    pub(crate) fn subscribe(&self) -> Promise<()> {
-        Promise(self.0.subscribe())
-    }
-
-    pub(crate) fn unsubscribe(&self, promise: Promise<()>) {
-        self.0.unsubscribe(promise.0)
-    }
-}

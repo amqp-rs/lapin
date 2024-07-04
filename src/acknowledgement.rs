@@ -1,11 +1,10 @@
 use crate::{
     id_sequence::IdSequence,
-    promise::PromisesBroadcaster,
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
     types::DeliveryTag,
-    Error, Promise,
+    Error, Promise, PromiseResolver,
 };
 use parking_lot::Mutex;
 use std::{
@@ -33,7 +32,7 @@ impl Acknowledgements {
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<Promise<()>> {
-        Some(self.0.lock().last.take()?.1)
+        self.0.lock().last.take()
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> AMQPResult {
@@ -81,8 +80,8 @@ impl fmt::Debug for Acknowledgements {
 struct Inner {
     channel_id: u16,
     delivery_tag: IdSequence<DeliveryTag>,
-    last: Option<(DeliveryTag, Promise<()>)>,
-    pending: HashMap<DeliveryTag, PromisesBroadcaster<Confirmation>>,
+    last: Option<Promise<()>>,
+    pending: HashMap<DeliveryTag, (PromiseResolver<Confirmation>, PromiseResolver<()>)>,
     returned_messages: ReturnedMessages,
 }
 
@@ -100,47 +99,46 @@ impl Inner {
     fn register_pending(&mut self) -> PublisherConfirm {
         let delivery_tag = self.delivery_tag.next();
         trace!("Publishing with delivery_tag {}", delivery_tag);
-        let (promise, broadcaster) = PromisesBroadcaster::new();
+        let (promise, resolver) = Promise::new();
+        let (err_promise, err_resolver) = Promise::new();
         let promise = PublisherConfirm::new(promise, self.returned_messages.clone());
-        if let Some((delivery_tag, promise)) = self.last.take() {
-            if let Some(broadcaster) = self.pending.get(&delivery_tag) {
-                broadcaster.unsubscribe(promise);
-            }
-        }
-        self.last = Some((delivery_tag, broadcaster.subscribe()));
-        self.pending.insert(delivery_tag, broadcaster);
+        self.last = Some(err_promise);
+        self.pending.insert(delivery_tag, (resolver, err_resolver));
         promise
     }
 
-    fn complete_pending(&mut self, success: bool, resolver: PromisesBroadcaster<Confirmation>) {
+    fn complete_pending(
+        &mut self,
+        success: bool,
+        delivery_tag: DeliveryTag,
+        resolvers: (PromiseResolver<Confirmation>, PromiseResolver<()>),
+    ) {
         let returned_message = self.returned_messages.get_waiting_message().map(Box::new);
-        resolver.resolve(if success {
+        resolvers.0.resolve(if success {
             Confirmation::Ack(returned_message)
         } else {
             Confirmation::Nack(returned_message)
         });
+        if Some(delivery_tag) == self.delivery_tag.current() {
+            resolvers.1.resolve(());
+        }
     }
 
     fn drop_all(&mut self, success: bool) {
-        for resolver in self
-            .pending
-            .drain()
-            .map(|(_, resolver)| resolver)
-            .collect::<Vec<_>>()
-        {
-            self.complete_pending(success, resolver);
+        for (delivery_tag, resolvers) in std::mem::take(&mut self.pending) {
+            self.complete_pending(success, delivery_tag, resolvers);
         }
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {
-        if let Some(resolver) = self.pending.remove(&delivery_tag) {
-            self.complete_pending(success, resolver);
+        if let Some(resolvers) = self.pending.remove(&delivery_tag) {
+            self.complete_pending(success, delivery_tag, resolvers);
             Ok(())
         } else {
             Err(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 format!(
-                    "invalid {} received for inexistant delivery_tag {} on channel {}, current is {}, was expecting one of {:?}",
+                    "invalid {} received for inexistant delivery_tag {} on channel {}, current is {:?}, was expecting one of {:?}",
                     if success { "ack" } else { "nack" },
                     delivery_tag,
                     self.channel_id,
@@ -169,8 +167,11 @@ impl Inner {
     }
 
     fn on_channel_error(&mut self, error: Error) {
-        for (_, resolver) in self.pending.drain() {
-            resolver.reject(error.clone());
+        for (delivery_tag, resolvers) in self.pending.drain() {
+            resolvers.0.reject(error.clone());
+            if Some(delivery_tag) == self.delivery_tag.current() {
+                resolvers.1.reject(error.clone());
+            }
         }
     }
 }
