@@ -1,18 +1,19 @@
 use crate::{Error, Result};
 use flume::{Receiver, Sender};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 use tracing::{trace, warn};
 
 #[must_use = "Promise should be used or you can miss errors"]
 pub(crate) struct Promise<T> {
     recv: Receiver<Result<T>>,
+    recv_fut: Pin<Box<dyn Future<Output = Result<T>> + Send>>,
     resolver: PromiseResolver<T>,
 }
 
@@ -36,10 +37,18 @@ impl<T: Send + 'static> Promise<T> {
         let (send, recv) = flume::unbounded();
         let resolver = PromiseResolver {
             send,
-            waker: Default::default(),
             marker: Default::default(),
         };
-        let promise = Self { recv, resolver };
+        let recv_fut = recv.clone().into_recv_async();
+        let recv_fut = Box::pin(async move {
+            // Since we always hold a ref to sender, we can safely unwrap here
+            recv_fut.await.unwrap()
+        });
+        let promise = Self {
+            recv,
+            recv_fut,
+            resolver,
+        };
         let resolver = promise.resolver.clone();
         (promise, resolver)
     }
@@ -57,22 +66,13 @@ impl<T: Send + 'static> Promise<T> {
     pub(crate) fn try_wait(&self) -> Option<Result<T>> {
         self.recv.try_recv().ok()
     }
-
-    fn set_waker(&self, waker: Waker) {
-        trace!(
-            promise = %self.resolver.marker(),
-            "Called from future, registering waker.",
-        );
-        *self.resolver.waker.lock() = Some(waker);
-    }
 }
 
 impl<T: Send + 'static> Future for Promise<T> {
     type Output = Result<T>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.set_waker(cx.waker().clone());
-        self.try_wait().map(Poll::Ready).unwrap_or(Poll::Pending)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.recv_fut).poll(cx)
     }
 }
 
@@ -82,7 +82,6 @@ pub trait Cancelable {
 
 pub(crate) struct PromiseResolver<T> {
     send: Sender<Result<T>>,
-    waker: Arc<Mutex<Option<Waker>>>,
     marker: Arc<RwLock<Option<String>>>,
 }
 
@@ -96,7 +95,6 @@ impl<T> Clone for PromiseResolver<T> {
     fn clone(&self) -> Self {
         Self {
             send: self.send.clone(),
-            waker: self.waker.clone(),
             marker: self.marker.clone(),
         }
     }
@@ -122,12 +120,6 @@ impl<T> PromiseResolver<T> {
                 error = %err,
                 "Failed resolving promise, promise has vanished.",
             );
-        }
-        if let Some(waker) = self.waker.lock().as_ref() {
-            trace!("Got data, waking our waker.");
-            waker.wake_by_ref();
-        } else {
-            trace!("Got data but we have no one to notify.");
         }
     }
 
