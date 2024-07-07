@@ -1,4 +1,7 @@
-use std::{fmt, ops::{AddAssign, Sub}};
+use std::{
+    fmt,
+    ops::{AddAssign, Sub},
+};
 
 pub(crate) struct IdSequence<T> {
     allow_zero: bool,
@@ -8,7 +11,10 @@ pub(crate) struct IdSequence<T> {
     id: T,
 }
 
-impl<T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
+impl<
+        T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + PartialOrd<T> + From<u8>,
+    > IdSequence<T>
+{
     pub(crate) fn new(allow_zero: bool) -> Self {
         Self {
             allow_zero,
