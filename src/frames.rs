@@ -258,7 +258,7 @@ impl Inner {
         while let Some(reply) = expected_replies.pop_front() {
             match &reply.0 {
                 Reply::ChannelCloseOk(_) => return Some(reply.0),
-                Reply::BasicCancelOk(pinky) => pinky.resolve(()), // Channel close means consumer is canceled automatically
+                Reply::BasicCancelOk(resolver) => resolver.resolve(()), // Channel close means consumer is canceled automatically
                 _ => reply.1.cancel(error.clone()),
             }
         }
@@ -274,7 +274,7 @@ impl Inner {
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
         for ExpectedReply(reply, cancel) in replies {
             match reply {
-                Reply::BasicCancelOk(pinky) => pinky.resolve(()),
+                Reply::BasicCancelOk(resolver) => resolver.resolve(()),
                 _ => cancel.cancel(error.clone()),
             }
         }
