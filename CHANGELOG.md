@@ -1,3 +1,9 @@
+### 2.4.0 (2024-07-16)
+
+#### Bug Fixes
+
+* Prevent `basic_publish` hangs in some rare corner case
+
 ### 2.3.4 (2024-05-01)
 
 #### Features
