@@ -92,6 +92,10 @@ impl Frames {
     pub(crate) fn clear_expected_replies(&self, channel_id: ChannelId, error: Error) {
         self.inner.lock().clear_expected_replies(channel_id, error);
     }
+
+    pub(crate) fn poison(&self) -> Option<Error> {
+        self.inner.lock().poison.clone()
+    }
 }
 
 #[derive(Default)]

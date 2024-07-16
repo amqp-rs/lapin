@@ -170,6 +170,11 @@ impl IoLoop {
                         }
                     }
                     self.heartbeat.cancel();
+                    self.clear_serialized_frames(
+                        self.frames.poison().unwrap_or_else(|| {
+                            Error::InvalidConnectionState(ConnectionState::Closed)
+                        }),
+                    );
                     let internal_rpc = self.internal_rpc.clone();
                     if self.killswitch.killed() {
                         internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
@@ -247,12 +252,16 @@ impl IoLoop {
         }
         self.stop();
         self.channels.set_connection_error(error.clone());
+        self.clear_serialized_frames(error.clone());
+        Err(error)
+    }
+
+    fn clear_serialized_frames(&mut self, error: Error) {
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
                 resolver.swear(Err(error.clone()));
             }
         }
-        Err(error)
     }
 
     fn attempt_flush(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
