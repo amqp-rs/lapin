@@ -103,6 +103,7 @@ struct Inner {
     frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
+    poison: Option<Error>,
 }
 
 impl fmt::Debug for Frames {
@@ -123,6 +124,10 @@ impl Inner {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
+        if self.check_poison(&resolver) {
+            return;
+        }
+
         self.frames.push_back((frame, Some(resolver)));
         if let Some(reply) = expected_reply {
             trace!(
@@ -141,6 +146,10 @@ impl Inner {
         let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
+        if self.check_poison(&resolver) {
+            return promise;
+        }
+
         if level_enabled!(Level::TRACE) {
             promise.set_marker("Frames".into());
         }
@@ -154,6 +163,14 @@ impl Inner {
             resolver.swear(Ok(()));
         }
         promise
+    }
+
+    fn check_poison(&self, resolver: &PromiseResolver<()>) -> bool {
+        if let Some(error) = self.poison.clone() {
+            resolver.swear(Err(error));
+            return true;
+        }
+        false
     }
 
     fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
@@ -215,6 +232,7 @@ impl Inner {
         for (_, replies) in self.expected_replies.drain() {
             Self::cancel_expected_replies(replies, error.clone());
         }
+        self.poison = Some(error);
     }
 
     fn drop_pending_frames(
