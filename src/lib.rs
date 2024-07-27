@@ -124,6 +124,10 @@ pub mod publisher_confirm;
 pub mod socket_state;
 pub mod topology;
 
+pub mod experimental {
+    pub use crate::recovery_config::RecoveryConfig;
+}
+
 use promise::{Promise, PromiseResolver};
 
 mod acknowledgement;
@@ -156,6 +160,7 @@ mod parsing;
 mod promise;
 mod queue;
 mod reactor;
+mod recovery_config;
 mod registry;
 mod returned_messages;
 mod thread;

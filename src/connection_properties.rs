@@ -1,4 +1,5 @@
 use crate::{
+    experimental::RecoveryConfig,
     reactor::FullReactor,
     types::{AMQPValue, FieldTable, LongString},
     Error, Result,
@@ -12,6 +13,7 @@ pub struct ConnectionProperties {
     pub client_properties: FieldTable,
     pub executor: Option<Arc<dyn FullExecutor + Send + Sync>>,
     pub reactor: Option<Arc<dyn FullReactor + Send + Sync>>,
+    pub recovery_config: Option<RecoveryConfig>,
 }
 
 impl Default for ConnectionProperties {
@@ -21,6 +23,7 @@ impl Default for ConnectionProperties {
             client_properties: FieldTable::default(),
             executor: None,
             reactor: None,
+            recovery_config: None,
         }
     }
 }
@@ -44,6 +47,12 @@ impl ConnectionProperties {
     #[must_use]
     pub fn with_reactor<R: FullReactor + Send + Sync + 'static>(mut self, reactor: R) -> Self {
         self.reactor = Some(Arc::new(reactor));
+        self
+    }
+
+    #[must_use]
+    pub fn with_experimental_recovery_config(mut self, config: RecoveryConfig) -> Self {
+        self.recovery_config = Some(config);
         self
     }
 

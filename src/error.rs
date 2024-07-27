@@ -4,7 +4,7 @@ use crate::{
 };
 use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
-    protocol::{AMQPErrorKind, AMQPSoftError},
+    protocol::AMQPErrorKind,
 };
 use std::{error, fmt, io, sync::Arc};
 
