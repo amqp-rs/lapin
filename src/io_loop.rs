@@ -145,11 +145,15 @@ impl IoLoop {
     }
 
     fn should_continue(&self) -> bool {
-        (self.status != Status::Connected
-            || self.connection_status.connected()
-            || self.connection_status.closing())
-            && self.status != Status::Stop
-            && !self.connection_status.errored()
+        match self.status {
+            Status::Initial => !self.connection_status.errored(),
+            Status::Stop => false,
+            Status::Connected => {
+                self.connection_status.connected()
+                    || self.connection_status.closing()
+                    || !self.serialized_frames.is_empty()
+            }
+        }
     }
 
     pub fn start(mut self) -> Result<()> {
@@ -259,6 +263,7 @@ impl IoLoop {
     fn clear_serialized_frames(&mut self, error: Error) {
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
+                trace!("We're quitting but had leftover frames, tag them as 'not sent' with current error");
                 resolver.reject(error.clone());
             }
         }
