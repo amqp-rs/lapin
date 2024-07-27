@@ -1,3 +1,9 @@
+### 2.5.0 (2024-07-27)
+
+#### Bug Fixes
+
+* Better handle in flight frames on io loop termination.
+
 ### 2.4.0 (2024-07-16)
 
 #### Bug Fixes
