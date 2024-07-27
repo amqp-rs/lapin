@@ -2,7 +2,10 @@ use crate::{
     channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
     types::ChannelId,
 };
-use amq_protocol::frame::{GenError, ParserError, ProtocolVersion};
+use amq_protocol::{
+    frame::{GenError, ParserError, ProtocolVersion},
+    protocol::{AMQPErrorKind, AMQPSoftError},
+};
 use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
@@ -48,6 +51,24 @@ impl Error {
         } else {
             false
         }
+    }
+
+    pub fn is_amqp_soft_error(&self) -> bool {
+        if let Error::ProtocolError(e) = self {
+            if let AMQPErrorKind::Soft(_) = e.kind() {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_amqp_hard_error(&self) -> bool {
+        if let Error::ProtocolError(e) = self {
+            if let AMQPErrorKind::Hard(_) = e.kind() {
+                return true;
+            }
+        }
+        false
     }
 }
 
