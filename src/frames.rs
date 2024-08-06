@@ -87,8 +87,21 @@ impl Frames {
         self.inner.lock().drop_pending(error);
     }
 
+    pub(crate) fn take_expected_replies(
+        &self,
+        channel_id: ChannelId,
+    ) -> Option<VecDeque<ExpectedReply>> {
+        self.inner.lock().expected_replies.remove(&channel_id)
+    }
+
     pub(crate) fn clear_expected_replies(&self, channel_id: ChannelId, error: Error) {
-        self.inner.lock().clear_expected_replies(channel_id, error);
+        if let Some(replies) = self.take_expected_replies(channel_id) {
+            Self::cancel_expected_replies(replies, error)
+        }
+    }
+
+    pub(crate) fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
+        Inner::cancel_expected_replies(replies, error)
     }
 
     pub(crate) fn poison(&self) -> Option<Error> {
@@ -263,12 +276,6 @@ impl Inner {
             }
         }
         None
-    }
-
-    fn clear_expected_replies(&mut self, channel_id: ChannelId, error: Error) {
-        if let Some(replies) = self.expected_replies.remove(&channel_id) {
-            Self::cancel_expected_replies(replies, error);
-        }
     }
 
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {

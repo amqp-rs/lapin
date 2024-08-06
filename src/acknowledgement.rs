@@ -62,6 +62,10 @@ impl Acknowledgements {
     pub(crate) fn on_channel_error(&self, error: Error) {
         self.0.lock().on_channel_error(error);
     }
+
+    pub(crate) fn reset(&self) {
+        self.0.lock().reset();
+    }
 }
 
 impl fmt::Debug for Acknowledgements {
@@ -173,5 +177,10 @@ impl Inner {
                 resolvers.1.reject(error.clone());
             }
         }
+    }
+
+    fn reset(&mut self) {
+        // FIXME(recovery): handle pendings ??
+        self.delivery_tag = IdSequence::new(false);
     }
 }

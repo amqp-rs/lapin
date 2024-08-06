@@ -86,6 +86,7 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: ChannelId,
         configuration: Configuration,
@@ -573,13 +574,20 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        self.set_closed(
-            error
-                .clone()
-                .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
-        );
-        if let Some(error) = error {
-            self.error_handler.on_error(error);
+        match (self.recovery_config.auto_recover_channels, error) {
+            (true, Some(error)) if error.is_amqp_soft_error() => {
+                self.status.set_reconnecting(error)
+            }
+            (_, error) => {
+                self.set_closed(
+                    error
+                        .clone()
+                        .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
+                );
+                if let Some(error) = error {
+                    self.error_handler.on_error(error);
+                }
+            }
         }
     }
 
@@ -862,6 +870,15 @@ impl Channel {
         resolver: PromiseResolver<Channel>,
         channel: Channel,
     ) -> Result<()> {
+        if self.recovery_config.auto_recover_channels {
+            self.status.update_recovery_context(|ctx| {
+                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+            });
+            self.acknowledgements.reset();
+            if !self.status.confirm() {
+                self.status.finalize_recovery();
+            }
+        }
         self.set_state(ChannelState::Connected);
         resolver.resolve(channel);
         Ok(())
@@ -901,8 +918,19 @@ impl Channel {
         self.set_closing(error.clone().ok());
         let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
-        self.internal_rpc
-            .register_internal_future(async move { channel.channel_close_ok(error).await });
+        self.internal_rpc.register_internal_future(async move {
+            channel.channel_close_ok(error).await?;
+            if channel.recovery_config.auto_recover_channels {
+                let ch = channel.clone();
+                channel.channel_open(ch).await?;
+                if channel.status.confirm() {
+                    channel
+                        .confirm_select(ConfirmSelectOptions::default())
+                        .await?;
+                }
+            }
+            Ok(())
+        });
         Ok(())
     }
 
