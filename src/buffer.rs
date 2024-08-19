@@ -222,7 +222,7 @@ impl BackToTheBuffer for &mut Buffer {
     >(
         s: WriteContext<Self>,
         reserved: usize,
-        gen: &Gen,
+        generator: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError> {
         if s.write.available_space() < reserved {
@@ -232,7 +232,7 @@ impl BackToTheBuffer for &mut Buffer {
         }
         let start = s.write.checkpoint();
         s.write.fill(reserved);
-        gen(s).and_then(|(s, tmp)| {
+        generator(s).and_then(|(s, tmp)| {
             let mut end = s.write.checkpoint();
             end.backwards = false;
             s.write.rollback(start);

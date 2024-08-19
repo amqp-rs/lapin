@@ -15,9 +15,9 @@ rust-version = "1.74.0"
 
 [features]
 default                   = ["rustls", "default-runtime"]
-default-runtime           = ["async-global-executor-trait", "async-reactor-trait"]
+default-runtime           = ["dep:async-global-executor-trait", "dep:async-reactor-trait"]
 codegen                   = ["codegen-internal", "amq-protocol/codegen"]
-codegen-internal          = ["amq-protocol-codegen", "serde_json"]
+codegen-internal          = ["dep:amq-protocol-codegen", "dep:serde_json"]
 native-tls                = ["amq-protocol/native-tls"]
 openssl                   = ["amq-protocol/openssl"]
 rustls                    = ["amq-protocol/rustls"]

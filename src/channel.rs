@@ -618,7 +618,7 @@ impl Channel {
             }
         }
         if self.configuration.channel_max() == 0 {
-            self.configuration.set_channel_max(ChannelId::max_value());
+            self.configuration.set_channel_max(ChannelId::MAX);
         }
 
         if frame_max != 0 {
@@ -629,7 +629,7 @@ impl Channel {
             }
         }
         if self.configuration.frame_max() == 0 {
-            self.configuration.set_frame_max(FrameSize::max_value());
+            self.configuration.set_frame_max(FrameSize::MAX);
         }
     }
 

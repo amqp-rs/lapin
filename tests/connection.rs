@@ -43,7 +43,7 @@ impl ConsumerDelegate for Subscriber {
 #[test]
 fn connection() {
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
+        unsafe { std::env::set_var("RUST_LOG", "info") };
     }
 
     let _ = tracing_subscriber::fmt::try_init();
