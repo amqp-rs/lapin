@@ -5,6 +5,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
+    experimental::RecoveryConfig,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -53,6 +54,7 @@ impl Connection {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
+        recovery_config: RecoveryConfig,
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
@@ -65,6 +67,7 @@ impl Connection {
             internal_rpc.clone(),
             frames,
             executor,
+            recovery_config,
         );
         let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc));
         let connection = Self {
@@ -343,6 +346,7 @@ impl Connection {
             internal_rpc.handle(),
             frames.clone(),
             executor.clone(),
+            options.recovery_config.clone().unwrap_or_default(),
         );
         let status = conn.status.clone();
         let configuration = conn.configuration.clone();
@@ -507,6 +511,7 @@ mod tests {
             internal_rpc.handle(),
             Frames::default(),
             executor.clone(),
+            RecoveryConfig::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -586,6 +591,7 @@ mod tests {
             internal_rpc.handle(),
             Frames::default(),
             executor.clone(),
+            RecoveryConfig::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);

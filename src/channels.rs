@@ -1,6 +1,7 @@
 use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
+    experimental::RecoveryConfig,
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -38,9 +39,10 @@ impl Channels {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
+        recovery_config: RecoveryConfig,
     ) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner::new(configuration, waker))),
+            inner: Arc::new(Mutex::new(Inner::new(configuration, waker, recovery_config))),
             connection_status,
             global_registry,
             internal_rpc,
@@ -296,15 +298,17 @@ struct Inner {
     channel_id: IdSequence<ChannelId>,
     configuration: Configuration,
     waker: SocketStateHandle,
+    recovery_config: RecoveryConfig,
 }
 
 impl Inner {
-    fn new(configuration: Configuration, waker: SocketStateHandle) -> Self {
+    fn new(configuration: Configuration, waker: SocketStateHandle, recovery_config: RecoveryConfig) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
             configuration,
             waker,
+            recovery_config,
         }
     }
 
@@ -329,6 +333,7 @@ impl Inner {
             frames,
             executor,
             connection_closer,
+            self.recovery_config.clone(),
         );
         self.channels.insert(id, channel.clone_internal());
         channel

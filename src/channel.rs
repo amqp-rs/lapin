@@ -10,6 +10,7 @@ use crate::{
     consumer::Consumer,
     consumers::Consumers,
     error_handler::ErrorHandler,
+    experimental::RecoveryConfig,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -59,6 +60,7 @@ pub struct Channel {
     executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
+    recovery_config: RecoveryConfig,
 }
 
 impl PartialEq for Channel {
@@ -94,6 +96,7 @@ impl Channel {
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
+        recovery_config: RecoveryConfig,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
         let status = ChannelStatus::default();
@@ -106,7 +109,7 @@ impl Channel {
                 internal_rpc.clone(),
             )))
         };
-        Channel {
+        Self {
             id: channel_id,
             configuration,
             status,
@@ -124,6 +127,7 @@ impl Channel {
             executor,
             channel_closer,
             connection_closer,
+            recovery_config,
         }
     }
 
@@ -267,6 +271,7 @@ impl Channel {
             executor: self.executor.clone(),
             channel_closer: None,
             connection_closer: self.connection_closer.clone(),
+            recovery_config: self.recovery_config.clone(),
         }
     }
 
