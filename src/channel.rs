@@ -148,6 +148,12 @@ impl Channel {
         ch: &ChannelDefinitionInternal,
         c: &mut RestoredChannel,
     ) -> Result<()> {
+        if let Some(channel) = ch.channel.as_ref() {
+            if channel.status.confirm() {
+                c.confirm_select(ConfirmSelectOptions::default()).await?;
+            }
+        }
+
         // First, redeclare all queues
         for queue in &ch.queues {
             if queue.is_declared() {
