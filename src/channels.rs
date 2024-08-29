@@ -42,7 +42,11 @@ impl Channels {
         recovery_config: RecoveryConfig,
     ) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner::new(configuration, waker, recovery_config))),
+            inner: Arc::new(Mutex::new(Inner::new(
+                configuration,
+                waker,
+                recovery_config,
+            ))),
             connection_status,
             global_registry,
             internal_rpc,
@@ -302,7 +306,11 @@ struct Inner {
 }
 
 impl Inner {
-    fn new(configuration: Configuration, waker: SocketStateHandle, recovery_config: RecoveryConfig) -> Self {
+    fn new(
+        configuration: Configuration,
+        waker: SocketStateHandle,
+        recovery_config: RecoveryConfig,
+    ) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
