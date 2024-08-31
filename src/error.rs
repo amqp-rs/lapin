@@ -1,6 +1,6 @@
 use crate::{
-    channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
-    types::ChannelId,
+    channel_status::ChannelState, connection_status::ConnectionState, notifier::Notifier,
+    protocol::AMQPError, types::ChannelId,
 };
 use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
@@ -22,7 +22,7 @@ pub enum Error {
     InvalidProtocolVersion(ProtocolVersion),
 
     InvalidChannel(ChannelId),
-    InvalidChannelState(ChannelState),
+    InvalidChannelState(ChannelState, Option<Notifier>),
     InvalidConnectionState(ConnectionState),
 
     IOError(Arc<io::Error>),
@@ -84,7 +84,7 @@ impl fmt::Display for Error {
             }
 
             Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
-            Error::InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
+            Error::InvalidChannelState(state, _) => write!(f, "invalid channel state: {:?}", state),
             Error::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
             }
@@ -144,7 +144,7 @@ impl PartialEq for Error {
             }
 
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
-            (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {
+            (InvalidChannelState(left_inner, _), InvalidChannelState(right_inner, _)) => {
                 left_inner == right_inner
             }
             (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
