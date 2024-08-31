@@ -6,7 +6,7 @@ use crate::{
 use std::collections::VecDeque;
 
 pub(crate) struct ChannelRecoveryContext {
-    pub(crate) cause: Error,
+    cause: Error,
     expected_replies: Option<VecDeque<ExpectedReply>>,
 }
 

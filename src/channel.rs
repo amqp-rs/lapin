@@ -878,8 +878,9 @@ impl Channel {
             if !self.status.confirm() {
                 self.status.finalize_recovery();
             }
+        } else {
+            self.set_state(ChannelState::Connected);
         }
-        self.set_state(ChannelState::Connected);
         resolver.resolve(channel);
         Ok(())
     }
