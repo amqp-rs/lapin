@@ -9,6 +9,11 @@ on:
 jobs:
   build_and_test:
     runs-on: ${{ matrix.os }}
+    services:
+      rabbitmq:
+        image: rabbitmq:latest
+        ports:
+          - 5672:5672
     strategy:
       fail-fast: false
       matrix:
@@ -16,14 +21,7 @@ jobs:
         os: [ubuntu-latest]
         rust: [nightly, beta, stable, 1.74.0]
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Start RabbitMQ
-        uses: getong/rabbitmq-action@v1.2
-        with:
-          rabbitmq user: 'guest'
-          rabbitmq password: 'guest'
-          rabbitmq vhost: '/'
+      - uses: actions/checkout@v4
 
       - name: Install latest ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
