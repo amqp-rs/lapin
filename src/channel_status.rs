@@ -65,7 +65,7 @@ impl ChannelStatus {
     }
 
     pub fn state(&self) -> ChannelState {
-        self.0.lock().state.clone()
+        self.0.lock().state
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -74,7 +74,7 @@ impl ChannelStatus {
 
     pub fn state_error(&self) -> Error {
         let inner = self.0.lock();
-        Error::InvalidChannelState(inner.state.clone(), inner.notifier())
+        Error::InvalidChannelState(inner.state, inner.notifier())
     }
 
     pub(crate) fn set_reconnecting(&self, error: Error) {
@@ -151,7 +151,7 @@ impl ChannelStatus {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChannelState {
     #[default]
     Initial,
