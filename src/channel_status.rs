@@ -1,6 +1,7 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     channel_recovery_context::ChannelRecoveryContext,
+    notifier::Notifier,
     types::{ChannelId, Identifier, PayloadSize},
     Error, Result,
 };
@@ -65,6 +66,11 @@ impl ChannelStatus {
 
     pub(crate) fn set_state(&self, state: ChannelState) {
         self.0.lock().state = state;
+    }
+
+    pub fn state_error(&self) -> Error {
+        let inner = self.0.lock();
+        Error::InvalidChannelState(inner.state.clone(), inner.notifier())
     }
 
     pub(crate) fn set_reconnecting(&self, error: Error) {
@@ -192,5 +198,9 @@ impl Inner {
         if let Some(ctx) = self.recovery_context.take() {
             ctx.finalize_recovery();
         }
+    }
+
+    fn notifier(&self) -> Option<Notifier> {
+        Some(self.recovery_context.as_ref()?.notifier())
     }
 }
