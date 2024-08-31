@@ -24,6 +24,10 @@ impl ChannelStatus {
         self.0.lock().state == ChannelState::Connected
     }
 
+    pub(crate) fn connected_or_recovering(&self) -> bool {
+        [ChannelState::Connected, ChannelState::Reconnecting].contains(&self.0.lock().state)
+    }
+
     pub(crate) fn update_recovery_context<F: Fn(&mut ChannelRecoveryContext)>(&self, apply: F) {
         let mut inner = self.0.lock();
         if let Some(context) = inner.recovery_context.as_mut() {
@@ -36,7 +40,12 @@ impl ChannelStatus {
     }
 
     pub(crate) fn can_receive_messages(&self) -> bool {
-        [ChannelState::Closing, ChannelState::Connected].contains(&self.0.lock().state)
+        [
+            ChannelState::Closing,
+            ChannelState::Connected,
+            ChannelState::Reconnecting,
+        ]
+        .contains(&self.0.lock().state)
     }
 
     pub fn confirm(&self) -> bool {
@@ -179,6 +188,7 @@ impl Default for Inner {
 
 impl Inner {
     pub(crate) fn finalize_recovery(&mut self) {
+        self.state = ChannelState::Connected;
         if let Some(ctx) = self.recovery_context.take() {
             ctx.finalize_recovery();
         }
