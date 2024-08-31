@@ -565,8 +565,10 @@ impl Channel {
     }
 
     fn next_expected_close_ok_reply(&self) -> Option<Reply> {
-        self.frames
-            .next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed, None))
+        self.frames.next_expected_close_ok_reply(
+            self.id,
+            Error::InvalidChannelState(ChannelState::Closed, None),
+        )
     }
 
     fn before_channel_close(&self) {
@@ -574,19 +576,14 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        match (self.recovery_config.auto_recover_channels, error) {
-            (true, Some(error)) if error.is_amqp_soft_error() => {
-                self.status.set_reconnecting(error)
-            }
-            (_, error) => {
-                self.set_closed(
-                    error
-                        .clone()
-                        .unwrap_or(Error::InvalidChannelState(ChannelState::Closing, None)),
-                );
-                if let Some(error) = error {
-                    self.error_handler.on_error(error);
-                }
+        if !self.recovery_config.auto_recover_channels || !error.as_ref().map_or(false, Error::is_amqp_soft_error) {
+            self.set_closed(
+                error
+                    .clone()
+                    .unwrap_or(Error::InvalidChannelState(ChannelState::Closing, None)),
+            );
+            if let Some(error) = error {
+                self.error_handler.on_error(error);
             }
         }
     }
@@ -916,7 +913,12 @@ impl Channel {
             );
             Error::ProtocolError(error)
         });
-        self.set_closing(error.clone().ok());
+        match (self.recovery_config.auto_recover_channels, error.clone().ok()) {
+            (true, Some(error)) if error.is_amqp_soft_error() => {
+                self.status.set_reconnecting(error)
+            }
+            (_, err) => self.set_closing(err),
+        }
         let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
         self.internal_rpc.register_internal_future(async move {

@@ -18,11 +18,15 @@ impl ChannelStatus {
     }
 
     pub fn closing(&self) -> bool {
-        self.0.lock().state == ChannelState::Closing
+        [ChannelState::Closing, ChannelState::Reconnecting].contains(&self.0.lock().state)
     }
 
     pub fn connected(&self) -> bool {
         self.0.lock().state == ChannelState::Connected
+    }
+
+    pub fn reconnecting(&self) -> bool {
+        self.0.lock().state == ChannelState::Reconnecting
     }
 
     pub(crate) fn connected_or_recovering(&self) -> bool {
