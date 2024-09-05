@@ -140,10 +140,6 @@ impl Channel {
         self.error_handler.set_handler(handler);
     }
 
-    pub(crate) fn reset(&self) {
-        // FIXME
-    }
-
     pub(crate) async fn restore(
         &self,
         ch: &ChannelDefinitionInternal,
@@ -576,7 +572,9 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        if !self.recovery_config.auto_recover_channels || !error.as_ref().map_or(false, Error::is_amqp_soft_error) {
+        if !self.recovery_config.auto_recover_channels
+            || !error.as_ref().map_or(false, Error::is_amqp_soft_error)
+        {
             self.set_closed(
                 error
                     .clone()
@@ -870,8 +868,9 @@ impl Channel {
         if self.recovery_config.auto_recover_channels {
             self.status.update_recovery_context(|ctx| {
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+                self.acknowledgements.reset(ctx.cause());
+                self.consumers.error(ctx.cause());
             });
-            self.acknowledgements.reset();
             if !self.status.confirm() {
                 self.status.finalize_recovery();
             }
@@ -913,7 +912,10 @@ impl Channel {
             );
             Error::ProtocolError(error)
         });
-        match (self.recovery_config.auto_recover_channels, error.clone().ok()) {
+        match (
+            self.recovery_config.auto_recover_channels,
+            error.clone().ok(),
+        ) {
             (true, Some(error)) if error.is_amqp_soft_error() => {
                 self.status.set_reconnecting(error)
             }
