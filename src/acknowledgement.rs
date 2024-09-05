@@ -63,8 +63,8 @@ impl Acknowledgements {
         self.0.lock().on_channel_error(error);
     }
 
-    pub(crate) fn reset(&self) {
-        self.0.lock().reset();
+    pub(crate) fn reset(&self, error: Error) {
+        self.0.lock().reset(error);
     }
 }
 
@@ -179,8 +179,8 @@ impl Inner {
         }
     }
 
-    fn reset(&mut self) {
-        // FIXME(recovery): handle pendings ??
+    fn reset(&mut self, error: Error) {
         self.delivery_tag = IdSequence::new(false);
+        self.on_channel_error(error);
     }
 }

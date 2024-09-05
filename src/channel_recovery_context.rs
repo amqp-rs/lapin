@@ -21,6 +21,10 @@ impl ChannelRecoveryContext {
         }
     }
 
+    pub(crate) fn cause(&self) -> Error {
+        self.cause.clone()
+    }
+
     pub(crate) fn notifier(&self) -> Notifier {
         self.notifier.clone()
     }
