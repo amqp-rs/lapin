@@ -440,7 +440,7 @@ impl IoLoop {
                         0,
                         0,
                     );
-                    self.critical_error(Error::ProtocolError(error))?;
+                    self.critical_error(Error::ProtocolError(error, None))?;
                 }
                 self.receive_buffer.consume(consumed);
                 Ok(Some(f))

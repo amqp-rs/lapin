@@ -27,7 +27,7 @@ pub enum Error {
 
     IOError(Arc<io::Error>),
     ParsingError(ParserError),
-    ProtocolError(AMQPError),
+    ProtocolError(AMQPError, Option<Notifier>),
     SerialisationError(Arc<GenError>),
 
     MissingHeartbeatError,
@@ -53,22 +53,29 @@ impl Error {
         }
     }
 
-    pub fn is_amqp_soft_error(&self) -> bool {
-        if let Error::ProtocolError(e) = self {
+    pub fn is_amqp_soft_error(&self) -> (bool, Option<Notifier>) {
+        if let Error::ProtocolError(e, notifier) = self {
             if let AMQPErrorKind::Soft(_) = e.kind() {
+                return (true, notifier.clone());
+            }
+        }
+        (false, None)
+    }
+
+    pub fn is_amqp_hard_error(&self) -> bool {
+        if let Error::ProtocolError(e, _) = self {
+            if let AMQPErrorKind::Hard(_) = e.kind() {
                 return true;
             }
         }
         false
     }
 
-    pub fn is_amqp_hard_error(&self) -> bool {
-        if let Error::ProtocolError(e) = self {
-            if let AMQPErrorKind::Hard(_) = e.kind() {
-                return true;
-            }
+    pub(crate) fn with_notifier(self, notifier: Notifier) -> Self {
+        match self {
+            Self::ProtocolError(err, _) => Self::ProtocolError(err, Some(notifier)),
+            err => err,
         }
-        false
     }
 }
 
@@ -91,7 +98,7 @@ impl fmt::Display for Error {
 
             Error::IOError(e) => write!(f, "IO error: {}", e),
             Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
-            Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
+            Error::ProtocolError(e, _) => write!(f, "protocol error: {}", e),
             Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
 
             Error::MissingHeartbeatError => {
@@ -119,7 +126,7 @@ impl error::Error for Error {
         match self {
             Error::IOError(e) => Some(&**e),
             Error::ParsingError(e) => Some(e),
-            Error::ProtocolError(e) => Some(e),
+            Error::ProtocolError(e, _) => Some(e),
             Error::SerialisationError(e) => Some(&**e),
             _ => None,
         }
@@ -156,7 +163,9 @@ impl PartialEq for Error {
                 false
             }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
-            (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
+            (ProtocolError(left_inner, _), ProtocolError(right_inner, _)) => {
+                left_inner == right_inner
+            }
             (SerialisationError(_), SerialisationError(_)) => {
                 error!("Unable to compare lapin::Error::SerialisationError");
                 false

@@ -14,10 +14,11 @@ pub(crate) struct ChannelRecoveryContext {
 
 impl ChannelRecoveryContext {
     pub(crate) fn new(cause: Error) -> Self {
+        let notifier = Notifier::default();
         Self {
-            cause,
+            cause: cause.with_notifier(notifier.clone()),
             expected_replies: None,
-            notifier: Notifier::default(),
+            notifier,
         }
     }
 
