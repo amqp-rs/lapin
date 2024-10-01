@@ -868,6 +868,7 @@ impl Channel {
         if self.recovery_config.auto_recover_channels {
             self.status.update_recovery_context(|ctx| {
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+                self.frames.drop_frames_for_channel(channel.id, ctx.cause());
                 self.acknowledgements.reset(ctx.cause());
                 self.consumers.error(ctx.cause());
             });
