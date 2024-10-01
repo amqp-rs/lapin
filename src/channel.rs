@@ -295,7 +295,7 @@ impl Channel {
                 class_id,
                 method_id,
             );
-            Err(Error::ProtocolError(error))
+            Err(Error::ProtocolError(error, None))
         }
     }
 
@@ -426,7 +426,7 @@ impl Channel {
             class_id,
             method_id,
         );
-        Err(Error::ProtocolError(error))
+        Err(Error::ProtocolError(error, None))
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -465,7 +465,7 @@ impl Channel {
                     class_id,
                     0,
                 );
-                let error = Error::ProtocolError(error);
+                let error = Error::ProtocolError(error, None);
                 self.set_connection_error(error.clone());
                 Err(error)
             },
@@ -534,7 +534,7 @@ impl Channel {
                 )
                 .await
         });
-        Err(Error::ProtocolError(err))
+        Err(Error::ProtocolError(err, None))
     }
 
     fn before_connection_start_ok(
@@ -553,7 +553,7 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) {
-        if let Error::ProtocolError(_) = error {
+        if let Error::ProtocolError(_, _) = error {
             self.internal_rpc.set_connection_error(error);
         } else {
             self.internal_rpc.set_connection_closed(error);
@@ -573,7 +573,7 @@ impl Channel {
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
         if !self.recovery_config.auto_recover_channels
-            || !error.as_ref().map_or(false, Error::is_amqp_soft_error)
+            || !error.as_ref().map_or(false, |e| e.is_amqp_soft_error().0)
         {
             self.set_closed(
                 error
@@ -822,7 +822,7 @@ impl Channel {
                     ?error,
                     "Connection closed",
                 );
-                Error::ProtocolError(error)
+                Error::ProtocolError(error, None)
             })
             .unwrap_or_else(|error| {
                 error!(%error);
@@ -911,13 +911,13 @@ impl Channel {
                 channel=%self.id, ?method, ?error,
                 "Channel closed"
             );
-            Error::ProtocolError(error)
+            Error::ProtocolError(error, None)
         });
         match (
             self.recovery_config.auto_recover_channels,
             error.clone().ok(),
         ) {
-            (true, Some(error)) if error.is_amqp_soft_error() => {
+            (true, Some(error)) if error.is_amqp_soft_error().0 => {
                 self.status.set_reconnecting(error)
             }
             (_, err) => self.set_closing(err),

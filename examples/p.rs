@@ -1,6 +1,5 @@
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, ChannelState, Connection, ConnectionProperties,
-    Error,
+    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties,
 };
 use tracing::info;
 
@@ -85,16 +84,13 @@ fn main() {
                 }
                 Err(err) => {
                     println!("GOT ERROR");
-                    match err {
-                        Error::InvalidChannelState(ChannelState::Reconnecting, Some(notifier)) => {
-                            notifier.await
-                        }
-                        err => {
-                            if !err.is_amqp_soft_error() {
-                                panic!("{}", err);
-                            }
-                            errors += 1;
-                        }
+                    let (soft, notifier) = err.is_amqp_soft_error();
+                    if !soft {
+                        panic!("{}", err);
+                    }
+                    errors += 1;
+                    if let Some(notifier) = notifier {
+                        notifier.await
                     }
                 }
             }

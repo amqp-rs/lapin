@@ -225,7 +225,7 @@ impl Channels {
                                 .await
                         });
                     }
-                    return Err(Error::ProtocolError(error));
+                    return Err(Error::ProtocolError(error, None));
                 }
             }
             AMQPFrame::Header(channel_id, class_id, header) => {
@@ -248,7 +248,7 @@ impl Channels {
                                 .await
                         });
                     }
-                    return Err(Error::ProtocolError(error));
+                    return Err(Error::ProtocolError(error, None));
                 } else {
                     self.handle_content_header_frame(
                         channel_id,
