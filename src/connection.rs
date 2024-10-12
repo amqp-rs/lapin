@@ -152,7 +152,6 @@ impl Connection {
                 .channels
                 .push(RestoredChannel::new(if let Some(c) = c.channel.clone() {
                     let channel = c.clone();
-                    c.reset();
                     c.channel_open(channel).await?
                 } else {
                     self.create_channel().await?
