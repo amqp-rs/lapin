@@ -29,7 +29,7 @@ impl<
         // self.id is actually the next (so that first call to next returns 0
         // if we're 0 (or 1 if 0 is not allowed), either we haven't started yet, or last number we yielded (current one) is
         // the max.
-        if self.id == self.first() {
+        if self.id <= self.first() {
             self.max
         } else {
             Some(self.id - self.one)

@@ -86,6 +86,7 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: ChannelId,
         configuration: Configuration,
@@ -137,10 +138,6 @@ impl Channel {
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
-    }
-
-    pub(crate) fn reset(&self) {
-        // FIXME
     }
 
     pub(crate) async fn restore(
@@ -298,7 +295,7 @@ impl Channel {
                 class_id,
                 method_id,
             );
-            Err(Error::ProtocolError(error))
+            Err(Error::ProtocolError(error, None))
         }
     }
 
@@ -429,7 +426,7 @@ impl Channel {
             class_id,
             method_id,
         );
-        Err(Error::ProtocolError(error))
+        Err(Error::ProtocolError(error, None))
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -468,7 +465,7 @@ impl Channel {
                     class_id,
                     0,
                 );
-                let error = Error::ProtocolError(error);
+                let error = Error::ProtocolError(error, None);
                 self.set_connection_error(error.clone());
                 Err(error)
             },
@@ -537,7 +534,7 @@ impl Channel {
                 )
                 .await
         });
-        Err(Error::ProtocolError(err))
+        Err(Error::ProtocolError(err, None))
     }
 
     fn before_connection_start_ok(
@@ -556,7 +553,7 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) {
-        if let Error::ProtocolError(_) = error {
+        if let Error::ProtocolError(_, _) = error {
             self.internal_rpc.set_connection_error(error);
         } else {
             self.internal_rpc.set_connection_closed(error);
@@ -564,8 +561,10 @@ impl Channel {
     }
 
     fn next_expected_close_ok_reply(&self) -> Option<Reply> {
-        self.frames
-            .next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed))
+        self.frames.next_expected_close_ok_reply(
+            self.id,
+            Error::InvalidChannelState(ChannelState::Closed, None),
+        )
     }
 
     fn before_channel_close(&self) {
@@ -573,13 +572,17 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        self.set_closed(
-            error
-                .clone()
-                .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
-        );
-        if let Some(error) = error {
-            self.error_handler.on_error(error);
+        if !self.recovery_config.auto_recover_channels
+            || !error.as_ref().map_or(false, |e| e.is_amqp_soft_error().0)
+        {
+            self.set_closed(
+                error
+                    .clone()
+                    .unwrap_or(Error::InvalidChannelState(ChannelState::Closing, None)),
+            );
+            if let Some(error) = error {
+                self.error_handler.on_error(error);
+            }
         }
     }
 
@@ -819,7 +822,7 @@ impl Channel {
                     ?error,
                     "Connection closed",
                 );
-                Error::ProtocolError(error)
+                Error::ProtocolError(error, None)
             })
             .unwrap_or_else(|error| {
                 error!(%error);
@@ -862,7 +865,19 @@ impl Channel {
         resolver: PromiseResolver<Channel>,
         channel: Channel,
     ) -> Result<()> {
-        self.set_state(ChannelState::Connected);
+        if self.recovery_config.auto_recover_channels {
+            self.status.update_recovery_context(|ctx| {
+                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+                self.frames.drop_frames_for_channel(channel.id, ctx.cause());
+                self.acknowledgements.reset(ctx.cause());
+                self.consumers.error(ctx.cause());
+            });
+            if !self.status.confirm() {
+                self.status.finalize_recovery();
+            }
+        } else {
+            self.set_state(ChannelState::Connected);
+        }
         resolver.resolve(channel);
         Ok(())
     }
@@ -896,18 +911,37 @@ impl Channel {
                 channel=%self.id, ?method, ?error,
                 "Channel closed"
             );
-            Error::ProtocolError(error)
+            Error::ProtocolError(error, None)
         });
-        self.set_closing(error.clone().ok());
+        match (
+            self.recovery_config.auto_recover_channels,
+            error.clone().ok(),
+        ) {
+            (true, Some(error)) if error.is_amqp_soft_error().0 => {
+                self.status.set_reconnecting(error)
+            }
+            (_, err) => self.set_closing(err),
+        }
         let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
-        self.internal_rpc
-            .register_internal_future(async move { channel.channel_close_ok(error).await });
+        self.internal_rpc.register_internal_future(async move {
+            channel.channel_close_ok(error).await?;
+            if channel.recovery_config.auto_recover_channels {
+                let ch = channel.clone();
+                channel.channel_open(ch).await?;
+                if channel.status.confirm() {
+                    channel
+                        .confirm_select(ConfirmSelectOptions::default())
+                        .await?;
+                }
+            }
+            Ok(())
+        });
         Ok(())
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
-        self.set_closed(Error::InvalidChannelState(ChannelState::Closed));
+        self.set_closed(Error::InvalidChannelState(ChannelState::Closed, None));
         Ok(())
     }
 
