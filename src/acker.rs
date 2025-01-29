@@ -86,12 +86,13 @@ impl Acker {
         if let Some(error) = self.error.as_ref() {
             error.check()?;
         }
-        if let Some(internal_rpc) = self.internal_rpc.as_ref() {
-            let (promise, resolver) = Promise::new();
-            f(internal_rpc, resolver);
-            promise.await
-        } else {
-            Ok(())
+        match self.internal_rpc.as_ref() {
+            Some(internal_rpc) => {
+                let (promise, resolver) = Promise::new();
+                f(internal_rpc, resolver);
+                promise.await
+            }
+            _ => Ok(()),
         }
     }
 

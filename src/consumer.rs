@@ -357,14 +357,17 @@ impl ConsumerInner {
     fn new_delivery_complete(&mut self) {
         if let Some(delivery) = self.current_message.take() {
             trace!(consumer_tag=%self.tag, "new_delivery");
-            if let Some(delegate) = self.delegate.as_ref() {
-                let delegate = delegate.clone();
-                self.executor
-                    .spawn(delegate.on_new_delivery(Ok(Some(delivery))));
-            } else {
-                self.deliveries_in
-                    .send(Ok(Some(delivery)))
-                    .expect("failed to send delivery to consumer");
+            match self.delegate.as_ref() {
+                Some(delegate) => {
+                    let delegate = delegate.clone();
+                    self.executor
+                        .spawn(delegate.on_new_delivery(Ok(Some(delivery))));
+                }
+                _ => {
+                    self.deliveries_in
+                        .send(Ok(Some(delivery)))
+                        .expect("failed to send delivery to consumer");
+                }
             }
             self.wakers.wake();
         }
@@ -382,13 +385,16 @@ impl ConsumerInner {
     fn cancel(&mut self) {
         trace!(consumer_tag=%self.tag, "cancel");
         let mut status = self.status.lock();
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Ok(None)));
-        } else {
-            self.deliveries_in
-                .send(Ok(None))
-                .expect("failed to send cancel to consumer");
+        match self.delegate.as_ref() {
+            Some(delegate) => {
+                let delegate = delegate.clone();
+                self.executor.spawn(delegate.on_new_delivery(Ok(None)));
+            }
+            _ => {
+                self.deliveries_in
+                    .send(Ok(None))
+                    .expect("failed to send cancel to consumer");
+            }
         }
         self.wakers.wake();
         status.cancel();
@@ -397,13 +403,16 @@ impl ConsumerInner {
     fn set_error(&mut self, error: Error) {
         trace!(consumer_tag=%self.tag, "set_error");
         self.error.set(error.clone());
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Err(error)));
-        } else {
-            self.deliveries_in
-                .send(Err(error))
-                .expect("failed to send error to consumer");
+        match self.delegate.as_ref() {
+            Some(delegate) => {
+                let delegate = delegate.clone();
+                self.executor.spawn(delegate.on_new_delivery(Err(error)));
+            }
+            _ => {
+                self.deliveries_in
+                    .send(Err(error))
+                    .expect("failed to send error to consumer");
+            }
         }
         self.cancel();
     }
@@ -420,8 +429,8 @@ impl Stream for Consumer {
             "consumer poll; acquired inner lock"
         );
         inner.wakers.register(cx.waker());
-        if let Some(delivery) = inner.next_delivery() {
-            match delivery {
+        match inner.next_delivery() {
+            Some(delivery) => match delivery {
                 Ok(Some(delivery)) => {
                     trace!(
                         consumer_tag=%inner.tag,
@@ -435,10 +444,11 @@ impl Stream for Consumer {
                     Poll::Ready(None)
                 }
                 Err(error) => Poll::Ready(Some(Err(error))),
+            },
+            _ => {
+                trace!(consumer_tag=%inner.tag, "delivery; status=NotReady");
+                Poll::Pending
             }
-        } else {
-            trace!(consumer_tag=%inner.tag, "delivery; status=NotReady");
-            Poll::Pending
         }
     }
 }

@@ -120,18 +120,20 @@ impl Inner {
     ) {
         let messages = messages.unwrap_or(&mut self.messages);
 
-        if let Some(confirmation) = promise.try_wait() {
-            if let Ok(Confirmation::Nack(Some(message))) | Ok(Confirmation::Ack(Some(message))) =
-                confirmation
-            {
-                trace!("PublisherConfirm was carrying a message, storing it");
-                messages.push(*message);
-            } else {
-                trace!("PublisherConfirm was ready but didn't carry a message, discarding");
+        match promise.try_wait() {
+            Some(confirmation) => match confirmation {
+                Ok(Confirmation::Nack(Some(message))) | Ok(Confirmation::Ack(Some(message))) => {
+                    trace!("PublisherConfirm was carrying a message, storing it");
+                    messages.push(*message);
+                }
+                _ => {
+                    trace!("PublisherConfirm was ready but didn't carry a message, discarding");
+                }
+            },
+            _ => {
+                trace!("PublisherConfirm wasn't ready yet, storing it for further use");
+                self.dropped_confirms.push(promise);
             }
-        } else {
-            trace!("PublisherConfirm wasn't ready yet, storing it for further use");
-            self.dropped_confirms.push(promise);
         }
     }
 

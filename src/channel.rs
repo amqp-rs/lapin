@@ -337,11 +337,14 @@ impl Channel {
     }
 
     pub async fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>> {
-        if let Some(last_pending) = self.acknowledgements.get_last_pending() {
-            trace!("Waiting for pending confirms");
-            last_pending.await?;
-        } else {
-            trace!("No confirms to wait for");
+        match self.acknowledgements.get_last_pending() {
+            Some(last_pending) => {
+                trace!("Waiting for pending confirms");
+                last_pending.await?;
+            }
+            _ => {
+                trace!("No confirms to wait for");
+            }
         }
         Ok(self.returned_messages.drain())
     }
@@ -642,89 +645,91 @@ impl Channel {
         trace!(?method, "Server sent connection::Start");
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
-        if let (
-            ConnectionState::Connecting,
-            Some(ConnectionStep::ProtocolHeader(
-                resolver,
-                connection,
-                credentials,
-                mechanism,
-                mut options,
-            )),
-        ) = (state.clone(), self.connection_status.connection_step())
-        {
-            let mechanism_str = mechanism.to_string();
-            let locale = options.locale.clone();
+        match (state.clone(), self.connection_status.connection_step()) {
+            (
+                ConnectionState::Connecting,
+                Some(ConnectionStep::ProtocolHeader(
+                    resolver,
+                    connection,
+                    credentials,
+                    mechanism,
+                    mut options,
+                )),
+            ) => {
+                let mechanism_str = mechanism.to_string();
+                let locale = options.locale.clone();
 
-            if !method
-                .mechanisms
-                .to_string()
-                .split_whitespace()
-                .any(|m| m == mechanism_str)
-            {
-                error!(%mechanism, "unsupported mechanism");
+                if !method
+                    .mechanisms
+                    .to_string()
+                    .split_whitespace()
+                    .any(|m| m == mechanism_str)
+                {
+                    error!(%mechanism, "unsupported mechanism");
+                }
+                if !method
+                    .locales
+                    .to_string()
+                    .split_whitespace()
+                    .any(|l| l == locale)
+                {
+                    error!(%locale, "unsupported locale");
+                }
+
+                if !options.client_properties.contains_key("product")
+                    || !options.client_properties.contains_key("version")
+                {
+                    options.client_properties.insert(
+                        "product".into(),
+                        AMQPValue::LongString(env!("CARGO_PKG_NAME").into()),
+                    );
+                    options.client_properties.insert(
+                        "version".into(),
+                        AMQPValue::LongString(env!("CARGO_PKG_VERSION").into()),
+                    );
+                }
+
+                options
+                    .client_properties
+                    .insert("platform".into(), AMQPValue::LongString("rust".into()));
+
+                let mut capabilities = FieldTable::default();
+                capabilities.insert("publisher_confirms".into(), true.into());
+                capabilities.insert("exchange_exchange_bindings".into(), true.into());
+                capabilities.insert("basic.nack".into(), true.into());
+                capabilities.insert("consumer_cancel_notify".into(), true.into());
+                capabilities.insert("connection.blocked".into(), true.into());
+                capabilities.insert("consumer_priorities".into(), true.into());
+                capabilities.insert("authentication_failure_close".into(), true.into());
+                capabilities.insert("per_consumer_qos".into(), true.into());
+                capabilities.insert("direct_reply_to".into(), true.into());
+
+                options
+                    .client_properties
+                    .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
+
+                let channel = self.clone();
+                self.internal_rpc.register_internal_future(async move {
+                    channel
+                        .connection_start_ok(
+                            options.client_properties,
+                            &mechanism_str,
+                            &credentials.sasl_auth_string(mechanism),
+                            &locale,
+                            resolver,
+                            connection,
+                            credentials,
+                        )
+                        .await
+                });
+                Ok(())
             }
-            if !method
-                .locales
-                .to_string()
-                .split_whitespace()
-                .any(|l| l == locale)
-            {
-                error!(%locale, "unsupported locale");
+            _ => {
+                error!(?state, ?step, "Invalid state");
+                let error = Error::InvalidConnectionState(state);
+                self.internal_rpc.set_connection_error(error.clone());
+                Err(error)
             }
-
-            if !options.client_properties.contains_key("product")
-                || !options.client_properties.contains_key("version")
-            {
-                options.client_properties.insert(
-                    "product".into(),
-                    AMQPValue::LongString(env!("CARGO_PKG_NAME").into()),
-                );
-                options.client_properties.insert(
-                    "version".into(),
-                    AMQPValue::LongString(env!("CARGO_PKG_VERSION").into()),
-                );
-            }
-
-            options
-                .client_properties
-                .insert("platform".into(), AMQPValue::LongString("rust".into()));
-
-            let mut capabilities = FieldTable::default();
-            capabilities.insert("publisher_confirms".into(), true.into());
-            capabilities.insert("exchange_exchange_bindings".into(), true.into());
-            capabilities.insert("basic.nack".into(), true.into());
-            capabilities.insert("consumer_cancel_notify".into(), true.into());
-            capabilities.insert("connection.blocked".into(), true.into());
-            capabilities.insert("consumer_priorities".into(), true.into());
-            capabilities.insert("authentication_failure_close".into(), true.into());
-            capabilities.insert("per_consumer_qos".into(), true.into());
-            capabilities.insert("direct_reply_to".into(), true.into());
-
-            options
-                .client_properties
-                .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
-
-            let channel = self.clone();
-            self.internal_rpc.register_internal_future(async move {
-                channel
-                    .connection_start_ok(
-                        options.client_properties,
-                        &mechanism_str,
-                        &credentials.sasl_auth_string(mechanism),
-                        &locale,
-                        resolver,
-                        connection,
-                        credentials,
-                    )
-                    .await
-            });
-            Ok(())
-        } else {
-            error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone());
-            Err(error)
         }
     }
 
@@ -733,21 +738,22 @@ impl Channel {
 
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
-        if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
-            (state.clone(), self.connection_status.connection_step())
-        {
-            let channel = self.clone();
-            self.internal_rpc.register_internal_future(async move {
-                channel
-                    .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
-                    .await
-            });
-            Ok(())
-        } else {
-            error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone());
-            Err(error)
+        match (state.clone(), self.connection_status.connection_step()) {
+            (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) => {
+                let channel = self.clone();
+                self.internal_rpc.register_internal_future(async move {
+                    channel
+                        .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
+                        .await
+                });
+                Ok(())
+            }
+            _ => {
+                error!(?state, ?step, "Invalid state");
+                let error = Error::InvalidConnectionState(state);
+                self.internal_rpc.set_connection_error(error.clone());
+                Err(error)
+            }
         }
     }
 
@@ -756,36 +762,38 @@ impl Channel {
 
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
-        if let (
-            ConnectionState::Connecting,
-            Some(ConnectionStep::StartOk(resolver, connection, _)),
-        ) = (state.clone(), self.connection_status.connection_step())
-        {
-            self.tune_connection_configuration(
-                method.channel_max,
-                method.frame_max,
-                method.heartbeat,
-            );
+        match (state.clone(), self.connection_status.connection_step()) {
+            (
+                ConnectionState::Connecting,
+                Some(ConnectionStep::StartOk(resolver, connection, _)),
+            ) => {
+                self.tune_connection_configuration(
+                    method.channel_max,
+                    method.frame_max,
+                    method.heartbeat,
+                );
 
-            let channel = self.clone();
-            let configuration = self.configuration.clone();
-            let vhost = self.connection_status.vhost();
-            self.internal_rpc.register_internal_future(async move {
-                channel
-                    .connection_tune_ok(
-                        configuration.channel_max(),
-                        configuration.frame_max(),
-                        configuration.heartbeat(),
-                    )
-                    .await?;
-                channel.connection_open(&vhost, connection, resolver).await
-            });
-            Ok(())
-        } else {
-            error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone());
-            Err(error)
+                let channel = self.clone();
+                let configuration = self.configuration.clone();
+                let vhost = self.connection_status.vhost();
+                self.internal_rpc.register_internal_future(async move {
+                    channel
+                        .connection_tune_ok(
+                            configuration.channel_max(),
+                            configuration.frame_max(),
+                            configuration.heartbeat(),
+                        )
+                        .await?;
+                    channel.connection_open(&vhost, connection, resolver).await
+                });
+                Ok(())
+            }
+            _ => {
+                error!(?state, ?step, "Invalid state");
+                let error = Error::InvalidConnectionState(state);
+                self.internal_rpc.set_connection_error(error.clone());
+                Err(error)
+            }
         }
     }
 
@@ -796,17 +804,18 @@ impl Channel {
     ) -> Result<()> {
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
-        if let (ConnectionState::Connecting, Some(ConnectionStep::Open(resolver))) =
-            (state.clone(), self.connection_status.connection_step())
-        {
-            self.connection_status.set_state(ConnectionState::Connected);
-            resolver.resolve(connection);
-            Ok(())
-        } else {
-            error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
-            self.internal_rpc.set_connection_error(error.clone());
-            Err(error)
+        match (state.clone(), self.connection_status.connection_step()) {
+            (ConnectionState::Connecting, Some(ConnectionStep::Open(resolver))) => {
+                self.connection_status.set_state(ConnectionState::Connected);
+                resolver.resolve(connection);
+                Ok(())
+            }
+            _ => {
+                error!(?state, ?step, "Invalid state");
+                let error = Error::InvalidConnectionState(state);
+                self.internal_rpc.set_connection_error(error.clone());
+                Err(error)
+            }
         }
     }
 

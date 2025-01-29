@@ -21,10 +21,9 @@ pub enum Confirmation {
 
 impl Confirmation {
     pub fn take_message(self) -> Option<BasicReturnMessage> {
-        if let Confirmation::Ack(Some(msg)) | Confirmation::Nack(Some(msg)) = self {
-            Some(*msg)
-        } else {
-            None
+        match self {
+            Confirmation::Ack(Some(msg)) | Confirmation::Nack(Some(msg)) => Some(*msg),
+            _ => None,
         }
     }
 

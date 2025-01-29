@@ -321,24 +321,27 @@ impl IoLoop {
 
                 let mut written = sz as FrameSize;
                 while written > 0 {
-                    if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
-                        if written < to_write {
-                            self.serialized_frames
-                                .push_front((to_write - written, resolver));
-                            trace!("{} to write to complete this frame", to_write - written);
-                            written = 0;
-                        } else {
-                            if let Some(resolver) = resolver {
-                                resolver.resolve(());
+                    match self.serialized_frames.pop_front() {
+                        Some((to_write, resolver)) => {
+                            if written < to_write {
+                                self.serialized_frames
+                                    .push_front((to_write - written, resolver));
+                                trace!("{} to write to complete this frame", to_write - written);
+                                written = 0;
+                            } else {
+                                if let Some(resolver) = resolver {
+                                    resolver.resolve(());
+                                }
+                                written -= to_write;
                             }
-                            written -= to_write;
                         }
-                    } else {
-                        error!(
-                            "We've written {} but didn't expect to write anything",
-                            written
-                        );
-                        break;
+                        _ => {
+                            error!(
+                                "We've written {} but didn't expect to write anything",
+                                written
+                            );
+                            break;
+                        }
                     }
                 }
 
