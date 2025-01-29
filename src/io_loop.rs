@@ -175,9 +175,9 @@ impl IoLoop {
                     }
                     self.heartbeat.cancel();
                     self.clear_serialized_frames(
-                        self.frames.poison().unwrap_or_else(|| {
-                            Error::InvalidConnectionState(ConnectionState::Closed)
-                        }),
+                        self.frames
+                            .poison()
+                            .unwrap_or(Error::InvalidConnectionState(ConnectionState::Closed)),
                     );
                     let internal_rpc = self.internal_rpc.clone();
                     if self.killswitch.killed() {

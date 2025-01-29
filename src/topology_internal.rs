@@ -111,7 +111,7 @@ impl QueueDefinitionInternal {
     }
 
     pub(crate) fn is_exclusive(&self) -> bool {
-        self.definition.options.map_or(false, |o| o.exclusive)
+        self.definition.options.is_some_and(|o| o.exclusive)
     }
 
     pub(crate) fn register_binding(

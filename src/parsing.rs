@@ -23,7 +23,7 @@ impl<'a> From<[&'a [u8]; 2]> for ParsingContext<'a> {
     }
 }
 
-impl<'a> Clone for ParsingContext<'a> {
+impl Clone for ParsingContext<'_> {
     fn clone(&self) -> Self {
         [self.buffers[0], self.buffers[1]].into()
     }
@@ -113,9 +113,9 @@ impl<'a> Input for ParsingContext<'a> {
     }
 }
 
-impl<'a, 'b> Compare<&'b [u8]> for ParsingContext<'a> {
+impl<'a> Compare<&'a [u8]> for ParsingContext<'_> {
     #[inline]
-    fn compare(&self, buf: &'b [u8]) -> CompareResult {
+    fn compare(&self, buf: &'a [u8]) -> CompareResult {
         if self.iter().zip(buf).any(|(a, b)| a != b) {
             CompareResult::Error
         } else if self.input_len() >= buf.len() {
@@ -126,11 +126,11 @@ impl<'a, 'b> Compare<&'b [u8]> for ParsingContext<'a> {
     }
 
     #[inline]
-    fn compare_no_case(&self, buf: &'b [u8]) -> CompareResult {
+    fn compare_no_case(&self, buf: &'a [u8]) -> CompareResult {
         if self
             .iter()
             .zip(buf)
-            .any(|(a, b)| a.to_ascii_lowercase() != b.to_ascii_lowercase())
+            .any(|(a, b)| !a.eq_ignore_ascii_case(b))
         {
             CompareResult::Error
         } else if self.input_len() >= buf.len() {
