@@ -201,7 +201,7 @@ impl Channel {
     )?;
     {{/if ~}}
     if !self.status.can_receive_messages() {
-      return Err(self.status.state_error())
+      return Err(self.status.state_error());
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }
