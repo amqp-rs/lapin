@@ -4,7 +4,7 @@ pub struct RecoveryConfig {
 }
 
 impl RecoveryConfig {
-    pub fn auto_recover_channels(&mut self) -> &mut Self {
+    pub fn auto_recover_channels(mut self) -> Self {
         self.auto_recover_channels = true;
         self
     }
