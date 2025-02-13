@@ -447,6 +447,8 @@ impl Stream for Consumer {
 mod futures_tests {
     use super::*;
 
+    use crate::ErrorKind;
+
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
