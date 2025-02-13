@@ -86,6 +86,7 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: ChannelId,
         configuration: Configuration,
@@ -137,10 +138,6 @@ impl Channel {
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
-    }
-
-    pub(crate) fn reset(&self) {
-        // FIXME
     }
 
     pub(crate) async fn restore(
