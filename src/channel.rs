@@ -572,13 +572,17 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        self.set_closed(
-            error
-                .clone()
-                .unwrap_or(ErrorKind::InvalidChannelState(ChannelState::Closing).into()),
-        );
-        if let Some(error) = error {
-            self.error_handler.on_error(error);
+        if !self.recovery_config.auto_recover_channels
+            || !error.as_ref().map_or(false, |e| e.is_amqp_soft_error())
+        {
+            self.set_closed(
+                error
+                    .clone()
+                    .unwrap_or(ErrorKind::InvalidChannelState(ChannelState::Closing).into()),
+            );
+            if let Some(error) = error {
+                self.error_handler.on_error(error);
+            }
         }
     }
 
@@ -862,7 +866,19 @@ impl Channel {
         resolver: PromiseResolver<Channel>,
         channel: Channel,
     ) -> Result<()> {
-        self.set_state(ChannelState::Connected);
+        if self.recovery_config.auto_recover_channels {
+            self.status.update_recovery_context(|ctx| {
+                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+                self.frames.drop_frames_for_channel(channel.id, ctx.cause());
+                self.acknowledgements.reset(ctx.cause());
+                self.consumers.error(ctx.cause());
+            });
+            if !self.status.confirm() {
+                self.status.finalize_recovery();
+            }
+        } else {
+            self.set_state(ChannelState::Connected);
+        }
         resolver.resolve(channel);
         Ok(())
     }
@@ -891,18 +907,37 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = AMQPError::try_from(method.clone()).map(|error| {
+        let error: std::result::Result<Error, _> = AMQPError::try_from(method.clone()).map(|error| {
             error!(
                 channel=%self.id, ?method, ?error,
                 "Channel closed"
             );
             ErrorKind::ProtocolError(error).into()
         });
-        self.set_closing(error.clone().ok());
+        match (
+            self.recovery_config.auto_recover_channels,
+            error.clone().ok(),
+        ) {
+            (true, Some(error)) if error.is_amqp_soft_error() => {
+                self.status.set_reconnecting(error)
+            }
+            (_, err) => self.set_closing(err),
+        }
         let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         let channel = self.clone();
-        self.internal_rpc
-            .register_internal_future(async move { channel.channel_close_ok(error).await });
+        self.internal_rpc.register_internal_future(async move {
+            channel.channel_close_ok(error).await?;
+            if channel.recovery_config.auto_recover_channels {
+                let ch = channel.clone();
+                channel.channel_open(ch).await?;
+                if channel.status.confirm() {
+                    channel
+                        .confirm_select(ConfirmSelectOptions::default())
+                        .await?;
+                }
+            }
+            Ok(())
+        });
         Ok(())
     }
 

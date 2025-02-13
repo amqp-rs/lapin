@@ -136,6 +136,7 @@ mod buffer;
 mod channel;
 mod channel_closer;
 mod channel_receiver_state;
+mod channel_recovery_context;
 mod channel_status;
 mod channels;
 mod configuration;

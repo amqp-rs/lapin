@@ -187,7 +187,9 @@ impl PartialEq for Error {
                 false
             }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
-            (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
+            (ProtocolError(left_inner), ProtocolError(right_inner)) => {
+                left_inner == right_inner
+            }
             (SerialisationError(_), SerialisationError(_)) => {
                 error!("Unable to compare lapin::ErrorKind::SerialisationError");
                 false

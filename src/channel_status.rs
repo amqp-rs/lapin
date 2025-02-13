@@ -1,5 +1,6 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
+    channel_recovery_context::ChannelRecoveryContext,
     notifier::Notifier,
     types::{ChannelId, Identifier, PayloadSize},
     Error, ErrorKind, Result,
@@ -13,19 +14,43 @@ pub struct ChannelStatus(Arc<Mutex<Inner>>);
 
 impl ChannelStatus {
     pub fn initializing(&self) -> bool {
-        self.0.lock().state == ChannelState::Initial
+        [ChannelState::Initial, ChannelState::Reconnecting].contains(&self.0.lock().state)
     }
 
     pub fn closing(&self) -> bool {
-        self.0.lock().state == ChannelState::Closing
+        [ChannelState::Closing, ChannelState::Reconnecting].contains(&self.0.lock().state)
     }
 
     pub fn connected(&self) -> bool {
         self.0.lock().state == ChannelState::Connected
     }
 
+    pub fn reconnecting(&self) -> bool {
+        self.0.lock().state == ChannelState::Reconnecting
+    }
+
+    pub(crate) fn connected_or_recovering(&self) -> bool {
+        [ChannelState::Connected, ChannelState::Reconnecting].contains(&self.0.lock().state)
+    }
+
+    pub(crate) fn update_recovery_context<F: Fn(&mut ChannelRecoveryContext)>(&self, apply: F) {
+        let mut inner = self.0.lock();
+        if let Some(context) = inner.recovery_context.as_mut() {
+            apply(context);
+        }
+    }
+
+    pub(crate) fn finalize_recovery(&self) {
+        self.0.lock().finalize_recovery();
+    }
+
     pub(crate) fn can_receive_messages(&self) -> bool {
-        [ChannelState::Closing, ChannelState::Connected].contains(&self.0.lock().state)
+        [
+            ChannelState::Closing,
+            ChannelState::Connected,
+            ChannelState::Reconnecting,
+        ]
+        .contains(&self.0.lock().state)
     }
 
     pub fn confirm(&self) -> bool {
@@ -33,8 +58,10 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_confirm(&self) {
-        self.0.lock().confirm = true;
+        let mut inner = self.0.lock();
+        inner.confirm = true;
         trace!("Publisher confirms activated");
+        inner.finalize_recovery();
     }
 
     pub fn state(&self) -> ChannelState {
@@ -48,6 +75,12 @@ impl ChannelStatus {
     pub(crate) fn state_error(&self) -> Error {
         let inner = self.0.lock();
         Error::from(ErrorKind::InvalidChannelState(inner.state)).with_notifier(inner.notifier())
+    }
+
+    pub(crate) fn set_reconnecting(&self, error: Error) {
+        let mut inner = self.0.lock();
+        inner.state = ChannelState::Reconnecting;
+        inner.recovery_context = Some(ChannelRecoveryContext::new(error));
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
@@ -122,6 +155,7 @@ impl ChannelStatus {
 pub enum ChannelState {
     #[default]
     Initial,
+    Reconnecting,
     Connected,
     Closing,
     Closed,
@@ -147,6 +181,7 @@ struct Inner {
     send_flow: bool,
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
+    recovery_context: Option<ChannelRecoveryContext>,
 }
 
 impl Default for Inner {
@@ -156,12 +191,20 @@ impl Default for Inner {
             send_flow: true,
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
+            recovery_context: None,
         }
     }
 }
 
 impl Inner {
+    pub(crate) fn finalize_recovery(&mut self) {
+        self.state = ChannelState::Connected;
+        if let Some(ctx) = self.recovery_context.take() {
+            ctx.finalize_recovery();
+        }
+    }
+
     fn notifier(&self) -> Option<Notifier> {
-        None // FIXME
+        Some(self.recovery_context.as_ref()?.notifier())
     }
 }
