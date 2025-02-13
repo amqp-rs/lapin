@@ -1,7 +1,8 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
+    notifier::Notifier,
     types::{ChannelId, Identifier, PayloadSize},
-    Result,
+    Error, ErrorKind, Result,
 };
 use parking_lot::Mutex;
 use std::{fmt, sync::Arc};
@@ -37,11 +38,16 @@ impl ChannelStatus {
     }
 
     pub fn state(&self) -> ChannelState {
-        self.0.lock().state.clone()
+        self.0.lock().state
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
         self.0.lock().state = state;
+    }
+
+    pub(crate) fn state_error(&self) -> Error {
+        let inner = self.0.lock();
+        Error::from(ErrorKind::InvalidChannelState(inner.state)).with_notifier(inner.notifier())
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
@@ -112,7 +118,7 @@ impl ChannelStatus {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChannelState {
     #[default]
     Initial,
@@ -151,5 +157,11 @@ impl Default for Inner {
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
         }
+    }
+}
+
+impl Inner {
+    fn notifier(&self) -> Option<Notifier> {
+        None // FIXME
     }
 }

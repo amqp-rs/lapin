@@ -650,7 +650,7 @@ impl Channel {
                 mechanism,
                 mut options,
             )),
-        ) = (state.clone(), self.connection_status.connection_step())
+        ) = (state, self.connection_status.connection_step())
         {
             let mechanism_str = mechanism.to_string();
             let locale = options.locale.clone();
@@ -733,7 +733,7 @@ impl Channel {
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
         if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
-            (state.clone(), self.connection_status.connection_step())
+            (state, self.connection_status.connection_step())
         {
             let channel = self.clone();
             self.internal_rpc.register_internal_future(async move {
@@ -758,7 +758,7 @@ impl Channel {
         if let (
             ConnectionState::Connecting,
             Some(ConnectionStep::StartOk(resolver, connection, _)),
-        ) = (state.clone(), self.connection_status.connection_step())
+        ) = (state, self.connection_status.connection_step())
         {
             self.tune_connection_configuration(
                 method.channel_max,
@@ -796,7 +796,7 @@ impl Channel {
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
         if let (ConnectionState::Connecting, Some(ConnectionStep::Open(resolver))) =
-            (state.clone(), self.connection_status.connection_step())
+            (state, self.connection_status.connection_step())
         {
             self.connection_status.set_state(ConnectionState::Connected);
             resolver.resolve(connection);

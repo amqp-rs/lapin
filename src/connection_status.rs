@@ -10,7 +10,7 @@ pub struct ConnectionStatus(Arc<Mutex<Inner>>);
 
 impl ConnectionStatus {
     pub fn state(&self) -> ConnectionState {
-        self.0.lock().state.clone()
+        self.0.lock().state
     }
 
     pub(crate) fn set_state(&self, state: ConnectionState) -> ConnectionState {
@@ -97,7 +97,7 @@ pub(crate) enum ConnectionStep {
     Open(PromiseResolver<Connection>),
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ConnectionState {
     #[default]
     Initial,

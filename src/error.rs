@@ -1,6 +1,6 @@
 use crate::{
-    channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
-    types::ChannelId, notifier::Notifier,
+    channel_status::ChannelState, connection_status::ConnectionState, notifier::Notifier,
+    protocol::AMQPError, types::ChannelId,
 };
 use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
@@ -48,8 +48,13 @@ impl Error {
         &self.kind
     }
 
-    pub fn notifier(&self) -> Option<&Notifier> {
-        self.notifier.as_ref()
+    pub fn notifier(&self) -> Option<Notifier> {
+        self.notifier.clone()
+    }
+
+    pub(crate) fn with_notifier(mut self, notifier: Option<Notifier>) -> Self {
+        self.notifier = notifier;
+        self
     }
 
     pub fn wouldblock(&self) -> bool {
