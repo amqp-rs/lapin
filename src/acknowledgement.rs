@@ -131,10 +131,10 @@ impl Inner {
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {
-        match self.pending.remove(&delivery_tag) { Some(resolvers) => {
+        if let Some(resolvers) = self.pending.remove(&delivery_tag) {
             self.complete_pending(success, delivery_tag, resolvers);
             Ok(())
-        } _ => {
+        } else {
             Err(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 format!(
@@ -147,7 +147,7 @@ impl Inner {
                 )
                 .into(),
             ))
-        }}
+        }
     }
 
     fn complete_pending_before(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {

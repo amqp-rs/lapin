@@ -34,24 +34,21 @@ impl Registry {
         arguments: FieldTable,
     ) {
         let mut inner = self.0.lock();
-        match inner.exchanges.get_mut(&name) {
-            Some(exchange) => {
-                exchange.kind = Some(kind);
-                exchange.options = Some(options);
-                exchange.arguments = Some(arguments);
-            }
-            _ => {
-                inner.exchanges.insert(
-                    name.clone(),
-                    ExchangeDefinition {
-                        name,
-                        kind: Some(kind),
-                        options: Some(options),
-                        arguments: Some(arguments),
-                        bindings: Vec::new(),
-                    },
-                );
-            }
+        if let Some(exchange) = inner.exchanges.get_mut(&name) {
+            exchange.kind = Some(kind);
+            exchange.options = Some(options);
+            exchange.arguments = Some(arguments);
+        } else {
+            inner.exchanges.insert(
+                name.clone(),
+                ExchangeDefinition {
+                    name,
+                    kind: Some(kind),
+                    options: Some(options),
+                    arguments: Some(arguments),
+                    bindings: Vec::new(),
+                },
+            );
         }
     }
 
@@ -108,16 +105,13 @@ impl Registry {
         arguments: FieldTable,
     ) {
         let mut inner = self.0.lock();
-        match inner.queues.get_mut(&name) {
-            Some(queue) => {
-                queue.set_declared(options, arguments);
-            }
-            _ => {
-                inner.queues.insert(
-                    name.clone(),
-                    QueueDefinitionInternal::declared(name, options, arguments),
-                );
-            }
+        if let Some(queue) = inner.queues.get_mut(&name) {
+            queue.set_declared(options, arguments);
+        } else {
+            inner.queues.insert(
+                name.clone(),
+                QueueDefinitionInternal::declared(name, options, arguments),
+            );
         }
     }
 

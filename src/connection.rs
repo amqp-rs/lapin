@@ -150,20 +150,20 @@ impl Connection {
         for c in &topology.channels {
             restored
                 .channels
-                .push(RestoredChannel::new(match c.channel.clone() {
-                    Some(c) => {
-                        let channel = c.clone();
-                        c.reset();
-                        c.channel_open(channel).await?
-                    }
-                    _ => self.create_channel().await?,
+                .push(RestoredChannel::new(if let Some(c) = c.channel.clone() {
+                    let channel = c.clone();
+                    c.reset();
+                    c.channel_open(channel).await?
+                } else {
+                    self.create_channel().await?
                 }));
         }
 
         // Then, ensure we have at least one channel to restore everything else
-        let channel = match restored.channels.first() {
-            Some(chan) => chan.channel.clone(),
-            _ => self.create_channel().await?,
+        let channel = if let Some(chan) = restored.channels.first() {
+            chan.channel.clone()
+        } else {
+            self.create_channel().await?
         };
 
         // First, redeclare all exchanges
@@ -264,37 +264,39 @@ impl Connection {
         }
 
         self.channels.set_connection_closing();
-        match self.channels.get(0) {
-            Some(channel0) => {
-                channel0
-                    .connection_close(reply_code, reply_text, 0, 0)
-                    .await
-            }
-            _ => Ok(()),
+        if let Some(channel0) = self.channels.get(0) {
+            channel0
+                .connection_close(reply_code, reply_text, 0, 0)
+                .await
+        } else {
+            Ok(())
         }
     }
 
     /// Block all consumers and publishers on this connection
     pub async fn block(&self, reason: &str) -> Result<()> {
-        match self.channels.get(0) {
-            Some(channel0) => channel0.connection_blocked(reason).await,
-            _ => Err(Error::InvalidConnectionState(self.status.state())),
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_blocked(reason).await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
         }
     }
 
     /// Unblock all consumers and publishers on this connection
     pub async fn unblock(&self) -> Result<()> {
-        match self.channels.get(0) {
-            Some(channel0) => channel0.connection_unblocked().await,
-            _ => Err(Error::InvalidConnectionState(self.status.state())),
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_unblocked().await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
         }
     }
 
     /// Update the secret used by some authentication module such as OAuth2
     pub async fn update_secret(&self, new_secret: &str, reason: &str) -> Result<()> {
-        match self.channels.get(0) {
-            Some(channel0) => channel0.connection_update_secret(new_secret, reason).await,
-            _ => Err(Error::InvalidConnectionState(self.status.state())),
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.connection_update_secret(new_secret, reason).await
+        } else {
+            Err(Error::InvalidConnectionState(self.status.state()))
         }
     }
 
