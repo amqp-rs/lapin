@@ -156,6 +156,7 @@ mod id_sequence;
 mod internal_rpc;
 mod io_loop;
 mod killswitch;
+mod notifier;
 mod parsing;
 mod promise;
 mod queue;

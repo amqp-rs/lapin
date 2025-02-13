@@ -1,6 +1,6 @@
 use crate::{
     channel_status::ChannelState, connection_status::ConnectionState, protocol::AMQPError,
-    types::ChannelId,
+    types::ChannelId, notifier::Notifier,
 };
 use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
@@ -15,7 +15,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Debug)]
 pub struct Error {
     kind: ErrorKind,
-    notifier: Option<()>, // placeholder
+    notifier: Option<Notifier>,
 }
 
 /// The type of error that can be returned in this crate.
@@ -48,7 +48,7 @@ impl Error {
         &self.kind
     }
 
-    pub fn notifier(&self) -> Option<&()> {
+    pub fn notifier(&self) -> Option<&Notifier> {
         self.notifier.as_ref()
     }
 
