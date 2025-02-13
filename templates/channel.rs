@@ -69,7 +69,11 @@ impl Channel {
     {{#if method.metadata.channel_deinit ~}}
     if !self.status.closing() {
     {{else}}
+    {{#if method.metadata.channel_recovery ~}}
+    if !self.status.connected_or_recovering() {
+    {{else}}
     if !self.status.connected() {
+    {{/if ~}}
     {{/if ~}}
     {{/if ~}}
       return Err(self.status.state_error());
