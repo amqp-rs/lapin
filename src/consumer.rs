@@ -518,7 +518,7 @@ mod futures_tests {
             assert_eq!(Pin::new(&mut next).poll(&mut cx), Poll::Pending);
         }
 
-        consumer.set_error(Error::ChannelsLimitReached);
+        consumer.set_error(ErrorKind::ChannelsLimitReached.into());
 
         {
             let mut next = consumer.next();
@@ -526,7 +526,7 @@ mod futures_tests {
             assert_eq!(awoken_count.load(Ordering::SeqCst), 1);
             assert_eq!(
                 Pin::new(&mut next).poll(&mut cx),
-                Poll::Ready(Some(Err(Error::ChannelsLimitReached)))
+                Poll::Ready(Some(Err(ErrorKind::ChannelsLimitReached.into())))
             );
         }
     }

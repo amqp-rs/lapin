@@ -2,7 +2,7 @@ use crate::{
     experimental::RecoveryConfig,
     reactor::FullReactor,
     types::{AMQPValue, FieldTable, LongString},
-    Error, Result,
+    ErrorKind, Result,
 };
 use executor_trait::FullExecutor;
 use std::sync::Arc;
@@ -67,7 +67,7 @@ impl ConnectionProperties {
         }
 
         #[allow(unreachable_code)]
-        Err(Error::NoConfiguredExecutor)
+        Err(ErrorKind::NoConfiguredExecutor.into())
     }
 
     pub(crate) fn take_reactor(&mut self) -> Result<Arc<dyn FullReactor + Send + Sync>> {
@@ -81,6 +81,6 @@ impl ConnectionProperties {
         }
 
         #[allow(unreachable_code)]
-        Err(Error::NoConfiguredReactor)
+        Err(ErrorKind::NoConfiguredReactor.into())
     }
 }

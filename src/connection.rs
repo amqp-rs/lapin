@@ -19,7 +19,7 @@ use crate::{
     topology_internal::TopologyInternal,
     types::ReplyCode,
     uri::AMQPUri,
-    Error, Promise, Result,
+    Error, ErrorKind, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -129,7 +129,7 @@ impl Connection {
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn create_channel(&self) -> Result<Channel> {
         if !self.status.connected() {
-            return Err(Error::InvalidConnectionState(self.status.state()));
+            return Err(ErrorKind::InvalidConnectionState(self.status.state()).into());
         }
         let channel = self.channels.create(self.closer.clone())?;
         channel.clone().channel_open(channel).await
@@ -259,7 +259,7 @@ impl Connection {
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
         if !self.status.connected() {
-            return Err(Error::InvalidConnectionState(self.status.state()));
+            return Err(ErrorKind::InvalidConnectionState(self.status.state()).into());
         }
 
         self.channels.set_connection_closing();
@@ -277,7 +277,7 @@ impl Connection {
         if let Some(channel0) = self.channels.get(0) {
             channel0.connection_blocked(reason).await
         } else {
-            Err(Error::InvalidConnectionState(self.status.state()))
+            Err(ErrorKind::InvalidConnectionState(self.status.state()).into())
         }
     }
 
@@ -286,7 +286,7 @@ impl Connection {
         if let Some(channel0) = self.channels.get(0) {
             channel0.connection_unblocked().await
         } else {
-            Err(Error::InvalidConnectionState(self.status.state()))
+            Err(ErrorKind::InvalidConnectionState(self.status.state()).into())
         }
     }
 
@@ -295,7 +295,7 @@ impl Connection {
         if let Some(channel0) = self.channels.get(0) {
             channel0.connection_update_secret(new_secret, reason).await
         } else {
-            Err(Error::InvalidConnectionState(self.status.state()))
+            Err(ErrorKind::InvalidConnectionState(self.status.state()).into())
         }
     }
 

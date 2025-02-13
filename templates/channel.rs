@@ -72,7 +72,7 @@ impl Channel {
     if !self.status.connected() {
     {{/if ~}}
     {{/if ~}}
-      return Err(Error::InvalidChannelState(self.status.state()));
+      return Err(ErrorKind::InvalidChannelState(self.status.state()).into());
     }
 
     {{#if method.metadata.start_hook ~}}
@@ -167,7 +167,7 @@ impl Channel {
     {{else}}
     if !self.status.can_receive_messages() {
     {{/if ~}}
-      return Err(Error::InvalidChannelState(self.status.state()));
+      return Err(ErrorKind::InvalidChannelState(self.status.state()).into());
     }
 
     match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
@@ -201,7 +201,7 @@ impl Channel {
     )?;
     {{/if ~}}
     if !self.status.can_receive_messages() {
-      return Err(Error::InvalidChannelState(self.status.state()));
+      return Err(ErrorKind::InvalidChannelState(self.status.state()).into());
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }

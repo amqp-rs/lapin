@@ -5,7 +5,7 @@ use crate::{
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
-    Error, PromiseResolver, Result,
+    Error, ErrorKind, PromiseResolver, Result,
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
@@ -229,7 +229,11 @@ impl InternalRPC {
     pub(crate) async fn run(self, channels: Channels) {
         use InternalCommand::*;
 
-        let get_channel = |id| channels.get(id).ok_or(Error::InvalidChannel(id));
+        let get_channel = |id| {
+            channels
+                .get(id)
+                .ok_or::<Error>(ErrorKind::InvalidChannel(id).into())
+        };
 
         while let Ok(Some(command)) = self.rpc.recv_async().await {
             trace!(?command, "Handling internal RPC command");

@@ -11,7 +11,7 @@ use crate::{
     topology_internal::ChannelDefinitionInternal,
     types::{ChannelId, Identifier, PayloadSize},
     BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
-    Error, Promise, Result,
+    Error, ErrorKind, Promise, Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
@@ -91,14 +91,14 @@ impl Channels {
         if self.inner.lock().channels.remove(&id).is_some() {
             Ok(())
         } else {
-            Err(Error::InvalidChannel(id))
+            Err(ErrorKind::InvalidChannel(id).into())
         }
     }
 
     pub(crate) fn receive_method(&self, id: ChannelId, method: AMQPClass) -> Result<()> {
         self.get(id)
             .map(|channel| channel.receive_method(method))
-            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
+            .unwrap_or_else(|| Err(ErrorKind::InvalidChannel(id).into()))
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -110,13 +110,13 @@ impl Channels {
     ) -> Result<()> {
         self.get(id)
             .map(|channel| channel.handle_content_header_frame(class_id, size, properties))
-            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
+            .unwrap_or_else(|| Err(ErrorKind::InvalidChannel(id).into()))
     }
 
     pub(crate) fn handle_body_frame(&self, id: ChannelId, payload: Vec<u8>) -> Result<()> {
         self.get(id)
             .map(|channel| channel.handle_body_frame(payload))
-            .unwrap_or_else(|| Err(Error::InvalidChannel(id)))
+            .unwrap_or_else(|| Err(ErrorKind::InvalidChannel(id).into()))
     }
 
     pub(crate) fn set_connection_closing(&self) {
@@ -194,7 +194,7 @@ impl Channels {
                     ProtocolVersion::amqp_0_9_1(),
                     version
                 );
-                let error = Error::InvalidProtocolVersion(version);
+                let error: Error = ErrorKind::InvalidProtocolVersion(version).into();
                 if let Some(resolver) = self.connection_status.connection_resolver() {
                     resolver.reject(error.clone());
                 }
@@ -225,7 +225,7 @@ impl Channels {
                                 .await
                         });
                     }
-                    return Err(Error::ProtocolError(error));
+                    return Err(ErrorKind::ProtocolError(error).into());
                 }
             }
             AMQPFrame::Header(channel_id, class_id, header) => {
@@ -248,7 +248,7 @@ impl Channels {
                                 .await
                         });
                     }
-                    return Err(Error::ProtocolError(error));
+                    return Err(ErrorKind::ProtocolError(error).into());
                 } else {
                     self.handle_content_header_frame(
                         channel_id,
@@ -381,6 +381,6 @@ impl Inner {
             }
             id = self.channel_id.next();
         }
-        Err(Error::ChannelsLimitReached)
+        Err(ErrorKind::ChannelsLimitReached.into())
     }
 }

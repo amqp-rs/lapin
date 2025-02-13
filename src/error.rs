@@ -11,13 +11,20 @@ use std::{error, fmt, io, sync::Arc};
 /// A std Result with a lapin::Error error type
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// The error that can be returned in this crate.
+#[derive(Clone, Debug)]
+pub struct Error {
+    kind: ErrorKind,
+    notifier: Option<()>, // placeholder
+}
+
 /// The type of error that can be returned in this crate.
 ///
 /// Even though we expose the complete enumeration of possible error variants, it is not
 /// considered stable to exhaustively match on this enumeration: do it at your own risk.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub enum Error {
+pub enum ErrorKind {
     ChannelsLimitReached,
     InvalidProtocolVersion(ProtocolVersion),
 
@@ -37,8 +44,16 @@ pub enum Error {
 }
 
 impl Error {
+    pub fn kind(&self) -> &ErrorKind {
+        &self.kind
+    }
+
+    pub fn notifier(&self) -> Option<&()> {
+        self.notifier.as_ref()
+    }
+
     pub fn wouldblock(&self) -> bool {
-        if let Error::IOError(e) = self {
+        if let ErrorKind::IOError(e) = self.kind() {
             e.kind() == io::ErrorKind::WouldBlock
         } else {
             false
@@ -46,7 +61,7 @@ impl Error {
     }
 
     pub fn interrupted(&self) -> bool {
-        if let Error::IOError(e) = self {
+        if let ErrorKind::IOError(e) = self.kind() {
             e.kind() == io::ErrorKind::Interrupted
         } else {
             false
@@ -54,7 +69,7 @@ impl Error {
     }
 
     pub fn is_amqp_soft_error(&self) -> bool {
-        if let Error::ProtocolError(e) = self {
+        if let ErrorKind::ProtocolError(e) = self.kind() {
             if let AMQPErrorKind::Soft(_) = e.kind() {
                 return true;
             }
@@ -63,7 +78,7 @@ impl Error {
     }
 
     pub fn is_amqp_hard_error(&self) -> bool {
-        if let Error::ProtocolError(e) = self {
+        if let ErrorKind::ProtocolError(e) = self.kind() {
             if let AMQPErrorKind::Hard(_) = e.kind() {
                 return true;
             }
@@ -74,37 +89,39 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::ChannelsLimitReached => write!(
+        match self.kind() {
+            ErrorKind::ChannelsLimitReached => write!(
                 f,
                 "the maximum number of channels for this connection has been reached"
             ),
-            Error::InvalidProtocolVersion(version) => {
+            ErrorKind::InvalidProtocolVersion(version) => {
                 write!(f, "the server only supports AMQP {}", version)
             }
 
-            Error::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
-            Error::InvalidChannelState(state) => write!(f, "invalid channel state: {:?}", state),
-            Error::InvalidConnectionState(state) => {
+            ErrorKind::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
+            ErrorKind::InvalidChannelState(state) => {
+                write!(f, "invalid channel state: {:?}", state)
+            }
+            ErrorKind::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
             }
 
-            Error::IOError(e) => write!(f, "IO error: {}", e),
-            Error::ParsingError(e) => write!(f, "failed to parse: {}", e),
-            Error::ProtocolError(e) => write!(f, "protocol error: {}", e),
-            Error::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
+            ErrorKind::IOError(e) => write!(f, "IO error: {}", e),
+            ErrorKind::ParsingError(e) => write!(f, "failed to parse: {}", e),
+            ErrorKind::ProtocolError(e) => write!(f, "protocol error: {}", e),
+            ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
 
-            Error::MissingHeartbeatError => {
+            ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")
             }
 
-            Error::NoConfiguredExecutor => {
+            ErrorKind::NoConfiguredExecutor => {
                 write!(
                     f,
                     "an executor must be provided if the default-runtime feature is disabled"
                 )
             }
-            Error::NoConfiguredReactor => {
+            ErrorKind::NoConfiguredReactor => {
                 write!(
                     f,
                     "a reactor must be provided if the default-runtime feature is disabled"
@@ -116,28 +133,37 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            Error::IOError(e) => Some(&**e),
-            Error::ParsingError(e) => Some(e),
-            Error::ProtocolError(e) => Some(e),
-            Error::SerialisationError(e) => Some(&**e),
+        match self.kind() {
+            ErrorKind::IOError(e) => Some(&**e),
+            ErrorKind::ParsingError(e) => Some(e),
+            ErrorKind::ProtocolError(e) => Some(e),
+            ErrorKind::SerialisationError(e) => Some(&**e),
             _ => None,
+        }
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Self {
+            kind,
+            notifier: None,
         }
     }
 }
 
 impl From<io::Error> for Error {
     fn from(other: io::Error) -> Self {
-        Error::IOError(Arc::new(other))
+        ErrorKind::IOError(Arc::new(other)).into()
     }
 }
 
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         use tracing::error;
-        use Error::*;
+        use ErrorKind::*;
 
-        match (self, other) {
+        match (self.kind(), other.kind()) {
             (ChannelsLimitReached, ChannelsLimitReached) => true,
             (InvalidProtocolVersion(left_inner), InvalidProtocolVersion(right_version)) => {
                 left_inner == right_version
@@ -152,13 +178,13 @@ impl PartialEq for Error {
             }
 
             (IOError(_), IOError(_)) => {
-                error!("Unable to compare lapin::Error::IOError");
+                error!("Unable to compare lapin::ErrorKind::IOError");
                 false
             }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
             (SerialisationError(_), SerialisationError(_)) => {
-                error!("Unable to compare lapin::Error::SerialisationError");
+                error!("Unable to compare lapin::ErrorKind::SerialisationError");
                 false
             }
 

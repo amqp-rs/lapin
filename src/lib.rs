@@ -113,7 +113,7 @@ pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate};
 pub use consumer_status::ConsumerState;
-pub use error::{Error, Result};
+pub use error::{Error, ErrorKind, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
 

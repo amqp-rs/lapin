@@ -10,7 +10,7 @@ use crate::{
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
     types::FrameSize,
-    Configuration, ConnectionStatus, Error, PromiseResolver, Result,
+    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
 };
 use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
 use reactor_trait::AsyncIOHandle;
@@ -174,11 +174,9 @@ impl IoLoop {
                         }
                     }
                     self.heartbeat.cancel();
-                    self.clear_serialized_frames(
-                        self.frames
-                            .poison()
-                            .unwrap_or(Error::InvalidConnectionState(ConnectionState::Closed)),
-                    );
+                    self.clear_serialized_frames(self.frames.poison().unwrap_or(
+                        ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
+                    ));
                     let internal_rpc = self.internal_rpc.clone();
                     if self.killswitch.killed() {
                         internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
@@ -359,7 +357,9 @@ impl IoLoop {
     fn read_from_stream(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
         match self.connection_status.state() {
             ConnectionState::Closed => Ok(()),
-            ConnectionState::Error => Err(Error::InvalidConnectionState(ConnectionState::Error)),
+            ConnectionState::Error => {
+                Err(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
+            }
             _ => {
                 let res = self
                     .receive_buffer
@@ -403,7 +403,7 @@ impl IoLoop {
                         }
                         e => {
                             error!(error=?e, "error generating frame");
-                            self.critical_error(Error::SerialisationError(Arc::new(e)))?;
+                            self.critical_error(ErrorKind::SerialisationError(Arc::new(e)).into())?;
                         }
                     }
                 }
@@ -440,7 +440,7 @@ impl IoLoop {
                         0,
                         0,
                     );
-                    self.critical_error(Error::ProtocolError(error))?;
+                    self.critical_error(ErrorKind::ProtocolError(error).into())?;
                 }
                 self.receive_buffer.consume(consumed);
                 Ok(Some(f))
@@ -448,7 +448,7 @@ impl IoLoop {
             Err(e) => {
                 if !e.is_incomplete() {
                     error!(error=?e, "parse error");
-                    self.critical_error(Error::ParsingError(e))?;
+                    self.critical_error(ErrorKind::ParsingError(e).into())?;
                 }
                 Ok(None)
             }

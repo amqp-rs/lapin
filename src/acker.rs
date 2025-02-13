@@ -4,7 +4,7 @@ use crate::{
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
     protocol::{AMQPError, AMQPSoftError},
     types::{ChannelId, DeliveryTag},
-    Error, Promise, PromiseResolver, Result,
+    ErrorKind, Promise, PromiseResolver, Result,
 };
 
 use std::sync::{
@@ -78,10 +78,11 @@ impl Acker {
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
         if self.used.swap(true, Ordering::SeqCst) {
-            return Err(Error::ProtocolError(AMQPError::new(
+            return Err(ErrorKind::ProtocolError(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 "Attempted to use an already used Acker".into(),
-            )));
+            ))
+            .into());
         }
         if let Some(error) = self.error.as_ref() {
             error.check()?;

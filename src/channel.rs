@@ -23,8 +23,8 @@ use crate::{
     topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
-    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ExchangeKind, Promise,
-    PromiseResolver, Result,
+    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
+    Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use executor_trait::FullExecutor;
@@ -295,7 +295,7 @@ impl Channel {
                 class_id,
                 method_id,
             );
-            Err(Error::ProtocolError(error))
+            Err(ErrorKind::ProtocolError(error).into())
         }
     }
 
@@ -426,7 +426,7 @@ impl Channel {
             class_id,
             method_id,
         );
-        Err(Error::ProtocolError(error))
+        Err(ErrorKind::ProtocolError(error).into())
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -465,7 +465,7 @@ impl Channel {
                     class_id,
                     0,
                 );
-                let error = Error::ProtocolError(error);
+                let error: Error = ErrorKind::ProtocolError(error).into();
                 self.set_connection_error(error.clone());
                 Err(error)
             },
@@ -534,7 +534,7 @@ impl Channel {
                 )
                 .await
         });
-        Err(Error::ProtocolError(err))
+        Err(ErrorKind::ProtocolError(err).into())
     }
 
     fn before_connection_start_ok(
@@ -553,7 +553,7 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) {
-        if let Error::ProtocolError(_) = error {
+        if let ErrorKind::ProtocolError(_) = error.kind() {
             self.internal_rpc.set_connection_error(error);
         } else {
             self.internal_rpc.set_connection_closed(error);
@@ -561,8 +561,10 @@ impl Channel {
     }
 
     fn next_expected_close_ok_reply(&self) -> Option<Reply> {
-        self.frames
-            .next_expected_close_ok_reply(self.id, Error::InvalidChannelState(ChannelState::Closed))
+        self.frames.next_expected_close_ok_reply(
+            self.id,
+            ErrorKind::InvalidChannelState(ChannelState::Closed).into(),
+        )
     }
 
     fn before_channel_close(&self) {
@@ -573,7 +575,7 @@ impl Channel {
         self.set_closed(
             error
                 .clone()
-                .unwrap_or(Error::InvalidChannelState(ChannelState::Closing)),
+                .unwrap_or(ErrorKind::InvalidChannelState(ChannelState::Closing).into()),
         );
         if let Some(error) = error {
             self.error_handler.on_error(error);
@@ -719,7 +721,7 @@ impl Channel {
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
+            let error: Error = ErrorKind::InvalidConnectionState(state).into();
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
@@ -742,7 +744,7 @@ impl Channel {
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
+            let error: Error = ErrorKind::InvalidConnectionState(state).into();
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
@@ -780,7 +782,7 @@ impl Channel {
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
+            let error: Error = ErrorKind::InvalidConnectionState(state).into();
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
@@ -801,14 +803,14 @@ impl Channel {
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
-            let error = Error::InvalidConnectionState(state);
+            let error: Error = ErrorKind::InvalidConnectionState(state).into();
             self.internal_rpc.set_connection_error(error.clone());
             Err(error)
         }
     }
 
     fn on_connection_close_received(&self, method: protocol::connection::Close) -> Result<()> {
-        let error = AMQPError::try_from(method.clone())
+        let error: Error = AMQPError::try_from(method.clone())
             .map(|error| {
                 error!(
                     channel=%self.id,
@@ -816,12 +818,12 @@ impl Channel {
                     ?error,
                     "Connection closed",
                 );
-                Error::ProtocolError(error)
+                ErrorKind::ProtocolError(error).into()
             })
             .unwrap_or_else(|error| {
                 error!(%error);
                 info!(channel=%self.id, ?method, "Connection closed");
-                Error::InvalidConnectionState(ConnectionState::Closed)
+                ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
         let connection_resolver = self.connection_status.connection_resolver();
         self.internal_rpc.set_connection_closing();
@@ -848,8 +850,9 @@ impl Channel {
     }
 
     fn on_connection_close_ok_received(&self) -> Result<()> {
-        self.internal_rpc
-            .set_connection_closed(Error::InvalidConnectionState(ConnectionState::Closed));
+        self.internal_rpc.set_connection_closed(
+            ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
+        );
         Ok(())
     }
 
@@ -893,7 +896,7 @@ impl Channel {
                 channel=%self.id, ?method, ?error,
                 "Channel closed"
             );
-            Error::ProtocolError(error)
+            ErrorKind::ProtocolError(error).into()
         });
         self.set_closing(error.clone().ok());
         let error = error.map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
@@ -904,7 +907,7 @@ impl Channel {
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
-        self.set_closed(Error::InvalidChannelState(ChannelState::Closed));
+        self.set_closed(ErrorKind::InvalidChannelState(ChannelState::Closed).into());
         Ok(())
     }
 

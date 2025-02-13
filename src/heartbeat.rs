@@ -1,5 +1,5 @@
 use crate::{
-    channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, Error,
+    channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, ErrorKind,
 };
 use executor_trait::FullExecutor;
 use parking_lot::Mutex;
@@ -110,7 +110,7 @@ impl Inner {
         if Instant::now().duration_since(self.last_read) > 4 * timeout {
             self.timeout = None;
             killswitch.kill();
-            channels.set_connection_error(Error::MissingHeartbeatError);
+            channels.set_connection_error(ErrorKind::MissingHeartbeatError.into());
             return None;
         }
 
