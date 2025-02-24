@@ -151,6 +151,11 @@
     }
   },
   "confirm": {
+    "select": {
+      "metadata": {
+        "channel_recovery": true
+      }
+    },
     "select-ok": {
       "metadata": {
         "received_hook": true
