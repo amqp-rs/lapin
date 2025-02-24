@@ -388,12 +388,11 @@ impl Connection {
         let stream = connect_promise
             .await
             .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
-            .map_err(|error| {
+            .inspect_err(|error| {
                 // We don't actually need the resolver as we already pass it around to the failing
                 // code which will propagate the error. We only want to flush the status internal
                 // state.
                 let _ = status.connection_resolver();
-                error
             })?
             .into();
         let heartbeat = Heartbeat::new(status.clone(), channels.clone(), executor.clone(), reactor);
