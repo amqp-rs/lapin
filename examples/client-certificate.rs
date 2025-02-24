@@ -18,7 +18,7 @@ fn get_tls_config() -> OwnedTLSConfig {
     let client_cert_and_key_password = "bunnies";
 
     OwnedTLSConfig {
-        identity: Some(OwnedIdentity {
+        identity: Some(OwnedIdentity::PKCS12 {
             der: client_cert_and_key.to_vec(),
             password: client_cert_and_key_password.to_string(),
         }),
