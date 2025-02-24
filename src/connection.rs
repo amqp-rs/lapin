@@ -388,7 +388,7 @@ impl Connection {
         let stream = connect_promise
             .await
             .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
-            .inspect_err(|error| {
+            .inspect_err(|_| {
                 // We don't actually need the resolver as we already pass it around to the failing
                 // code which will propagate the error. We only want to flush the status internal
                 // state.
