@@ -2342,7 +2342,7 @@ impl Channel {
         }
     }
     pub async fn confirm_select(&self, options: ConfirmSelectOptions) -> Result<()> {
-        if !self.status.connected() {
+        if !self.status.connected_or_recovering() {
             return Err(self.status.state_error());
         }
 
