@@ -43,7 +43,7 @@ version = "^8.1"
 default-features = false
 
 [dependencies.async-global-executor-trait]
-version = "^2.1"
+version = "^2.2"
 features = ["async-io"]
 optional = true
 
@@ -74,7 +74,7 @@ reactor-trait = "^2.0"
 waker-fn = "^1.1"
 
 [dev-dependencies]
-async-global-executor = "^2.0"
+async-global-executor = "^3.1"
 futures-lite = "^2.0"
 serde_json = "^1.0"
 waker-fn = "^1.1"
