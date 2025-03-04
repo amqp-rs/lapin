@@ -397,10 +397,9 @@ impl Channel {
             AMQPFrame::Header(self.id, class_id, Box::new(header)),
         ];
 
-        // a content body frame 8 bytes of overhead
         frames.extend(
             payload
-                .chunks(frame_max as usize - 8)
+                .chunks(frame_max as usize - 8 /* An empty body frame weighs 8 bytes of overhead that we cannot use for payload */)
                 .map(|chunk| AMQPFrame::Body(self.id, chunk.into())),
         );
 
