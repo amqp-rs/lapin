@@ -1,5 +1,5 @@
 use crate::{
-    experimental::RecoveryConfig,
+    recovery_config::RecoveryConfig,
     reactor::FullReactor,
     types::{AMQPValue, FieldTable, LongString},
     ErrorKind, Result,

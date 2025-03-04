@@ -4,6 +4,7 @@ pub struct RecoveryConfig {
 }
 
 impl RecoveryConfig {
+    #[cfg(feature = "unstable")]
     pub fn auto_recover_channels(mut self) -> Self {
         self.auto_recover_channels = true;
         self

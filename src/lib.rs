@@ -116,6 +116,7 @@ pub use consumer_status::ConsumerState;
 pub use error::{Error, ErrorKind, Result};
 pub use exchange::ExchangeKind;
 pub use queue::Queue;
+pub use recovery_config::RecoveryConfig;
 
 pub mod acker;
 pub mod heartbeat;
@@ -123,10 +124,6 @@ pub mod message;
 pub mod publisher_confirm;
 pub mod socket_state;
 pub mod topology;
-
-pub mod experimental {
-    pub use crate::recovery_config::RecoveryConfig;
-}
 
 use promise::{Promise, PromiseResolver};
 

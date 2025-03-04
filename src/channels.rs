@@ -1,11 +1,11 @@
 use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
-    experimental::RecoveryConfig,
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
+    recovery_config::RecoveryConfig,
     registry::Registry,
     socket_state::SocketStateHandle,
     topology_internal::ChannelDefinitionInternal,
