@@ -74,7 +74,7 @@ impl Error {
     }
 
     pub fn is_amqp_error(&self) -> bool {
-        if let ErrorKind::ProtocolError(e) = self.kind() {
+        if let ErrorKind::ProtocolError(_) = self.kind() {
             return true;
         }
         false
