@@ -1,3 +1,25 @@
+### 3.0.0 (2025-??-??)
+
+#### Breaking changes
+
+* `Error` is now `ErrorKind`, wrapped in a new `Error` type (use `Error::kind` to access the previous type)
+* no more Acker::default
+
+#### Features
+
+* rustls crypto backend selection through features
+* `Error::is_amqp_error`, `Error::is_amqp_soft_error` and `Error::is_amqp_hard_error`
+* default runtime is now optional
+* experimental feature to recover channel from AMQP soft error (behind unstable feature flag)
+
+#### Misc
+
+* Update to reactor-trait 2
+* Update to amq-protocol 8
+* Update to nom 8
+* Drop pinky-swear dependency
+* Edition 2024 preparation
+
 ### 2.5.1 (2025-03-08)
 
 #### Bug Fixes
