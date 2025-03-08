@@ -1,4 +1,7 @@
-use std::{fmt, ops::AddAssign};
+use std::{
+    fmt,
+    ops::{AddAssign, Sub},
+};
 
 pub(crate) struct IdSequence<T> {
     allow_zero: bool,
@@ -8,7 +11,10 @@ pub(crate) struct IdSequence<T> {
     id: T,
 }
 
-impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>> IdSequence<T> {
+impl<
+        T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + PartialOrd<T> + From<u8>,
+    > IdSequence<T>
+{
     pub(crate) fn new(allow_zero: bool) -> Self {
         Self {
             allow_zero,
@@ -19,8 +25,23 @@ impl<T: Default + Copy + AddAssign<T> + PartialEq<T> + PartialOrd<T> + From<u8>>
         }
     }
 
-    pub(crate) fn current(&self) -> T {
-        self.id
+    pub(crate) fn current(&self) -> Option<T> {
+        // self.id is actually the next (so that first call to next returns 0
+        // if we're 0 (or 1 if 0 is not allowed), either we haven't started yet, or last number we yielded (current one) is
+        // the max.
+        if self.id <= self.first() {
+            self.max
+        } else {
+            Some(self.id - self.one)
+        }
+    }
+
+    fn first(&self) -> T {
+        if self.allow_zero {
+            self.zero
+        } else {
+            self.one
+        }
     }
 
     pub(crate) fn set_max(&mut self, max: T) {
