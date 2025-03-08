@@ -1,3 +1,9 @@
+### 2.5.1 (2025-03-08)
+
+#### Bug Fixes
+
+* Fix potential overflow (only in a log message)
+
 ### 2.5.0 (2024-07-27)
 
 #### Bug Fixes
