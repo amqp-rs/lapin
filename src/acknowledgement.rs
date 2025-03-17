@@ -6,11 +6,10 @@ use crate::{
     types::DeliveryTag,
     Error, Promise, PromiseResolver,
 };
-use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
 };
 use tracing::trace;
 
@@ -28,50 +27,56 @@ impl Acknowledgements {
     }
 
     pub(crate) fn register_pending(&self) -> PublisherConfirm {
-        self.0.lock().register_pending()
+        self.lock_inner().register_pending()
     }
 
     pub(crate) fn get_last_pending(&self) -> Option<Promise<()>> {
-        self.0.lock().last.take()
+        self.lock_inner().last.take()
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> AMQPResult {
-        self.0.lock().drop_pending(delivery_tag, true)
+        self.lock_inner().drop_pending(delivery_tag, true)
     }
 
     pub(crate) fn nack(&self, delivery_tag: DeliveryTag) -> AMQPResult {
-        self.0.lock().drop_pending(delivery_tag, false)
+        self.lock_inner().drop_pending(delivery_tag, false)
     }
 
     pub(crate) fn ack_all_pending(&self) {
-        self.0.lock().drop_all(true);
+        self.lock_inner().drop_all(true);
     }
 
     pub(crate) fn nack_all_pending(&self) {
-        self.0.lock().drop_all(false);
+        self.lock_inner().drop_all(false);
     }
 
     pub(crate) fn ack_all_before(&self, delivery_tag: DeliveryTag) -> AMQPResult {
-        self.0.lock().complete_pending_before(delivery_tag, true)
+        self.lock_inner()
+            .complete_pending_before(delivery_tag, true)
     }
 
     pub(crate) fn nack_all_before(&self, delivery_tag: DeliveryTag) -> AMQPResult {
-        self.0.lock().complete_pending_before(delivery_tag, false)
+        self.lock_inner()
+            .complete_pending_before(delivery_tag, false)
     }
 
     pub(crate) fn on_channel_error(&self, error: Error) {
-        self.0.lock().on_channel_error(error);
+        self.lock_inner().on_channel_error(error);
     }
 
     pub(crate) fn reset(&self, error: Error) {
-        self.0.lock().reset(error);
+        self.lock_inner().reset(error);
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl fmt::Debug for Acknowledgements {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Acknowledgements");
-        if let Some(inner) = self.0.try_lock() {
+        if let Ok(inner) = self.0.try_lock() {
             debug
                 .field("delivery_tag", &inner.delivery_tag)
                 .field("returned_messages", &inner.returned_messages)

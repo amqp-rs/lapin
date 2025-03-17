@@ -1,24 +1,30 @@
 use crate::{Error, Result};
 
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
-use parking_lot::Mutex;
+type Inner = Option<Error>;
 
 #[derive(Clone, Default)]
-pub(crate) struct ErrorHolder(Arc<Mutex<Option<Error>>>);
+pub(crate) struct ErrorHolder(Arc<Mutex<Inner>>);
 
 impl ErrorHolder {
     pub(crate) fn set(&self, error: Error) {
-        *self.0.lock() = Some(error);
+        *self.lock_inner() = Some(error);
     }
 
     pub(crate) fn check(&self) -> Result<()> {
-        self.0
-            .lock()
+        self.lock_inner()
             .clone()
             .map(Err)
             .transpose()
             .map(Option::unwrap_or_default)
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

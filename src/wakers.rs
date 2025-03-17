@@ -3,8 +3,10 @@ use std::{
     task::Waker,
 };
 
+type Inner = Vec<Waker>;
+
 #[derive(Default, Clone)]
-pub(crate) struct Wakers(Arc<Mutex<Vec<Waker>>>);
+pub(crate) struct Wakers(Arc<Mutex<Inner>>);
 
 impl Wakers {
     pub(crate) fn register(&self, waker: &Waker) {
@@ -23,7 +25,7 @@ impl Wakers {
         }
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, Vec<Waker>> {
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }

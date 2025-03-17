@@ -135,7 +135,7 @@ impl<
 #[derive(Clone)]
 pub struct Consumer {
     consumer_tag: ShortString,
-    inner: Arc<Mutex<ConsumerInner>>,
+    inner: Arc<Mutex<Inner>>,
     status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
@@ -161,7 +161,7 @@ impl Consumer {
         let status = ConsumerStatus::default();
         Self {
             consumer_tag: consumer_tag.clone(),
-            inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, receiver))),
+            inner: Arc::new(Mutex::new(Inner::new(consumer_tag, receiver))),
             status,
             channel_closer,
             consumer_canceler: None,
@@ -298,7 +298,7 @@ impl Consumer {
         self.cancel();
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, ConsumerInner> {
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -348,13 +348,13 @@ impl Drop for Consumer {
     }
 }
 
-struct ConsumerInner {
+struct Inner {
     current_message: Option<Delivery>,
     deliveries_out: Receiver<DeliveryResult>,
     tag: ShortString,
 }
 
-impl ConsumerInner {
+impl Inner {
     fn new(consumer_tag: ShortString, deliveries_out: Receiver<DeliveryResult>) -> Self {
         Self {
             current_message: None,

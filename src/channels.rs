@@ -15,8 +15,11 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
-use parking_lot::Mutex;
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 use tracing::{debug, error, level_enabled, trace, Level};
 
 #[derive(Clone)]
@@ -57,7 +60,7 @@ impl Channels {
     }
 
     pub(crate) fn create(&self, connection_closer: Arc<ConnectionCloser>) -> Result<Channel> {
-        self.inner.lock().create(
+        self.lock_inner().create(
             self.connection_status.clone(),
             self.global_registry.clone(),
             self.internal_rpc.clone(),
@@ -68,8 +71,7 @@ impl Channels {
     }
 
     pub(crate) fn create_zero(&self) {
-        self.inner
-            .lock()
+        self.lock_inner()
             .create_channel(
                 0,
                 self.connection_status.clone(),
@@ -83,12 +85,12 @@ impl Channels {
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
-        self.inner.lock().channels.get(&id).cloned()
+        self.lock_inner().channels.get(&id).cloned()
     }
 
     pub(crate) fn remove(&self, id: ChannelId, error: Error) -> Result<()> {
         self.frames.clear_expected_replies(id, error);
-        if self.inner.lock().channels.remove(&id).is_some() {
+        if self.lock_inner().channels.remove(&id).is_some() {
             Ok(())
         } else {
             Err(ErrorKind::InvalidChannel(id).into())
@@ -121,14 +123,14 @@ impl Channels {
 
     pub(crate) fn set_connection_closing(&self) {
         self.connection_status.set_state(ConnectionState::Closing);
-        for channel in self.inner.lock().channels.values() {
+        for channel in self.lock_inner().channels.values() {
             channel.set_closing(None);
         }
     }
 
     pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        for (id, channel) in self.inner.lock().channels.iter() {
+        for (id, channel) in self.lock_inner().channels.iter() {
             self.frames.clear_expected_replies(*id, error.clone());
             channel.set_closed(error.clone());
         }
@@ -147,15 +149,14 @@ impl Channels {
 
         self.frames.drop_pending(error.clone());
         self.error_handler.on_error(error.clone());
-        for (id, channel) in self.inner.lock().channels.iter() {
+        for (id, channel) in self.lock_inner().channels.iter() {
             self.frames.clear_expected_replies(*id, error.clone());
             channel.set_connection_error(error.clone());
         }
     }
 
     pub(crate) fn flow(&self) -> bool {
-        self.inner
-            .lock()
+        self.lock_inner()
             .channels
             .values()
             .all(|c| c.status().flow())
@@ -270,20 +271,23 @@ impl Channels {
     }
 
     pub(crate) fn topology(&self) -> Vec<ChannelDefinitionInternal> {
-        self.inner
-            .lock()
+        self.lock_inner()
             .channels
             .values()
             .filter(|c| c.id() != 0)
             .map(Channel::topology)
             .collect()
     }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
 }
 
 impl fmt::Debug for Channels {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Channels");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Ok(inner) = self.inner.try_lock() {
             debug
                 .field("channels", &inner.channels.values())
                 .field("channel_id", &inner.channel_id)

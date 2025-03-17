@@ -1,11 +1,10 @@
 use crate::{Error, Result};
 use flume::{Receiver, Sender};
-use parking_lot::RwLock;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, RwLock},
     task::{Context, Poll},
 };
 use tracing::{trace, warn};
@@ -124,12 +123,13 @@ impl<T> PromiseResolver<T> {
     }
 
     fn set_marker(&self, marker: String) {
-        *self.marker.write() = Some(marker);
+        *self.marker.write().unwrap_or_else(|e| e.into_inner()) = Some(marker);
     }
 
     fn marker(&self) -> String {
         self.marker
             .read()
+            .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map_or(String::default(), |marker| format!("[{}] ", marker))
     }

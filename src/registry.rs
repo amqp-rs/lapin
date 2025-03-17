@@ -5,20 +5,21 @@ use crate::{
     topology_internal::QueueDefinitionInternal,
     types::{FieldTable, ShortString},
 };
-use parking_lot::Mutex;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 #[derive(Clone, Default)]
 pub(crate) struct Registry(Arc<Mutex<Inner>>);
 
 impl Registry {
     pub(crate) fn exchanges_topology(&self) -> Vec<ExchangeDefinition> {
-        self.0.lock().exchanges.values().cloned().collect()
+        self.lock_inner().exchanges.values().cloned().collect()
     }
 
     pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinitionInternal> {
-        self.0
-            .lock()
+        self.lock_inner()
             .queues
             .values()
             .filter(|q| q.is_exclusive() == exclusive)
@@ -33,7 +34,7 @@ impl Registry {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) {
-        let mut inner = self.0.lock();
+        let mut inner = self.lock_inner();
         if let Some(exchange) = inner.exchanges.get_mut(&name) {
             exchange.kind = Some(kind);
             exchange.options = Some(options);
@@ -53,7 +54,7 @@ impl Registry {
     }
 
     pub(crate) fn deregister_exchange(&self, name: &str) {
-        self.0.lock().exchanges.remove(name);
+        self.lock_inner().exchanges.remove(name);
     }
 
     pub(crate) fn register_exchange_binding(
@@ -63,8 +64,7 @@ impl Registry {
         routing_key: ShortString,
         arguments: FieldTable,
     ) {
-        self.0
-            .lock()
+        self.lock_inner()
             .exchanges
             .entry(destination.clone())
             .or_insert_with(|| ExchangeDefinition {
@@ -89,7 +89,7 @@ impl Registry {
         routing_key: &str,
         arguments: &FieldTable,
     ) {
-        if let Some(destination) = self.0.lock().exchanges.get_mut(destination) {
+        if let Some(destination) = self.lock_inner().exchanges.get_mut(destination) {
             destination.bindings.retain(|binding| {
                 binding.source.as_str() != source
                     || binding.routing_key.as_str() != routing_key
@@ -104,7 +104,7 @@ impl Registry {
         options: QueueDeclareOptions,
         arguments: FieldTable,
     ) {
-        let mut inner = self.0.lock();
+        let mut inner = self.lock_inner();
         if let Some(queue) = inner.queues.get_mut(&name) {
             queue.set_declared(options, arguments);
         } else {
@@ -116,7 +116,7 @@ impl Registry {
     }
 
     pub(crate) fn deregister_queue(&self, name: &str) {
-        self.0.lock().queues.remove(name);
+        self.lock_inner().queues.remove(name);
     }
 
     pub(crate) fn register_queue_binding(
@@ -126,8 +126,7 @@ impl Registry {
         routing_key: ShortString,
         arguments: FieldTable,
     ) {
-        self.0
-            .lock()
+        self.lock_inner()
             .queues
             .entry(destination.clone())
             .or_insert_with(|| QueueDefinitionInternal::undeclared(destination))
@@ -141,9 +140,13 @@ impl Registry {
         routing_key: &str,
         arguments: &FieldTable,
     ) {
-        if let Some(destination) = self.0.lock().queues.get_mut(destination) {
+        if let Some(destination) = self.lock_inner().queues.get_mut(destination) {
             destination.deregister_binding(source, routing_key, arguments);
         }
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

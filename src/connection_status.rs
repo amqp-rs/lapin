@@ -2,86 +2,92 @@ use crate::{
     auth::{Credentials, SASLMechanism},
     Connection, ConnectionProperties, PromiseResolver,
 };
-use parking_lot::Mutex;
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 #[derive(Clone, Default)]
 pub struct ConnectionStatus(Arc<Mutex<Inner>>);
 
 impl ConnectionStatus {
     pub fn state(&self) -> ConnectionState {
-        self.0.lock().state
+        self.lock_inner().state
     }
 
     pub(crate) fn set_state(&self, state: ConnectionState) -> ConnectionState {
-        let mut inner = self.0.lock();
+        let mut inner = self.lock_inner();
         std::mem::replace(&mut inner.state, state)
     }
 
     pub(crate) fn connection_step(&self) -> Option<ConnectionStep> {
-        self.0.lock().connection_step.take()
+        self.lock_inner().connection_step.take()
     }
 
     pub(crate) fn set_connection_step(&self, connection_step: ConnectionStep) {
-        self.0.lock().connection_step = Some(connection_step);
+        self.lock_inner().connection_step = Some(connection_step);
     }
 
     pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
-        let resolver = self.0.lock().connection_resolver();
+        let resolver = self.lock_inner().connection_resolver();
         // We carry the Connection here to drop the lock() above before dropping the Connection
         resolver.map(|(resolver, _connection)| resolver)
     }
 
     pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
-        self.0.lock().connection_step_name()
+        self.lock_inner().connection_step_name()
     }
 
     pub fn vhost(&self) -> String {
-        self.0.lock().vhost.clone()
+        self.lock_inner().vhost.clone()
     }
 
     pub(crate) fn set_vhost(&self, vhost: &str) {
-        self.0.lock().vhost = vhost.into();
+        self.lock_inner().vhost = vhost.into();
     }
 
     pub fn username(&self) -> String {
-        self.0.lock().username.clone()
+        self.lock_inner().username.clone()
     }
 
     pub(crate) fn set_username(&self, username: &str) {
-        self.0.lock().username = username.into();
+        self.lock_inner().username = username.into();
     }
 
     pub(crate) fn block(&self) {
-        self.0.lock().blocked = true;
+        self.lock_inner().blocked = true;
     }
 
     pub(crate) fn unblock(&self) {
-        self.0.lock().blocked = false;
+        self.lock_inner().blocked = false;
     }
 
     pub fn blocked(&self) -> bool {
-        self.0.lock().blocked
+        self.lock_inner().blocked
     }
 
     pub fn connected(&self) -> bool {
-        self.0.lock().state == ConnectionState::Connected
+        self.lock_inner().state == ConnectionState::Connected
     }
 
     pub fn closing(&self) -> bool {
-        self.0.lock().state == ConnectionState::Closing
+        self.lock_inner().state == ConnectionState::Closing
     }
 
     pub fn closed(&self) -> bool {
-        self.0.lock().state == ConnectionState::Closed
+        self.lock_inner().state == ConnectionState::Closed
     }
 
     pub fn errored(&self) -> bool {
-        self.0.lock().state == ConnectionState::Error
+        self.lock_inner().state == ConnectionState::Error
     }
 
     pub(crate) fn auto_close(&self) -> bool {
-        [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.0.lock().state)
+        [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.lock_inner().state)
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -111,7 +117,7 @@ pub enum ConnectionState {
 impl fmt::Debug for ConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ConnectionStatus");
-        if let Some(inner) = self.0.try_lock() {
+        if let Ok(inner) = self.0.try_lock() {
             debug
                 .field("state", &inner.state)
                 .field("vhost", &inner.vhost)

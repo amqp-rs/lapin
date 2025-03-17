@@ -2,10 +2,9 @@ use crate::{
     channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, ErrorKind,
 };
 use executor_trait::FullExecutor;
-use parking_lot::Mutex;
 use std::{
     fmt,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
     time::{Duration, Instant},
 };
 
@@ -39,7 +38,7 @@ impl Heartbeat {
     }
 
     pub(crate) fn set_timeout(&self, timeout: Duration) {
-        self.inner.lock().timeout = Some(timeout);
+        self.lock_inner().timeout = Some(timeout);
     }
 
     pub(crate) fn killswitch(&self) -> KillSwitch {
@@ -61,21 +60,24 @@ impl Heartbeat {
             return None;
         }
 
-        self.inner
-            .lock()
+        self.lock_inner()
             .poll_timeout(&self.channels, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
-        self.inner.lock().update_last_write();
+        self.lock_inner().update_last_write();
     }
 
     pub(crate) fn update_last_read(&mut self) {
-        self.inner.lock().update_last_read();
+        self.lock_inner().update_last_read();
     }
 
     pub(crate) fn cancel(&self) {
-        self.inner.lock().timeout = None;
+        self.lock_inner().timeout = None;
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

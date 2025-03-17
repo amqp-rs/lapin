@@ -5,8 +5,10 @@ use crate::{
     types::{PayloadSize, ShortString},
     BasicProperties, PromiseResolver,
 };
-use parking_lot::Mutex;
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 #[derive(Clone, Default)]
 pub(crate) struct BasicGetDelivery(Arc<Mutex<Inner>>);
@@ -19,8 +21,7 @@ impl BasicGetDelivery {
         message: BasicGetMessage,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.0
-            .lock()
+        self.lock_inner()
             .start_new_delivery(queue, options, message, resolver);
     }
 
@@ -29,16 +30,16 @@ impl BasicGetDelivery {
         size: PayloadSize,
         properties: BasicProperties,
     ) {
-        self.0.lock().handle_content_header_frame(size, properties);
+        self.lock_inner()
+            .handle_content_header_frame(size, properties);
     }
 
     pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
-        self.0.lock().handle_body_frame(remaining_size, payload);
+        self.lock_inner().handle_body_frame(remaining_size, payload);
     }
 
     pub(crate) fn recover(&self) -> Option<BasicGetDefinitionInternal> {
-        self.0
-            .lock()
+        self.lock_inner()
             .0
             .take()
             .map(|inner| BasicGetDefinitionInternal {
@@ -46,6 +47,10 @@ impl BasicGetDelivery {
                 options: inner.options,
                 resolver: inner.resolver,
             })
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

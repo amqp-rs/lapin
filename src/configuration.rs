@@ -2,8 +2,10 @@ use crate::{
     protocol,
     types::{ChannelId, FrameSize, Heartbeat},
 };
-use parking_lot::RwLock;
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 #[derive(Clone, Default)]
 pub struct Configuration {
@@ -12,28 +14,36 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn channel_max(&self) -> ChannelId {
-        self.inner.read().channel_max
+        self.read_inner().channel_max
     }
 
     pub(crate) fn set_channel_max(&self, channel_max: ChannelId) {
-        self.inner.write().channel_max = channel_max;
+        self.write_inner().channel_max = channel_max;
     }
 
     pub fn frame_max(&self) -> FrameSize {
-        self.inner.read().frame_max
+        self.read_inner().frame_max
     }
 
     pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
         let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE);
-        self.inner.write().frame_max = frame_max;
+        self.write_inner().frame_max = frame_max;
     }
 
     pub fn heartbeat(&self) -> Heartbeat {
-        self.inner.read().heartbeat
+        self.read_inner().heartbeat
     }
 
     pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
-        self.inner.write().heartbeat = heartbeat;
+        self.write_inner().heartbeat = heartbeat;
+    }
+
+    fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {
+        self.inner.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write_inner(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.inner.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -46,7 +56,7 @@ struct Inner {
 
 impl fmt::Debug for Configuration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read();
+        let inner = self.read_inner();
         f.debug_struct("Configuration")
             .field("channel_max", &inner.channel_max)
             .field("frame_max", &inner.frame_max)

@@ -14,8 +14,10 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+type Inner = HashMap<ShortString, Consumer>;
+
 #[derive(Clone, Default)]
-pub(crate) struct Consumers(Arc<Mutex<HashMap<ShortString, Consumer>>>);
+pub(crate) struct Consumers(Arc<Mutex<Inner>>);
 
 impl Consumers {
     pub(crate) fn register(&self, tag: ShortString, consumer: Consumer) {
@@ -109,7 +111,7 @@ impl Consumers {
             .collect()
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, HashMap<ShortString, Consumer>> {
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }

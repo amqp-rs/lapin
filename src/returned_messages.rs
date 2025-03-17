@@ -2,18 +2,19 @@ use crate::{
     message::BasicReturnMessage, publisher_confirm::Confirmation, types::PayloadSize,
     BasicProperties, Promise,
 };
-use parking_lot::Mutex;
-use std::{collections::VecDeque, fmt, sync::Arc};
+use std::{
+    collections::VecDeque,
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 use tracing::{trace, warn};
 
 #[derive(Clone, Default)]
-pub(crate) struct ReturnedMessages {
-    inner: Arc<Mutex<Inner>>,
-}
+pub(crate) struct ReturnedMessages(Arc<Mutex<Inner>>);
 
 impl ReturnedMessages {
     pub(crate) fn start_new_delivery(&self, message: BasicReturnMessage) {
-        self.inner.lock().current_message = Some(message);
+        self.lock_inner().current_message = Some(message);
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -22,8 +23,7 @@ impl ReturnedMessages {
         properties: BasicProperties,
         confirm_mode: bool,
     ) {
-        self.inner
-            .lock()
+        self.lock_inner()
             .handle_content_header_frame(size, properties, confirm_mode);
     }
 
@@ -33,28 +33,31 @@ impl ReturnedMessages {
         payload: Vec<u8>,
         confirm_mode: bool,
     ) {
-        self.inner
-            .lock()
+        self.lock_inner()
             .handle_body_frame(remaining_size, payload, confirm_mode);
     }
 
     pub(crate) fn drain(&self) -> Vec<BasicReturnMessage> {
-        self.inner.lock().drain()
+        self.lock_inner().drain()
     }
 
     pub(crate) fn register_dropped_confirm(&self, promise: Promise<Confirmation>) {
-        self.inner.lock().register_dropped_confirm(promise);
+        self.lock_inner().register_dropped_confirm(promise);
     }
 
     pub(crate) fn get_waiting_message(&self) -> Option<BasicReturnMessage> {
-        self.inner.lock().waiting_messages.pop_front()
+        self.lock_inner().waiting_messages.pop_front()
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl fmt::Debug for ReturnedMessages {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ReturnedMessages");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Ok(inner) = self.0.try_lock() {
             debug
                 .field("waiting_messages", &inner.waiting_messages)
                 .field("messages", &inner.messages)

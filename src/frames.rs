@@ -5,11 +5,10 @@ use amq_protocol::{
     frame::AMQPFrame,
     protocol::{basic::AMQPMethod, AMQPClass},
 };
-use parking_lot::Mutex;
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
 };
 use tracing::{level_enabled, trace, Level};
 
@@ -22,9 +21,7 @@ impl fmt::Debug for ExpectedReply {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct Frames {
-    inner: Arc<Mutex<Inner>>,
-}
+pub(crate) struct Frames(Arc<Mutex<Inner>>);
 
 impl Frames {
     pub(crate) fn push(
@@ -34,21 +31,20 @@ impl Frames {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
-        self.inner
-            .lock()
+        self.lock_inner()
             .push(channel_id, frame, resolver, expected_reply);
     }
 
     pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
-        self.inner.lock().push_frames(frames)
+        self.lock_inner().push_frames(frames)
     }
 
     pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
-        self.inner.lock().retry_frames.push_back(frame);
+        self.lock_inner().retry_frames.push_back(frame);
     }
 
     pub(crate) fn pop(&self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
-        self.inner.lock().pop(flow)
+        self.lock_inner().pop(flow)
     }
 
     pub(crate) fn find_expected_reply<P: FnMut(&ExpectedReply) -> bool>(
@@ -56,8 +52,7 @@ impl Frames {
         channel_id: ChannelId,
         finder: P,
     ) -> Option<Reply> {
-        self.inner
-            .lock()
+        self.lock_inner()
             .expected_replies
             .get_mut(&channel_id)
             .and_then(|replies| {
@@ -74,24 +69,23 @@ impl Frames {
         channel_id: ChannelId,
         error: Error,
     ) -> Option<Reply> {
-        self.inner
-            .lock()
+        self.lock_inner()
             .next_expected_close_ok_reply(channel_id, error)
     }
 
     pub(crate) fn has_pending(&self) -> bool {
-        self.inner.lock().has_pending()
+        self.lock_inner().has_pending()
     }
 
     pub(crate) fn drop_pending(&self, error: Error) {
-        self.inner.lock().drop_pending(error);
+        self.lock_inner().drop_pending(error);
     }
 
     pub(crate) fn take_expected_replies(
         &self,
         channel_id: ChannelId,
     ) -> Option<VecDeque<ExpectedReply>> {
-        self.inner.lock().expected_replies.remove(&channel_id)
+        self.lock_inner().expected_replies.remove(&channel_id)
     }
 
     pub(crate) fn clear_expected_replies(&self, channel_id: ChannelId, error: Error) {
@@ -105,11 +99,15 @@ impl Frames {
     }
 
     pub(crate) fn drop_frames_for_channel(&self, channel_id: ChannelId, error: Error) {
-        self.inner.lock().drop_frames_for_channel(channel_id, error)
+        self.lock_inner().drop_frames_for_channel(channel_id, error)
     }
 
     pub(crate) fn poison(&self) -> Option<Error> {
-        self.inner.lock().poison.clone()
+        self.lock_inner().poison.clone()
+    }
+
+    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -128,7 +126,7 @@ struct Inner {
 impl fmt::Debug for Frames {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Frames");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Ok(inner) = self.0.try_lock() {
             debug.field("expected_replies", &inner.expected_replies);
         }
         debug.finish()
