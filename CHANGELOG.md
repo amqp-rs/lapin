@@ -17,6 +17,7 @@
 * Update to reactor-trait 2
 * Update to amq-protocol 8
 * Update to nom 8
+* Drop parking-lot dependency
 * Drop pinky-swear dependency
 * Edition 2024 preparation
 
