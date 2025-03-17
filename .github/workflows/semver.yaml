@@ -1,0 +1,13 @@
+name: Semver compliance check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  semver_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+
