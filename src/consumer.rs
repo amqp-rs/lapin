@@ -14,12 +14,11 @@ use crate::{
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
 use futures_core::stream::Stream;
-use parking_lot::Mutex;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
     task::{Context, Poll},
 };
 use tracing::trace;
@@ -135,6 +134,7 @@ impl<
 /// [`set_delegate`]: #method.set_delegate
 #[derive(Clone)]
 pub struct Consumer {
+    consumer_tag: ShortString,
     inner: Arc<Mutex<ConsumerInner>>,
     status: ConsumerStatus,
     channel_closer: Option<Arc<ChannelCloser>>,
@@ -142,6 +142,10 @@ pub struct Consumer {
     queue: ShortString,
     options: BasicConsumeOptions,
     arguments: FieldTable,
+    deliveries_in: Sender<DeliveryResult>,
+    wakers: Wakers,
+    error: ErrorHolder,
+    executor: Arc<dyn FullExecutor + Send + Sync>,
 }
 
 impl Consumer {
@@ -153,19 +157,21 @@ impl Consumer {
         options: BasicConsumeOptions,
         arguments: FieldTable,
     ) -> Self {
+        let (sender, receiver) = flume::unbounded();
         let status = ConsumerStatus::default();
         Self {
-            inner: Arc::new(Mutex::new(ConsumerInner::new(
-                status.clone(),
-                consumer_tag,
-                executor,
-            ))),
+            consumer_tag: consumer_tag.clone(),
+            inner: Arc::new(Mutex::new(ConsumerInner::new(consumer_tag, receiver))),
             status,
             channel_closer,
             consumer_canceler: None,
             queue,
             options,
             arguments,
+            deliveries_in: sender,
+            wakers: Wakers::default(),
+            error: ErrorHolder::default(),
+            executor,
         }
     }
 
@@ -175,23 +181,28 @@ impl Consumer {
         internal_rpc_handle: InternalRPCHandle,
     ) -> Self {
         Self {
+            consumer_tag: self.consumer_tag.clone(),
             inner: self.inner.clone(),
             status: self.status.clone(),
             channel_closer: None,
             consumer_canceler: Some(Arc::new(ConsumerCanceler::new(
                 channel_id,
-                self.tag().to_string(),
+                self.consumer_tag.to_string(),
                 self.status.clone(),
                 internal_rpc_handle,
             ))),
             queue: self.queue.clone(),
             options: self.options,
             arguments: self.arguments.clone(),
+            deliveries_in: self.deliveries_in.clone(),
+            wakers: self.wakers.clone(),
+            error: self.error.clone(),
+            executor: self.executor.clone(),
         }
     }
 
     pub(crate) fn error(&self) -> ErrorHolder {
-        self.inner.lock().error.clone()
+        self.error.clone()
     }
 
     /// Gets the consumer tag.
@@ -199,7 +210,7 @@ impl Consumer {
     /// If no consumer tag was specified when obtaining the consumer from the channel,
     /// this contains the server generated consumer tag.
     pub fn tag(&self) -> ShortString {
-        self.inner.lock().tag.clone()
+        self.consumer_tag.clone()
     }
 
     /// Gets the current state of the Consumer.
@@ -224,21 +235,21 @@ impl Consumer {
     ///
     /// Enables parallel handling of the messages.
     pub fn set_delegate<D: ConsumerDelegate + 'static>(&self, delegate: D) {
-        let mut inner = self.inner.lock();
-        let mut status = self.status.lock();
+        let mut inner = self.lock_inner();
+        let mut status = self.status.write();
         while let Some(delivery) = inner.next_delivery() {
-            inner.executor.spawn(delegate.on_new_delivery(delivery));
+            self.executor.spawn(delegate.on_new_delivery(delivery));
         }
-        inner.delegate = Some(Arc::new(Box::new(delegate)));
-        status.set_delegate();
+        status.set_delegate(Some(Arc::new(Box::new(delegate))));
     }
 
     pub(crate) fn reset(&self) {
-        self.inner.lock().reset(self.options.no_ack);
+        self.lock_inner()
+            .reset(self.options.no_ack, &self.executor, self.status.delegate());
     }
 
     pub(crate) fn start_new_delivery(&self, delivery: Delivery) {
-        self.inner.lock().current_message = Some(delivery);
+        self.lock_inner().current_message = Some(delivery);
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -246,51 +257,83 @@ impl Consumer {
         size: PayloadSize,
         properties: BasicProperties,
     ) {
-        self.inner
-            .lock()
-            .handle_content_header_frame(size, properties);
+        self.check_new_delivery(
+            self.lock_inner()
+                .handle_content_header_frame(size, properties),
+        );
     }
 
     pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
-        self.inner.lock().handle_body_frame(remaining_size, payload);
+        self.check_new_delivery(self.lock_inner().handle_body_frame(remaining_size, payload));
     }
 
     pub(crate) fn drop_prefetched_messages(&self) {
-        self.inner.lock().drop_prefetched_messages();
+        self.lock_inner()
+            .drop_prefetched_messages(&self.executor, self.status.delegate());
     }
 
     pub(crate) fn start_cancel(&self) {
-        self.status.lock().start_cancel();
+        self.status.write().start_cancel();
     }
 
     pub(crate) fn cancel(&self) {
-        self.inner.lock().cancel();
+        trace!(consumer_tag=%self.consumer_tag, "cancel");
+        let mut status = self.status.write();
+        self.dispatch(
+            Ok(None),
+            "failed to send cancel to consumer",
+            status.delegate(),
+        );
+        status.cancel();
     }
 
     pub(crate) fn set_error(&self, error: Error) {
-        self.inner.lock().set_error(error);
+        trace!(consumer_tag=%self.consumer_tag, "set_error");
+        self.error.set(error.clone());
+        self.dispatch(
+            Err(error),
+            "failed to send error to consumer",
+            self.status.delegate(),
+        );
+        self.cancel();
     }
-}
 
-struct ConsumerInner {
-    status: ConsumerStatus,
-    current_message: Option<Delivery>,
-    deliveries_in: Sender<DeliveryResult>,
-    deliveries_out: Receiver<DeliveryResult>,
-    wakers: Wakers,
-    error: ErrorHolder,
-    tag: ShortString,
-    delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
+    fn lock_inner(&self) -> MutexGuard<'_, ConsumerInner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn check_new_delivery(&self, delivery: Option<Delivery>) {
+        if let Some(delivery) = delivery {
+            self.dispatch(
+                Ok(Some(delivery)),
+                "failed to send delivery to consumer",
+                self.status.delegate(),
+            );
+        }
+    }
+
+    fn dispatch(
+        &self,
+        delivery: DeliveryResult,
+        error: &'static str,
+        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
+    ) {
+        if let Some(delegate) = delegate {
+            self.executor.spawn(delegate.on_new_delivery(delivery));
+        } else {
+            self.deliveries_in.send(delivery).expect(error);
+        }
+        self.wakers.wake();
+    }
 }
 
 impl fmt::Debug for Consumer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Consumer");
-        if let Some(inner) = self.inner.try_lock() {
+        if let Ok(inner) = self.inner.try_lock() {
             debug.field("tag", &inner.tag);
         }
-        if let Some(status) = self.status.try_lock() {
+        if let Some(status) = self.status.try_read() {
             debug.field("state", &status.state());
         }
         debug.finish()
@@ -305,29 +348,29 @@ impl Drop for Consumer {
     }
 }
 
+struct ConsumerInner {
+    current_message: Option<Delivery>,
+    deliveries_out: Receiver<DeliveryResult>,
+    tag: ShortString,
+}
+
 impl ConsumerInner {
-    fn new(
-        status: ConsumerStatus,
-        consumer_tag: ShortString,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
-    ) -> Self {
-        let (sender, receiver) = flume::unbounded();
+    fn new(consumer_tag: ShortString, deliveries_out: Receiver<DeliveryResult>) -> Self {
         Self {
-            status,
             current_message: None,
-            deliveries_in: sender,
-            deliveries_out: receiver,
-            wakers: Wakers::default(),
-            error: ErrorHolder::default(),
+            deliveries_out,
             tag: consumer_tag,
-            delegate: None,
-            executor,
         }
     }
 
-    fn reset(&mut self, no_ack: bool) {
+    fn reset(
+        &mut self,
+        no_ack: bool,
+        executor: &dyn FullExecutor,
+        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
+    ) {
         if !no_ack {
-            while self.next_delivery().is_some() {}
+            self.drop_prefetched_messages(executor, delegate);
         }
         self.current_message = None;
     }
@@ -336,76 +379,47 @@ impl ConsumerInner {
         self.deliveries_out.try_recv().ok()
     }
 
-    fn handle_content_header_frame(&mut self, size: PayloadSize, properties: BasicProperties) {
+    fn handle_content_header_frame(
+        &mut self,
+        size: PayloadSize,
+        properties: BasicProperties,
+    ) -> Option<Delivery> {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.properties = properties;
         }
-        if size == 0 {
-            self.new_delivery_complete();
-        }
+        self.check_new_delivery_complete(size == 0)
     }
 
-    fn handle_body_frame(&mut self, remaining_size: PayloadSize, payload: Vec<u8>) {
+    fn handle_body_frame(
+        &mut self,
+        remaining_size: PayloadSize,
+        payload: Vec<u8>,
+    ) -> Option<Delivery> {
         if let Some(delivery) = self.current_message.as_mut() {
             delivery.receive_content(payload);
         }
-        if remaining_size == 0 {
-            self.new_delivery_complete();
-        }
+        self.check_new_delivery_complete(remaining_size == 0)
     }
 
-    fn new_delivery_complete(&mut self) {
-        if let Some(delivery) = self.current_message.take() {
-            trace!(consumer_tag=%self.tag, "new_delivery");
-            if let Some(delegate) = self.delegate.as_ref() {
-                let delegate = delegate.clone();
-                self.executor
-                    .spawn(delegate.on_new_delivery(Ok(Some(delivery))));
-            } else {
-                self.deliveries_in
-                    .send(Ok(Some(delivery)))
-                    .expect("failed to send delivery to consumer");
-            }
-            self.wakers.wake();
+    fn check_new_delivery_complete(&mut self, complete: bool) -> Option<Delivery> {
+        if !complete {
+            return None;
         }
+        self.current_message
+            .take()
+            .inspect(|_| trace!(consumer_tag=%self.tag, "new_delivery"))
     }
 
-    fn drop_prefetched_messages(&mut self) {
+    fn drop_prefetched_messages(
+        &mut self,
+        executor: &dyn FullExecutor,
+        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
+    ) {
         trace!(consumer_tag=%self.tag, "drop_prefetched_messages");
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor.spawn(delegate.drop_prefetched_messages());
+        if let Some(delegate) = delegate {
+            executor.spawn(delegate.drop_prefetched_messages());
         }
         while self.next_delivery().is_some() {}
-    }
-
-    fn cancel(&mut self) {
-        trace!(consumer_tag=%self.tag, "cancel");
-        let mut status = self.status.lock();
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Ok(None)));
-        } else {
-            self.deliveries_in
-                .send(Ok(None))
-                .expect("failed to send cancel to consumer");
-        }
-        self.wakers.wake();
-        status.cancel();
-    }
-
-    fn set_error(&mut self, error: Error) {
-        trace!(consumer_tag=%self.tag, "set_error");
-        self.error.set(error.clone());
-        if let Some(delegate) = self.delegate.as_ref() {
-            let delegate = delegate.clone();
-            self.executor.spawn(delegate.on_new_delivery(Err(error)));
-        } else {
-            self.deliveries_in
-                .send(Err(error))
-                .expect("failed to send error to consumer");
-        }
-        self.cancel();
     }
 }
 
@@ -414,12 +428,12 @@ impl Stream for Consumer {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("consumer poll_next");
-        let mut inner = self.inner.lock();
+        self.wakers.register(cx.waker());
+        let mut inner = self.lock_inner();
         trace!(
             consumer_tag=%inner.tag,
             "consumer poll; acquired inner lock"
         );
-        inner.wakers.register(cx.waker());
         if let Some(delivery) = inner.next_delivery() {
             match delivery {
                 Ok(Some(delivery)) => {

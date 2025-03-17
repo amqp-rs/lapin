@@ -870,6 +870,7 @@ impl Channel {
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
                 self.frames.drop_frames_for_channel(channel.id, ctx.cause());
                 self.acknowledgements.reset(ctx.cause());
+                // FIXME: don't close consumers
                 self.consumers.error(ctx.cause());
             });
             if !self.status.confirm() {
