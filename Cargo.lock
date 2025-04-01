@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "lapin"
-version = "3.0.0-beta.2"
+version = "3.0.0-beta.3"
 dependencies = [
  "amq-protocol",
  "amq-protocol-codegen",
