@@ -3,9 +3,8 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
-    protocol::{AMQPError, AMQPSoftError},
     types::{ChannelId, DeliveryTag},
-    ErrorKind, Promise, PromiseResolver, Result,
+    Promise, PromiseResolver, Result,
 };
 
 #[derive(Clone, Debug)]
@@ -36,7 +35,7 @@ impl Acker {
         }
     }
 
-    pub async fn ack(&self, options: BasicAckOptions) -> Result<()> {
+    pub async fn ack(&self, options: BasicAckOptions) -> Result<bool> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_ack(
                 self.channel_id,
@@ -49,7 +48,7 @@ impl Acker {
         .await
     }
 
-    pub async fn nack(&self, options: BasicNackOptions) -> Result<()> {
+    pub async fn nack(&self, options: BasicNackOptions) -> Result<bool> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_nack(
                 self.channel_id,
@@ -62,7 +61,7 @@ impl Acker {
         .await
     }
 
-    pub async fn reject(&self, options: BasicRejectOptions) -> Result<()> {
+    pub async fn reject(&self, options: BasicRejectOptions) -> Result<bool> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_reject(
                 self.channel_id,
@@ -75,13 +74,9 @@ impl Acker {
         .await
     }
 
-    async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
+    async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<bool> {
         if !self.channel_usable() || !self.killswitch.kill() {
-            return Err(ErrorKind::ProtocolError(AMQPError::new(
-                AMQPSoftError::PRECONDITIONFAILED.into(),
-                "Attempted to use a non usable Acker".into(),
-            ))
-            .into());
+            return Ok(false);
         }
         if let Some(error) = self.error.as_ref() {
             error.check()?;
@@ -89,10 +84,9 @@ impl Acker {
         if let Some(internal_rpc) = self.internal_rpc.as_ref() {
             let (promise, resolver) = Promise::new();
             f(internal_rpc, resolver);
-            promise.await
-        } else {
-            Ok(())
+            promise.await?;
         }
+        Ok(true)
     }
 
     pub(crate) fn channel_usable(&self) -> bool {
