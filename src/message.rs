@@ -2,6 +2,7 @@ use crate::{
     acker::Acker,
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
+    killswitch::KillSwitch,
     protocol::AMQPError,
     types::ShortString,
     types::{ChannelId, DeliveryTag, MessageCount, ReplyCode},
@@ -62,6 +63,7 @@ impl Delivery {
         redelivered: bool,
         internal_rpc: Option<InternalRPCHandle>,
         error: Option<ErrorHolder>,
+        killswitch: Option<KillSwitch>,
     ) -> Self {
         Self {
             delivery_tag,
@@ -70,7 +72,7 @@ impl Delivery {
             redelivered,
             properties: BasicProperties::default(),
             data: Vec::default(),
-            acker: Acker::new(channel_id, delivery_tag, internal_rpc, error),
+            acker: Acker::new(channel_id, delivery_tag, internal_rpc, error, killswitch),
         }
     }
 
@@ -102,6 +104,7 @@ impl BasicGetMessage {
         redelivered: bool,
         message_count: MessageCount,
         internal_rpc: InternalRPCHandle,
+        killswitch: KillSwitch,
     ) -> Self {
         Self {
             delivery: Delivery::new(
@@ -112,6 +115,7 @@ impl BasicGetMessage {
                 redelivered,
                 Some(internal_rpc),
                 None,
+                Some(killswitch),
             ),
             message_count,
         }
@@ -146,7 +150,7 @@ impl BasicReturnMessage {
         reply_code: ReplyCode,
         reply_text: ShortString,
     ) -> Self {
-        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None);
+        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None, None);
         // We cannot ack a returned message
         delivery.acker.invalidate();
         Self {

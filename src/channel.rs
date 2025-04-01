@@ -1079,6 +1079,7 @@ impl Channel {
         options: BasicGetOptions,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
+        let killswitch = self.status.set_will_receive(class_id, DeliveryCause::Get);
         self.basic_get_delivery.start_new_delivery(
             queue,
             options,
@@ -1090,10 +1091,10 @@ impl Channel {
                 method.redelivered,
                 method.message_count,
                 self.internal_rpc.clone(),
+                killswitch,
             ),
             resolver,
         );
-        self.status.set_will_receive(class_id, DeliveryCause::Get);
         Ok(())
     }
 
@@ -1152,6 +1153,7 @@ impl Channel {
                 method.redelivered,
                 Some(self.internal_rpc.clone()),
                 Some(error),
+                None,
             )
         });
         self.status

@@ -3,12 +3,12 @@ use std::sync::{
     Arc,
 };
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub(crate) struct KillSwitch(Arc<AtomicBool>);
 
 impl KillSwitch {
-    pub(crate) fn kill(&self) {
-        self.0.store(true, Ordering::SeqCst);
+    pub(crate) fn kill(&self) -> bool {
+        !self.0.swap(true, Ordering::SeqCst)
     }
 
     pub(crate) fn killed(&self) -> bool {

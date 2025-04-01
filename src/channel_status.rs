@@ -1,6 +1,7 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     channel_recovery_context::ChannelRecoveryContext,
+    killswitch::KillSwitch,
     notifier::Notifier,
     types::{ChannelId, Identifier, PayloadSize},
     Error, ErrorKind, Result,
@@ -82,6 +83,7 @@ impl ChannelStatus {
     pub(crate) fn set_reconnecting(&self, error: Error) {
         let mut inner = self.lock_inner();
         inner.state = ChannelState::Reconnecting;
+        std::mem::take(&mut inner.killswitch).kill();
         inner.receiver_state.reset();
         inner.recovery_context = Some(ChannelRecoveryContext::new(error));
     }
@@ -95,10 +97,16 @@ impl ChannelStatus {
         self.lock_inner().receiver_state.receiver_state()
     }
 
-    pub(crate) fn set_will_receive(&self, class_id: Identifier, delivery_cause: DeliveryCause) {
-        self.lock_inner()
+    pub(crate) fn set_will_receive(
+        &self,
+        class_id: Identifier,
+        delivery_cause: DeliveryCause,
+    ) -> KillSwitch {
+        let mut inner = self.lock_inner();
+        inner
             .receiver_state
             .set_will_receive(class_id, delivery_cause);
+        inner.killswitch.clone()
     }
 
     pub(crate) fn set_content_length<
@@ -188,6 +196,7 @@ struct Inner {
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
     recovery_context: Option<ChannelRecoveryContext>,
+    killswitch: KillSwitch,
 }
 
 impl Default for Inner {
@@ -198,6 +207,7 @@ impl Default for Inner {
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
             recovery_context: None,
+            killswitch: KillSwitch::default(),
         }
     }
 }

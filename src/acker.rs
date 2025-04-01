@@ -1,15 +1,11 @@
 use crate::{
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
+    killswitch::KillSwitch,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
     protocol::{AMQPError, AMQPSoftError},
     types::{ChannelId, DeliveryTag},
     ErrorKind, Promise, PromiseResolver, Result,
-};
-
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
 };
 
 #[derive(Clone, Debug)]
@@ -18,7 +14,8 @@ pub struct Acker {
     delivery_tag: DeliveryTag,
     internal_rpc: Option<InternalRPCHandle>,
     error: Option<ErrorHolder>,
-    usable: Arc<AtomicBool>,
+    killswitch: KillSwitch,
+    channel_killswitch: Option<KillSwitch>,
 }
 
 impl Acker {
@@ -27,13 +24,15 @@ impl Acker {
         delivery_tag: DeliveryTag,
         internal_rpc: Option<InternalRPCHandle>,
         error: Option<ErrorHolder>,
+        channel_killswitch: Option<KillSwitch>,
     ) -> Self {
         Self {
             channel_id,
             delivery_tag,
             internal_rpc,
             error,
-            usable: Arc::new(AtomicBool::new(true)),
+            killswitch: KillSwitch::default(),
+            channel_killswitch,
         }
     }
 
@@ -77,7 +76,7 @@ impl Acker {
     }
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
-        if !self.usable.swap(false, Ordering::SeqCst) {
+        if !self.channel_usable() || !self.killswitch.kill() {
             return Err(ErrorKind::ProtocolError(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
                 "Attempted to use a non usable Acker".into(),
@@ -96,12 +95,18 @@ impl Acker {
         }
     }
 
+    pub(crate) fn channel_usable(&self) -> bool {
+        self.channel_killswitch
+            .as_ref()
+            .map_or(true, |ks| !ks.killed())
+    }
+
     pub fn usable(&self) -> bool {
-        self.usable.load(Ordering::SeqCst)
+        self.channel_usable() && !self.killswitch.killed()
     }
 
     pub(crate) fn invalidate(&self) {
-        self.usable.store(false, Ordering::SeqCst)
+        self.killswitch.kill();
     }
 }
 
