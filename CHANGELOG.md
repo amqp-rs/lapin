@@ -3,7 +3,8 @@
 #### Breaking changes
 
 * `Error` is now `ErrorKind`, wrapped in a new `Error` type (use `Error::kind` to access the previous type)
-* no more Acker::default
+* no more `Acker::default`
+* `Acker::used` is replaced with `Acker::usable`
 
 #### Features
 

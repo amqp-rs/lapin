@@ -18,7 +18,7 @@ pub struct Acker {
     delivery_tag: DeliveryTag,
     internal_rpc: Option<InternalRPCHandle>,
     error: Option<ErrorHolder>,
-    used: Arc<AtomicBool>,
+    usable: Arc<AtomicBool>,
 }
 
 impl Acker {
@@ -33,7 +33,7 @@ impl Acker {
             delivery_tag,
             internal_rpc,
             error,
-            used: Arc::default(),
+            usable: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -77,10 +77,10 @@ impl Acker {
     }
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<()> {
-        if self.used.swap(true, Ordering::SeqCst) {
+        if !self.usable.swap(false, Ordering::SeqCst) {
             return Err(ErrorKind::ProtocolError(AMQPError::new(
                 AMQPSoftError::PRECONDITIONFAILED.into(),
-                "Attempted to use an already used Acker".into(),
+                "Attempted to use a non usable Acker".into(),
             ))
             .into());
         }
@@ -96,8 +96,8 @@ impl Acker {
         }
     }
 
-    pub fn used(&self) -> bool {
-        self.used.load(Ordering::SeqCst)
+    pub fn usable(&self) -> bool {
+        self.usable.load(Ordering::SeqCst)
     }
 }
 
