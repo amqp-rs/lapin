@@ -419,7 +419,11 @@ impl Inner {
         if let Some(delegate) = delegate {
             executor.spawn(delegate.drop_prefetched_messages());
         }
-        while self.next_delivery().is_some() {}
+        while let Some(delivery) = self.next_delivery() {
+            if let Ok(Some(delivery)) = delivery {
+                delivery.acker.invalidate();
+            }
+        }
     }
 }
 

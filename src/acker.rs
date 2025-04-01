@@ -99,6 +99,10 @@ impl Acker {
     pub fn usable(&self) -> bool {
         self.usable.load(Ordering::SeqCst)
     }
+
+    pub(crate) fn invalidate(&self) {
+        self.usable.store(false, Ordering::SeqCst)
+    }
 }
 
 impl PartialEq for Acker {

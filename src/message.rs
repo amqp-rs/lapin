@@ -146,8 +146,11 @@ impl BasicReturnMessage {
         reply_code: ReplyCode,
         reply_text: ShortString,
     ) -> Self {
+        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None);
+        // We cannot ack a returned message
+        delivery.acker.invalidate();
         Self {
-            delivery: Delivery::new(0, 0, exchange, routing_key, false, None, None),
+            delivery,
             reply_code,
             reply_text,
         }
