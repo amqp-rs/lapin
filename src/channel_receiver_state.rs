@@ -13,6 +13,10 @@ impl ChannelReceiverStates {
         self.0.front().unwrap().clone()
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.0.clear()
+    }
+
     pub(crate) fn set_will_receive(&mut self, class_id: Identifier, delivery_cause: DeliveryCause) {
         self.0.push_back(ChannelReceiverState::WillReceiveContent(
             class_id,

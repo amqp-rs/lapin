@@ -82,6 +82,7 @@ impl ChannelStatus {
     pub(crate) fn set_reconnecting(&self, error: Error) {
         let mut inner = self.lock_inner();
         inner.state = ChannelState::Reconnecting;
+        inner.receiver_state.reset();
         inner.recovery_context = Some(ChannelRecoveryContext::new(error));
     }
 
