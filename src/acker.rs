@@ -75,7 +75,7 @@ impl Acker {
     }
 
     async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<bool> {
-        if !self.channel_usable() || !self.killswitch.kill() {
+        if self.poisoned() || !self.killswitch.kill() {
             return Ok(false);
         }
         if let Some(error) = self.error.as_ref() {
@@ -89,14 +89,14 @@ impl Acker {
         Ok(true)
     }
 
-    pub(crate) fn channel_usable(&self) -> bool {
+    pub fn poisoned(&self) -> bool {
         self.channel_killswitch
             .as_ref()
-            .map_or(true, |ks| !ks.killed())
+            .map_or(false, |ks| ks.killed())
     }
 
     pub fn usable(&self) -> bool {
-        self.channel_usable() && !self.killswitch.killed()
+        !self.poisoned() && !self.killswitch.killed()
     }
 
     pub(crate) fn invalidate(&self) {

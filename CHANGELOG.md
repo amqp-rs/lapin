@@ -12,6 +12,7 @@
 * `Error::is_amqp_error`, `Error::is_amqp_soft_error` and `Error::is_amqp_hard_error`
 * default runtime is now optional
 * experimental feature to recover channel from AMQP soft error (behind unstable feature flag)
+- `Acker::poisoned` to check if underlying Channel has been invalidated (reconnection)
 
 #### Misc
 
