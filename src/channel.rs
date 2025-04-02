@@ -1017,10 +1017,8 @@ impl Channel {
         options: QueueDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        if options.exclusive {
-            self.local_registry
-                .register_queue(method.queue.clone(), options, arguments.clone());
-        }
+        self.local_registry
+            .register_queue(method.queue.clone(), options, arguments.clone());
         self.global_registry
             .register_queue(method.queue.clone(), options, arguments);
         resolver.resolve(Queue::new(
