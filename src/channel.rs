@@ -465,7 +465,7 @@ impl Channel {
                     0,
                 );
                 let error: Error = ErrorKind::ProtocolError(error).into();
-                self.set_connection_error(error.clone());
+                self.internal_rpc.set_connection_error(error.clone());
                 Err(error)
             },
             |msg| self.handle_invalid_contents(msg, class_id, 0),

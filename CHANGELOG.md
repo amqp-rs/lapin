@@ -23,6 +23,12 @@
 * Drop pinky-swear dependency
 * Edition 2024 preparation
 
+### 2.5.2 (2025-04-02)
+
+#### Bug Fixes
+
+* Fix potential deadlock in server protocol error handling
+
 ### 2.5.1 (2025-03-08)
 
 #### Bug Fixes
