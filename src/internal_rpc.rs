@@ -2,6 +2,7 @@ use crate::{
     channels::Channels,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
+    killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
@@ -9,12 +10,13 @@ use crate::{
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
-use std::{fmt, future::Future, sync::Arc};
+use std::{collections::HashMap, fmt, future::Future, sync::Arc};
 use tracing::trace;
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
+    channels_status: HashMap<ChannelId, KillSwitch>,
 }
 
 #[derive(Clone)]
@@ -113,12 +115,16 @@ impl InternalRPCHandle {
         ));
     }
 
+    pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
+        self.send(InternalCommand::RemoveChannel(channel_id, error));
+    }
+
     pub(crate) fn send_connection_close_ok(&self, error: Error) {
         self.send(InternalCommand::SendConnectionCloseOk(error));
     }
 
-    pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
-        self.send(InternalCommand::RemoveChannel(channel_id, error));
+    pub(crate) fn set_channel_status(&self, channel_id: ChannelId, killswitch: KillSwitch) {
+        self.send(InternalCommand::SetChannelStatus(channel_id, killswitch));
     }
 
     pub(crate) fn set_connection_closing(&self) {
@@ -201,8 +207,9 @@ enum InternalCommand {
     CancelConsumer(ChannelId, String, ConsumerStatus),
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(ReplyCode, String, Identifier, Identifier),
-    SendConnectionCloseOk(Error),
     RemoveChannel(ChannelId, Error),
+    SendConnectionCloseOk(Error),
+    SetChannelStatus(ChannelId, KillSwitch),
     SetConnectionClosing,
     SetConnectionClosed(Error),
     SetConnectionError(Error),
@@ -219,29 +226,43 @@ impl InternalRPC {
             waker,
             executor,
         };
-        Self { rpc, handle }
+        Self {
+            rpc,
+            handle,
+            channels_status: Default::default(),
+        }
     }
 
     pub(crate) fn handle(&self) -> InternalRPCHandle {
         self.handle.clone()
     }
 
-    pub(crate) async fn run(self, channels: Channels) {
+    fn channel_ok(&self, chan: ChannelId) -> bool {
+        self.channels_status
+            .get(&chan)
+            .map_or(false, |killswitch| !killswitch.killed())
+    }
+
+    pub(crate) async fn run(mut self, channels: Channels) {
         use InternalCommand::*;
 
+        let rpc = self.rpc.clone();
+        let handle = self.handle();
         let get_channel = |id| {
             channels
                 .get(id)
                 .ok_or::<Error>(ErrorKind::InvalidChannel(id).into())
         };
 
-        while let Ok(Some(command)) = self.rpc.recv_async().await {
+        while let Ok(Some(command)) = rpc.recv_async().await {
             trace!(?command, "Handling internal RPC command");
-            let handle = self.handle();
             match command {
                 BasicAck(channel_id, delivery_tag, options, resolver, error) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
                     let channel = get_channel(channel_id);
-                    self.handle.register_internal_future_with_resolver(
+                    handle.register_internal_future_with_resolver(
                         async move {
                             if let Some(error) = error {
                                 error.check()?;
@@ -252,8 +273,11 @@ impl InternalRPC {
                     )
                 }
                 BasicNack(channel_id, delivery_tag, options, resolver, error) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
                     let channel = get_channel(channel_id);
-                    self.handle.register_internal_future_with_resolver(
+                    handle.register_internal_future_with_resolver(
                         async move {
                             if let Some(error) = error {
                                 error.check()?;
@@ -264,8 +288,11 @@ impl InternalRPC {
                     )
                 }
                 BasicReject(channel_id, delivery_tag, options, resolver, error) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
                     let channel = get_channel(channel_id);
-                    self.handle.register_internal_future_with_resolver(
+                    handle.register_internal_future_with_resolver(
                         async move {
                             if let Some(error) = error {
                                 error.check()?;
@@ -276,6 +303,9 @@ impl InternalRPC {
                     )
                 }
                 CancelConsumer(channel_id, consumer_tag, consumer_status) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
                     let channel = get_channel(channel_id);
                     handle.register_internal_future(async move {
                         let channel = channel?;
@@ -289,6 +319,9 @@ impl InternalRPC {
                     })
                 }
                 CloseChannel(channel_id, reply_code, reply_text) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
                     let channel = get_channel(channel_id);
                     handle.register_internal_future(async move {
                         channel?.close(reply_code, &reply_text).await
@@ -302,22 +335,28 @@ impl InternalRPC {
                             .await
                     })
                 }
+                RemoveChannel(channel_id, error) => {
+                    if !self.channel_ok(channel_id) {
+                        continue;
+                    }
+                    let channels = channels.clone();
+                    handle
+                        .register_internal_future(async move { channels.remove(channel_id, error) })
+                }
                 SendConnectionCloseOk(error) => {
                     let channel = get_channel(0);
                     handle.register_internal_future(async move {
                         channel?.connection_close_ok(error).await
                     })
                 }
-                RemoveChannel(channel_id, error) => {
-                    let channels = channels.clone();
-                    handle
-                        .register_internal_future(async move { channels.remove(channel_id, error) })
+                SetChannelStatus(channel_id, killswitch) => {
+                    self.channels_status.insert(channel_id, killswitch);
                 }
                 SetConnectionClosing => channels.set_connection_closing(),
                 SetConnectionClosed(error) => channels.set_connection_closed(error),
                 SetConnectionError(error) => channels.set_connection_error(error),
             }
-            self.handle.waker.wake();
+            handle.waker.wake();
         }
         trace!("InternalRPC stopped");
     }

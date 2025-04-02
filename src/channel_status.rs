@@ -1,6 +1,7 @@
 use crate::{
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     channel_recovery_context::ChannelRecoveryContext,
+    internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     notifier::Notifier,
     types::{ChannelId, Identifier, PayloadSize},
@@ -12,10 +13,14 @@ use std::{
 };
 use tracing::trace;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ChannelStatus(Arc<Mutex<Inner>>);
 
 impl ChannelStatus {
+    pub(crate) fn new(id: ChannelId, internal_rpc: InternalRPCHandle) -> Self {
+        Self(Arc::new(Mutex::new(Inner::new(id, internal_rpc))))
+    }
+
     pub fn initializing(&self) -> bool {
         [ChannelState::Initial, ChannelState::Reconnecting].contains(&self.lock_inner().state)
     }
@@ -81,11 +86,7 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_reconnecting(&self, error: Error) {
-        let mut inner = self.lock_inner();
-        inner.state = ChannelState::Reconnecting;
-        std::mem::take(&mut inner.killswitch).kill();
-        inner.receiver_state.reset();
-        inner.recovery_context = Some(ChannelRecoveryContext::new(error));
+        self.lock_inner().set_reconnecting(error);
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
@@ -191,28 +192,45 @@ impl fmt::Debug for ChannelStatus {
 }
 
 struct Inner {
+    id: ChannelId,
     confirm: bool,
     send_flow: bool,
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
     recovery_context: Option<ChannelRecoveryContext>,
     killswitch: KillSwitch,
+    internal_rpc: InternalRPCHandle,
 }
 
-impl Default for Inner {
-    fn default() -> Self {
-        Self {
+impl Inner {
+    fn new(id: ChannelId, internal_rpc: InternalRPCHandle) -> Self {
+        let this = Self {
+            id,
             confirm: false,
             send_flow: true,
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
             recovery_context: None,
             killswitch: KillSwitch::default(),
-        }
+            internal_rpc,
+        };
+        this.update_rpc_status();
+        this
     }
-}
 
-impl Inner {
+    fn update_rpc_status(&self) {
+        self.internal_rpc
+            .set_channel_status(self.id, self.killswitch.clone());
+    }
+
+    fn set_reconnecting(&mut self, error: Error) {
+        self.state = ChannelState::Reconnecting;
+        std::mem::take(&mut self.killswitch).kill();
+        self.update_rpc_status();
+        self.receiver_state.reset();
+        self.recovery_context = Some(ChannelRecoveryContext::new(error));
+    }
+
     pub(crate) fn finalize_recovery(&mut self) {
         self.state = ChannelState::Connected;
         if let Some(ctx) = self.recovery_context.take() {

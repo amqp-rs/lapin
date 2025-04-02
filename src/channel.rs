@@ -100,7 +100,7 @@ impl Channel {
         recovery_config: RecoveryConfig,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
-        let status = ChannelStatus::default();
+        let status = ChannelStatus::new(channel_id, internal_rpc.clone());
         let channel_closer = if channel_id == 0 {
             None
         } else {
