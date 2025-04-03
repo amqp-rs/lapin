@@ -64,7 +64,7 @@ impl<
 
     fn check_max(&self) -> bool {
         if let Some(max) = self.max {
-            self.id <= max
+            self.id < max
         } else {
             true
         }
