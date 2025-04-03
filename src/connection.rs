@@ -494,6 +494,34 @@ mod tests {
     use amq_protocol::protocol::{basic, AMQPClass};
 
     #[test]
+    fn channel_limit() {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        // Bootstrap connection state to a consuming state
+        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let conn = Connection::new(
+            waker,
+            internal_rpc.handle(),
+            Frames::default(),
+            executor.clone(),
+            RecoveryConfig::default(),
+        );
+        conn.status.set_state(ConnectionState::Connected);
+        conn.configuration.set_channel_max(65_535u16);
+        for _ in 0..65_535u16 - 1 {
+            conn.channels.create(conn.closer.clone()).unwrap();
+        }
+
+        assert_eq!(
+            conn.channels.create(conn.closer.clone()),
+            Err(ErrorKind::ChannelsLimitReached.into())
+        );
+    }
+
+    #[test]
     fn basic_consume_small_payload() {
         let _ = tracing_subscriber::fmt::try_init();
 
