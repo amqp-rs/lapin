@@ -493,10 +493,38 @@ mod tests {
     use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::channel_status::ChannelState;
     use crate::options::BasicConsumeOptions;
-    use crate::types::{FieldTable, ShortString};
+    use crate::types::{ChannelId, FieldTable, ShortString};
     use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{basic, AMQPClass};
+
+    #[test]
+    fn channel_limit() {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        // Bootstrap connection state to a consuming state
+        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let conn = Connection::new(
+            waker,
+            internal_rpc.handle(),
+            Frames::default(),
+            executor.clone(),
+            RecoveryConfig::default(),
+        );
+        conn.status.set_state(ConnectionState::Connected);
+        conn.configuration.set_channel_max(ChannelId::MAX);
+        for _ in 1..=ChannelId::MAX {
+            conn.channels.create(conn.closer.clone()).unwrap();
+        }
+
+        assert_eq!(
+            conn.channels.create(conn.closer.clone()),
+            Err(ErrorKind::ChannelsLimitReached.into())
+        );
+    }
 
     #[test]
     fn basic_consume_small_payload() {
