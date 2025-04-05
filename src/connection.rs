@@ -512,7 +512,6 @@ mod tests {
             internal_rpc.handle(),
             Frames::default(),
             executor.clone(),
-            RecoveryConfig::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(ChannelId::MAX);
@@ -522,7 +521,7 @@ mod tests {
 
         assert_eq!(
             conn.channels.create(conn.closer.clone()),
-            Err(ErrorKind::ChannelsLimitReached.into())
+            Err(Error::ChannelsLimitReached)
         );
     }
 
