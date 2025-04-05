@@ -52,22 +52,13 @@ impl<
         if !self.allow_zero && self.id == self.zero {
             self.id += self.one;
         }
-        if self.check_max() {
-            let id = self.id;
-            self.id += self.one;
-            id
-        } else {
+        let id = self.id;
+        if self.max == Some(id) {
             self.id = self.zero;
-            self.next()
-        }
-    }
-
-    fn check_max(&self) -> bool {
-        if let Some(max) = self.max {
-            self.id <= max
         } else {
-            true
+            self.id += self.one;
         }
+        id
     }
 }
 
@@ -78,5 +69,32 @@ impl<T: fmt::Debug> fmt::Debug for IdSequence<T> {
             .field("max", &self.max)
             .field("id", &self.id)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_low_max() {
+        let mut sequence = IdSequence::<u8>::new(false);
+        sequence.set_max(10);
+        for i in 1..=10 {
+            assert_eq!(sequence.next(), i)
+        }
+        // We should cycle back to first correct value
+        assert_eq!(sequence.next(), 1)
+    }
+
+    #[test]
+    fn test_highest_max() {
+        let mut sequence = IdSequence::<u8>::new(false);
+        sequence.set_max(u8::MAX);
+        for i in 1..=u8::MAX {
+            assert_eq!(sequence.next(), i)
+        }
+        // We should cycle back to first correct value
+        assert_eq!(sequence.next(), 1)
     }
 }
