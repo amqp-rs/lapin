@@ -23,6 +23,12 @@
 * Drop pinky-swear dependency
 * Edition 2024 preparation
 
+### 2.5.3 (2025-04-05)
+
+#### Bug Fixes
+
+* Fix a panic when reaching the maximum number of channels
+
 ### 2.5.2 (2025-04-02)
 
 #### Bug Fixes
