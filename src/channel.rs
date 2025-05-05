@@ -924,8 +924,32 @@ impl Channel {
         self.internal_rpc.register_internal_future(async move {
             channel.channel_close_ok(error).await?;
             if channel.recovery_config.auto_recover_channels {
-                let ch = channel.clone();
-                channel.channel_open(ch).await?;
+                let queues = channel.local_registry.queues_topology(true);
+                channel.channel_open(channel.clone()).await?;
+                for queue in &queues {
+                    if queue.is_declared() {
+                        channel
+                            .queue_declare(
+                                queue.name.as_str(),
+                                queue.options.unwrap_or_default(),
+                                queue.arguments.clone().unwrap_or_default(),
+                            )
+                            .await?;
+                    }
+                }
+                for queue in &queues {
+                    for binding in &queue.bindings {
+                        channel
+                            .queue_bind(
+                                queue.name.as_str(),
+                                binding.source.as_str(),
+                                binding.routing_key.as_str(),
+                                QueueBindOptions::default(),
+                                binding.arguments.clone(),
+                            )
+                            .await?;
+                    }
+                }
                 if channel.status.confirm() {
                     channel
                         .confirm_select(ConfirmSelectOptions::default())
