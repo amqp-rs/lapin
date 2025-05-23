@@ -159,10 +159,12 @@ impl IoLoop {
     pub fn start(mut self) -> Result<()> {
         let waker = self.socket_state.handle();
         let handle = self.connection_io_loop_handle.clone();
+        let current_span = tracing::Span::current();
         handle.register(
             ThreadBuilder::new()
                 .name("lapin-io-loop".to_owned())
                 .spawn(move || {
+                    let _enter = current_span.enter();
                     let readable_waker = self.readable_waker();
                     let mut readable_context = Context::from_waker(&readable_waker);
                     let writable_waker = self.writable_waker();
