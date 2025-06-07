@@ -1,8 +1,7 @@
 use crate::{
     exchange::ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
-    topology::QueueDefinition,
-    topology::{BindingDefinition, ExchangeDefinition},
+    topology::{ExchangeDefinition, QueueDefinition},
     types::{FieldTable, ShortString},
 };
 use std::{
@@ -31,19 +30,11 @@ impl Registry {
     ) {
         let mut inner = self.lock_inner();
         if let Some(exchange) = inner.exchanges.get_mut(&name) {
-            exchange.kind = Some(kind);
-            exchange.options = Some(options);
-            exchange.arguments = Some(arguments);
+            exchange.set_declared(kind, options, arguments);
         } else {
             inner.exchanges.insert(
                 name.clone(),
-                ExchangeDefinition {
-                    name,
-                    kind: Some(kind),
-                    options: Some(options),
-                    arguments: Some(arguments),
-                    bindings: Vec::new(),
-                },
+                ExchangeDefinition::declared(name, kind, options, arguments),
             );
         }
     }
@@ -62,19 +53,8 @@ impl Registry {
         self.lock_inner()
             .exchanges
             .entry(destination.clone())
-            .or_insert_with(|| ExchangeDefinition {
-                name: destination,
-                kind: None,
-                options: None,
-                arguments: None,
-                bindings: Vec::new(),
-            })
-            .bindings
-            .push(BindingDefinition {
-                source,
-                routing_key,
-                arguments,
-            });
+            .or_insert_with(|| ExchangeDefinition::undeclared(destination))
+            .register_binding(source, routing_key, arguments);
     }
 
     pub(crate) fn deregister_exchange_binding(
@@ -85,11 +65,7 @@ impl Registry {
         arguments: &FieldTable,
     ) {
         if let Some(destination) = self.lock_inner().exchanges.get_mut(destination) {
-            destination.bindings.retain(|binding| {
-                binding.source.as_str() != source
-                    || binding.routing_key.as_str() != routing_key
-                    || &binding.arguments != arguments
-            });
+            destination.deregister_binding(source, routing_key, arguments);
         }
     }
 

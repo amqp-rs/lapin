@@ -318,28 +318,28 @@ impl Channel {
 
         // Third, redeclare all exchanges
         for ex in &topology.exchanges {
-            self
-                .exchange_declare(
+            if ex.is_declared {
+                self.exchange_declare(
                     ex.name.as_str(),
                     ex.kind.clone().unwrap_or_default(),
                     ex.options.unwrap_or_default(),
                     ex.arguments.clone().unwrap_or_default(),
                 )
                 .await?;
+            }
         }
 
         // Fourth, redeclare all exchange bindings
         for ex in &topology.exchanges {
             for binding in &ex.bindings {
-                self
-                    .exchange_bind(
-                        ex.name.as_str(),
-                        binding.source.as_str(),
-                        binding.routing_key.as_str(),
-                        ExchangeBindOptions::default(),
-                        binding.arguments.clone(),
-                    )
-                    .await?;
+                self.exchange_bind(
+                    ex.name.as_str(),
+                    binding.source.as_str(),
+                    binding.routing_key.as_str(),
+                    ExchangeBindOptions::default(),
+                    binding.arguments.clone(),
+                )
+                .await?;
             }
         }
 

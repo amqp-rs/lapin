@@ -38,6 +38,74 @@ pub(crate) struct ExchangeDefinition {
     pub(crate) options: Option<ExchangeDeclareOptions>,
     pub(crate) arguments: Option<FieldTable>,
     pub(crate) bindings: Vec<BindingDefinition>,
+    pub(crate) is_declared: bool,
+}
+
+impl ExchangeDefinition {
+    pub(crate) fn declared(
+        name: ShortString,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            name,
+            kind: Some(kind),
+            options: Some(options),
+            arguments: Some(arguments),
+            bindings: Vec::new(),
+            is_declared: true,
+        }
+    }
+
+    pub(crate) fn undeclared(name: ShortString) -> Self {
+        Self {
+            name,
+            kind: None,
+            options: None,
+            arguments: None,
+            bindings: Vec::new(),
+            is_declared: false,
+        }
+    }
+
+    pub(crate) fn set_declared(
+        &mut self,
+        kind: ExchangeKind,
+        options: ExchangeDeclareOptions,
+        arguments: FieldTable,
+    ) {
+        self.kind = Some(kind);
+        self.options = Some(options);
+        self.arguments = Some(arguments);
+        self.is_declared = true;
+    }
+
+    pub(crate) fn register_binding(
+        &mut self,
+        source: ShortString,
+        routing_key: ShortString,
+        arguments: FieldTable,
+    ) {
+        self.bindings.push(BindingDefinition {
+            source,
+            routing_key,
+            arguments,
+        });
+    }
+
+    pub(crate) fn deregister_binding(
+        &mut self,
+        source: &str,
+        routing_key: &str,
+        arguments: &FieldTable,
+    ) {
+        self.bindings.retain(|binding| {
+            binding.source.as_str() != source
+                || binding.routing_key.as_str() != routing_key
+                || &binding.arguments != arguments
+        });
+    }
 }
 
 #[derive(Clone, Debug, Default)]
