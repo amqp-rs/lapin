@@ -51,6 +51,7 @@ impl ConnectionProperties {
     }
 
     #[must_use]
+    #[cfg(feature = "unstable")]
     pub fn with_experimental_recovery_config(mut self, config: RecoveryConfig) -> Self {
         self.recovery_config = Some(config);
         self
