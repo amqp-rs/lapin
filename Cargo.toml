@@ -11,7 +11,7 @@ keywords = ["amqp", "rabbitmq", "mio", "futures"]
 categories = ["database"]
 license = "MIT"
 build = "build.rs"
-rust-version = "1.82.0"
+rust-version = "1.85.0"
 
 [features]
 default                   = ["rustls", "default-runtime"]
