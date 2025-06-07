@@ -171,10 +171,6 @@ impl Channel {
         self.consumers.cancel();
     }
 
-    fn is_recovering(&self, error: &Error) -> bool {
-        self.recovery_config.auto_recover_channels && error.is_amqp_soft_error()
-    }
-
     fn error_consumers(&self, error: Error) {
         let recover = self.is_recovering(&error);
         self.consumers.error(error, recover);
@@ -299,9 +295,22 @@ impl Channel {
         self.consumers.register(tag, consumer);
     }
 
+    fn is_recovering(&self, error: &Error) -> bool {
+        self.recovery_config.auto_recover_channels && error.is_amqp_soft_error()
+    }
+
     async fn start_recovery(&self) -> Result<()> {
-        // FIXME: maybe drop the Option?
-        let topology = self.status.topology().expect("No topology during recovery");
+        let topology = self
+            .status
+            .update_recovery_context(|ctx| {
+                // Cleanup any pending expecting reply, outgoing or incoming frames
+                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+                self.frames.drop_frames_for_channel(self.id, ctx.cause());
+                // Also reset the acknowledgements state for this channel
+                self.acknowledgements.reset(ctx.cause());
+                ctx.topology()
+            })
+            .expect("No topology during recovery");
 
         // First, reopen the channel
         self.channel_open(self.clone()).await?;
@@ -858,12 +867,6 @@ impl Channel {
         channel: Channel,
     ) -> Result<()> {
         if self.recovery_config.auto_recover_channels {
-            // FIXME: should this be handled earlier?
-            self.status.update_recovery_context(|ctx| {
-                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
-                self.frames.drop_frames_for_channel(channel.id, ctx.cause());
-                self.acknowledgements.reset(ctx.cause());
-            });
             if !self.status.confirm() {
                 self.status.finalize_recovery();
             }

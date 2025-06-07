@@ -42,15 +42,11 @@ impl ChannelStatus {
         [ChannelState::Connected, ChannelState::Reconnecting].contains(&self.lock_inner().state)
     }
 
-    pub(crate) fn update_recovery_context<F: Fn(&mut ChannelRecoveryContext)>(&self, apply: F) {
-        let mut inner = self.lock_inner();
-        if let Some(context) = inner.recovery_context.as_mut() {
-            apply(context);
-        }
-    }
-
-    pub(crate) fn topology(&self) -> Option<ChannelDefinition> {
-        Some(self.lock_inner().recovery_context.as_ref()?.topology())
+    pub(crate) fn update_recovery_context<R, F: Fn(&mut ChannelRecoveryContext) -> R>(
+        &self,
+        apply: F,
+    ) -> Option<R> {
+        Some(apply(self.lock_inner().recovery_context.as_mut()?))
     }
 
     pub(crate) fn finalize_recovery(&self) {
