@@ -919,7 +919,7 @@ impl Channel {
             }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         match (self.recovery_config.auto_recover_channels, error.as_ref()) {
             (true, Some(error)) if error.is_amqp_soft_error() => {
-                self.status.set_reconnecting(error.clone())
+                self.status.set_reconnecting(error.clone(), self.topology())
             }
             (_, err) => self.set_closing(err.cloned()),
         }
