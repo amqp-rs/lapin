@@ -11,9 +11,8 @@ pub(crate) struct IdSequence<T> {
     id: T,
 }
 
-impl<
-        T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + PartialOrd<T> + From<u8>,
-    > IdSequence<T>
+impl<T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + PartialOrd<T> + From<u8>>
+    IdSequence<T>
 {
     pub(crate) fn new(allow_zero: bool) -> Self {
         Self {
@@ -37,11 +36,7 @@ impl<
     }
 
     fn first(&self) -> T {
-        if self.allow_zero {
-            self.zero
-        } else {
-            self.one
-        }
+        if self.allow_zero { self.zero } else { self.one }
     }
 
     pub(crate) fn set_max(&mut self, max: T) {

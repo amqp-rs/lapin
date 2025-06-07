@@ -9,7 +9,7 @@ fn main() {
 #[cfg(feature = "codegen-internal")]
 fn codegen() {
     use amq_protocol_codegen::{CodeGenerator, HandlebarsAMQPExtension};
-    use serde_json::{from_str, Value};
+    use serde_json::{Value, from_str};
 
     let out_dir = std::env::var("LAPIN_CODEGEN_DIR")
         .or_else(|_| std::env::var("OUT_DIR"))

@@ -1,4 +1,5 @@
 use crate::{
+    Error, ErrorKind, PromiseResolver, Result,
     channels::Channels,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
@@ -6,7 +7,6 @@ use crate::{
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
-    Error, ErrorKind, PromiseResolver, Result,
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};

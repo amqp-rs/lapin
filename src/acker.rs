@@ -1,10 +1,10 @@
 use crate::{
+    Promise, PromiseResolver, Result,
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
     types::{ChannelId, DeliveryTag},
-    Promise, PromiseResolver, Result,
 };
 
 #[derive(Clone, Debug)]

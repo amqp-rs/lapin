@@ -1,9 +1,9 @@
 use lapin::{
+    BasicProperties, Connection, ConnectionProperties,
     message::{BasicReturnMessage, Delivery, DeliveryResult},
     options::*,
     protocol::{AMQPErrorKind, AMQPSoftError},
     types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
 };
 use tracing::info;
 

@@ -1,5 +1,5 @@
 use crate::{
-    channels::Channels, killswitch::KillSwitch, reactor::FullReactor, ConnectionStatus, ErrorKind,
+    ConnectionStatus, ErrorKind, channels::Channels, killswitch::KillSwitch, reactor::FullReactor,
 };
 use executor_trait::FullExecutor;
 use std::{

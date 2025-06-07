@@ -1,8 +1,8 @@
 use crate::{
+    ErrorKind, Result,
     reactor::FullReactor,
     recovery_config::RecoveryConfig,
     types::{AMQPValue, FieldTable, LongString},
-    ErrorKind, Result,
 };
 use executor_trait::FullExecutor;
 use std::sync::Arc;

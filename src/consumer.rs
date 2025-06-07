@@ -1,4 +1,5 @@
 use crate::{
+    BasicProperties, Error, Result,
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
     consumer_status::{ConsumerState, ConsumerStatus},
@@ -9,7 +10,6 @@ use crate::{
     types::{ChannelId, PayloadSize},
     types::{FieldTable, ShortString},
     wakers::Wakers,
-    BasicProperties, Error, Result,
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
@@ -25,16 +25,16 @@ use tracing::trace;
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult)
-        -> Pin<Box<dyn Future<Output = ()> + Send>>;
+    -> Pin<Box<dyn Future<Output = ()> + Send>>;
     fn drop_prefetched_messages(&self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         Box::pin(async move {})
     }
 }
 
 impl<
-        F: Future<Output = ()> + Send + 'static,
-        DeliveryHandler: Fn(DeliveryResult) -> F + Send + Sync + 'static,
-    > ConsumerDelegate for DeliveryHandler
+    F: Future<Output = ()> + Send + 'static,
+    DeliveryHandler: Fn(DeliveryResult) -> F + Send + Sync + 'static,
+> ConsumerDelegate for DeliveryHandler
 {
     fn on_new_delivery(
         &self,
@@ -473,8 +473,8 @@ mod futures_tests {
     use crate::ErrorKind;
 
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
     use std::task::{Context, Poll};
 

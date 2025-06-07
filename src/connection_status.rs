@@ -1,6 +1,6 @@
 use crate::{
-    auth::{Credentials, SASLMechanism},
     Connection, ConnectionProperties, PromiseResolver,
+    auth::{Credentials, SASLMechanism},
 };
 use std::{
     fmt,

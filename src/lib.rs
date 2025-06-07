@@ -105,7 +105,7 @@ pub use amq_protocol::{
     types, uri,
 };
 
-pub use channel::{options, Channel};
+pub use channel::{Channel, options};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection};

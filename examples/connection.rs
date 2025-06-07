@@ -1,6 +1,6 @@
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties, Connection, ConnectionProperties, message::DeliveryResult, options::*,
+    publisher_confirm::Confirmation, types::FieldTable,
 };
 use tracing::info;
 

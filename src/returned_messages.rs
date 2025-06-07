@@ -1,6 +1,6 @@
 use crate::{
-    message::BasicReturnMessage, publisher_confirm::Confirmation, types::PayloadSize,
-    BasicProperties, Promise,
+    BasicProperties, Promise, message::BasicReturnMessage, publisher_confirm::Confirmation,
+    types::PayloadSize,
 };
 use std::{
     collections::VecDeque,

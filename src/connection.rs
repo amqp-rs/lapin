@@ -1,4 +1,8 @@
 use crate::{
+    Error,
+    ErrorKind,
+    Promise,
+    Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -17,17 +21,13 @@ use crate::{
     // topology::TopologyDefinition,
     types::ReplyCode,
     uri::AMQPUri,
-    Error,
-    ErrorKind,
-    Promise,
-    Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
 use executor_trait::FullExecutor;
 use reactor_trait::IOHandle;
 use std::{fmt, io, sync::Arc};
-use tracing::{level_enabled, Level};
+use tracing::{Level, level_enabled};
 
 /// A TCP connection to the AMQP server.
 ///
@@ -389,13 +389,13 @@ impl Connect for &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BasicProperties;
     use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::channel_status::ChannelState;
     use crate::options::BasicConsumeOptions;
     use crate::types::{ChannelId, FieldTable, ShortString};
-    use crate::BasicProperties;
     use amq_protocol::frame::AMQPContentHeader;
-    use amq_protocol::protocol::{basic, AMQPClass};
+    use amq_protocol::protocol::{AMQPClass, basic};
 
     #[test]
     fn channel_limit() {

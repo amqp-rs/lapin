@@ -1,4 +1,5 @@
 use crate::{
+    Error, ErrorKind, Result,
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     channel_recovery_context::ChannelRecoveryContext,
     internal_rpc::InternalRPCHandle,
@@ -6,7 +7,6 @@ use crate::{
     notifier::Notifier,
     topology::ChannelDefinition,
     types::{ChannelId, Identifier, PayloadSize},
-    Error, ErrorKind, Result,
 };
 use std::{
     fmt,

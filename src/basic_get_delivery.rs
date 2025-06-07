@@ -1,4 +1,4 @@
-use crate::{message::BasicGetMessage, types::PayloadSize, BasicProperties, PromiseResolver};
+use crate::{BasicProperties, PromiseResolver, message::BasicGetMessage, types::PayloadSize};
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},

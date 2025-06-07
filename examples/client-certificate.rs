@@ -1,10 +1,10 @@
 use lapin::{
+    BasicProperties, Connection, ConnectionProperties,
     message::DeliveryResult,
     options::*,
     publisher_confirm::Confirmation,
     tcp::{OwnedIdentity, OwnedTLSConfig},
     types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
 };
 use tracing::info;
 

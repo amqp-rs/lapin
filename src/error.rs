@@ -172,8 +172,8 @@ impl From<io::Error> for Error {
 
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
-        use tracing::error;
         use ErrorKind::*;
+        use tracing::error;
 
         match (self.kind(), other.kind()) {
             (ChannelsLimitReached, ChannelsLimitReached) => true,

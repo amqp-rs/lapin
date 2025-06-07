@@ -1,9 +1,9 @@
 use crate::{
+    BasicProperties, Error,
     consumer::Consumer,
     error_holder::ErrorHolder,
     message::Delivery,
     types::{PayloadSize, ShortString},
-    BasicProperties, Error,
 };
 use std::{
     borrow::Borrow,

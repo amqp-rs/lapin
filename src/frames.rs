@@ -1,16 +1,16 @@
 use crate::{
-    channel::Reply, promise::Cancelable, types::ChannelId, Error, Promise, PromiseResolver,
+    Error, Promise, PromiseResolver, channel::Reply, promise::Cancelable, types::ChannelId,
 };
 use amq_protocol::{
     frame::AMQPFrame,
-    protocol::{basic::AMQPMethod, AMQPClass},
+    protocol::{AMQPClass, basic::AMQPMethod},
 };
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
     sync::{Arc, Mutex, MutexGuard},
 };
-use tracing::{level_enabled, trace, Level};
+use tracing::{Level, level_enabled, trace};
 
 pub(crate) struct ExpectedReply(pub(crate) Reply, pub(crate) Box<dyn Cancelable + Send>);
 

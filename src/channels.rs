@@ -1,4 +1,14 @@
 use crate::{
+    BasicProperties,
+    Channel,
+    ChannelState,
+    Configuration,
+    ConnectionState,
+    ConnectionStatus,
+    Error,
+    ErrorKind,
+    Promise,
+    Result,
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
     frames::Frames,
@@ -10,16 +20,6 @@ use crate::{
     socket_state::SocketStateHandle,
     //topology::ChannelDefinition,
     types::{ChannelId, Identifier, PayloadSize},
-    BasicProperties,
-    Channel,
-    ChannelState,
-    Configuration,
-    ConnectionState,
-    ConnectionStatus,
-    Error,
-    ErrorKind,
-    Promise,
-    Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
@@ -28,7 +28,7 @@ use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
 };
-use tracing::{debug, error, level_enabled, trace, Level};
+use tracing::{Level, debug, error, level_enabled, trace};
 
 #[derive(Clone)]
 pub(crate) struct Channels {

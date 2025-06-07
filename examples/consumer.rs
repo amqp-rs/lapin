@@ -1,5 +1,5 @@
 use futures_lite::StreamExt;
-use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
+use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable};
 use tracing::info;
 
 fn main() {

@@ -1,13 +1,13 @@
 use lapin::{
-    message::DeliveryResult, options::*, publisher_confirm::Confirmation, types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate,
+    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, message::DeliveryResult,
+    options::*, publisher_confirm::Confirmation, types::FieldTable,
 };
 use std::{
     future::Future,
     pin::Pin,
     sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     },
     thread, time,
 };

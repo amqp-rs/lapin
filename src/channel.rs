@@ -1,4 +1,6 @@
 use crate::{
+    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
+    Promise, PromiseResolver, Result,
     acknowledgement::Acknowledgements,
     auth::Credentials,
     basic_get_delivery::BasicGetDelivery,
@@ -22,13 +24,11 @@ use crate::{
     socket_state::SocketStateHandle,
     topology::ChannelDefinition,
     types::*,
-    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
-    Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use executor_trait::FullExecutor;
 use std::{convert::TryFrom, fmt, sync::Arc};
-use tracing::{error, info, level_enabled, trace, Level};
+use tracing::{Level, error, info, level_enabled, trace};
 
 /// Main entry point for most AMQP operations.
 ///

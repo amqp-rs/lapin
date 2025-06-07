@@ -1,4 +1,4 @@
-use crate::{message::BasicReturnMessage, returned_messages::ReturnedMessages, Promise, Result};
+use crate::{Promise, Result, message::BasicReturnMessage, returned_messages::ReturnedMessages};
 use std::{
     fmt,
     future::Future,

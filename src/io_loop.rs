@@ -1,4 +1,5 @@
 use crate::{
+    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
@@ -10,9 +11,8 @@ use crate::{
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
     types::FrameSize,
-    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
 };
-use amq_protocol::frame::{gen_frame, parse_frame, AMQPFrame, GenError};
+use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use reactor_trait::AsyncIOHandle;
 use std::{
     collections::VecDeque,
@@ -261,7 +261,9 @@ impl IoLoop {
     fn clear_serialized_frames(&mut self, error: Error) {
         for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
             if let Some(resolver) = resolver {
-                trace!("We're quitting but had leftover frames, tag them as 'not sent' with current error");
+                trace!(
+                    "We're quitting but had leftover frames, tag them as 'not sent' with current error"
+                );
                 resolver.reject(error.clone());
             }
         }
@@ -372,7 +374,9 @@ impl IoLoop {
                         trace!("read {} bytes", sz);
                         self.receive_buffer.fill(sz);
                     } else {
-                        error!("Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken");
+                        error!(
+                            "Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken"
+                        );
                         self.socket_state.handle_io_result(Err(io::Error::from(
                             io::ErrorKind::ConnectionAborted,
                         )

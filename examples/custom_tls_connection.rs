@@ -1,11 +1,11 @@
 use lapin::{
+    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
     message::DeliveryResult,
     options::*,
     publisher_confirm::Confirmation,
     tcp::{AMQPUriTcpExt, NativeTlsConnector},
     types::FieldTable,
     uri::AMQPUri,
-    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, Result,
 };
 use std::{future::Future, pin::Pin};
 use tracing::info;

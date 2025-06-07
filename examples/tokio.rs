@@ -1,8 +1,8 @@
 use lapin::{
+    BasicProperties, Connection, ConnectionProperties,
     message::DeliveryResult,
     options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
     types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
 };
 
 #[tokio::main]

@@ -1,8 +1,8 @@
 use crate::{
+    Error,
     frames::{ExpectedReply, Frames},
     notifier::Notifier,
     topology::ChannelDefinition,
-    Error,
 };
 
 use std::collections::VecDeque;

@@ -1,10 +1,10 @@
 use crate::{
+    Error, Promise, PromiseResolver,
     id_sequence::IdSequence,
     protocol::{AMQPError, AMQPSoftError},
     publisher_confirm::{Confirmation, PublisherConfirm},
     returned_messages::ReturnedMessages,
     types::DeliveryTag,
-    Error, Promise, PromiseResolver,
 };
 use std::{
     collections::{HashMap, HashSet},
