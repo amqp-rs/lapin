@@ -365,6 +365,52 @@ impl Channel {
         self.consumers.register(tag, consumer);
     }
 
+    async fn start_recovery(&self) -> Result<()> {
+        let queues = self.local_registry.queues_topology(true);
+        let consumers = self.consumers.topology();
+        self.channel_open(self.clone()).await?;
+        for queue in &queues {
+            if queue.is_declared() {
+                self.queue_declare(
+                    queue.name.as_str(),
+                    queue.options.unwrap_or_default(),
+                    queue.arguments.clone().unwrap_or_default(),
+                )
+                .await?;
+            }
+        }
+        for queue in &queues {
+            for binding in &queue.bindings {
+                self.queue_bind(
+                    queue.name.as_str(),
+                    binding.source.as_str(),
+                    binding.routing_key.as_str(),
+                    QueueBindOptions::default(),
+                    binding.arguments.clone(),
+                )
+                .await?;
+            }
+        }
+        if self.status.confirm() {
+            self.confirm_select(ConfirmSelectOptions::default()).await?;
+        }
+        for consumer in &consumers {
+            let original = consumer.original();
+            if let Some(original) = original.as_ref() {
+                original.reset();
+            }
+            self.do_basic_consume(
+                consumer.queue.as_str(),
+                consumer.tag.as_str(),
+                consumer.options,
+                consumer.arguments.clone(),
+                original,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn send_method_frame(
         &self,
         method: AMQPClass,
@@ -503,7 +549,7 @@ impl Channel {
 
     pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
         ChannelDefinitionInternal {
-            channel: Some(self.clone()),
+            channel: Some(self.clone()), // FIXME: drop
             queues: self.local_registry.queues_topology(true),
             consumers: self.consumers.topology(),
         }
@@ -871,6 +917,7 @@ impl Channel {
         channel: Channel,
     ) -> Result<()> {
         if self.recovery_config.auto_recover_channels {
+            // FIXME: should this be handled earlier?
             self.status.update_recovery_context(|ctx| {
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
                 self.frames.drop_frames_for_channel(channel.id, ctx.cause());
@@ -927,53 +974,7 @@ impl Channel {
         self.internal_rpc.register_internal_future(async move {
             channel.channel_close_ok(error).await?;
             if channel.recovery_config.auto_recover_channels {
-                let queues = channel.local_registry.queues_topology(true);
-                let consumers = channel.consumers.topology();
-                channel.channel_open(channel.clone()).await?;
-                for queue in &queues {
-                    if queue.is_declared() {
-                        channel
-                            .queue_declare(
-                                queue.name.as_str(),
-                                queue.options.unwrap_or_default(),
-                                queue.arguments.clone().unwrap_or_default(),
-                            )
-                            .await?;
-                    }
-                }
-                for queue in &queues {
-                    for binding in &queue.bindings {
-                        channel
-                            .queue_bind(
-                                queue.name.as_str(),
-                                binding.source.as_str(),
-                                binding.routing_key.as_str(),
-                                QueueBindOptions::default(),
-                                binding.arguments.clone(),
-                            )
-                            .await?;
-                    }
-                }
-                if channel.status.confirm() {
-                    channel
-                        .confirm_select(ConfirmSelectOptions::default())
-                        .await?;
-                }
-                for consumer in &consumers {
-                    let original = consumer.original();
-                    if let Some(original) = original.as_ref() {
-                        original.reset();
-                    }
-                    channel
-                        .do_basic_consume(
-                            consumer.queue.as_str(),
-                            consumer.tag.as_str(),
-                            consumer.options,
-                            consumer.arguments.clone(),
-                            original,
-                        )
-                        .await?;
-                }
+                channel.start_recovery().await?;
             }
             Ok(())
         });
