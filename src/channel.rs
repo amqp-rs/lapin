@@ -315,7 +315,8 @@ impl Channel {
         options: BasicConsumeOptions,
         arguments: FieldTable,
     ) -> Result<Consumer> {
-        let consumer = self.do_basic_consume(queue, consumer_tag, options, arguments, None)
+        let consumer = self
+            .do_basic_consume(queue, consumer_tag, options, arguments, None)
             .await?;
         Ok(consumer.external(self.id, self.internal_rpc.clone()))
     }
@@ -577,8 +578,7 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        if error.as_ref().is_none_or(|err| !self.is_recovering(err))
-        {
+        if error.as_ref().is_none_or(|err| !self.is_recovering(err)) {
             self.set_closed(
                 error
                     .clone()
@@ -1176,7 +1176,8 @@ impl Channel {
                 arguments,
             )
         });
-        self.consumers.register(method.consumer_tag, consumer.clone());
+        self.consumers
+            .register(method.consumer_tag, consumer.clone());
         resolver.resolve(consumer);
         Ok(())
     }
