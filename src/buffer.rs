@@ -236,6 +236,7 @@ impl BackToTheBuffer for &mut Buffer {
             let mut end = s.write.checkpoint();
             end.backwards = false;
             s.write.rollback(start);
+            #[allow(clippy::manual_inspect)]
             before(s, tmp).map(|s| {
                 s.write.rollback(end);
                 s

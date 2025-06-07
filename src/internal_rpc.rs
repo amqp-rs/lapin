@@ -240,7 +240,7 @@ impl InternalRPC {
     fn channel_ok(&self, chan: ChannelId) -> bool {
         self.channels_status
             .get(&chan)
-            .map_or(false, |killswitch| !killswitch.killed())
+            .is_some_and(|killswitch| !killswitch.killed())
     }
 
     pub(crate) async fn run(mut self, channels: Channels) {

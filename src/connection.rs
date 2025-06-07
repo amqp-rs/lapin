@@ -381,7 +381,7 @@ impl Connect for &str {
     ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => Connect::connect(uri, options, config).await,
-            Err(err) => Err(io::Error::new(io::ErrorKind::Other, err).into()),
+            Err(err) => Err(io::Error::other(err).into()),
         }
     }
 }

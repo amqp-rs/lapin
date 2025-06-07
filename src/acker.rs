@@ -92,7 +92,7 @@ impl Acker {
     pub fn poisoned(&self) -> bool {
         self.channel_killswitch
             .as_ref()
-            .map_or(false, |ks| ks.killed())
+            .is_some_and(|ks| ks.killed())
     }
 
     pub fn usable(&self) -> bool {
