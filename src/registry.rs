@@ -14,18 +14,12 @@ use std::{
 pub(crate) struct Registry(Arc<Mutex<Inner>>);
 
 impl Registry {
-    /* FIXME: use this for connection recovery
     pub(crate) fn exchanges_topology(&self) -> Vec<ExchangeDefinition> {
         self.lock_inner().exchanges.values().cloned().collect()
     }
-    */
 
     pub(crate) fn queues_topology(&self) -> Vec<QueueDefinition> {
-        self.lock_inner()
-            .queues
-            .values()
-            .cloned()
-            .collect()
+        self.lock_inner().queues.values().cloned().collect()
     }
 
     pub(crate) fn register_exchange(

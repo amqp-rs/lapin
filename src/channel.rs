@@ -316,7 +316,34 @@ impl Channel {
             self.confirm_select(ConfirmSelectOptions::default()).await?;
         }
 
-        // Third, redeclare all queues
+        // Third, redeclare all exchanges
+        for ex in &topology.exchanges {
+            self
+                .exchange_declare(
+                    ex.name.as_str(),
+                    ex.kind.clone().unwrap_or_default(),
+                    ex.options.unwrap_or_default(),
+                    ex.arguments.clone().unwrap_or_default(),
+                )
+                .await?;
+        }
+
+        // Fourth, redeclare all exchange bindings
+        for ex in &topology.exchanges {
+            for binding in &ex.bindings {
+                self
+                    .exchange_bind(
+                        ex.name.as_str(),
+                        binding.source.as_str(),
+                        binding.routing_key.as_str(),
+                        ExchangeBindOptions::default(),
+                        binding.arguments.clone(),
+                    )
+                    .await?;
+            }
+        }
+
+        // Fifth, redeclare all queues
         for queue in &topology.queues {
             if queue.is_declared {
                 self.queue_declare(
@@ -328,7 +355,7 @@ impl Channel {
             }
         }
 
-        // Fourth, redeclare all queues bindings
+        // Sixth, redeclare all queues bindings
         for queue in &topology.queues {
             for binding in &queue.bindings {
                 self.queue_bind(
@@ -496,6 +523,7 @@ impl Channel {
 
     pub(crate) fn topology(&self) -> ChannelDefinition {
         ChannelDefinition {
+            exchanges: self.local_registry.exchanges_topology(),
             queues: self.local_registry.queues_topology(),
             consumers: self.consumers.topology(),
         }

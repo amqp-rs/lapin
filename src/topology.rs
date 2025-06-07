@@ -12,18 +12,27 @@ use crate::{
 /// declared on the current Connection.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TopologyDefinition {
-    /// The exchanges declared in this topology.
-    pub(crate) exchanges: Vec<ExchangeDefinition>,
-    /// The "global" (not exclusive) declared in this topology.
-    pub(crate) queues: Vec<QueueDefinition>,
     /// The channels declares in this topology
     pub(crate) channels: Vec<ChannelDefinition>,
 }
 */
 
 #[derive(Clone, Debug, Default)]
+pub(crate) struct ChannelDefinition {
+    pub(crate) exchanges: Vec<ExchangeDefinition>,
+    pub(crate) queues: Vec<QueueDefinition>,
+    pub(crate) consumers: Vec<Consumer>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct BindingDefinition {
+    pub(crate) source: ShortString,
+    pub(crate) routing_key: ShortString,
+    pub(crate) arguments: FieldTable,
+}
+
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ExchangeDefinition {
-    #[allow(unused)]
     pub(crate) name: ShortString,
     pub(crate) kind: Option<ExchangeKind>,
     pub(crate) options: Option<ExchangeDeclareOptions>,
@@ -38,21 +47,6 @@ pub(crate) struct QueueDefinition {
     pub(crate) arguments: Option<FieldTable>,
     pub(crate) bindings: Vec<BindingDefinition>,
     pub(crate) is_declared: bool,
-}
-
-#[derive(Clone, Debug, Default)]
-pub(crate) struct BindingDefinition {
-    pub(crate) source: ShortString,
-    pub(crate) routing_key: ShortString,
-    pub(crate) arguments: FieldTable,
-}
-
-#[derive(Clone, Debug, Default)]
-pub(crate) struct ChannelDefinition {
-    /// Exclusive queues need to be declared in a Channel.
-    /// This is the list of exclusive queues for this one.
-    pub(crate) queues: Vec<QueueDefinition>,
-    pub(crate) consumers: Vec<Consumer>,
 }
 
 impl QueueDefinition {
