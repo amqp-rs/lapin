@@ -925,6 +925,7 @@ impl Channel {
             channel.channel_close_ok(error).await?;
             if channel.recovery_config.auto_recover_channels {
                 let queues = channel.local_registry.queues_topology(true);
+                let consumers = channel.consumers.topology();
                 channel.channel_open(channel.clone()).await?;
                 for queue in &queues {
                     if queue.is_declared() {
@@ -953,6 +954,21 @@ impl Channel {
                 if channel.status.confirm() {
                     channel
                         .confirm_select(ConfirmSelectOptions::default())
+                        .await?;
+                }
+                for consumer in &consumers {
+                    let original = consumer.original();
+                    if let Some(original) = original.as_ref() {
+                        original.reset();
+                    }
+                    channel
+                        .do_basic_consume(
+                            consumer.queue.as_str(),
+                            consumer.tag.as_str(),
+                            consumer.options,
+                            consumer.arguments.clone(),
+                            original,
+                        )
                         .await?;
                 }
             }
