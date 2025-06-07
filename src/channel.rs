@@ -45,7 +45,6 @@ pub struct Channel {
     configuration: Configuration,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
-    global_registry: Registry,
     local_registry: Registry,
     acknowledgements: Acknowledgements,
     consumers: Consumers,
@@ -89,7 +88,6 @@ impl Channel {
         channel_id: ChannelId,
         configuration: Configuration,
         connection_status: ConnectionStatus,
-        global_registry: Registry,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -113,7 +111,6 @@ impl Channel {
             configuration,
             status,
             connection_status,
-            global_registry,
             local_registry: Registry::default(),
             acknowledgements: Acknowledgements::new(channel_id, returned_messages.clone()),
             consumers: Consumers::default(),
@@ -190,7 +187,6 @@ impl Channel {
             configuration: self.configuration.clone(),
             status: self.status.clone(),
             connection_status: self.connection_status.clone(),
-            global_registry: self.global_registry.clone(),
             local_registry: self.local_registry.clone(),
             acknowledgements: self.acknowledgements.clone(),
             consumers: self.consumers.clone(),
@@ -937,7 +933,7 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.global_registry
+        self.local_registry
             .register_exchange_binding(destination, source, routing_key, arguments);
         Ok(())
     }
@@ -949,7 +945,7 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.global_registry.deregister_exchange_binding(
+        self.local_registry.deregister_exchange_binding(
             destination.as_str(),
             source.as_str(),
             routing_key.as_str(),
@@ -966,14 +962,14 @@ impl Channel {
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.global_registry
+        self.local_registry
             .register_exchange(exchange, kind, options, arguments);
         resolver.resolve(());
         Ok(())
     }
 
     fn on_exchange_delete_ok_received(&self, exchange: ShortString) -> Result<()> {
-        self.global_registry.deregister_exchange(exchange.as_str());
+        self.local_registry.deregister_exchange(exchange.as_str());
         Ok(())
     }
 
@@ -984,7 +980,6 @@ impl Channel {
         queue: ShortString,
     ) -> Result<()> {
         self.local_registry.deregister_queue(queue.as_str());
-        self.global_registry.deregister_queue(queue.as_str());
         resolver.resolve(method.message_count);
         Ok(())
     }
@@ -1006,8 +1001,6 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         self.local_registry
-            .register_queue(method.queue.clone(), options, arguments.clone());
-        self.global_registry
             .register_queue(method.queue.clone(), options, arguments);
         resolver.resolve(Queue::new(
             method.queue,
@@ -1024,13 +1017,7 @@ impl Channel {
         routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.local_registry.register_queue_binding(
-            queue.clone(),
-            exchange.clone(),
-            routing_key.clone(),
-            arguments.clone(),
-        );
-        self.global_registry
+        self.local_registry
             .register_queue_binding(queue, exchange, routing_key, arguments);
         Ok(())
     }
@@ -1043,12 +1030,6 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         self.local_registry.deregister_queue_binding(
-            queue.as_str(),
-            exchange.as_str(),
-            routing_key.as_str(),
-            &arguments,
-        );
-        self.global_registry.deregister_queue_binding(
             queue.as_str(),
             exchange.as_str(),
             routing_key.as_str(),

@@ -14,7 +14,6 @@ use crate::{
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     recovery_config::RecoveryConfig,
-    registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
@@ -43,7 +42,6 @@ use tracing::{Level, level_enabled};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
-    //global_registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -59,11 +57,9 @@ impl Connection {
     ) -> Self {
         let configuration = Configuration::default();
         let status = ConnectionStatus::default();
-        let global_registry = Registry::default();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
-            global_registry.clone(),
             waker,
             internal_rpc.clone(),
             frames,
@@ -74,7 +70,6 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
-            //global_registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -327,8 +322,6 @@ impl Connection {
     /// This includes exchanges, queues, bindings and consumers declared by this Connection
     pub(crate) fn topology(&self) -> TopologyDefinition {
         TopologyDefinition {
-            exchanges: self.global_registry.exchanges_topology(),
-            queues: self.global_registry.queues_topology(false),
             channels: self.channels.topology(),
         }
     }
