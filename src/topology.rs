@@ -5,18 +5,6 @@ use crate::{
     types::{FieldTable, ShortString},
 };
 
-/* FIXME: use this for connection recovery
-/// The current topology definition
-///
-/// This contains the list of exhanges, queues, bindings, channels and consumers
-/// declared on the current Connection.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct TopologyDefinition {
-    /// The channels declares in this topology
-    pub(crate) channels: Vec<ChannelDefinition>,
-}
-*/
-
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ChannelDefinition {
     pub(crate) exchanges: Vec<ExchangeDefinition>,

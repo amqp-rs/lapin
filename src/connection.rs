@@ -315,17 +315,6 @@ impl Connection {
         promise_out.await?;
         promise_in.await
     }
-
-    /* FIXME: use this for connection recovery
-    /// Get the current topology
-    ///
-    /// This includes exchanges, queues, bindings and consumers declared by this Connection
-    pub(crate) fn topology(&self) -> TopologyDefinition {
-        TopologyDefinition {
-            channels: self.channels.topology(),
-        }
-    }
-    */
 }
 
 impl fmt::Debug for Connection {
