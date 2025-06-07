@@ -311,8 +311,9 @@ impl Channel {
         options: BasicConsumeOptions,
         arguments: FieldTable,
     ) -> Result<Consumer> {
-        self.do_basic_consume(queue, consumer_tag, options, arguments, None)
-            .await
+        let consumer = self.do_basic_consume(queue, consumer_tag, options, arguments, None)
+            .await?;
+        Ok(consumer.external(self.id, self.internal_rpc.clone()))
     }
 
     pub async fn basic_get(
@@ -1156,9 +1157,8 @@ impl Channel {
                 arguments,
             )
         });
-        let external_consumer = consumer.external(self.id, self.internal_rpc.clone());
-        self.consumers.register(method.consumer_tag, consumer);
-        resolver.resolve(external_consumer);
+        self.consumers.register(method.consumer_tag, consumer.clone());
+        resolver.resolve(consumer);
         Ok(())
     }
 
