@@ -1,7 +1,7 @@
 use crate::{
     frames::{ExpectedReply, Frames},
     notifier::Notifier,
-    topology_internal::ChannelDefinitionInternal,
+    topology::ChannelDefinition,
     Error,
 };
 
@@ -9,13 +9,13 @@ use std::collections::VecDeque;
 
 pub(crate) struct ChannelRecoveryContext {
     cause: Error,
-    topology: ChannelDefinitionInternal,
+    topology: ChannelDefinition,
     expected_replies: Option<VecDeque<ExpectedReply>>,
     notifier: Notifier,
 }
 
 impl ChannelRecoveryContext {
-    pub(crate) fn new(cause: Error, topology: ChannelDefinitionInternal) -> Self {
+    pub(crate) fn new(cause: Error, topology: ChannelDefinition) -> Self {
         let notifier = Notifier::default();
         Self {
             cause: cause.with_notifier(Some(notifier.clone())),
@@ -33,7 +33,7 @@ impl ChannelRecoveryContext {
         self.notifier.clone()
     }
 
-    pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
+    pub(crate) fn topology(&self) -> ChannelDefinition {
         self.topology.clone()
     }
 

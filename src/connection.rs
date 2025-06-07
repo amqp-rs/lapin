@@ -14,11 +14,13 @@ use crate::{
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
-    topology::TopologyDefinition,
-    topology_internal::TopologyInternal,
+    // topology::TopologyDefinition,
     types::ReplyCode,
     uri::AMQPUri,
-    Error, ErrorKind, Promise, Result,
+    Error,
+    ErrorKind,
+    Promise,
+    Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
@@ -41,7 +43,7 @@ use tracing::{level_enabled, Level};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
-    global_registry: Registry,
+    //global_registry: Registry,
     channels: Channels,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -72,7 +74,7 @@ impl Connection {
         let connection = Self {
             configuration,
             status,
-            global_registry,
+            //global_registry,
             channels,
             io_loop: ThreadHandle::default(),
             closer,
@@ -319,20 +321,18 @@ impl Connection {
         promise_in.await
     }
 
+    /* FIXME: use this for connection recovery
     /// Get the current topology
     ///
     /// This includes exchanges, queues, bindings and consumers declared by this Connection
-    pub fn topology(&self) -> TopologyDefinition {
-        self.topology_internal().into()
-    }
-
-    pub(crate) fn topology_internal(&self) -> TopologyInternal {
-        TopologyInternal {
+    pub(crate) fn topology(&self) -> TopologyDefinition {
+        TopologyDefinition {
             exchanges: self.global_registry.exchanges_topology(),
             queues: self.global_registry.queues_topology(false),
             channels: self.channels.topology(),
         }
     }
+    */
 }
 
 impl fmt::Debug for Connection {

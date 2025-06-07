@@ -8,10 +8,18 @@ use crate::{
     recovery_config::RecoveryConfig,
     registry::Registry,
     socket_state::SocketStateHandle,
-    topology_internal::ChannelDefinitionInternal,
+    //topology::ChannelDefinition,
     types::{ChannelId, Identifier, PayloadSize},
-    BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
-    Error, ErrorKind, Promise, Result,
+    BasicProperties,
+    Channel,
+    ChannelState,
+    Configuration,
+    ConnectionState,
+    ConnectionStatus,
+    Error,
+    ErrorKind,
+    Promise,
+    Result,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
@@ -270,7 +278,8 @@ impl Channels {
         self.error_handler.set_handler(handler);
     }
 
-    pub(crate) fn topology(&self) -> Vec<ChannelDefinitionInternal> {
+    /* FIXME: use this for connection recovery
+    pub(crate) fn topology(&self) -> Vec<ChannelDefinition> {
         self.lock_inner()
             .channels
             .values()
@@ -278,6 +287,7 @@ impl Channels {
             .map(Channel::topology)
             .collect()
     }
+    */
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())

@@ -123,7 +123,6 @@ pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;
 pub mod socket_state;
-pub mod topology;
 
 use promise::{Promise, PromiseResolver};
 
@@ -163,5 +162,5 @@ mod recovery_config;
 mod registry;
 mod returned_messages;
 mod thread;
-mod topology_internal;
+mod topology;
 mod wakers;

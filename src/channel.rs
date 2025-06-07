@@ -20,14 +20,13 @@ use crate::{
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology_internal::ChannelDefinitionInternal,
+    topology::ChannelDefinition,
     types::*,
     BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
     Promise, PromiseResolver, Result,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use executor_trait::FullExecutor;
-use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{error, info, level_enabled, trace, Level};
 
@@ -339,17 +338,14 @@ impl Channel {
         }
 
         // Finally, redeclare all consumers
-        for consumer in &topology.consumers {
-            let original = consumer.original();
-            if let Some(original) = original.as_ref() {
-                original.reset();
-            }
+        for consumer in topology.consumers.iter().cloned() {
+            consumer.reset();
             self.do_basic_consume(
-                consumer.queue.as_str(),
-                consumer.tag.as_str(),
-                consumer.options,
-                consumer.arguments.clone(),
-                original,
+                consumer.queue().as_str(),
+                consumer.tag().as_str(),
+                consumer.options(),
+                consumer.arguments(),
+                Some(consumer),
             )
             .await?;
         }
@@ -493,8 +489,8 @@ impl Channel {
         )
     }
 
-    pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
-        ChannelDefinitionInternal {
+    pub(crate) fn topology(&self) -> ChannelDefinition {
+        ChannelDefinition {
             queues: self.local_registry.queues_topology(true),
             consumers: self.consumers.topology(),
         }

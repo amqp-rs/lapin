@@ -1,8 +1,8 @@
 use crate::{
     exchange::ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    topology::QueueDefinition,
     topology::{BindingDefinition, ExchangeDefinition},
-    topology_internal::QueueDefinitionInternal,
     types::{FieldTable, ShortString},
 };
 use std::{
@@ -14,11 +14,13 @@ use std::{
 pub(crate) struct Registry(Arc<Mutex<Inner>>);
 
 impl Registry {
+    /* FIXME: use this for connection recovery
     pub(crate) fn exchanges_topology(&self) -> Vec<ExchangeDefinition> {
         self.lock_inner().exchanges.values().cloned().collect()
     }
+    */
 
-    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinitionInternal> {
+    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinition> {
         self.lock_inner()
             .queues
             .values()
@@ -110,7 +112,7 @@ impl Registry {
         } else {
             inner.queues.insert(
                 name.clone(),
-                QueueDefinitionInternal::declared(name, options, arguments),
+                QueueDefinition::declared(name, options, arguments),
             );
         }
     }
@@ -129,7 +131,7 @@ impl Registry {
         self.lock_inner()
             .queues
             .entry(destination.clone())
-            .or_insert_with(|| QueueDefinitionInternal::undeclared(destination))
+            .or_insert_with(|| QueueDefinition::undeclared(destination))
             .register_binding(source, routing_key, arguments);
     }
 
@@ -153,5 +155,5 @@ impl Registry {
 #[derive(Default)]
 struct Inner {
     exchanges: HashMap<ShortString, ExchangeDefinition>,
-    queues: HashMap<ShortString, QueueDefinitionInternal>,
+    queues: HashMap<ShortString, QueueDefinition>,
 }

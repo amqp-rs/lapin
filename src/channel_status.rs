@@ -4,7 +4,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     notifier::Notifier,
-    topology_internal::ChannelDefinitionInternal,
+    topology::ChannelDefinition,
     types::{ChannelId, Identifier, PayloadSize},
     Error, ErrorKind, Result,
 };
@@ -49,7 +49,7 @@ impl ChannelStatus {
         }
     }
 
-    pub(crate) fn topology(&self) -> Option<ChannelDefinitionInternal> {
+    pub(crate) fn topology(&self) -> Option<ChannelDefinition> {
         Some(self.lock_inner().recovery_context.as_ref()?.topology())
     }
 
@@ -90,7 +90,7 @@ impl ChannelStatus {
         Error::from(ErrorKind::InvalidChannelState(inner.state)).with_notifier(inner.notifier())
     }
 
-    pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinitionInternal) {
+    pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinition) {
         self.lock_inner().set_reconnecting(error, topology);
     }
 
@@ -228,7 +228,7 @@ impl Inner {
             .set_channel_status(self.id, self.killswitch.clone());
     }
 
-    fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinitionInternal) {
+    fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
         self.update_rpc_status();

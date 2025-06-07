@@ -2,7 +2,6 @@ use crate::{
     consumer::Consumer,
     error_holder::ErrorHolder,
     message::Delivery,
-    topology_internal::ConsumerDefinitionInternal,
     types::{PayloadSize, ShortString},
     BasicProperties, Error,
 };
@@ -108,11 +107,8 @@ impl Consumers {
         }
     }
 
-    pub(crate) fn topology(&self) -> Vec<ConsumerDefinitionInternal> {
-        self.lock_inner()
-            .values()
-            .map(|consumer| ConsumerDefinitionInternal::new(consumer.clone()))
-            .collect()
+    pub(crate) fn topology(&self) -> Vec<Consumer> {
+        self.lock_inner().values().cloned().collect()
     }
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
