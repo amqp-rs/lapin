@@ -237,8 +237,12 @@ impl Channel {
         self.consumers.cancel();
     }
 
+    fn is_recovering(&self, error: &Error) -> bool {
+        self.recovery_config.auto_recover_channels && error.is_amqp_soft_error()
+    }
+
     fn error_consumers(&self, error: Error) {
-        let recover = self.recovery_config.auto_recover_channels && error.is_amqp_soft_error();
+        let recover = self.is_recovering(&error);
         self.consumers.error(error, recover);
     }
 
@@ -573,8 +577,7 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        if !self.recovery_config.auto_recover_channels
-            || !error.as_ref().is_some_and(Error::is_amqp_soft_error)
+        if error.as_ref().is_none_or(|err| !self.is_recovering(err))
         {
             self.set_closed(
                 error
