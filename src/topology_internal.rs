@@ -1,14 +1,11 @@
 use crate::{
-    channel::Channel,
     consumer::Consumer,
-    message::BasicGetMessage,
-    options::{BasicGetOptions, QueueDeclareOptions},
+    options::QueueDeclareOptions,
     topology::{
         BindingDefinition, ChannelDefinition, ConsumerDefinition, ExchangeDefinition,
         QueueDefinition, TopologyDefinition,
     },
     types::{FieldTable, ShortString},
-    PromiseResolver,
 };
 use std::ops::Deref;
 
@@ -41,7 +38,6 @@ impl From<TopologyInternal> for TopologyDefinition {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ChannelDefinitionInternal {
-    pub(crate) channel: Option<Channel>,
     pub(crate) queues: Vec<QueueDefinitionInternal>,
     pub(crate) consumers: Vec<ConsumerDefinitionInternal>,
 }
@@ -49,7 +45,6 @@ pub(crate) struct ChannelDefinitionInternal {
 impl From<ChannelDefinition> for ChannelDefinitionInternal {
     fn from(mut definition: ChannelDefinition) -> Self {
         Self {
-            channel: None,
             queues: definition.queues.drain(..).map(From::from).collect(),
             consumers: definition.consumers.drain(..).map(From::from).collect(),
         }
@@ -210,11 +205,4 @@ impl From<ConsumerDefinitionInternal> for ConsumerDefinition {
     fn from(internal: ConsumerDefinitionInternal) -> Self {
         internal.definition
     }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct BasicGetDefinitionInternal {
-    pub(crate) queue: ShortString,
-    pub(crate) options: BasicGetOptions,
-    pub(crate) resolver: PromiseResolver<Option<BasicGetMessage>>,
 }

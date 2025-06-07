@@ -20,7 +20,6 @@ use crate::{
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
-    topology::RestoredChannel,
     topology_internal::ChannelDefinitionInternal,
     types::*,
     BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
@@ -138,70 +137,6 @@ impl Channel {
 
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
-    }
-
-    pub(crate) async fn restore(
-        &self,
-        ch: &ChannelDefinitionInternal,
-        c: &mut RestoredChannel,
-    ) -> Result<()> {
-        // First, redeclare all queues
-        for queue in &ch.queues {
-            if queue.is_declared() {
-                c.queues.push(
-                    self.queue_declare(
-                        queue.name.as_str(),
-                        queue.options.unwrap_or_default(),
-                        queue.arguments.clone().unwrap_or_default(),
-                    )
-                    .await?,
-                );
-            }
-        }
-
-        // Second, redeclare all queues bindings
-        for queue in &ch.queues {
-            for binding in &queue.bindings {
-                self.queue_bind(
-                    queue.name.as_str(),
-                    binding.source.as_str(),
-                    binding.routing_key.as_str(),
-                    QueueBindOptions::default(),
-                    binding.arguments.clone(),
-                )
-                .await?;
-            }
-        }
-
-        // Third, redeclare all consumers
-        for consumer in &ch.consumers {
-            let original = consumer.original();
-            if let Some(original) = original.as_ref() {
-                original.reset();
-            }
-            c.consumers.push(
-                self.do_basic_consume(
-                    consumer.queue.as_str(),
-                    consumer.tag.as_str(),
-                    consumer.options,
-                    consumer.arguments.clone(),
-                    original,
-                )
-                .await?,
-            );
-        }
-
-        // Fourth, reemit pending basic_get
-        if let Some(original) = self.basic_get_delivery.recover() {
-            self.do_basic_get(
-                original.queue.as_str(),
-                original.options,
-                Some(original.resolver),
-            )
-            .await?;
-        }
-
-        Ok(())
     }
 
     pub(crate) fn set_closing(&self, error: Option<Error>) {
@@ -368,7 +303,16 @@ impl Channel {
     async fn start_recovery(&self) -> Result<()> {
         let queues = self.local_registry.queues_topology(true);
         let consumers = self.consumers.topology();
+
+        // First, reopen the channel
         self.channel_open(self.clone()).await?;
+
+        // Then, reenable confirm_select if needed
+        if self.status.confirm() {
+            self.confirm_select(ConfirmSelectOptions::default()).await?;
+        }
+
+        // Third, redeclare all queues
         for queue in &queues {
             if queue.is_declared() {
                 self.queue_declare(
@@ -379,6 +323,8 @@ impl Channel {
                 .await?;
             }
         }
+
+        // Fourth, redeclare all queues bindings
         for queue in &queues {
             for binding in &queue.bindings {
                 self.queue_bind(
@@ -391,9 +337,8 @@ impl Channel {
                 .await?;
             }
         }
-        if self.status.confirm() {
-            self.confirm_select(ConfirmSelectOptions::default()).await?;
-        }
+
+        // Finally, redeclare all consumers
         for consumer in &consumers {
             let original = consumer.original();
             if let Some(original) = original.as_ref() {
@@ -408,6 +353,7 @@ impl Channel {
             )
             .await?;
         }
+
         Ok(())
     }
 
@@ -549,7 +495,6 @@ impl Channel {
 
     pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
         ChannelDefinitionInternal {
-            channel: Some(self.clone()), // FIXME: drop
             queues: self.local_registry.queues_topology(true),
             consumers: self.consumers.topology(),
         }
@@ -1117,14 +1062,10 @@ impl Channel {
         &self,
         method: protocol::basic::GetOk,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
-        queue: ShortString,
-        options: BasicGetOptions,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
         let killswitch = self.status.set_will_receive(class_id, DeliveryCause::Get);
         self.basic_get_delivery.start_new_delivery(
-            queue,
-            options,
             BasicGetMessage::new(
                 self.id,
                 method.delivery_tag,

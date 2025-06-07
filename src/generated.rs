@@ -201,11 +201,7 @@ pub(crate) enum Reply {
         Option<Consumer>,
     ),
     BasicCancelOk(PromiseResolver<()>),
-    BasicGetOk(
-        PromiseResolver<Option<BasicGetMessage>>,
-        ShortString,
-        BasicGetOptions,
-    ),
+    BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
     BasicRecoverOk(PromiseResolver<()>),
     ConnectionOpenOk(PromiseResolver<()>, Connection),
     ConnectionCloseOk(PromiseResolver<()>),
@@ -691,7 +687,7 @@ impl Channel {
             method,
             send_resolver,
             Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone(), queue.into(), options),
+                Reply::BasicGetOk(resolver.clone()),
                 Box::new(resolver),
             )),
         );
@@ -707,9 +703,7 @@ impl Channel {
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
         {
-            Some(Reply::BasicGetOk(resolver, queue, options)) => {
-                self.on_basic_get_ok_received(method, resolver, queue, options)
-            }
+            Some(Reply::BasicGetOk(resolver)) => self.on_basic_get_ok_received(method, resolver),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected basic get-ok received on channel {}, was awaiting for {:?}",

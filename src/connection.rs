@@ -9,13 +9,12 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
-    options::{ExchangeBindOptions, QueueBindOptions},
     recovery_config::RecoveryConfig,
     registry::Registry,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
-    topology::{RestoredChannel, RestoredTopology, TopologyDefinition},
+    topology::TopologyDefinition,
     topology_internal::TopologyInternal,
     types::ReplyCode,
     uri::AMQPUri,
@@ -133,101 +132,6 @@ impl Connection {
         }
         let channel = self.channels.create(self.closer.clone())?;
         channel.clone().channel_open(channel).await
-    }
-
-    /// Restore the specified topology
-    pub async fn restore(&self, topology: TopologyDefinition) -> Result<RestoredTopology> {
-        self.restore_internal(topology.into()).await
-    }
-
-    pub(crate) async fn restore_internal(
-        &self,
-        topology: TopologyInternal,
-    ) -> Result<RestoredTopology> {
-        let mut restored = RestoredTopology::default();
-
-        // First, recreate all channels
-        for c in &topology.channels {
-            restored
-                .channels
-                .push(RestoredChannel::new(if let Some(c) = c.channel.clone() {
-                    let channel = c.clone();
-                    c.channel_open(channel).await?
-                } else {
-                    self.create_channel().await?
-                }));
-        }
-
-        // Then, ensure we have at least one channel to restore everything else
-        let channel = if let Some(chan) = restored.channels.first() {
-            chan.channel.clone()
-        } else {
-            self.create_channel().await?
-        };
-
-        // First, redeclare all exchanges
-        for ex in &topology.exchanges {
-            channel
-                .exchange_declare(
-                    ex.name.as_str(),
-                    ex.kind.clone().unwrap_or_default(),
-                    ex.options.unwrap_or_default(),
-                    ex.arguments.clone().unwrap_or_default(),
-                )
-                .await?;
-        }
-
-        // Second, redeclare all exchange bindings
-        for ex in &topology.exchanges {
-            for binding in &ex.bindings {
-                channel
-                    .exchange_bind(
-                        ex.name.as_str(),
-                        binding.source.as_str(),
-                        binding.routing_key.as_str(),
-                        ExchangeBindOptions::default(),
-                        binding.arguments.clone(),
-                    )
-                    .await?;
-            }
-        }
-
-        // Third, redeclare all "global" (e.g. non exclusive) queues
-        for queue in &topology.queues {
-            if queue.is_declared() {
-                restored.queues.push(
-                    channel
-                        .queue_declare(
-                            queue.name.as_str(),
-                            queue.options.unwrap_or_default(),
-                            queue.arguments.clone().unwrap_or_default(),
-                        )
-                        .await?,
-                );
-            }
-        }
-
-        // Fourth, redeclare all global queues bindings
-        for queue in &topology.queues {
-            for binding in &queue.bindings {
-                channel
-                    .queue_bind(
-                        queue.name.as_str(),
-                        binding.source.as_str(),
-                        binding.routing_key.as_str(),
-                        QueueBindOptions::default(),
-                        binding.arguments.clone(),
-                    )
-                    .await?;
-            }
-        }
-
-        // Fifth, restore all channel-specific queues/bindings/consumers
-        for (n, ch) in topology.channels.iter().enumerate() {
-            let c = &mut restored.channels[n];
-            c.channel.clone().restore(ch, c).await?;
-        }
-        Ok(restored)
     }
 
     /// Block current thread while the connection is still active.

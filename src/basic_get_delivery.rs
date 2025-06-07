@@ -1,10 +1,4 @@
-use crate::{
-    message::BasicGetMessage,
-    options::BasicGetOptions,
-    topology_internal::BasicGetDefinitionInternal,
-    types::{PayloadSize, ShortString},
-    BasicProperties, PromiseResolver,
-};
+use crate::{message::BasicGetMessage, types::PayloadSize, BasicProperties, PromiseResolver};
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
@@ -16,13 +10,10 @@ pub(crate) struct BasicGetDelivery(Arc<Mutex<Inner>>);
 impl BasicGetDelivery {
     pub(crate) fn start_new_delivery(
         &self,
-        queue: ShortString,
-        options: BasicGetOptions,
         message: BasicGetMessage,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.lock_inner()
-            .start_new_delivery(queue, options, message, resolver);
+        self.lock_inner().start_new_delivery(message, resolver);
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -36,17 +27,6 @@ impl BasicGetDelivery {
 
     pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
         self.lock_inner().handle_body_frame(remaining_size, payload);
-    }
-
-    pub(crate) fn recover(&self) -> Option<BasicGetDefinitionInternal> {
-        self.lock_inner()
-            .0
-            .take()
-            .map(|inner| BasicGetDefinitionInternal {
-                queue: inner.queue,
-                options: inner.options,
-                resolver: inner.resolver,
-            })
     }
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
@@ -66,17 +46,10 @@ struct Inner(Option<InnerData>);
 impl Inner {
     fn start_new_delivery(
         &mut self,
-        queue: ShortString,
-        options: BasicGetOptions,
         message: BasicGetMessage,
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) {
-        self.0 = Some(InnerData {
-            queue,
-            options,
-            message,
-            resolver,
-        });
+        self.0 = Some(InnerData { message, resolver });
     }
 
     fn handle_content_header_frame(&mut self, size: PayloadSize, properties: BasicProperties) {
@@ -105,8 +78,6 @@ impl Inner {
 }
 
 struct InnerData {
-    queue: ShortString,
-    options: BasicGetOptions,
     message: BasicGetMessage,
     resolver: PromiseResolver<Option<BasicGetMessage>>,
 }

@@ -1,13 +1,10 @@
 use crate::{
-    channel::Channel,
-    consumer::Consumer,
     exchange::ExchangeKind,
     options::{BasicConsumeOptions, ExchangeDeclareOptions, QueueDeclareOptions},
     queue::Queue,
     types::{FieldTable, ShortString},
 };
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
 
 /// The current topology definition
 ///
@@ -76,52 +73,10 @@ pub struct ConsumerDefinition {
 #[derive(Default)]
 pub struct RestoredTopology {
     pub(crate) queues: Vec<Queue>,
-    pub(crate) channels: Vec<RestoredChannel>,
 }
 
 impl RestoredTopology {
     pub fn queue(&self, index: usize) -> Queue {
         self.queues[index].clone()
-    }
-
-    pub fn channel(&self, index: usize) -> RestoredChannel {
-        self.channels[index].clone()
-    }
-}
-
-#[derive(Clone)]
-pub struct RestoredChannel {
-    pub(crate) channel: Channel,
-    pub(crate) queues: Vec<Queue>,
-    pub(crate) consumers: Vec<Consumer>,
-}
-
-impl Deref for RestoredChannel {
-    type Target = Channel;
-
-    fn deref(&self) -> &Self::Target {
-        &self.channel
-    }
-}
-
-impl RestoredChannel {
-    pub(crate) fn new(channel: Channel) -> Self {
-        Self {
-            channel,
-            queues: Vec::new(),
-            consumers: Vec::new(),
-        }
-    }
-
-    pub fn into_inner(self) -> Channel {
-        self.channel
-    }
-
-    pub fn queue(&self, index: usize) -> Queue {
-        self.queues[index].clone()
-    }
-
-    pub fn consumer(&self, index: usize) -> Consumer {
-        self.consumers[index].clone()
     }
 }
