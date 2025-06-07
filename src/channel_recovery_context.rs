@@ -33,6 +33,10 @@ impl ChannelRecoveryContext {
         self.notifier.clone()
     }
 
+    pub(crate) fn topology(&self) -> ChannelDefinitionInternal {
+        self.topology.clone()
+    }
+
     pub(crate) fn set_expected_replies(
         &mut self,
         expected_replies: Option<VecDeque<ExpectedReply>>,

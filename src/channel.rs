@@ -301,8 +301,8 @@ impl Channel {
     }
 
     async fn start_recovery(&self) -> Result<()> {
-        let queues = self.local_registry.queues_topology(true);
-        let consumers = self.consumers.topology();
+        // FIXME: maybe drop the Option?
+        let topology = self.status.topology().expect("No topology during recovery");
 
         // First, reopen the channel
         self.channel_open(self.clone()).await?;
@@ -313,7 +313,7 @@ impl Channel {
         }
 
         // Third, redeclare all queues
-        for queue in &queues {
+        for queue in &topology.queues {
             if queue.is_declared() {
                 self.queue_declare(
                     queue.name.as_str(),
@@ -325,7 +325,7 @@ impl Channel {
         }
 
         // Fourth, redeclare all queues bindings
-        for queue in &queues {
+        for queue in &topology.queues {
             for binding in &queue.bindings {
                 self.queue_bind(
                     queue.name.as_str(),
@@ -339,7 +339,7 @@ impl Channel {
         }
 
         // Finally, redeclare all consumers
-        for consumer in &consumers {
+        for consumer in &topology.consumers {
             let original = consumer.original();
             if let Some(original) = original.as_ref() {
                 original.reset();

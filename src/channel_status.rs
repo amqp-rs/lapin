@@ -49,6 +49,10 @@ impl ChannelStatus {
         }
     }
 
+    pub(crate) fn topology(&self) -> Option<ChannelDefinitionInternal> {
+        Some(self.lock_inner().recovery_context.as_ref()?.topology())
+    }
+
     pub(crate) fn finalize_recovery(&self) {
         self.lock_inner().finalize_recovery();
     }
