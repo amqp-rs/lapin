@@ -37,7 +37,7 @@ pub(crate) struct QueueDefinition {
     pub(crate) options: Option<QueueDeclareOptions>,
     pub(crate) arguments: Option<FieldTable>,
     pub(crate) bindings: Vec<BindingDefinition>,
-    declared: bool,
+    pub(crate) is_declared: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -66,7 +66,7 @@ impl QueueDefinition {
             options: Some(options),
             arguments: Some(arguments),
             bindings: Vec::new(),
-            declared: true,
+            is_declared: true,
         }
     }
 
@@ -76,22 +76,14 @@ impl QueueDefinition {
             options: None,
             arguments: None,
             bindings: Vec::new(),
-            declared: false,
+            is_declared: false,
         }
     }
 
     pub(crate) fn set_declared(&mut self, options: QueueDeclareOptions, arguments: FieldTable) {
         self.options = Some(options);
         self.arguments = Some(arguments);
-        self.declared = true;
-    }
-
-    pub(crate) fn is_declared(&self) -> bool {
-        self.declared
-    }
-
-    pub(crate) fn is_exclusive(&self) -> bool {
-        self.options.is_some_and(|o| o.exclusive)
+        self.is_declared = true;
     }
 
     pub(crate) fn register_binding(

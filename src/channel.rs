@@ -322,7 +322,7 @@ impl Channel {
 
         // Third, redeclare all queues
         for queue in &topology.queues {
-            if queue.is_declared() {
+            if queue.is_declared {
                 self.queue_declare(
                     queue.name.as_str(),
                     queue.options.unwrap_or_default(),
@@ -500,7 +500,7 @@ impl Channel {
 
     pub(crate) fn topology(&self) -> ChannelDefinition {
         ChannelDefinition {
-            queues: self.local_registry.queues_topology(true),
+            queues: self.local_registry.queues_topology(),
             consumers: self.consumers.topology(),
         }
     }

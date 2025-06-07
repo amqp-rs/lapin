@@ -20,11 +20,10 @@ impl Registry {
     }
     */
 
-    pub(crate) fn queues_topology(&self, exclusive: bool) -> Vec<QueueDefinition> {
+    pub(crate) fn queues_topology(&self) -> Vec<QueueDefinition> {
         self.lock_inner()
             .queues
             .values()
-            .filter(|q| q.is_exclusive() == exclusive)
             .cloned()
             .collect()
     }
