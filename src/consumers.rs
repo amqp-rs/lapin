@@ -98,9 +98,13 @@ impl Consumers {
         }
     }
 
-    pub(crate) fn error(&self, error: Error) {
+    pub(crate) fn error(&self, error: Error, recover: bool) {
         for (_, consumer) in self.lock_inner().drain() {
-            consumer.set_error(error.clone());
+            if recover {
+                consumer.send_error(error.clone());
+            } else {
+                consumer.set_error(error.clone());
+            }
         }
     }
 

@@ -287,14 +287,19 @@ impl Consumer {
         status.cancel();
     }
 
-    pub(crate) fn set_error(&self, error: Error) {
-        trace!(consumer_tag=%self.consumer_tag, "set_error");
-        self.error.set(error.clone());
+    pub(crate) fn send_error(&self, error: Error) {
+        trace!(consumer_tag=%self.consumer_tag, "send_error");
         self.dispatch(
             Err(error),
             "failed to send error to consumer",
             self.status.delegate(),
         );
+    }
+
+    pub(crate) fn set_error(&self, error: Error) {
+        trace!(consumer_tag=%self.consumer_tag, "set_error");
+        self.error.set(error.clone());
+        self.send_error(error);
         self.cancel();
     }
 

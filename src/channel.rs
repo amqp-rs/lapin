@@ -238,7 +238,8 @@ impl Channel {
     }
 
     fn error_consumers(&self, error: Error) {
-        self.consumers.error(error);
+        let recover = self.recovery_config.auto_recover_channels && error.is_amqp_soft_error();
+        self.consumers.error(error, recover);
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -870,8 +871,6 @@ impl Channel {
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
                 self.frames.drop_frames_for_channel(channel.id, ctx.cause());
                 self.acknowledgements.reset(ctx.cause());
-                // FIXME: don't close consumers
-                self.consumers.error(ctx.cause());
             });
             if !self.status.confirm() {
                 self.status.finalize_recovery();
