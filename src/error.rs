@@ -182,9 +182,10 @@ impl PartialEq for Error {
             }
 
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
-            (InvalidChannelState(left_inner, left_context), InvalidChannelState(right_inner, right_context)) => {
-                left_inner == right_inner && left_context == right_context
-            }
+            (
+                InvalidChannelState(left_inner, left_context),
+                InvalidChannelState(right_inner, right_context),
+            ) => left_inner == right_inner && left_context == right_context,
             (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
                 left_inner == right_inner
             }

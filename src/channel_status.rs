@@ -83,7 +83,8 @@ impl ChannelStatus {
 
     pub(crate) fn state_error(&self, context: &'static str) -> Error {
         let inner = self.lock_inner();
-        Error::from(ErrorKind::InvalidChannelState(inner.state, context)).with_notifier(inner.notifier())
+        Error::from(ErrorKind::InvalidChannelState(inner.state, context))
+            .with_notifier(inner.notifier())
     }
 
     pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinition) {
