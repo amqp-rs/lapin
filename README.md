@@ -54,6 +54,30 @@ You can configure the reactor to use through [reactor-trait](https://crates.io/c
 
 There are implementations for tokio, async-std and others.
 
+## Experimental auomatic reconnection
+
+WARNING: use at your own risk, this feature is not considered stable yet. Expect some bugs and please help by reporting them.
+
+There is experimental support for recovering connection after errors. For now, only Channels can be recovered after an AMQP soft error. Connection is next in TODO.
+
+To enable this, you need to enable the `unstable` feature for lapin, and add it to the `ConnectionProperties`:
+
+```rust
+let recovery_config = RecoveryConfig::default().auto_recover_channels();
+let properties = ConnectionProperties::default().with_experimental_recovery_config(recovery_config);
+// connect using properties.
+```
+
+You can then check if an error can be recovered and wait for recovery (some new syntax on top of this will come soon):
+
+```rust
+if err.is_amqp_soft_error() {
+    if let Some(notifier) = err.notifier() {
+        notifier.await?;
+    }
+}
+```
+
 ## Example
 
 ```rust
