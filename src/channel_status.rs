@@ -228,13 +228,13 @@ impl Inner {
     fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
-        self.update_rpc_status();
         self.receiver_state.reset();
         self.recovery_context = Some(ChannelRecoveryContext::new(error, topology));
     }
 
     pub(crate) fn finalize_recovery(&mut self) {
         self.state = ChannelState::Connected;
+        self.update_rpc_status();
         if let Some(ctx) = self.recovery_context.take() {
             ctx.finalize_recovery();
         }
