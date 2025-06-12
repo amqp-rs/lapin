@@ -5,6 +5,7 @@
 * `Error` is now `ErrorKind`, wrapped in a new `Error` type (use `Error::kind` to access the previous type)
 * no more `Acker::default`
 * `Acker::used` is replaced with `Acker::usable`
+* Removed the topology API
 
 #### Features
 
@@ -21,7 +22,7 @@
 * Update to nom 8
 * Drop parking-lot dependency
 * Drop pinky-swear dependency
-* Edition 2024 preparation
+* Edition 2024
 
 ### 2.5.3 (2025-04-05)
 
