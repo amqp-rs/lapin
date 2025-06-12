@@ -336,7 +336,7 @@ impl Channel {
         options: BasicQosOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.qos"));
         }
 
         let BasicQosOptions { global } = options;
@@ -366,7 +366,7 @@ impl Channel {
     }
     fn receive_basic_qos_ok(&self, method: protocol::basic::QosOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.qos-ok"));
         }
 
         match self
@@ -397,7 +397,7 @@ impl Channel {
         original: Option<Consumer>,
     ) -> Result<Consumer> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.consume"));
         }
 
         let creation_arguments = arguments.clone();
@@ -452,7 +452,7 @@ impl Channel {
     }
     fn receive_basic_consume_ok(&self, method: protocol::basic::ConsumeOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.consume-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -490,7 +490,7 @@ impl Channel {
         options: BasicCancelOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.cancel"));
         }
 
         self.before_basic_cancel(consumer_tag);
@@ -528,13 +528,13 @@ impl Channel {
     }
     fn receive_basic_cancel(&self, method: protocol::basic::Cancel) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.cancel"));
         }
         self.on_basic_cancel_received(method)
     }
     async fn basic_cancel_ok(&self, consumer_tag: &str) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.cancel-ok"));
         }
 
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(
@@ -552,7 +552,7 @@ impl Channel {
     }
     fn receive_basic_cancel_ok(&self, method: protocol::basic::CancelOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.cancel-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -582,7 +582,7 @@ impl Channel {
         properties: BasicProperties,
     ) -> Result<PublisherConfirm> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.publish"));
         }
 
         let start_hook_res = self.before_basic_publish();
@@ -604,13 +604,13 @@ impl Channel {
     }
     fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.return"));
         }
         self.on_basic_return_received(method)
     }
     fn receive_basic_deliver(&self, method: protocol::basic::Deliver) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.deliver"));
         }
         self.on_basic_deliver_received(method)
     }
@@ -621,7 +621,7 @@ impl Channel {
         original: Option<PromiseResolver<Option<BasicGetMessage>>>,
     ) -> Result<Option<BasicGetMessage>> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.get"));
         }
 
         let BasicGetOptions { no_ack } = options;
@@ -652,7 +652,7 @@ impl Channel {
     }
     fn receive_basic_get_ok(&self, method: protocol::basic::GetOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.get-ok"));
         }
 
         match self
@@ -672,7 +672,7 @@ impl Channel {
     }
     fn receive_basic_get_empty(&self, method: protocol::basic::GetEmpty) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.get-empty"));
         }
         self.on_basic_get_empty_received(method)
     }
@@ -682,7 +682,7 @@ impl Channel {
         options: BasicAckOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.ack"));
         }
 
         let BasicAckOptions { multiple } = options;
@@ -701,7 +701,7 @@ impl Channel {
     }
     fn receive_basic_ack(&self, method: protocol::basic::Ack) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.ack"));
         }
         self.on_basic_ack_received(method)
     }
@@ -711,7 +711,7 @@ impl Channel {
         options: BasicRejectOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.reject"));
         }
 
         let BasicRejectOptions { requeue } = options;
@@ -731,7 +731,7 @@ impl Channel {
     }
     pub async fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.recover-async"));
         }
 
         let BasicRecoverAsyncOptions { requeue } = options;
@@ -749,7 +749,7 @@ impl Channel {
     }
     pub async fn basic_recover(&self, options: BasicRecoverOptions) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.recover"));
         }
 
         let BasicRecoverOptions { requeue } = options;
@@ -778,7 +778,7 @@ impl Channel {
     }
     fn receive_basic_recover_ok(&self, method: protocol::basic::RecoverOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.recover-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -805,7 +805,7 @@ impl Channel {
         options: BasicNackOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.nack"));
         }
 
         let BasicNackOptions { multiple, requeue } = options;
@@ -825,14 +825,14 @@ impl Channel {
     }
     fn receive_basic_nack(&self, method: protocol::basic::Nack) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("basic.nack"));
         }
         self.on_basic_nack_received(method)
     }
     fn receive_connection_start(&self, method: protocol::connection::Start) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.start"));
         }
         self.on_connection_start_received(method)
     }
@@ -847,7 +847,7 @@ impl Channel {
         credentials: Credentials,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.start-ok"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
@@ -870,13 +870,13 @@ impl Channel {
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.secure"));
         }
         self.on_connection_secure_received(method)
     }
     async fn connection_secure_ok(&self, response: &str) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.secure-ok"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
@@ -895,7 +895,7 @@ impl Channel {
     fn receive_connection_tune(&self, method: protocol::connection::Tune) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.tune"));
         }
         self.on_connection_tune_received(method)
     }
@@ -906,7 +906,7 @@ impl Channel {
         heartbeat: ShortUInt,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.tune-ok"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::TuneOk(
@@ -931,7 +931,7 @@ impl Channel {
         conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.open"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
@@ -963,7 +963,7 @@ impl Channel {
     fn receive_connection_open_ok(&self, method: protocol::connection::OpenOk) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.open-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -992,7 +992,7 @@ impl Channel {
         method_id: ShortUInt,
     ) -> Result<()> {
         if !self.status.closing() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.close"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Close(
@@ -1026,13 +1026,13 @@ impl Channel {
     fn receive_connection_close(&self, method: protocol::connection::Close) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.close"));
         }
         self.on_connection_close_received(method)
     }
     pub(crate) async fn connection_close_ok(&self, error: Error) -> Result<()> {
         if !self.status.closing() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.close-ok"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::CloseOk(
@@ -1050,7 +1050,7 @@ impl Channel {
     fn receive_connection_close_ok(&self, method: protocol::connection::CloseOk) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.close-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1073,7 +1073,7 @@ impl Channel {
     }
     pub(crate) async fn connection_blocked(&self, reason: &str) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.blocked"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Blocked(
@@ -1092,13 +1092,13 @@ impl Channel {
     fn receive_connection_blocked(&self, method: protocol::connection::Blocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.blocked"));
         }
         self.on_connection_blocked_received(method)
     }
     pub(crate) async fn connection_unblocked(&self) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.unblocked"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Unblocked(
@@ -1115,7 +1115,7 @@ impl Channel {
     fn receive_connection_unblocked(&self, method: protocol::connection::Unblocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.unblocked"));
         }
         self.on_connection_unblocked_received(method)
     }
@@ -1125,7 +1125,7 @@ impl Channel {
         reason: &str,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.update-secret"));
         }
 
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::UpdateSecret(
@@ -1160,7 +1160,7 @@ impl Channel {
     ) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("connection.update-secret-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))){
@@ -1177,7 +1177,7 @@ impl Channel {
     }
     pub(crate) async fn channel_open(&self, channel: Channel) -> Result<Channel> {
         if !self.status.initializing() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.open"));
         }
 
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::Open(
@@ -1205,7 +1205,7 @@ impl Channel {
     }
     fn receive_channel_open_ok(&self, method: protocol::channel::OpenOk) -> Result<()> {
         if !self.status.initializing() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.open-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1226,7 +1226,7 @@ impl Channel {
     }
     pub async fn channel_flow(&self, options: ChannelFlowOptions) -> Result<Boolean> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.flow"));
         }
 
         let ChannelFlowOptions { active } = options;
@@ -1255,13 +1255,13 @@ impl Channel {
     }
     fn receive_channel_flow(&self, method: protocol::channel::Flow) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.flow"));
         }
         self.on_channel_flow_received(method)
     }
     async fn channel_flow_ok(&self, options: ChannelFlowOkOptions) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.flow-ok"));
         }
 
         let ChannelFlowOkOptions { active } = options;
@@ -1278,7 +1278,7 @@ impl Channel {
     }
     fn receive_channel_flow_ok(&self, method: protocol::channel::FlowOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.flow-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1305,7 +1305,7 @@ impl Channel {
         method_id: ShortUInt,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.close"));
         }
 
         self.before_channel_close();
@@ -1339,13 +1339,13 @@ impl Channel {
     }
     fn receive_channel_close(&self, method: protocol::channel::Close) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.close"));
         }
         self.on_channel_close_received(method)
     }
     async fn channel_close_ok(&self, error: Option<Error>) -> Result<()> {
         if !self.status.closing() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.close-ok"));
         }
 
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::CloseOk(
@@ -1362,7 +1362,7 @@ impl Channel {
     }
     fn receive_channel_close_ok(&self, method: protocol::channel::CloseOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("channel.close-ok"));
         }
 
         match self.next_expected_close_ok_reply() {
@@ -1383,7 +1383,7 @@ impl Channel {
     }
     pub async fn access_request(&self, realm: &str, options: AccessRequestOptions) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("access.request"));
         }
 
         let AccessRequestOptions {
@@ -1425,7 +1425,7 @@ impl Channel {
     }
     fn receive_access_request_ok(&self, method: protocol::access::RequestOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("access.request-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1455,7 +1455,7 @@ impl Channel {
         exchange_kind: ExchangeKind,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.declare"));
         }
 
         let creation_arguments = arguments.clone();
@@ -1509,7 +1509,7 @@ impl Channel {
     }
     fn receive_exchange_declare_ok(&self, method: protocol::exchange::DeclareOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.declare-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1545,7 +1545,7 @@ impl Channel {
         options: ExchangeDeleteOptions,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.delete"));
         }
 
         let ExchangeDeleteOptions { if_unused, nowait } = options;
@@ -1581,7 +1581,7 @@ impl Channel {
     }
     fn receive_exchange_delete_ok(&self, method: protocol::exchange::DeleteOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.delete-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1611,7 +1611,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.bind"));
         }
 
         let creation_arguments = arguments.clone();
@@ -1656,7 +1656,7 @@ impl Channel {
     }
     fn receive_exchange_bind_ok(&self, method: protocol::exchange::BindOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.bind-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1697,7 +1697,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.unbind"));
         }
 
         let creation_arguments = arguments.clone();
@@ -1742,7 +1742,7 @@ impl Channel {
     }
     fn receive_exchange_unbind_ok(&self, method: protocol::exchange::UnbindOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("exchange.unbind-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1781,7 +1781,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<Queue> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.declare"));
         }
 
         let creation_arguments = arguments.clone();
@@ -1831,7 +1831,7 @@ impl Channel {
     }
     fn receive_queue_declare_ok(&self, method: protocol::queue::DeclareOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.declare-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -1859,7 +1859,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.bind"));
         }
 
         let creation_arguments = arguments.clone();
@@ -1902,7 +1902,7 @@ impl Channel {
     }
     fn receive_queue_bind_ok(&self, method: protocol::queue::BindOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.bind-ok"));
         }
 
         match self
@@ -1941,7 +1941,7 @@ impl Channel {
         options: QueuePurgeOptions,
     ) -> Result<MessageCount> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.purge"));
         }
 
         let QueuePurgeOptions { nowait } = options;
@@ -1971,7 +1971,7 @@ impl Channel {
     }
     fn receive_queue_purge_ok(&self, method: protocol::queue::PurgeOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.purge-ok"));
         }
 
         match self
@@ -1997,7 +1997,7 @@ impl Channel {
         options: QueueDeleteOptions,
     ) -> Result<MessageCount> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.delete"));
         }
 
         let QueueDeleteOptions {
@@ -2040,7 +2040,7 @@ impl Channel {
     }
     fn receive_queue_delete_ok(&self, method: protocol::queue::DeleteOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.delete-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -2067,7 +2067,7 @@ impl Channel {
         arguments: FieldTable,
     ) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.unbind"));
         }
 
         let creation_arguments = arguments.clone();
@@ -2107,7 +2107,7 @@ impl Channel {
     }
     fn receive_queue_unbind_ok(&self, method: protocol::queue::UnbindOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("queue.unbind-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {
@@ -2141,7 +2141,7 @@ impl Channel {
     }
     pub async fn tx_select(&self) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.select"));
         }
 
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Select(protocol::tx::Select {}));
@@ -2167,7 +2167,7 @@ impl Channel {
     }
     fn receive_tx_select_ok(&self, method: protocol::tx::SelectOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.select-ok"));
         }
 
         match self
@@ -2191,7 +2191,7 @@ impl Channel {
     }
     pub async fn tx_commit(&self) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.commit"));
         }
 
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Commit(protocol::tx::Commit {}));
@@ -2217,7 +2217,7 @@ impl Channel {
     }
     fn receive_tx_commit_ok(&self, method: protocol::tx::CommitOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.commit-ok"));
         }
 
         match self
@@ -2241,7 +2241,7 @@ impl Channel {
     }
     pub async fn tx_rollback(&self) -> Result<()> {
         if !self.status.connected() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.rollback"));
         }
 
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Rollback(
@@ -2269,7 +2269,7 @@ impl Channel {
     }
     fn receive_tx_rollback_ok(&self, method: protocol::tx::RollbackOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("tx.rollback-ok"));
         }
 
         match self
@@ -2293,7 +2293,7 @@ impl Channel {
     }
     pub async fn confirm_select(&self, options: ConfirmSelectOptions) -> Result<()> {
         if !self.status.connected_or_recovering() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("confirm.select"));
         }
 
         let ConfirmSelectOptions { nowait } = options;
@@ -2322,7 +2322,7 @@ impl Channel {
     }
     fn receive_confirm_select_ok(&self, method: protocol::confirm::SelectOk) -> Result<()> {
         if !self.status.can_receive_messages() {
-            return Err(self.status.state_error());
+            return Err(self.status.state_error("confirm.select-ok"));
         }
 
         match self.frames.find_expected_reply(self.id, |reply| {

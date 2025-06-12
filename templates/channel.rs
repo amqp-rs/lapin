@@ -75,7 +75,7 @@ impl Channel {
     {{/if ~}}
     {{/if ~}}
     {{/if ~}}
-      return Err(self.status.state_error());
+      return Err(self.status.state_error("{{class.name}}.{{method.name}}"));
     }
 
     {{#if method.metadata.start_hook ~}}
@@ -170,7 +170,7 @@ impl Channel {
     {{else}}
     if !self.status.can_receive_messages() {
     {{/if ~}}
-      return Err(self.status.state_error());
+      return Err(self.status.state_error("{{class.name}}.{{method.name}}"));
     }
 
     match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
@@ -204,7 +204,7 @@ impl Channel {
     )?;
     {{/if ~}}
     if !self.status.can_receive_messages() {
-      return Err(self.status.state_error());
+      return Err(self.status.state_error("{{class.name}}.{{method.name}}"));
     }
     self.on_{{snake class.name false}}_{{snake method.name false}}_received(method)
   }

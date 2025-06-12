@@ -588,7 +588,7 @@ impl Channel {
     fn next_expected_close_ok_reply(&self) -> Option<Reply> {
         self.frames.next_expected_close_ok_reply(
             self.id,
-            ErrorKind::InvalidChannelState(ChannelState::Closed).into(),
+            ErrorKind::InvalidChannelState(ChannelState::Closed, "unexpected channel.close-ok received").into(),
         )
     }
 
@@ -601,7 +601,7 @@ impl Channel {
             self.set_closed(
                 error
                     .clone()
-                    .unwrap_or(ErrorKind::InvalidChannelState(ChannelState::Closing).into()),
+                    .unwrap_or(ErrorKind::InvalidChannelState(ChannelState::Closing, "channel.close-ok sent").into()),
             );
             if let Some(error) = error {
                 self.error_handler.on_error(error);
@@ -950,7 +950,7 @@ impl Channel {
     }
 
     fn on_channel_close_ok_received(&self) -> Result<()> {
-        self.set_closed(ErrorKind::InvalidChannelState(ChannelState::Closed).into());
+        self.set_closed(ErrorKind::InvalidChannelState(ChannelState::Closed, "channel.close-ok received").into());
         Ok(())
     }
 

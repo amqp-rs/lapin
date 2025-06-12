@@ -29,7 +29,7 @@ pub enum ErrorKind {
     InvalidProtocolVersion(ProtocolVersion),
 
     InvalidChannel(ChannelId),
-    InvalidChannelState(ChannelState),
+    InvalidChannelState(ChannelState, &'static str),
     InvalidConnectionState(ConnectionState),
 
     IOError(Arc<io::Error>),
@@ -111,8 +111,8 @@ impl fmt::Display for Error {
             }
 
             ErrorKind::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
-            ErrorKind::InvalidChannelState(state) => {
-                write!(f, "invalid channel state: {:?}", state)
+            ErrorKind::InvalidChannelState(state, context) => {
+                write!(f, "invalid channel state: {:?} ({})", state, context)
             }
             ErrorKind::InvalidConnectionState(state) => {
                 write!(f, "invalid connection state: {:?}", state)
@@ -182,8 +182,8 @@ impl PartialEq for Error {
             }
 
             (InvalidChannel(left_inner), InvalidChannel(right_inner)) => left_inner == right_inner,
-            (InvalidChannelState(left_inner), InvalidChannelState(right_inner)) => {
-                left_inner == right_inner
+            (InvalidChannelState(left_inner, left_context), InvalidChannelState(right_inner, right_context)) => {
+                left_inner == right_inner && left_context == right_context
             }
             (InvalidConnectionState(left_inner), InvalidConnectionState(right_inner)) => {
                 left_inner == right_inner
