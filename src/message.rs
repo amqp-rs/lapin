@@ -63,7 +63,7 @@ impl Delivery {
         redelivered: bool,
         internal_rpc: Option<InternalRPCHandle>,
         error: Option<ErrorHolder>,
-        killswitch: Option<KillSwitch>,
+        killswitch: KillSwitch,
     ) -> Self {
         Self {
             delivery_tag,
@@ -115,7 +115,7 @@ impl BasicGetMessage {
                 redelivered,
                 Some(internal_rpc),
                 None,
-                Some(killswitch),
+                killswitch,
             ),
             message_count,
         }
@@ -149,8 +149,9 @@ impl BasicReturnMessage {
         routing_key: ShortString,
         reply_code: ReplyCode,
         reply_text: ShortString,
+        killswitch: KillSwitch,
     ) -> Self {
-        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None, None);
+        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None, killswitch);
         // We cannot ack a returned message
         delivery.acker.invalidate();
         Self {

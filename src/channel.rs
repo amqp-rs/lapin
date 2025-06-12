@@ -1143,6 +1143,9 @@ impl Channel {
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
         let consumer_tag = method.consumer_tag.clone();
+        let killswitch = self
+            .status
+            .set_will_receive(class_id, DeliveryCause::Consume(consumer_tag.clone()));
         self.consumers.start_delivery(&consumer_tag, |error| {
             Delivery::new(
                 self.id,
@@ -1152,11 +1155,9 @@ impl Channel {
                 method.redelivered,
                 Some(self.internal_rpc.clone()),
                 Some(error),
-                None,
+                killswitch,
             )
         });
-        self.status
-            .set_will_receive(class_id, DeliveryCause::Consume(consumer_tag));
         Ok(())
     }
 
@@ -1240,15 +1241,17 @@ impl Channel {
 
     fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<()> {
         let class_id = method.get_amqp_class_id();
+        let killswitch = self
+            .status
+            .set_will_receive(class_id, DeliveryCause::Return);
         self.returned_messages
             .start_new_delivery(BasicReturnMessage::new(
                 method.exchange,
                 method.routing_key,
                 method.reply_code,
                 method.reply_text,
+                killswitch,
             ));
-        self.status
-            .set_will_receive(class_id, DeliveryCause::Return);
         Ok(())
     }
 

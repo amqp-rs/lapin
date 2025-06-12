@@ -14,7 +14,7 @@ pub struct Acker {
     internal_rpc: Option<InternalRPCHandle>,
     error: Option<ErrorHolder>,
     killswitch: KillSwitch,
-    channel_killswitch: Option<KillSwitch>,
+    channel_killswitch: KillSwitch,
 }
 
 impl Acker {
@@ -23,7 +23,7 @@ impl Acker {
         delivery_tag: DeliveryTag,
         internal_rpc: Option<InternalRPCHandle>,
         error: Option<ErrorHolder>,
-        channel_killswitch: Option<KillSwitch>,
+        channel_killswitch: KillSwitch,
     ) -> Self {
         Self {
             channel_id,
@@ -90,9 +90,7 @@ impl Acker {
     }
 
     pub fn poisoned(&self) -> bool {
-        self.channel_killswitch
-            .as_ref()
-            .is_some_and(|ks| ks.killed())
+        self.channel_killswitch.killed()
     }
 
     pub fn usable(&self) -> bool {
