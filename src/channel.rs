@@ -299,9 +299,8 @@ impl Channel {
         let topology = self
             .status
             .update_recovery_context(|ctx| {
-                // Cleanup any pending expecting reply, outgoing or incoming frames
+                // Cleanup any pending expecting reply
                 ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
-                self.frames.drop_frames_for_channel(self.id, ctx.cause());
                 // Also reset the acknowledgements state for this channel
                 self.acknowledgements.reset(ctx.cause());
                 ctx.topology()
@@ -934,7 +933,8 @@ impl Channel {
             }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
         match (self.recovery_config.auto_recover_channels, error.as_ref()) {
             (true, Some(error)) if error.is_amqp_soft_error() => {
-                self.status.set_reconnecting(error.clone(), self.topology())
+                self.status.set_reconnecting(error.clone(), self.topology());
+                self.frames.drop_frames_for_channel(self.id, error.clone());
             }
             (_, err) => self.set_closing(err.cloned()),
         }
