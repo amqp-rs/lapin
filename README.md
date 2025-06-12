@@ -54,7 +54,7 @@ You can configure the reactor to use through [reactor-trait](https://crates.io/c
 
 There are implementations for tokio, async-std and others.
 
-## Experimental auomatic reconnection
+## Experimental automatic reconnection
 
 WARNING: use at your own risk, this feature is not considered stable yet. Expect some bugs and please help by reporting them.
 
