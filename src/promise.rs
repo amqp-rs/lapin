@@ -131,7 +131,7 @@ impl<T> PromiseResolver<T> {
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .as_ref()
-            .map_or(String::default(), |marker| format!("[{}] ", marker))
+            .map_or(String::default(), |marker| format!("[{marker}] "))
     }
 }
 

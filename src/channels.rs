@@ -213,7 +213,7 @@ impl Channels {
                     error!(channel=%channel_id, "received invalid heartbeat");
                     let error = AMQPError::new(
                         AMQPHardError::FRAMEERROR.into(),
-                        format!("heartbeat frame received on channel {}", channel_id).into(),
+                        format!("heartbeat frame received on channel {channel_id}").into(),
                     );
                     if let Some(channel0) = self.get(0) {
                         let error = error.clone();
@@ -236,7 +236,7 @@ impl Channels {
                     error!(channel=%channel_id, "received content header");
                     let error = AMQPError::new(
                         AMQPHardError::CHANNELERROR.into(),
-                        format!("content header frame received on channel {}", channel_id).into(),
+                        format!("content header frame received on channel {channel_id}").into(),
                     );
                     if let Some(channel0) = self.get(0) {
                         let error = error.clone();

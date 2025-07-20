@@ -52,14 +52,12 @@ impl ChannelReceiverStates {
                 Ok(())
             } else {
                 invalid_class_hanlder(format!(
-                    "content header frame with class id {} instead of {} received on channel {}",
-                    class_id, expected_class_id, channel_id
+                    "content header frame with class id {class_id} instead of {expected_class_id} received on channel {channel_id}"
                 ))
             }
         } else {
             error_handler(format!(
-                "unexpected content header frame received on channel {}",
-                channel_id
+                "unexpected content header frame received on channel {channel_id}"
             ))
         }
     }
@@ -89,14 +87,12 @@ impl ChannelReceiverStates {
                 Ok(())
             } else {
                 error_handler(format!(
-                    "unexpectedly large content body frame received on channel {} ({} bytes, expected {} bytes)",
-                    channel_id, length, len
+                    "unexpectedly large content body frame received on channel {channel_id} ({length} bytes, expected {len} bytes)"
                 ))
             }
         } else {
             error_handler(format!(
-                "unexpected content body frame received on channel {}",
-                channel_id
+                "unexpected content body frame received on channel {channel_id}"
             ))
         }
     }

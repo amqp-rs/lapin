@@ -107,21 +107,21 @@ impl fmt::Display for Error {
                 "the maximum number of channels for this connection has been reached"
             ),
             ErrorKind::InvalidProtocolVersion(version) => {
-                write!(f, "the server only supports AMQP {}", version)
+                write!(f, "the server only supports AMQP {version}")
             }
 
-            ErrorKind::InvalidChannel(channel) => write!(f, "invalid channel: {}", channel),
+            ErrorKind::InvalidChannel(channel) => write!(f, "invalid channel: {channel}"),
             ErrorKind::InvalidChannelState(state, context) => {
-                write!(f, "invalid channel state: {:?} ({})", state, context)
+                write!(f, "invalid channel state: {state:?} ({context})")
             }
             ErrorKind::InvalidConnectionState(state) => {
-                write!(f, "invalid connection state: {:?}", state)
+                write!(f, "invalid connection state: {state:?}")
             }
 
-            ErrorKind::IOError(e) => write!(f, "IO error: {}", e),
-            ErrorKind::ParsingError(e) => write!(f, "failed to parse: {}", e),
-            ErrorKind::ProtocolError(e) => write!(f, "protocol error: {}", e),
-            ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {}", e),
+            ErrorKind::IOError(e) => write!(f, "IO error: {e}"),
+            ErrorKind::ParsingError(e) => write!(f, "failed to parse: {e}"),
+            ErrorKind::ProtocolError(e) => write!(f, "protocol error: {e}"),
+            ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {e}"),
 
             ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")

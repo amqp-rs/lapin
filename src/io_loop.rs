@@ -436,7 +436,7 @@ impl IoLoop {
                     error!(bytes = consumed, "received large frame");
                     let error = AMQPError::new(
                         AMQPHardError::FRAMEERROR.into(),
-                        format!("frame too large: {} bytes", consumed).into(),
+                        format!("frame too large: {consumed} bytes").into(),
                     );
                     self.internal_rpc.close_connection(
                         error.get_id(),
