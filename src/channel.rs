@@ -946,13 +946,17 @@ impl Channel {
                 );
                 Error::from(ErrorKind::ProtocolError(error))
             }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
-        match (self.recovery_config.auto_recover_channels, error.as_ref()) {
-            (true, Some(error)) if error.is_amqp_soft_error() => {
-                self.status.set_reconnecting(error.clone(), self.topology());
-                self.frames.drop_frames_for_channel(self.id, error.clone());
+        let error = match error {
+            Some(err) if self.is_recovering(&err) => {
+                let err = self.status.set_reconnecting(err, self.topology());
+                self.frames.drop_frames_for_channel(self.id, err.clone());
+                Some(err)
             }
-            (_, err) => self.set_closing(err.cloned()),
-        }
+            err => {
+                self.set_closing(err.clone());
+                err
+            }
+        };
         let channel = self.clone();
         self.internal_rpc.register_internal_future(async move {
             channel.channel_close_ok(error).await?;

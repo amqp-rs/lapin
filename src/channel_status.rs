@@ -90,8 +90,8 @@ impl ChannelStatus {
         error
     }
 
-    pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinition) {
-        self.lock_inner().set_reconnecting(error, topology);
+    pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinition) -> Error {
+        self.lock_inner().set_reconnecting(error, topology)
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
@@ -228,11 +228,14 @@ impl Inner {
             .set_channel_status(self.id, self.killswitch.clone());
     }
 
-    fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) {
+    fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) -> Error {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
         self.receiver_state.reset();
-        self.recovery_context = Some(ChannelRecoveryContext::new(error, topology));
+        let ctx = ChannelRecoveryContext::new(error, topology);
+        let error = ctx.cause();
+        self.recovery_context = Some(ctx);
+        error
     }
 
     pub(crate) fn finalize_recovery(&mut self) {
