@@ -135,6 +135,16 @@ impl Channel {
         self.error_handler.set_handler(handler);
     }
 
+    pub async fn wait_for_recovery(&self, error: Error) -> Result<()> {
+        if self.recovery_config.auto_recover_channels {
+            if let Some(notifier) = error.notifier() {
+                notifier.await;
+                return Ok(());
+            }
+        }
+        Err(error)
+    }
+
     pub(crate) fn set_closing(&self, error: Option<Error>) {
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
