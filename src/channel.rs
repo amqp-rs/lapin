@@ -904,12 +904,8 @@ impl Channel {
         resolver: PromiseResolver<Channel>,
         channel: Channel,
     ) -> Result<()> {
-        if self.recovery_config.auto_recover_channels {
-            if !self.status.confirm() {
-                self.status.finalize_recovery();
-            }
-        } else {
-            self.set_state(ChannelState::Connected);
+        if !self.status.confirm() {
+            self.status.finalize_connection();
         }
         resolver.resolve(channel);
         Ok(())

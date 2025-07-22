@@ -49,8 +49,8 @@ impl ChannelStatus {
         Some(apply(self.lock_inner().recovery_context.as_mut()?))
     }
 
-    pub(crate) fn finalize_recovery(&self) {
-        self.lock_inner().finalize_recovery();
+    pub(crate) fn finalize_connection(&self) {
+        self.lock_inner().finalize_connection();
     }
 
     pub(crate) fn can_receive_messages(&self) -> bool {
@@ -70,7 +70,7 @@ impl ChannelStatus {
         let mut inner = self.lock_inner();
         inner.confirm = true;
         trace!("Publisher confirms activated");
-        inner.finalize_recovery();
+        inner.finalize_connection();
     }
 
     pub fn state(&self) -> ChannelState {
@@ -238,7 +238,7 @@ impl Inner {
         error
     }
 
-    pub(crate) fn finalize_recovery(&mut self) {
+    pub(crate) fn finalize_connection(&mut self) {
         self.state = ChannelState::Connected;
         self.update_rpc_status();
         if let Some(ctx) = self.recovery_context.take() {
