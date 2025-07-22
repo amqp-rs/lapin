@@ -308,7 +308,7 @@ impl Channel {
             || (self.recovery_config.auto_recover_connection && error.is_amqp_hard_error())
     }
 
-    fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
+    pub(crate) fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
         match error {
             Some(err) if self.is_recovering(&err) => {
                 let err = self.status.set_reconnecting(err, self.topology());
@@ -884,11 +884,10 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
-        let connection_resolver = self.connection_status.connection_resolver();
-        self.internal_rpc.set_connection_closing();
-        self.frames.drop_pending(error.clone());
-        if let Some(resolver) = connection_resolver {
-            resolver.reject(error.clone());
+        if self.is_recovering(&error) {
+            self.internal_rpc.init_connection_recovery(error.clone());
+        } else {
+            self.internal_rpc.init_connection_shutdown(error.clone());
         }
         self.internal_rpc.send_connection_close_ok(error);
         Ok(())

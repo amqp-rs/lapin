@@ -115,6 +115,14 @@ impl InternalRPCHandle {
         ));
     }
 
+    pub(crate) fn init_connection_recovery(&self, error: Error) {
+        self.send(InternalCommand::InitConnectionRecovery(error));
+    }
+
+    pub(crate) fn init_connection_shutdown(&self, error: Error) {
+        self.send(InternalCommand::InitConnectionShutdown(error));
+    }
+
     pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
         self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
@@ -207,6 +215,8 @@ enum InternalCommand {
     CancelConsumer(ChannelId, String, ConsumerStatus),
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(ReplyCode, String, Identifier, Identifier),
+    InitConnectionRecovery(Error),
+    InitConnectionShutdown(Error),
     RemoveChannel(ChannelId, Error),
     SendConnectionCloseOk(Error),
     SetChannelStatus(ChannelId, KillSwitch),
@@ -335,6 +345,8 @@ impl InternalRPC {
                             .await
                     })
                 }
+                InitConnectionRecovery(error) => channels.init_connection_recovery(error),
+                InitConnectionShutdown(error) => channels.init_connection_shutdown(error),
                 RemoveChannel(channel_id, error) => {
                     if !self.channel_ok(channel_id) {
                         continue;

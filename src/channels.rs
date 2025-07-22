@@ -272,6 +272,26 @@ impl Channels {
         self.error_handler.set_handler(handler);
     }
 
+    pub(crate) fn init_connection_recovery(&self, error: Error) {
+        // FIXME: update connection_status
+        self.lock_inner()
+            .channels
+            .values()
+            .filter(|c| c.id() != 0)
+            .fold(Some(error), |error, channel| {
+                channel.init_recovery_or_shutdown(error)
+            });
+    }
+
+    pub(crate) fn init_connection_shutdown(&self, error: Error) {
+        let connection_resolver = self.connection_status.connection_resolver();
+        self.set_connection_closing();
+        self.frames.drop_pending(error.clone());
+        if let Some(resolver) = connection_resolver {
+            resolver.reject(error.clone());
+        }
+    }
+
     /* FIXME: use this for connection recovery
     pub(crate) fn topology(&self) -> Vec<ChannelDefinition> {
         self.lock_inner()
