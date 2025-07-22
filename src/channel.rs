@@ -136,7 +136,9 @@ impl Channel {
     }
 
     pub async fn wait_for_recovery(&self, error: Error) -> Result<()> {
-        if self.recovery_config.auto_recover_channels {
+        if self.recovery_config.auto_recover_channels
+            || self.recovery_config.auto_recover_connection
+        {
             if let Some(notifier) = error.notifier() {
                 notifier.await;
                 return Ok(());
@@ -302,7 +304,8 @@ impl Channel {
     }
 
     fn is_recovering(&self, error: &Error) -> bool {
-        self.recovery_config.auto_recover_channels && error.is_amqp_soft_error()
+        (self.recovery_config.auto_recover_channels && error.is_amqp_soft_error())
+            || (self.recovery_config.auto_recover_connection && error.is_amqp_hard_error())
     }
 
     fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {

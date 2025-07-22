@@ -1,6 +1,7 @@
 #[derive(Default, Clone)]
 pub struct RecoveryConfig {
     pub(crate) auto_recover_channels: bool,
+    pub(crate) auto_recover_connection: bool,
 }
 
 impl RecoveryConfig {
