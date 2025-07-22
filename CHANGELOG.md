@@ -1,3 +1,9 @@
+### 2.5.4 (2025-07-22)
+
+#### Features
+
+* Propagate current tracing span into `io_loop` thread
+
 ### 2.5.3 (2025-04-05)
 
 #### Bug Fixes
