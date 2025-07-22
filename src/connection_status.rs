@@ -20,6 +20,10 @@ impl ConnectionStatus {
         std::mem::replace(&mut inner.state, state)
     }
 
+    pub(crate) fn set_reconnecting(&self) {
+        self.lock_inner().set_reconnecting();
+    }
+
     pub(crate) fn connection_step(&self) -> Option<ConnectionStep> {
         self.lock_inner().connection_step.take()
     }
@@ -111,6 +115,7 @@ pub enum ConnectionState {
     Connected,
     Closing,
     Closed,
+    Reconnecting,
     Error,
 }
 
@@ -149,6 +154,14 @@ impl Default for Inner {
 }
 
 impl Inner {
+    fn set_reconnecting(&mut self) {
+        if let Some(step) = self.connection_step.take() {
+            // FIXME: how do we handle this? Reconnection during (re)connection
+        }
+        self.state = ConnectionState::Reconnecting;
+        self.blocked = false;
+    }
+
     fn connection_resolver(&mut self) -> Option<(PromiseResolver<Connection>, Option<Connection>)> {
         self.connection_step
             .take()

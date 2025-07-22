@@ -273,7 +273,7 @@ impl Channels {
     }
 
     pub(crate) fn init_connection_recovery(&self, error: Error) {
-        // FIXME: update connection_status
+        self.connection_status.set_reconnecting();
         self.lock_inner()
             .channels
             .values()
