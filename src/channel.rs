@@ -305,6 +305,20 @@ impl Channel {
         self.recovery_config.auto_recover_channels && error.is_amqp_soft_error()
     }
 
+    fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
+        match error {
+            Some(err) if self.is_recovering(&err) => {
+                let err = self.status.set_reconnecting(err, self.topology());
+                self.frames.drop_frames_for_channel(self.id, err.clone());
+                Some(err)
+            }
+            err => {
+                self.set_closing(err.clone());
+                err
+            }
+        }
+    }
+
     async fn start_recovery(&self) -> Result<()> {
         let topology = self
             .status
@@ -935,24 +949,13 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = AMQPError::try_from(method.clone()).map(|error| {
+        let error = self.init_recovery_or_shutdown(AMQPError::try_from(method.clone()).map(|error| {
                 error!(
                     channel=%self.id, ?method, ?error,
                     "Channel closed"
                 );
                 Error::from(ErrorKind::ProtocolError(error))
-            }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
-        let error = match error {
-            Some(err) if self.is_recovering(&err) => {
-                let err = self.status.set_reconnecting(err, self.topology());
-                self.frames.drop_frames_for_channel(self.id, err.clone());
-                Some(err)
-            }
-            err => {
-                self.set_closing(err.clone());
-                err
-            }
-        };
+            }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok());
         let channel = self.clone();
         self.internal_rpc.register_internal_future(async move {
             channel.channel_close_ok(error).await?;
