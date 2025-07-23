@@ -283,6 +283,24 @@ impl Channels {
             });
     }
 
+    pub(crate) async fn start_recovery(&self) -> Result<()> {
+        // FIXME: reopen connection
+
+        let channels = self.lock_inner()
+            .channels
+            .values()
+            .filter(|c| c.id() != 0)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // TODO: use future::join! when stable
+        for channel in channels {
+            channel.start_recovery().await?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn init_connection_shutdown(&self, error: Error) {
         let connection_resolver = self.connection_status.connection_resolver();
         self.set_connection_closing();

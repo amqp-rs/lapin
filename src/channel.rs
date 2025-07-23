@@ -322,7 +322,7 @@ impl Channel {
         }
     }
 
-    async fn start_recovery(&self) -> Result<()> {
+    pub(crate) async fn start_recovery(&self) -> Result<()> {
         let topology = self
             .status
             .update_recovery_context(|ctx| {
@@ -884,12 +884,16 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
-        if self.is_recovering(&error) {
+        let recovering = self.is_recovering(&error);
+        if recovering {
             self.internal_rpc.init_connection_recovery(error.clone());
         } else {
             self.internal_rpc.init_connection_shutdown(error.clone());
         }
         self.internal_rpc.send_connection_close_ok(error);
+        if recovering {
+            self.internal_rpc.start_channels_recovery();
+        }
         Ok(())
     }
 

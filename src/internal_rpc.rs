@@ -147,6 +147,10 @@ impl InternalRPCHandle {
         self.send(InternalCommand::SetConnectionError(error));
     }
 
+    pub(crate) fn start_channels_recovery(&self) {
+        self.send(InternalCommand::StartChannelsRecovery);
+    }
+
     pub(crate) fn stop(&self) {
         trace!("Stopping internal RPC command");
         let _ = self.sender.send(None);
@@ -223,6 +227,7 @@ enum InternalCommand {
     SetConnectionClosing,
     SetConnectionClosed(Error),
     SetConnectionError(Error),
+    StartChannelsRecovery,
 }
 
 impl InternalRPC {
@@ -367,6 +372,10 @@ impl InternalRPC {
                 SetConnectionClosing => channels.set_connection_closing(),
                 SetConnectionClosed(error) => channels.set_connection_closed(error),
                 SetConnectionError(error) => channels.set_connection_error(error),
+                StartChannelsRecovery => {
+                    let channels = channels.clone();
+                    handle.register_internal_future(async move { channels.start_recovery().await })
+                }
             }
             handle.waker.wake();
         }
