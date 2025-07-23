@@ -292,17 +292,6 @@ impl Channels {
         }
     }
 
-    /* FIXME: use this for connection recovery
-    pub(crate) fn topology(&self) -> Vec<ChannelDefinition> {
-        self.lock_inner()
-            .channels
-            .values()
-            .filter(|c| c.id() != 0)
-            .map(Channel::topology)
-            .collect()
-    }
-    */
-
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
