@@ -42,7 +42,6 @@ pub struct IoLoop {
     frames: Frames,
     heartbeat: Heartbeat,
     socket_state: SocketState,
-    connection_io_loop_handle: ThreadHandle,
     stream: Pin<Box<dyn AsyncIOHandle + Send>>,
     status: Status,
     killswitch: KillSwitch,
@@ -53,24 +52,23 @@ pub struct IoLoop {
 }
 
 impl IoLoop {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
         channels: Channels,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
-        connection_io_loop_handle: ThreadHandle,
         stream: Pin<Box<dyn AsyncIOHandle + Send>>,
         heartbeat: Heartbeat,
-    ) -> Result<Self> {
+    ) -> Self {
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
         );
         let killswitch = heartbeat.killswitch();
 
-        Ok(Self {
+        Self {
             connection_status,
             configuration,
             channels,
@@ -78,7 +76,6 @@ impl IoLoop {
             frames,
             heartbeat,
             socket_state,
-            connection_io_loop_handle,
             stream,
             status: Status::Initial,
             killswitch,
@@ -86,7 +83,7 @@ impl IoLoop {
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             serialized_frames: VecDeque::default(),
-        })
+        }
     }
 
     fn readable_waker(&self) -> Waker {
@@ -156,9 +153,8 @@ impl IoLoop {
         }
     }
 
-    pub fn start(mut self) -> Result<()> {
+    pub fn start(mut self, handle: &ThreadHandle) -> Result<()> {
         let waker = self.socket_state.handle();
-        let handle = self.connection_io_loop_handle.clone();
         let current_span = tracing::Span::current();
         handle.register(
             ThreadBuilder::new()

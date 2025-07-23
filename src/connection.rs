@@ -248,44 +248,7 @@ impl Connection {
             executor.clone(),
             options.recovery_config.clone().unwrap_or_default(),
         );
-        let status = conn.status.clone();
-        let configuration = conn.configuration.clone();
-        status.set_vhost(&uri.vhost);
-        status.set_username(&uri.authority.userinfo.username);
-        if let Some(frame_max) = uri.query.frame_max {
-            configuration.set_frame_max(frame_max);
-        }
-        if let Some(channel_max) = uri.query.channel_max {
-            configuration.set_channel_max(channel_max);
-        }
-        if let Some(heartbeat) = uri.query.heartbeat {
-            configuration.set_heartbeat(heartbeat);
-        }
-        let (promise_out, resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise_out.set_marker("ProtocolHeader".into());
-        }
-        let channels = conn.channels.clone();
-        if let Some(channel0) = channels.get(0) {
-            channel0.send_frame(
-                AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
-                resolver,
-                None,
-            )
-        };
-        let (promise_in, resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise_in.set_marker("ProtocolHeader.Ok".into());
-        }
-        let io_loop_handle = conn.io_loop.clone();
-        status.set_state(ConnectionState::Connecting);
-        status.set_connection_step(ConnectionStep::ProtocolHeader(
-            resolver,
-            conn,
-            uri.authority.userinfo.into(),
-            uri.query.auth_mechanism.unwrap_or_default(),
-            options,
-        ));
+        conn.configure(&uri);
         let stream = connect_promise
             .await
             .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
@@ -293,25 +256,72 @@ impl Connection {
                 // We don't actually need the resolver as we already pass it around to the failing
                 // code which will propagate the error. We only want to flush the status internal
                 // state.
-                let _ = status.connection_resolver();
+                let _ = conn.status.connection_resolver();
             })?
             .into();
-        let heartbeat = Heartbeat::new(status.clone(), channels.clone(), executor.clone(), reactor);
-        let internal_rpc_handle = internal_rpc.handle();
-        executor.spawn(Box::pin(internal_rpc.run(channels.clone())));
-        IoLoop::new(
-            status,
-            configuration,
-            channels,
-            internal_rpc_handle,
+        let heartbeat = Heartbeat::new(
+            conn.status.clone(),
+            conn.channels.clone(),
+            executor.clone(),
+            reactor,
+        );
+        let io_loop = IoLoop::new(
+            conn.status.clone(),
+            conn.configuration.clone(),
+            conn.channels.clone(),
+            internal_rpc.handle(),
             frames,
             socket_state,
-            io_loop_handle,
             stream,
             heartbeat,
-        )
-        .await
-        .and_then(IoLoop::start)?;
+        );
+        executor.spawn(Box::pin(internal_rpc.run(conn.channels.clone())));
+        io_loop.start(&conn.io_loop)?;
+        conn.start(uri, options).await
+    }
+
+    fn configure(&self, uri: &AMQPUri) {
+        self.status.set_vhost(&uri.vhost);
+        self.status.set_username(&uri.authority.userinfo.username);
+
+        if let Some(frame_max) = uri.query.frame_max {
+            self.configuration.set_frame_max(frame_max);
+        }
+        if let Some(channel_max) = uri.query.channel_max {
+            self.configuration.set_channel_max(channel_max);
+        }
+        if let Some(heartbeat) = uri.query.heartbeat {
+            self.configuration.set_heartbeat(heartbeat);
+        }
+    }
+
+    async fn start(self, uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
+        let (promise_out, resolver_out) = Promise::new();
+        let (promise_in, resolver_in) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise_out.set_marker("ProtocolHeader".into());
+            promise_in.set_marker("ProtocolHeader.Ok".into());
+        }
+
+        if let Some(channel0) = self.channels.get(0) {
+            channel0.send_frame(
+                AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
+                resolver_out,
+                None,
+            )
+        }
+
+        self.status.set_state(ConnectionState::Connecting);
+        self.status
+            .clone()
+            .set_connection_step(ConnectionStep::ProtocolHeader(
+                resolver_in,
+                self,
+                uri.authority.userinfo.into(),
+                uri.query.auth_mechanism.unwrap_or_default(),
+                options,
+            ));
+
         promise_out.await?;
         promise_in.await
     }
