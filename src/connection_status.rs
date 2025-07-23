@@ -157,6 +157,7 @@ impl Inner {
     fn set_reconnecting(&mut self) {
         if let Some(step) = self.connection_step.take() {
             // FIXME: how do we handle this? Reconnection during (re)connection
+            drop(step);
         }
         self.state = ConnectionState::Reconnecting;
         self.blocked = false;
