@@ -1,3 +1,14 @@
+### 3.0.1 (2025-07-22)
+
+#### Features
+
+* `Channel::wait_for_recovery` to wait for automatic reconnection to finish (if we're in the process of reconnecting)
+
+#### Misc
+
+* Several fixes related to channel automatic reconnection
+* Internal preparatory work for upcoming connection recovery
+
 ### 3.0.0 (2025-06-12)
 
 #### Breaking changes
