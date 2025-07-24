@@ -165,7 +165,6 @@ impl IoLoop {
                             res = self.critical_error(err);
                         }
                     }
-                    self.heartbeat.cancel();
                     self.clear_serialized_frames(self.frames.poison().unwrap_or(
                         ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
                     ));
@@ -188,7 +187,6 @@ impl IoLoop {
 
     fn stop(&mut self) {
         self.status = Status::Stop;
-        self.heartbeat.cancel();
     }
 
     fn poll_socket_events(&mut self) {

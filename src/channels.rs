@@ -122,6 +122,7 @@ impl Channels {
     }
 
     pub(crate) fn set_connection_closing(&self) {
+        self.heartbeat.cancel();
         self.connection_status.set_state(ConnectionState::Closing);
         for channel in self.lock_inner().channels.values() {
             channel.set_closing(None);
