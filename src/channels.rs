@@ -17,7 +17,6 @@ use crate::{
     protocol::{AMQPClass, AMQPError, AMQPHardError},
     recovery_config::RecoveryConfig,
     socket_state::SocketStateHandle,
-    //topology::ChannelDefinition,
     types::{ChannelId, Identifier, PayloadSize},
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
