@@ -57,8 +57,8 @@ impl ConnectionProperties {
         self
     }
 
-    pub(crate) fn take_executor(&mut self) -> Result<Arc<dyn FullExecutor + Send + Sync>> {
-        if let Some(executor) = self.executor.take() {
+    pub(crate) fn executor(&self) -> Result<Arc<dyn FullExecutor + Send + Sync>> {
+        if let Some(executor) = self.executor.clone() {
             return Ok(executor);
         }
 
@@ -71,8 +71,8 @@ impl ConnectionProperties {
         Err(ErrorKind::NoConfiguredExecutor.into())
     }
 
-    pub(crate) fn take_reactor(&mut self) -> Result<Arc<dyn FullReactor + Send + Sync>> {
-        if let Some(reactor) = self.reactor.take() {
+    pub(crate) fn reactor(&self) -> Result<Arc<dyn FullReactor + Send + Sync>> {
+        if let Some(reactor) = self.reactor.clone() {
             return Ok(reactor);
         }
 

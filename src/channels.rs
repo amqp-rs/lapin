@@ -1,6 +1,6 @@
 use crate::{
-    BasicProperties, Channel, ChannelState, Configuration, ConnectionState, ConnectionStatus,
-    Error, ErrorKind, Promise, Result,
+    BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionProperties,
+    ConnectionState, ConnectionStatus, Error, ErrorKind, Promise, Result,
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
     frames::Frames,
@@ -11,6 +11,7 @@ use crate::{
     recovery_config::RecoveryConfig,
     socket_state::SocketStateHandle,
     types::{ChannelId, Identifier, PayloadSize},
+    uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use executor_trait::FullExecutor;
@@ -32,6 +33,8 @@ pub(crate) struct Channels {
     frames: Frames,
     heartbeat: Heartbeat,
     error_handler: ErrorHandler,
+    uri: AMQPUri,
+    options: ConnectionProperties,
 }
 
 impl Channels {
@@ -43,13 +46,14 @@ impl Channels {
         frames: Frames,
         heartbeat: Heartbeat,
         executor: Arc<dyn FullExecutor + Send + Sync>,
-        recovery_config: RecoveryConfig,
+        uri: AMQPUri,
+        options: ConnectionProperties,
     ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 configuration.clone(),
                 waker,
-                recovery_config,
+                options.recovery_config.clone().unwrap_or_default(),
             ))),
             configuration,
             connection_status,
@@ -58,6 +62,8 @@ impl Channels {
             frames,
             heartbeat,
             error_handler: ErrorHandler::default(),
+            uri,
+            options,
         }
     }
 
@@ -293,8 +299,6 @@ impl Channels {
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
-        // FIXME: reopen connection
-
         let channels = self
             .lock_inner()
             .channels
@@ -302,6 +306,15 @@ impl Channels {
             .filter(|c| c.id() != 0)
             .cloned()
             .collect::<Vec<_>>();
+
+        Connection::for_reconnect(
+            self.configuration.clone(),
+            self.connection_status.clone(),
+            self.clone(),
+            self.internal_rpc.clone(),
+        )
+        .start(self.uri.clone(), self.options.clone())
+        .await?;
 
         // TODO: use future::join! when stable
         for channel in channels {

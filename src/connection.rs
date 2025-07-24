@@ -1,16 +1,14 @@
 use crate::{
-    Error, ErrorKind, Promise, Result, TcpStream,
+    ConnectionProperties, Error, ErrorKind, Promise, Result, TcpStream,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
     connection_closer::ConnectionCloser,
-    connection_properties::ConnectionProperties,
     connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
-    recovery_config::RecoveryConfig,
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
@@ -51,10 +49,10 @@ impl Connection {
         frames: Frames,
         heartbeat: Heartbeat,
         executor: Arc<dyn FullExecutor + Send + Sync>,
-        recovery_config: RecoveryConfig,
-        uri: &AMQPUri,
+        uri: AMQPUri,
+        options: ConnectionProperties,
     ) -> Self {
-        let configuration = Configuration::new(uri);
+        let configuration = Configuration::new(&uri);
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -63,9 +61,10 @@ impl Connection {
             frames,
             heartbeat,
             executor,
-            recovery_config,
+            uri,
+            options,
         );
-        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc));
+        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc, false));
         let connection = Self {
             configuration,
             status,
@@ -76,6 +75,22 @@ impl Connection {
 
         connection.channels.create_zero();
         connection
+    }
+
+    pub(crate) fn for_reconnect(
+        configuration: Configuration,
+        status: ConnectionStatus,
+        channels: Channels,
+        internal_rpc: InternalRPCHandle,
+    ) -> Self {
+        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc, true));
+        Self {
+            configuration,
+            status,
+            channels,
+            io_loop: ThreadHandle::default(),
+            closer,
+        }
     }
 
     /// Connect to an AMQP Server.
@@ -202,10 +217,10 @@ impl Connection {
     pub async fn connector(
         uri: AMQPUri,
         connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
-        mut options: ConnectionProperties,
+        options: ConnectionProperties,
     ) -> Result<Connection> {
-        let executor = options.take_executor()?;
-        let reactor = options.take_reactor()?;
+        let executor = options.executor()?;
+        let reactor = options.reactor()?;
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
@@ -222,8 +237,8 @@ impl Connection {
             frames.clone(),
             heartbeat.clone(),
             executor,
-            options.recovery_config.clone().unwrap_or_default(),
-            &uri,
+            uri.clone(),
+            options.clone(),
         );
         let io_loop = IoLoop::new(
             conn.status.clone(),
@@ -278,7 +293,11 @@ impl Connection {
         promise
     }
 
-    async fn start(self, uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
+    pub(crate) async fn start(
+        self,
+        uri: AMQPUri,
+        options: ConnectionProperties,
+    ) -> Result<Connection> {
         let (promise_out, resolver_out) = Promise::new();
         let (promise_in, resolver_in) = Promise::new();
         if level_enabled!(Level::TRACE) {
@@ -392,8 +411,8 @@ mod tests {
             Frames::default(),
             heartbeat,
             executor.clone(),
-            RecoveryConfig::default(),
-            &uri,
+            uri,
+            ConnectionProperties::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(ChannelId::MAX);
@@ -429,8 +448,8 @@ mod tests {
             Frames::default(),
             heartbeat,
             executor.clone(),
-            RecoveryConfig::default(),
-            &uri,
+            uri,
+            ConnectionProperties::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -516,8 +535,8 @@ mod tests {
             Frames::default(),
             heartbeat,
             executor.clone(),
-            RecoveryConfig::default(),
-            &uri,
+            uri,
+            ConnectionProperties::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
