@@ -72,6 +72,11 @@ impl Heartbeat {
         self.lock_inner().timeout = None;
     }
 
+    pub(crate) fn reset(&self) {
+        self.killswitch.reset();
+        self.lock_inner().reset();
+    }
+
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -129,5 +134,11 @@ impl Inner {
 
     fn update_last_read(&mut self) {
         self.last_read = Instant::now();
+    }
+
+    fn reset(&mut self) {
+        self.update_last_read();
+        self.update_last_write();
+        self.timeout = None;
     }
 }

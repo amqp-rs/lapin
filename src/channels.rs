@@ -280,8 +280,8 @@ impl Channels {
     }
 
     pub(crate) fn init_connection_recovery(&self, error: Error) {
+        self.heartbeat.reset();
         self.connection_status.set_reconnecting();
-        // FIXME: reset heartbeat
         self.lock_inner()
             .channels
             .values()
@@ -292,7 +292,7 @@ impl Channels {
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
-        // FIXME: reopen connection and restart heartbeat
+        // FIXME: reopen connection
 
         let channels = self
             .lock_inner()
@@ -306,6 +306,8 @@ impl Channels {
         for channel in channels {
             channel.start_recovery().await?;
         }
+
+        self.start_heartbeat();
 
         Ok(())
     }

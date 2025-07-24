@@ -14,4 +14,8 @@ impl KillSwitch {
     pub(crate) fn killed(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }
+
+    pub(crate) fn reset(&self) {
+        self.0.store(false, Ordering::SeqCst)
+    }
 }
