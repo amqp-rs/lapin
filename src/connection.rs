@@ -45,21 +45,23 @@ pub struct Connection {
 
 impl Connection {
     fn new(
+        status: ConnectionStatus,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
+        heartbeat: Heartbeat,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         recovery_config: RecoveryConfig,
         uri: &AMQPUri,
     ) -> Self {
         let configuration = Configuration::new(uri);
-        let status = ConnectionStatus::new(uri);
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
             waker,
             internal_rpc.clone(),
             frames,
+            heartbeat,
             executor,
             recovery_config,
         );
@@ -204,33 +206,24 @@ impl Connection {
     ) -> Result<Connection> {
         let executor = options.take_executor()?;
         let reactor = options.take_reactor()?;
+        let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
-        let waker = socket_state.handle();
-        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
-        let conn = Connection::new(
-            waker,
-            internal_rpc.handle(),
-            frames.clone(),
-            executor.clone(),
-            options.recovery_config.clone().unwrap_or_default(),
-            &uri,
-        );
+        let internal_rpc = InternalRPC::new(executor.clone(), socket_state.handle());
         let stream = Self::tcp_connect(uri.clone(), connect, executor.clone())
             .await
-            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
-            .inspect_err(|_| {
-                // We don't actually need the resolver as we already pass it around to the failing
-                // code which will propagate the error. We only want to flush the status internal
-                // state.
-                let _ = conn.status.connection_resolver();
-            })?
+            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))?
             .into();
-        let heartbeat = Heartbeat::new(
-            conn.status.clone(),
-            conn.channels.clone(),
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
+        let conn = Connection::new(
+            status,
+            socket_state.handle(),
+            internal_rpc.handle(),
+            frames.clone(),
+            heartbeat.clone(),
             executor,
-            reactor,
+            options.recovery_config.clone().unwrap_or_default(),
+            &uri,
         );
         let io_loop = IoLoop::new(
             conn.status.clone(),
@@ -384,17 +377,23 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         // Bootstrap connection state to a consuming state
+        let uri = AMQPUri::default();
+        let status = ConnectionStatus::new(&uri);
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let reactor = Arc::new(async_reactor_trait::AsyncIo);
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
         let conn = Connection::new(
+            status,
             waker,
             internal_rpc.handle(),
             Frames::default(),
+            heartbeat,
             executor.clone(),
             RecoveryConfig::default(),
-            &AMQPUri::default(),
+            &uri,
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(ChannelId::MAX);
@@ -415,17 +414,23 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
+        let uri = AMQPUri::default();
+        let status = ConnectionStatus::new(&uri);
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let reactor = Arc::new(async_reactor_trait::AsyncIo);
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
         let conn = Connection::new(
+            status,
             waker,
             internal_rpc.handle(),
             Frames::default(),
+            heartbeat,
             executor.clone(),
             RecoveryConfig::default(),
-            &AMQPUri::default(),
+            &uri,
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -496,17 +501,23 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
+        let uri = AMQPUri::default();
+        let status = ConnectionStatus::new(&uri);
         let socket_state = SocketState::default();
         let waker = socket_state.handle();
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let reactor = Arc::new(async_reactor_trait::AsyncIo);
         let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
         let conn = Connection::new(
+            status,
             waker,
             internal_rpc.handle(),
             Frames::default(),
+            heartbeat,
             executor.clone(),
             RecoveryConfig::default(),
-            &AMQPUri::default(),
+            &uri,
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);

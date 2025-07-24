@@ -4,6 +4,7 @@ use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
     frames::Frames,
+    heartbeat::Heartbeat,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
@@ -17,16 +18,19 @@ use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, Mutex, MutexGuard},
+    time::Duration,
 };
 use tracing::{Level, debug, error, level_enabled, trace};
 
 #[derive(Clone)]
 pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
+    configuration: Configuration,
     connection_status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     frames: Frames,
+    heartbeat: Heartbeat,
     error_handler: ErrorHandler,
 }
 
@@ -37,19 +41,22 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
+        heartbeat: Heartbeat,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         recovery_config: RecoveryConfig,
     ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::new(
-                configuration,
+                configuration.clone(),
                 waker,
                 recovery_config,
             ))),
+            configuration,
             connection_status,
             internal_rpc,
             executor,
             frames,
+            heartbeat,
             error_handler: ErrorHandler::default(),
         }
     }
@@ -261,6 +268,15 @@ impl Channels {
 
     pub(crate) fn set_error_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
+    }
+
+    pub(crate) fn start_heartbeat(&self) {
+        let heartbeat = self.configuration.heartbeat();
+        if heartbeat != 0 {
+            let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
+            self.heartbeat.set_timeout(heartbeat);
+            self.heartbeat.start(self.clone());
+        }
     }
 
     pub(crate) fn init_connection_recovery(&self, error: Error) {
