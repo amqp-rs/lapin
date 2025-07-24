@@ -108,7 +108,7 @@ impl IoLoop {
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
                 self.heartbeat.set_timeout(heartbeat);
-                self.heartbeat.start();
+                self.heartbeat.start(self.channels.clone());
             }
             self.status = Status::Connected;
         }

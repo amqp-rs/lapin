@@ -11,7 +11,6 @@ use std::{
 #[derive(Clone)]
 pub struct Heartbeat {
     connection_status: ConnectionStatus,
-    channels: Channels,
     killswitch: KillSwitch,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     reactor: Arc<dyn FullReactor + Send + Sync>,
@@ -21,7 +20,6 @@ pub struct Heartbeat {
 impl Heartbeat {
     pub(crate) fn new(
         connection_status: ConnectionStatus,
-        channels: Channels,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         reactor: Arc<dyn FullReactor + Send + Sync>,
     ) -> Self {
@@ -29,7 +27,6 @@ impl Heartbeat {
         let inner = Default::default();
         Self {
             connection_status,
-            channels,
             killswitch,
             executor,
             reactor,
@@ -45,23 +42,22 @@ impl Heartbeat {
         self.killswitch.clone()
     }
 
-    pub(crate) fn start(&self) {
+    pub(crate) fn start(&self, channels: Channels) {
         let heartbeat = self.clone();
         self.executor.spawn(Box::pin(async move {
-            while let Some(dur) = heartbeat.poll_timeout() {
+            while let Some(dur) = heartbeat.poll_timeout(&channels) {
                 heartbeat.reactor.sleep(dur).await;
             }
         }));
     }
 
-    fn poll_timeout(&self) -> Option<Duration> {
+    fn poll_timeout(&self, channels: &Channels) -> Option<Duration> {
         if !self.connection_status.connected() {
             self.cancel();
             return None;
         }
 
-        self.lock_inner()
-            .poll_timeout(&self.channels, &self.killswitch)
+        self.lock_inner().poll_timeout(channels, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
