@@ -1,6 +1,7 @@
 use crate::{
     protocol,
     types::{ChannelId, FrameSize, Heartbeat},
+    uri::AMQPUri,
 };
 use std::{
     fmt,
@@ -13,6 +14,12 @@ pub struct Configuration {
 }
 
 impl Configuration {
+    pub(crate) fn new(uri: &AMQPUri) -> Self {
+        let conf = Self::default();
+        conf.init(uri);
+        conf
+    }
+
     pub fn channel_max(&self) -> ChannelId {
         self.read_inner().channel_max
     }
@@ -36,6 +43,18 @@ impl Configuration {
 
     pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
         self.write_inner().heartbeat = heartbeat;
+    }
+
+    fn init(&self, uri: &AMQPUri) {
+        if let Some(frame_max) = uri.query.frame_max {
+            self.set_frame_max(frame_max);
+        }
+        if let Some(channel_max) = uri.query.channel_max {
+            self.set_channel_max(channel_max);
+        }
+        if let Some(heartbeat) = uri.query.heartbeat {
+            self.set_heartbeat(heartbeat);
+        }
     }
 
     fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {

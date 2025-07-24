@@ -1,8 +1,5 @@
 use crate::{
-    Error,
-    ErrorKind,
-    Promise,
-    Result,
+    Error, ErrorKind, Promise, Result, TcpStream,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -17,7 +14,6 @@ use crate::{
     socket_state::{SocketState, SocketStateHandle},
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
-    // topology::TopologyDefinition,
     types::ReplyCode,
     uri::AMQPUri,
 };
@@ -54,9 +50,10 @@ impl Connection {
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         recovery_config: RecoveryConfig,
+        uri: &AMQPUri,
     ) -> Self {
-        let configuration = Configuration::default();
-        let status = ConnectionStatus::default();
+        let configuration = Configuration::new(uri);
+        let status = ConnectionStatus::new(uri);
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -207,14 +204,62 @@ impl Connection {
     ) -> Result<Connection> {
         let executor = options.take_executor()?;
         let reactor = options.take_reactor()?;
-        let (connect_promise, resolver) = Promise::new();
-        let connect_uri = uri.clone();
-        executor.spawn({
-            let executor = executor.clone();
+        let frames = Frames::default();
+        let socket_state = SocketState::default();
+        let waker = socket_state.handle();
+        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
+        let conn = Connection::new(
+            waker,
+            internal_rpc.handle(),
+            frames.clone(),
+            executor.clone(),
+            options.recovery_config.clone().unwrap_or_default(),
+            &uri,
+        );
+        let stream = Self::tcp_connect(uri.clone(), connect, executor.clone())
+            .await
+            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
+            .inspect_err(|_| {
+                // We don't actually need the resolver as we already pass it around to the failing
+                // code which will propagate the error. We only want to flush the status internal
+                // state.
+                let _ = conn.status.connection_resolver();
+            })?
+            .into();
+        let heartbeat = Heartbeat::new(
+            conn.status.clone(),
+            conn.channels.clone(),
+            executor,
+            reactor,
+        );
+        let io_loop = IoLoop::new(
+            conn.status.clone(),
+            conn.configuration.clone(),
+            conn.channels.clone(),
+            internal_rpc.handle(),
+            frames,
+            socket_state,
+            stream,
+            heartbeat,
+        );
+
+        internal_rpc.start(conn.channels.clone());
+        io_loop.start(&conn.io_loop)?;
+        conn.start(uri, options).await
+    }
+
+    fn tcp_connect(
+        uri: AMQPUri,
+        connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        executor: Arc<dyn FullExecutor + Send + Sync>,
+    ) -> Promise<TcpStream> {
+        let (promise, resolver) = Promise::new();
+
+        executor.clone().spawn({
             Box::pin(async move {
                 executor
                     .spawn_blocking(Box::new(move || {
-                        let mut res = connect(&connect_uri);
+                        let mut res = connect(&uri);
                         loop {
                             match res {
                                 Ok(stream) => {
@@ -237,62 +282,7 @@ impl Connection {
             })
         });
 
-        let socket_state = SocketState::default();
-        let waker = socket_state.handle();
-        let internal_rpc = InternalRPC::new(executor.clone(), waker.clone());
-        let frames = Frames::default();
-        let conn = Connection::new(
-            waker,
-            internal_rpc.handle(),
-            frames.clone(),
-            executor.clone(),
-            options.recovery_config.clone().unwrap_or_default(),
-        );
-        conn.configure(&uri);
-        let stream = connect_promise
-            .await
-            .and_then(|stream| reactor.register(IOHandle::new(stream)).map_err(Into::into))
-            .inspect_err(|_| {
-                // We don't actually need the resolver as we already pass it around to the failing
-                // code which will propagate the error. We only want to flush the status internal
-                // state.
-                let _ = conn.status.connection_resolver();
-            })?
-            .into();
-        let heartbeat = Heartbeat::new(
-            conn.status.clone(),
-            conn.channels.clone(),
-            executor.clone(),
-            reactor,
-        );
-        let io_loop = IoLoop::new(
-            conn.status.clone(),
-            conn.configuration.clone(),
-            conn.channels.clone(),
-            internal_rpc.handle(),
-            frames,
-            socket_state,
-            stream,
-            heartbeat,
-        );
-        executor.spawn(Box::pin(internal_rpc.run(conn.channels.clone())));
-        io_loop.start(&conn.io_loop)?;
-        conn.start(uri, options).await
-    }
-
-    fn configure(&self, uri: &AMQPUri) {
-        self.status.set_vhost(&uri.vhost);
-        self.status.set_username(&uri.authority.userinfo.username);
-
-        if let Some(frame_max) = uri.query.frame_max {
-            self.configuration.set_frame_max(frame_max);
-        }
-        if let Some(channel_max) = uri.query.channel_max {
-            self.configuration.set_channel_max(channel_max);
-        }
-        if let Some(heartbeat) = uri.query.heartbeat {
-            self.configuration.set_heartbeat(heartbeat);
-        }
+        promise
     }
 
     async fn start(self, uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
@@ -404,6 +394,7 @@ mod tests {
             Frames::default(),
             executor.clone(),
             RecoveryConfig::default(),
+            &AMQPUri::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(ChannelId::MAX);
@@ -434,6 +425,7 @@ mod tests {
             Frames::default(),
             executor.clone(),
             RecoveryConfig::default(),
+            &AMQPUri::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);
@@ -514,6 +506,7 @@ mod tests {
             Frames::default(),
             executor.clone(),
             RecoveryConfig::default(),
+            &AMQPUri::default(),
         );
         conn.status.set_state(ConnectionState::Connected);
         conn.configuration.set_channel_max(2047);

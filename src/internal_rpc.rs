@@ -258,7 +258,11 @@ impl InternalRPC {
             .is_some_and(|killswitch| !killswitch.killed())
     }
 
-    pub(crate) async fn run(mut self, channels: Channels) {
+    pub(crate) fn start(self, channels: Channels) {
+        self.handle().executor.spawn(Box::pin(self.run(channels)));
+    }
+
+    async fn run(mut self, channels: Channels) {
         use InternalCommand::*;
 
         let rpc = self.rpc.clone();

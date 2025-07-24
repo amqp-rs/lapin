@@ -1,6 +1,7 @@
 use crate::{
     Connection, ConnectionProperties, PromiseResolver,
     auth::{Credentials, SASLMechanism},
+    uri::AMQPUri,
 };
 use std::{
     fmt,
@@ -11,6 +12,13 @@ use std::{
 pub struct ConnectionStatus(Arc<Mutex<Inner>>);
 
 impl ConnectionStatus {
+    pub(crate) fn new(uri: &AMQPUri) -> Self {
+        let status = Self::default();
+        status.set_vhost(&uri.vhost);
+        status.set_username(&uri.authority.userinfo.username);
+        status
+    }
+
     pub fn state(&self) -> ConnectionState {
         self.lock_inner().state
     }

@@ -286,7 +286,8 @@ impl Channels {
     pub(crate) async fn start_recovery(&self) -> Result<()> {
         // FIXME: reopen connection
 
-        let channels = self.lock_inner()
+        let channels = self
+            .lock_inner()
             .channels
             .values()
             .filter(|c| c.id() != 0)
