@@ -48,6 +48,7 @@ impl Error {
         &self.kind
     }
 
+    #[deprecated(note = "Please use Channel::wait_for_recovery instead")]
     pub fn notifier(&self) -> Option<Notifier> {
         self.notifier.clone()
     }

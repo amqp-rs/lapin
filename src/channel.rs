@@ -139,6 +139,7 @@ impl Channel {
         if self.recovery_config.auto_recover_channels
             || self.recovery_config.auto_recover_connection
         {
+            #[allow(deprecated)]
             if let Some(notifier) = error.notifier() {
                 notifier.await;
                 return Ok(());
