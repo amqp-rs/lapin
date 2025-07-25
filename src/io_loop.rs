@@ -365,12 +365,15 @@ impl IoLoop {
                         self.receive_buffer.fill(sz);
                     } else {
                         error!(
-                            "Socket was readable but we read 0. This usually means that the connection is half closed this mark it as broken"
+                            "Socket was readable but we read 0. This usually means that the connection is half closed, thus report it as broken."
                         );
-                        self.socket_state.handle_io_result(Err(io::Error::from(
-                            io::ErrorKind::ConnectionAborted,
-                        )
-                        .into()))?;
+                        // Give a chance to parse and use frames we already read from socket before overriding the error with a custom one.
+                        if !self.handle_frames()? {
+                            self.socket_state.handle_io_result(Err(io::Error::from(
+                                io::ErrorKind::ConnectionAborted,
+                            )
+                            .into()))?;
+                        }
                     }
                 }
                 Ok(())
@@ -406,15 +409,17 @@ impl IoLoop {
         Ok(())
     }
 
-    fn handle_frames(&mut self) -> Result<()> {
+    fn handle_frames(&mut self) -> Result<bool> {
+        let mut did_something = false;
         while self.can_parse() {
             if let Some(frame) = self.parse()? {
                 self.channels.handle_frame(frame)?;
+                did_something = true;
             } else {
                 break;
             }
         }
-        Ok(())
+        Ok(did_something)
     }
 
     fn parse(&mut self) -> Result<Option<AMQPFrame>> {
