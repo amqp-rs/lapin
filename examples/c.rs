@@ -10,7 +10,7 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let recovery_config = lapin::RecoveryConfig::default().auto_recover_channels();
+    let recovery_config = lapin::RecoveryConfig::default().auto_recover_connection();
 
     async_global_executor::block_on(async {
         let conn = Connection::connect(
