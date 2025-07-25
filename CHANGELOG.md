@@ -1,3 +1,14 @@
+### 3.0.2 (2025-07-25)
+
+#### Bug Fixes
+
+* When the server closes the TCP connection, handle the ongoing frames before erroring out
+
+#### Misc
+
+* Several fixes related to channel automatic reconnection
+* Internal preparatory work for upcoming connection recovery
+
 ### 3.0.1 (2025-07-22)
 
 #### Features
