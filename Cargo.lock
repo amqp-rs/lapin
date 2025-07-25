@@ -1067,6 +1067,7 @@ dependencies = [
  "amq-protocol-codegen",
  "async-global-executor",
  "async-global-executor-trait",
+ "async-io",
  "async-reactor-trait",
  "async-trait",
  "executor-trait",
