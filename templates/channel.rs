@@ -62,6 +62,7 @@ impl Channel {
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
 {{include_more class.name method.name}}{{#unless method.metadata.require_wrapper ~}}{{#if method.is_reply ~}}{{#if method.metadata.internal ~}}pub(crate) {{/if ~}}{{else}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/if ~}}async fn {{else}}async fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#if method.metadata.extra_args ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}{{/if ~}}) -> Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
+    {{#unless class.metadata.channel0_only ~}}
     {{#if method.metadata.channel_init ~}}
     if !self.status.initializing() {
     {{else}}
@@ -78,6 +79,7 @@ impl Channel {
       return Err(self.status.state_error("{{class.name}}.{{method.name}}"));
     }
 
+    {{/unless ~}}
     {{#if method.metadata.start_hook ~}}
     {{#if method.metadata.start_hook.returns ~}}let start_hook_res = {{/if ~}}self.before_{{snake class.name false}}_{{snake method.name false}}({{#if method.metadata.start_hook.params ~}}{{#each method.metadata.start_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}

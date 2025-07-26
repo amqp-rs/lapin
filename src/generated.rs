@@ -846,10 +846,6 @@ impl Channel {
         connection: Connection,
         credentials: Credentials,
     ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.start-ok"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
             protocol::connection::StartOk {
                 client_properties,
@@ -875,10 +871,6 @@ impl Channel {
         self.on_connection_secure_received(method)
     }
     async fn connection_secure_ok(&self, response: &str) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.secure-ok"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
             protocol::connection::SecureOk {
                 response: response.into(),
@@ -905,10 +897,6 @@ impl Channel {
         frame_max: LongUInt,
         heartbeat: ShortUInt,
     ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.tune-ok"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::TuneOk(
             protocol::connection::TuneOk {
                 channel_max,
@@ -930,10 +918,6 @@ impl Channel {
         connection: Connection,
         conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.open"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
             protocol::connection::Open {
                 virtual_host: virtual_host.into(),
@@ -991,10 +975,6 @@ impl Channel {
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Result<()> {
-        if !self.status.closing() {
-            return Err(self.status.state_error("connection.close"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Close(
             protocol::connection::Close {
                 reply_code,
@@ -1031,10 +1011,6 @@ impl Channel {
         self.on_connection_close_received(method)
     }
     pub(crate) async fn connection_close_ok(&self, error: Error) -> Result<()> {
-        if !self.status.closing() {
-            return Err(self.status.state_error("connection.close-ok"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::CloseOk(
             protocol::connection::CloseOk {},
         ));
@@ -1072,10 +1048,6 @@ impl Channel {
         }
     }
     pub(crate) async fn connection_blocked(&self, reason: &str) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.blocked"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Blocked(
             protocol::connection::Blocked {
                 reason: reason.into(),
@@ -1097,10 +1069,6 @@ impl Channel {
         self.on_connection_blocked_received(method)
     }
     pub(crate) async fn connection_unblocked(&self) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.unblocked"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Unblocked(
             protocol::connection::Unblocked {},
         ));
@@ -1124,10 +1092,6 @@ impl Channel {
         new_secret: &str,
         reason: &str,
     ) -> Result<()> {
-        if !self.status.connected() {
-            return Err(self.status.state_error("connection.update-secret"));
-        }
-
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::UpdateSecret(
             protocol::connection::UpdateSecret {
                 new_secret: new_secret.into(),

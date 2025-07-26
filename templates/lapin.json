@@ -50,13 +50,11 @@
     },
     "close": {
       "metadata": {
-        "channel_deinit": true,
         "internal": true
       }
     },
     "close-ok": {
       "metadata": {
-        "channel_deinit": true,
         "internal": true,
         "received_hook": true,
         "extra_args": [
