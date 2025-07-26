@@ -156,6 +156,10 @@ impl InternalRPCHandle {
         let _ = self.sender.send(None);
     }
 
+    pub(crate) fn is_empty(&self) -> bool {
+        self.sender.is_empty()
+    }
+
     fn send(&self, command: InternalCommand) {
         trace!(?command, "Queuing internal RPC command");
         // The only scenario where this can fail if this is the IoLoop already exited

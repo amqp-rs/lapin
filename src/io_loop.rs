@@ -369,7 +369,7 @@ impl IoLoop {
                             "Socket was readable but we read 0. This usually means that the connection is half closed, thus report it as broken."
                         );
                         // Give a chance to parse and use frames we already read from socket before overriding the error with a custom one.
-                        if !self.handle_frames()? {
+                        if !self.handle_frames()? && self.internal_rpc.is_empty() {
                             self.socket_state.handle_io_result(Err(io::Error::from(
                                 io::ErrorKind::ConnectionAborted,
                             )
