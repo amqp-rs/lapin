@@ -142,6 +142,7 @@ impl IoLoop {
             Status::Connected => {
                 self.connection_status.connected()
                     || self.connection_status.closing()
+                    || self.connection_status.reconnecting()
                     || !self.serialized_frames.is_empty()
             }
         }

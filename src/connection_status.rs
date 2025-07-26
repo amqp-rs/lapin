@@ -82,6 +82,10 @@ impl ConnectionStatus {
         self.lock_inner().state == ConnectionState::Connected
     }
 
+    pub fn reconnecting(&self) -> bool {
+        self.lock_inner().state == ConnectionState::Reconnecting
+    }
+
     pub fn closing(&self) -> bool {
         self.lock_inner().state == ConnectionState::Closing
     }
