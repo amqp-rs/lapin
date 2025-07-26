@@ -606,10 +606,12 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) {
-        if let ErrorKind::ProtocolError(_) = error.kind() {
-            self.internal_rpc.set_connection_error(error);
-        } else {
-            self.internal_rpc.set_connection_closed(error);
+        if !self.is_recovering(&error) {
+            if let ErrorKind::ProtocolError(_) = error.kind() {
+                self.internal_rpc.set_connection_error(error);
+            } else {
+                self.internal_rpc.set_connection_closed(error);
+            }
         }
     }
 
