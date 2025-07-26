@@ -6,7 +6,6 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
-    killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::{SocketEvent, SocketState},
     thread::ThreadHandle,
@@ -43,7 +42,6 @@ pub struct IoLoop {
     socket_state: SocketState,
     stream: Pin<Box<dyn AsyncIOHandle + Send>>,
     status: Status,
-    killswitch: KillSwitch,
     frame_size: FrameSize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
@@ -65,7 +63,6 @@ impl IoLoop {
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
         );
-        let killswitch = heartbeat.killswitch();
 
         Self {
             connection_status,
@@ -77,7 +74,6 @@ impl IoLoop {
             socket_state,
             stream,
             status: Status::Initial,
-            killswitch,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
@@ -170,7 +166,7 @@ impl IoLoop {
                         ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
                     ));
                     let internal_rpc = self.internal_rpc.clone();
-                    if self.killswitch.killed() {
+                    if self.heartbeat.killswitch().killed() {
                         internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
                             self.stream
                                 .as_mut()
