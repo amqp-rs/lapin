@@ -139,6 +139,7 @@ impl IoLoop {
                 self.connection_status.connected()
                     || self.connection_status.closing()
                     || self.connection_status.reconnecting()
+                    || self.connection_status.connecting()
                     || !self.serialized_frames.is_empty()
             }
         }
@@ -162,6 +163,7 @@ impl IoLoop {
                             res = self.critical_error(err);
                         }
                     }
+                    trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
                     self.clear_serialized_frames(self.frames.poison().unwrap_or(
                         ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
                     ));
@@ -214,6 +216,7 @@ impl IoLoop {
             "io_loop do_run",
         );
         if !self.can_read() && !self.can_write() && self.should_continue() {
+            trace!("io_loop cannot do anything for now, waiting for socket events.");
             self.socket_state.wait();
         }
         self.poll_socket_events();
