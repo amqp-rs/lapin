@@ -26,6 +26,7 @@ use tracing::{Level, debug, error, level_enabled, trace};
 #[derive(Clone)]
 pub(crate) struct Channels {
     inner: Arc<Mutex<Inner>>,
+    channel0: Channel,
     configuration: Configuration,
     connection_status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,
@@ -49,12 +50,24 @@ impl Channels {
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Self {
+        let mut inner = Inner::new(
+            configuration.clone(),
+            waker,
+            options.recovery_config.clone().unwrap_or_default(),
+        );
+        let channel0 = inner.create_channel(
+            0,
+            connection_status.clone(),
+            internal_rpc.clone(),
+            frames.clone(),
+            executor.clone(),
+            None,
+        );
+        channel0.set_state(ChannelState::Connected);
+
         Self {
-            inner: Arc::new(Mutex::new(Inner::new(
-                configuration.clone(),
-                waker,
-                options.recovery_config.clone().unwrap_or_default(),
-            ))),
+            inner: Arc::new(Mutex::new(inner)),
+            channel0,
             configuration,
             connection_status,
             internal_rpc,
@@ -77,17 +90,8 @@ impl Channels {
         )
     }
 
-    pub(crate) fn create_zero(&self) {
-        self.lock_inner()
-            .create_channel(
-                0,
-                self.connection_status.clone(),
-                self.internal_rpc.clone(),
-                self.frames.clone(),
-                self.executor.clone(),
-                None,
-            )
-            .set_state(ChannelState::Connected);
+    pub(crate) fn channel0(&self) -> Channel {
+        self.channel0.clone()
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
@@ -96,6 +100,11 @@ impl Channels {
 
     pub(crate) fn remove(&self, id: ChannelId, error: Error) -> Result<()> {
         self.frames.clear_expected_replies(id, error);
+
+        if id == 0 {
+            return Ok(());
+        }
+
         if self.lock_inner().channels.remove(&id).is_some() {
             Ok(())
         } else {
@@ -104,9 +113,13 @@ impl Channels {
     }
 
     pub(crate) fn receive_method(&self, id: ChannelId, method: AMQPClass) -> Result<()> {
-        self.get(id)
-            .map(|channel| channel.receive_method(method))
-            .unwrap_or_else(|| Err(ErrorKind::InvalidChannel(id).into()))
+        if id == 0 {
+            self.channel0.receive_method(method)
+        } else {
+            self.get(id)
+                .map(|channel| channel.receive_method(method))
+                .unwrap_or_else(|| Err(ErrorKind::InvalidChannel(id).into()))
+        }
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -172,16 +185,15 @@ impl Channels {
     pub(crate) fn send_heartbeat(&self) {
         debug!("send heartbeat");
 
-        if let Some(channel0) = self.get(0) {
-            let (promise, resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
 
-            if level_enabled!(Level::TRACE) {
-                promise.set_marker("Heartbeat".into());
-            }
-
-            channel0.send_frame(AMQPFrame::Heartbeat(0), resolver, None);
-            self.internal_rpc.register_internal_future(promise);
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("Heartbeat".into());
         }
+
+        self.channel0
+            .send_frame(AMQPFrame::Heartbeat(0), resolver, None);
+        self.internal_rpc.register_internal_future(promise);
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
@@ -220,7 +232,8 @@ impl Channels {
                         AMQPHardError::FRAMEERROR.into(),
                         format!("heartbeat frame received on channel {channel_id}").into(),
                     );
-                    if let Some(channel0) = self.get(0) {
+                    let channel0 = self.channel0();
+                    {
                         let error = error.clone();
                         self.internal_rpc.register_internal_future(async move {
                             channel0
@@ -243,7 +256,8 @@ impl Channels {
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {channel_id}").into(),
                     );
-                    if let Some(channel0) = self.get(0) {
+                    let channel0 = self.channel0();
+                    {
                         let error = error.clone();
                         self.internal_rpc.register_internal_future(async move {
                             channel0
@@ -292,7 +306,6 @@ impl Channels {
         self.lock_inner()
             .channels
             .values()
-            .filter(|c| c.id() != 0)
             .fold(Some(error), |error, channel| {
                 channel.init_recovery_or_shutdown(error)
             });
@@ -303,7 +316,6 @@ impl Channels {
             .lock_inner()
             .channels
             .values()
-            .filter(|c| c.id() != 0)
             .cloned()
             .collect::<Vec<_>>();
 
@@ -390,7 +402,7 @@ impl Inner {
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
-        let channel = Channel::new(
+        Channel::new(
             id,
             self.configuration.clone(),
             connection_status,
@@ -400,9 +412,7 @@ impl Inner {
             executor,
             connection_closer,
             self.recovery_config.clone(),
-        );
-        self.channels.insert(id, channel.clone_internal());
-        channel
+        )
     }
 
     fn create(
@@ -426,14 +436,16 @@ impl Inner {
                 met_first_id = true;
             }
             if !self.channels.contains_key(&id) {
-                return Ok(self.create_channel(
+                let channel = self.create_channel(
                     id,
                     connection_status,
                     internal_rpc,
                     frames,
                     executor,
                     Some(connection_closer),
-                ));
+                );
+                self.channels.insert(id, channel.clone_internal());
+                return Ok(channel);
             }
             id = self.channel_id.next();
         }
