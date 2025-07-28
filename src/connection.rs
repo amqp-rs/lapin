@@ -237,7 +237,7 @@ impl Connection {
         );
 
         internal_rpc.start(conn.channels.clone());
-        io_loop.start(&conn.io_loop)?;
+        conn.io_loop.register(io_loop.start()?);
         conn.start(uri, options).await
     }
 

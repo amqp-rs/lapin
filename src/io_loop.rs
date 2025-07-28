@@ -9,7 +9,7 @@ use crate::{
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::{SocketEvent, SocketState},
     tcp::HandshakeResult,
-    thread::ThreadHandle,
+    thread::JoinHandle,
     types::FrameSize,
     uri::AMQPUri,
 };
@@ -157,60 +157,58 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(mut self, handle: &ThreadHandle) -> Result<()> {
+    pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
-        handle.register(
-            ThreadBuilder::new()
-                .name("lapin-io-loop".to_owned())
-                .spawn(move || {
-                    let _enter = current_span.enter();
-                    let connection_killswitch = self.channels.connection_killswitch();
-                    let readable_waker = self.readable_waker();
-                    let mut readable_context = Context::from_waker(&readable_waker);
-                    let writable_waker = self.writable_waker();
-                    let mut writable_context = Context::from_waker(&writable_waker);
-                    let res = loop {
-                        let mut res = Ok(());
+        let handle = ThreadBuilder::new()
+            .name("lapin-io-loop".to_owned())
+            .spawn(move || {
+                let _enter = current_span.enter();
+                let connection_killswitch = self.channels.connection_killswitch();
+                let readable_waker = self.readable_waker();
+                let mut readable_context = Context::from_waker(&readable_waker);
+                let writable_waker = self.writable_waker();
+                let mut writable_context = Context::from_waker(&writable_waker);
+                let res = loop {
+                    let mut res = Ok(());
 
-                        while self.should_continue() {
-                            if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
-                                res = self.critical_error(err);
-                            }
+                    while self.should_continue() {
+                        if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
+                            res = self.critical_error(err);
                         }
-
-                        let reconnect = connection_killswitch.killed();
-
-                        trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else { "shutdown" });
-                        self.clear_serialized_frames(self.frames.poison().or_else(|| res.clone().err()).unwrap_or(
-                            ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
-                        ));
-
-                        if !reconnect {
-                            break res;
-                        }
-
-                        self.reset();
-                        connection_killswitch.reset();
-                        self.internal_rpc.start_channels_recovery();
-                    };
-
-                    trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
-                    let internal_rpc = self.internal_rpc.clone();
-                    if self.heartbeat.killswitch().killed() {
-                        internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
-                            self.stream
-                                .as_mut()
-                                .poll_close(cx)
-                                .map(|res| res.map_err(From::from))
-                        }));
                     }
-                    internal_rpc.stop();
-                    res
-                })?,
-        );
+
+                    let reconnect = connection_killswitch.killed();
+
+                    trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else { "shutdown" });
+                    self.clear_serialized_frames(self.frames.poison().or_else(|| res.clone().err()).unwrap_or(
+                        ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
+                    ));
+
+                    if !reconnect {
+                        break res;
+                    }
+
+                    self.reset();
+                    connection_killswitch.reset();
+                    self.internal_rpc.start_channels_recovery();
+                };
+
+                trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
+                let internal_rpc = self.internal_rpc.clone();
+                if self.heartbeat.killswitch().killed() {
+                    internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
+                        self.stream
+                            .as_mut()
+                            .poll_close(cx)
+                            .map(|res| res.map_err(From::from))
+                    }));
+                }
+                internal_rpc.stop();
+                res
+            })?;
         waker.wake();
-        Ok(())
+        Ok(handle)
     }
 
     fn stop(&mut self) {
