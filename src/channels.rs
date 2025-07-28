@@ -7,6 +7,7 @@ use crate::{
     heartbeat::Heartbeat,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
+    killswitch::KillSwitch,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
     recovery_config::RecoveryConfig,
     socket_state::SocketStateHandle,
@@ -33,6 +34,7 @@ pub(crate) struct Channels {
     executor: Arc<dyn FullExecutor + Send + Sync>,
     frames: Frames,
     heartbeat: Heartbeat,
+    connection_killswitch: KillSwitch,
     error_handler: ErrorHandler,
     uri: AMQPUri,
     options: ConnectionProperties,
@@ -74,6 +76,7 @@ impl Channels {
             executor,
             frames,
             heartbeat,
+            connection_killswitch: KillSwitch::default(),
             error_handler: ErrorHandler::default(),
             uri,
             options,
@@ -95,7 +98,11 @@ impl Channels {
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
-        self.lock_inner().channels.get(&id).cloned()
+        if id == 0 {
+            Some(self.channel0())
+        } else {
+            self.lock_inner().channels.get(&id).cloned()
+        }
     }
 
     pub(crate) fn remove(&self, id: ChannelId, error: Error) -> Result<()> {
@@ -110,6 +117,10 @@ impl Channels {
         } else {
             Err(ErrorKind::InvalidChannel(id).into())
         }
+    }
+
+    pub(crate) fn connection_killswitch(&self) -> KillSwitch {
+        self.connection_killswitch.clone()
     }
 
     pub(crate) fn receive_method(&self, id: ChannelId, method: AMQPClass) -> Result<()> {
@@ -301,8 +312,10 @@ impl Channels {
     }
 
     pub(crate) fn init_connection_recovery(&self, error: Error) {
+        trace!("init connection recovery");
         self.heartbeat.reset();
         self.connection_status.set_reconnecting();
+        self.connection_killswitch.kill();
         self.lock_inner()
             .channels
             .values()
