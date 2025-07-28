@@ -81,6 +81,12 @@ impl IoLoop {
         }
     }
 
+    fn reset(&mut self) {
+        self.status = Status::Initial;
+        self.receive_buffer.reset();
+        self.send_buffer.reset();
+    }
+
     fn readable_waker(&self) -> Waker {
         let socket_state_handle = self.socket_state.handle();
         waker_fn::waker_fn(move || socket_state_handle.send(SocketEvent::Readable))
@@ -132,20 +138,24 @@ impl IoLoop {
     }
 
     fn should_continue(&self) -> bool {
+        if self.connection_status.errored() {
+            return false;
+        }
+
         match self.status {
-            Status::Initial => !self.connection_status.errored(),
+            Status::Initial => true,
             Status::Stop => false,
             Status::Connected => {
                 self.connection_status.connected()
                     || self.connection_status.closing()
-                    || self.connection_status.reconnecting()
-                    || self.connection_status.connecting()
+                    || !self.internal_rpc.is_empty()
+                    || self.frames.has_pending()
                     || !self.serialized_frames.is_empty()
             }
         }
     }
 
-    pub fn start(mut self, handle: &ThreadHandle) -> Result<()> {
+    pub(crate) fn start(mut self, handle: &ThreadHandle) -> Result<()> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         handle.register(
@@ -153,20 +163,37 @@ impl IoLoop {
                 .name("lapin-io-loop".to_owned())
                 .spawn(move || {
                     let _enter = current_span.enter();
+                    let connection_killswitch = self.channels.connection_killswitch();
                     let readable_waker = self.readable_waker();
                     let mut readable_context = Context::from_waker(&readable_waker);
                     let writable_waker = self.writable_waker();
                     let mut writable_context = Context::from_waker(&writable_waker);
-                    let mut res = Ok(());
-                    while self.should_continue() {
-                        if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
-                            res = self.critical_error(err);
+                    let res = loop {
+                        let mut res = Ok(());
+
+                        while self.should_continue() {
+                            if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
+                                res = self.critical_error(err);
+                            }
                         }
-                    }
+
+                        let reconnect = connection_killswitch.killed();
+
+                        trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else { "shutdown" });
+                        self.clear_serialized_frames(self.frames.poison().or_else(|| res.clone().err()).unwrap_or(
+                            ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
+                        ));
+
+                        if !reconnect {
+                            break res;
+                        }
+
+                        self.reset();
+                        connection_killswitch.reset();
+                        self.internal_rpc.start_channels_recovery();
+                    };
+
                     trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
-                    self.clear_serialized_frames(self.frames.poison().unwrap_or(
-                        ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
-                    ));
                     let internal_rpc = self.internal_rpc.clone();
                     if self.heartbeat.killswitch().killed() {
                         internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
@@ -289,7 +316,11 @@ impl IoLoop {
     fn read(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
         while self.can_read() {
             let res = self.read_from_stream(readable_context);
-            self.handle_io_result(res)?;
+            let stop = res.as_ref().is_ok_and(|stop| *stop);
+            self.handle_io_result(res.map(|_| ()))?;
+            if stop {
+                break;
+            }
         }
         Ok(())
     }
@@ -346,9 +377,9 @@ impl IoLoop {
         Ok(())
     }
 
-    fn read_from_stream(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
+    fn read_from_stream(&mut self, readable_context: &mut Context<'_>) -> Result<bool> {
         match self.connection_status.state() {
-            ConnectionState::Closed => Ok(()),
+            ConnectionState::Closed => Ok(true),
             ConnectionState::Error => {
                 Err(ErrorKind::InvalidConnectionState(ConnectionState::Error).into())
             }
@@ -369,6 +400,12 @@ impl IoLoop {
                         );
                         // Give a chance to parse and use frames we already read from socket before overriding the error with a custom one.
                         if !self.handle_frames()? && self.internal_rpc.is_empty() {
+                            if self.channels.connection_killswitch().killed() {
+                                trace!(
+                                    "We're in the process of recovering connection, quit reading socket to enter recovery"
+                                );
+                                return Ok(true);
+                            }
                             self.socket_state.handle_io_result(Err(io::Error::from(
                                 io::ErrorKind::ConnectionAborted,
                             )
@@ -376,7 +413,7 @@ impl IoLoop {
                         }
                     }
                 }
-                Ok(())
+                Ok(false)
             }
         }
     }

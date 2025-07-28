@@ -887,16 +887,12 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
-        let recovering = self.is_recovering(&error);
-        if recovering {
+        if self.is_recovering(&error) {
             self.internal_rpc.init_connection_recovery(error.clone());
         } else {
             self.internal_rpc.init_connection_shutdown(error.clone());
         }
         self.internal_rpc.send_connection_close_ok(error);
-        if recovering {
-            self.internal_rpc.start_channels_recovery();
-        }
         Ok(())
     }
 

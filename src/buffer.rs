@@ -33,6 +33,12 @@ impl Buffer {
         }
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.position = 0;
+        self.end = 0;
+        self.available_data = 0;
+    }
+
     pub(crate) fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             end: self.end,
