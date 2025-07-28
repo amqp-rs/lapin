@@ -1,5 +1,5 @@
 use crate::{
-    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
+    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result, TcpStream,
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
@@ -8,8 +8,10 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::{SocketEvent, SocketState},
+    tcp::HandshakeResult,
     thread::ThreadHandle,
     types::FrameSize,
+    uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use reactor_trait::AsyncIOHandle;
@@ -487,6 +489,23 @@ impl IoLoop {
                     self.critical_error(ErrorKind::ParsingError(e).into())?;
                 }
                 Ok(None)
+            }
+        }
+    }
+
+    pub(crate) fn tcp_connect(
+        connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        uri: &AMQPUri,
+    ) -> Result<TcpStream> {
+        let mut res = connect(uri);
+        loop {
+            match res {
+                Ok(stream) => {
+                    return Ok(stream);
+                }
+                Err(mid) => {
+                    res = mid.into_mid_handshake_tls_stream()?.handshake();
+                }
             }
         }
     }

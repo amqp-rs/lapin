@@ -252,24 +252,7 @@ impl Connection {
             Box::pin(async move {
                 executor
                     .spawn_blocking(Box::new(move || {
-                        let mut res = connect(&uri);
-                        loop {
-                            match res {
-                                Ok(stream) => {
-                                    resolver.resolve(stream);
-                                    break;
-                                }
-                                Err(mid) => match mid.into_mid_handshake_tls_stream() {
-                                    Err(err) => {
-                                        resolver.reject(err.into());
-                                        break;
-                                    }
-                                    Ok(mid) => {
-                                        res = mid.handshake();
-                                    }
-                                },
-                            }
-                        }
+                        resolver.complete(IoLoop::tcp_connect(connect, &uri))
                     }))
                     .await;
             })
