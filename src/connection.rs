@@ -201,7 +201,7 @@ impl Connection {
 
     pub async fn connector(
         uri: AMQPUri,
-        connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
         options: ConnectionProperties,
     ) -> Result<Connection> {
         let executor = options.executor()?;
@@ -243,7 +243,7 @@ impl Connection {
 
     fn tcp_connect(
         uri: AMQPUri,
-        connect: Box<dyn FnOnce(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
         executor: Arc<dyn FullExecutor + Send + Sync>,
     ) -> Promise<TcpStream> {
         let (promise, resolver) = Promise::new();
