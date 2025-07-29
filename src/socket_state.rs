@@ -47,6 +47,11 @@ impl SocketState {
         self.handle_event(self.events.recv().expect("waiting for socket event failed"))
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.readable = true;
+        self.writable = true;
+    }
+
     pub(crate) fn handle(&self) -> SocketStateHandle {
         self.handle.clone()
     }

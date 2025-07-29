@@ -129,7 +129,7 @@ impl Buffer {
         cnt
     }
 
-    pub(crate) fn poll_write_to<T: AsyncWrite>(
+    pub(crate) fn poll_write_to<T: AsyncWrite + ?Sized>(
         &self,
         cx: &mut Context<'_>,
         writer: Pin<&mut T>,
@@ -149,7 +149,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn poll_read_from<T: AsyncRead>(
+    pub(crate) fn poll_read_from<T: AsyncRead + ?Sized>(
         &mut self,
         cx: &mut Context<'_>,
         reader: Pin<&mut T>,

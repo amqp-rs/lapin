@@ -6,7 +6,9 @@ use crate::{
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
+    killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
+    reactor::FullReactor,
     socket_state::{SocketEvent, SocketState},
     tcp::HandshakeResult,
     thread::JoinHandle,
@@ -14,7 +16,8 @@ use crate::{
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
-use reactor_trait::AsyncIOHandle;
+use futures_io::{AsyncRead, AsyncWrite};
+use reactor_trait::IOHandle;
 use std::{
     collections::VecDeque,
     io,
@@ -42,7 +45,8 @@ pub struct IoLoop {
     frames: Frames,
     heartbeat: Heartbeat,
     socket_state: SocketState,
-    stream: Pin<Box<dyn AsyncIOHandle + Send>>,
+    connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+    uri: AMQPUri,
     status: Status,
     frame_size: FrameSize,
     receive_buffer: Buffer,
@@ -58,7 +62,8 @@ impl IoLoop {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
-        stream: Pin<Box<dyn AsyncIOHandle + Send>>,
+        connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        uri: AMQPUri,
         heartbeat: Heartbeat,
     ) -> Self {
         let frame_size = std::cmp::max(
@@ -74,7 +79,8 @@ impl IoLoop {
             frames,
             heartbeat,
             socket_state,
-            stream,
+            connect,
+            uri,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
@@ -139,10 +145,16 @@ impl IoLoop {
         self.receive_buffer.available_data() > 0
     }
 
-    fn should_continue(&self) -> bool {
+    fn reconnecting(&self) -> bool {
+        self.connection_status.reconnecting()
+    }
+
+    fn should_continue(&self, connection_killswitch: &KillSwitch) -> bool {
         if self.connection_status.errored() {
             return false;
         }
+
+        trace!(status=?self.status, connection_status=?self.connection_status.state(), internal_rpc_empty=%self.internal_rpc.is_empty(), frames_pending=%self.frames.has_pending(), conn_killed=%connection_killswitch.killed(), ser_frames_empty=%self.serialized_frames.is_empty(), "Should continue?");
 
         match self.status {
             Status::Initial => true,
@@ -152,12 +164,16 @@ impl IoLoop {
                     || self.connection_status.closing()
                     || !self.internal_rpc.is_empty()
                     || self.frames.has_pending()
+                    || !connection_killswitch.killed()
                     || !self.serialized_frames.is_empty()
             }
         }
     }
 
-    pub(crate) fn start(mut self) -> Result<JoinHandle> {
+    pub(crate) fn start(
+        mut self,
+        reactor: Arc<dyn FullReactor + Send + Sync>,
+    ) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -169,16 +185,17 @@ impl IoLoop {
                 let mut readable_context = Context::from_waker(&readable_waker);
                 let writable_waker = self.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
-                let res = loop {
+                let (mut stream, res) = loop {
+                    let mut stream = Box::into_pin(reactor.register(IOHandle::new(self.tcp_connect()?))?);
                     let mut res = Ok(());
 
-                    while self.should_continue() {
-                        if let Err(err) = self.run(&mut readable_context, &mut writable_context) {
-                            res = self.critical_error(err);
+                    while self.should_continue(&connection_killswitch) {
+                        if let Err(err) = self.run(stream.as_mut(), &mut readable_context, &mut writable_context, &connection_killswitch) {
+                            res = self.critical_error(&connection_killswitch, err);
                         }
                     }
 
-                    let reconnect = connection_killswitch.killed();
+                    let reconnect = self.reconnecting();
 
                     trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else { "shutdown" });
                     self.clear_serialized_frames(self.frames.poison().or_else(|| res.clone().err()).unwrap_or(
@@ -186,11 +203,11 @@ impl IoLoop {
                     ));
 
                     if !reconnect {
-                        break res;
+                        break (stream, res);
                     }
 
                     self.reset();
-                    connection_killswitch.reset();
+                    self.socket_state.reset();
                     self.internal_rpc.start_channels_recovery();
                 };
 
@@ -198,7 +215,7 @@ impl IoLoop {
                 let internal_rpc = self.internal_rpc.clone();
                 if self.heartbeat.killswitch().killed() {
                     internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
-                        self.stream
+                        stream
                             .as_mut()
                             .poll_close(cx)
                             .map(|res| res.map_err(From::from))
@@ -225,10 +242,12 @@ impl IoLoop {
         }
     }
 
-    fn run(
+    fn run<T: AsyncRead + AsyncWrite + ?Sized>(
         &mut self,
+        mut stream: Pin<&mut T>,
         readable_context: &mut Context<'_>,
         writable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
     ) -> Result<()> {
         trace!("io_loop run");
         self.poll_socket_events();
@@ -242,18 +261,18 @@ impl IoLoop {
             has_data=%self.has_data(),
             "io_loop do_run",
         );
-        if !self.can_read() && !self.can_write() && self.should_continue() {
+        if !self.can_read() && !self.can_write() && self.should_continue(connection_killswitch) {
             trace!("io_loop cannot do anything for now, waiting for socket events.");
             self.socket_state.wait();
         }
         self.poll_socket_events();
-        self.attempt_flush(writable_context)?;
-        self.write(writable_context)?;
+        self.attempt_flush(stream.as_mut(), writable_context, connection_killswitch)?;
+        self.write(stream.as_mut(), writable_context, connection_killswitch)?;
         self.check_connection_state();
-        if self.should_continue() {
-            self.read(readable_context)?;
+        if self.should_continue(connection_killswitch) {
+            self.read(stream, readable_context, connection_killswitch)?;
         }
-        self.handle_frames()?;
+        self.handle_frames(connection_killswitch)?;
         self.check_connection_state();
         trace!(
             can_read=%self.socket_state.readable(),
@@ -265,7 +284,19 @@ impl IoLoop {
         Ok(())
     }
 
-    fn critical_error(&mut self, error: Error) -> Result<()> {
+    fn critical_error(&mut self, connection_killswitch: &KillSwitch, error: Error) -> Result<()> {
+        if error.is_io_error() {
+            connection_killswitch.kill();
+        }
+        if self
+            .channels
+            .recovery_config()
+            .can_recover_connection(&error)
+        {
+            self.internal_rpc.init_connection_recovery(error);
+            return Ok(());
+        }
+
         if let Some(resolver) = self.connection_status.connection_resolver() {
             resolver.reject(error.clone());
         }
@@ -286,38 +317,63 @@ impl IoLoop {
         }
     }
 
-    fn attempt_flush(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
-        let res = self.flush(writable_context);
-        self.handle_io_result(res)
+    fn attempt_flush<T: AsyncWrite + ?Sized>(
+        &mut self,
+        stream: Pin<&mut T>,
+        writable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
+    ) -> Result<()> {
+        let res = self.flush(stream, writable_context);
+        self.handle_io_result(connection_killswitch, res)
     }
 
-    fn handle_io_result(&mut self, result: Result<()>) -> Result<()> {
+    fn handle_io_result(
+        &mut self,
+        connection_killswitch: &KillSwitch,
+        result: Result<()>,
+    ) -> Result<()> {
         if let Err(e) = self.socket_state.handle_io_result(result) {
             error!(error=?e, "error doing IO");
-            self.critical_error(e)?;
+            self.critical_error(connection_killswitch, e)?;
         }
         Ok(())
     }
 
-    fn flush(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
-        let res = self.stream.as_mut().poll_flush(writable_context)?;
+    fn flush<T: AsyncWrite + ?Sized>(
+        &mut self,
+        stream: Pin<&mut T>,
+        writable_context: &mut Context<'_>,
+    ) -> Result<()> {
+        let res = stream.poll_flush(writable_context)?;
         self.socket_state.handle_write_poll(res);
         Ok(())
     }
 
-    fn write(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
+    fn write<T: AsyncWrite + ?Sized>(
+        &mut self,
+        mut stream: Pin<&mut T>,
+        writable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
+    ) -> Result<()> {
         while self.can_write() {
-            let res = self.write_to_stream(writable_context);
-            self.handle_io_result(res)?;
+            let res =
+                self.write_to_stream(stream.as_mut(), writable_context, connection_killswitch);
+            self.handle_io_result(connection_killswitch, res)?;
         }
         Ok(())
     }
 
-    fn read(&mut self, readable_context: &mut Context<'_>) -> Result<()> {
+    fn read<T: AsyncRead + ?Sized>(
+        &mut self,
+        mut stream: Pin<&mut T>,
+        readable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
+    ) -> Result<()> {
         while self.can_read() {
-            let res = self.read_from_stream(readable_context);
+            let res =
+                self.read_from_stream(stream.as_mut(), readable_context, connection_killswitch);
             let stop = res.as_ref().is_ok_and(|stop| *stop);
-            self.handle_io_result(res.map(|_| ()))?;
+            self.handle_io_result(connection_killswitch, res.map(|_| ()))?;
             if stop {
                 break;
             }
@@ -325,13 +381,18 @@ impl IoLoop {
         Ok(())
     }
 
-    fn write_to_stream(&mut self, writable_context: &mut Context<'_>) -> Result<()> {
-        self.flush(writable_context)?;
-        self.serialize()?;
+    fn write_to_stream<T: AsyncWrite + ?Sized>(
+        &mut self,
+        mut stream: Pin<&mut T>,
+        writable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
+    ) -> Result<()> {
+        self.flush(stream.as_mut(), writable_context)?;
+        self.serialize(connection_killswitch)?;
 
         let res = self
             .send_buffer
-            .poll_write_to(writable_context, Pin::new(&mut self.stream))?;
+            .poll_write_to(writable_context, stream.as_mut())?;
 
         if let Some(sz) = self.socket_state.handle_write_poll(res) {
             if sz > 0 {
@@ -368,7 +429,7 @@ impl IoLoop {
                     trace!("Still {} to write", self.send_buffer.available_data());
                 }
 
-                self.flush(writable_context)?;
+                self.flush(stream, writable_context)?;
             } else {
                 error!("Socket was writable but we wrote 0, marking as wouldblock");
                 self.socket_state.handle_write_poll::<()>(Poll::Pending);
@@ -377,7 +438,12 @@ impl IoLoop {
         Ok(())
     }
 
-    fn read_from_stream(&mut self, readable_context: &mut Context<'_>) -> Result<bool> {
+    fn read_from_stream<T: AsyncRead + ?Sized>(
+        &mut self,
+        stream: Pin<&mut T>,
+        readable_context: &mut Context<'_>,
+        connection_killswitch: &KillSwitch,
+    ) -> Result<bool> {
         match self.connection_status.state() {
             ConnectionState::Closed => Ok(true),
             ConnectionState::Error => {
@@ -386,7 +452,7 @@ impl IoLoop {
             _ => {
                 let res = self
                     .receive_buffer
-                    .poll_read_from(readable_context, Pin::new(&mut self.stream))?;
+                    .poll_read_from(readable_context, stream)?;
 
                 if let Some(sz) = self.socket_state.handle_read_poll(res) {
                     if sz > 0 {
@@ -399,8 +465,11 @@ impl IoLoop {
                             "Socket was readable but we read 0. This usually means that the connection is half closed, thus report it as broken."
                         );
                         // Give a chance to parse and use frames we already read from socket before overriding the error with a custom one.
-                        if !self.handle_frames()? && self.internal_rpc.is_empty() {
-                            if self.channels.connection_killswitch().killed() {
+                        if !self.handle_frames(connection_killswitch)?
+                            && self.internal_rpc.is_empty()
+                        {
+                            if self.reconnecting() || self.channels.connection_killswitch().killed()
+                            {
                                 trace!(
                                     "We're in the process of recovering connection, quit reading socket to enter recovery"
                                 );
@@ -418,7 +487,7 @@ impl IoLoop {
         }
     }
 
-    fn serialize(&mut self) -> Result<()> {
+    fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
         while let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
             trace!(%next_msg, "will write to buffer");
             let checkpoint = self.send_buffer.checkpoint();
@@ -437,7 +506,10 @@ impl IoLoop {
                         }
                         e => {
                             error!(error=?e, "error generating frame");
-                            self.critical_error(ErrorKind::SerialisationError(Arc::new(e)).into())?;
+                            self.critical_error(
+                                connection_killswitch,
+                                ErrorKind::SerialisationError(Arc::new(e)).into(),
+                            )?;
                         }
                     }
                 }
@@ -446,10 +518,10 @@ impl IoLoop {
         Ok(())
     }
 
-    fn handle_frames(&mut self) -> Result<bool> {
+    fn handle_frames(&mut self, connection_killswitch: &KillSwitch) -> Result<bool> {
         let mut did_something = false;
         while self.can_parse() {
-            if let Some(frame) = self.parse()? {
+            if let Some(frame) = self.parse(connection_killswitch)? {
                 self.channels.handle_frame(frame)?;
                 did_something = true;
             } else {
@@ -459,7 +531,7 @@ impl IoLoop {
         Ok(did_something)
     }
 
-    fn parse(&mut self) -> Result<Option<AMQPFrame>> {
+    fn parse(&mut self, connection_killswitch: &KillSwitch) -> Result<Option<AMQPFrame>> {
         match parse_frame(self.receive_buffer.parsing_context()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.offset(i);
@@ -476,7 +548,10 @@ impl IoLoop {
                         0,
                         0,
                     );
-                    self.critical_error(ErrorKind::ProtocolError(error).into())?;
+                    self.critical_error(
+                        connection_killswitch,
+                        ErrorKind::ProtocolError(error).into(),
+                    )?;
                 }
                 self.receive_buffer.consume(consumed);
                 Ok(Some(f))
@@ -484,18 +559,15 @@ impl IoLoop {
             Err(e) => {
                 if !e.is_incomplete() {
                     error!(error=?e, "parse error");
-                    self.critical_error(ErrorKind::ParsingError(e).into())?;
+                    self.critical_error(connection_killswitch, ErrorKind::ParsingError(e).into())?;
                 }
                 Ok(None)
             }
         }
     }
 
-    pub(crate) fn tcp_connect(
-        connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
-        uri: &AMQPUri,
-    ) -> Result<TcpStream> {
-        let mut res = connect(uri);
+    pub(crate) fn tcp_connect(&self) -> Result<TcpStream> {
+        let mut res = (self.connect)(&self.uri);
         loop {
             match res {
                 Ok(stream) => {

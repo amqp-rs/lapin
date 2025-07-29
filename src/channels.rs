@@ -38,6 +38,7 @@ pub(crate) struct Channels {
     error_handler: ErrorHandler,
     uri: AMQPUri,
     options: ConnectionProperties,
+    recovery_config: RecoveryConfig,
 }
 
 impl Channels {
@@ -52,11 +53,8 @@ impl Channels {
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Self {
-        let mut inner = Inner::new(
-            configuration.clone(),
-            waker,
-            options.recovery_config.clone().unwrap_or_default(),
-        );
+        let recovery_config = options.recovery_config.clone().unwrap_or_default();
+        let mut inner = Inner::new(configuration.clone(), waker, recovery_config.clone());
         let channel0 = inner.create_channel(
             0,
             connection_status.clone(),
@@ -80,6 +78,7 @@ impl Channels {
             error_handler: ErrorHandler::default(),
             uri,
             options,
+            recovery_config,
         }
     }
 
@@ -95,6 +94,10 @@ impl Channels {
 
     pub(crate) fn channel0(&self) -> Channel {
         self.channel0.clone()
+    }
+
+    pub(crate) fn recovery_config(&self) -> RecoveryConfig {
+        self.recovery_config.clone()
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
@@ -168,6 +171,14 @@ impl Channels {
     }
 
     pub(crate) fn set_connection_error(&self, error: Error) {
+        if self.recovery_config.can_recover_connection(&error) {
+            if self.connection_status.connected() {
+                self.connection_killswitch.kill();
+                self.init_connection_recovery(error);
+            }
+            return;
+        }
+
         // Do nothing if we were already in error
         if let ConnectionState::Error = self.connection_status.set_state(ConnectionState::Error) {
             return;
@@ -311,17 +322,16 @@ impl Channels {
         }
     }
 
-    pub(crate) fn init_connection_recovery(&self, error: Error) {
+    pub(crate) fn init_connection_recovery(&self, error: Error) -> Error {
         trace!("init connection recovery");
         self.heartbeat.reset();
         self.connection_status.set_reconnecting();
-        self.connection_killswitch.kill();
-        self.lock_inner()
+        let error = self
+            .lock_inner()
             .channels
             .values()
-            .fold(Some(error), |error, channel| {
-                channel.init_recovery_or_shutdown(error)
-            });
+            .fold(error, |error, channel| channel.init_recovery(error));
+        self.channel0.init_recovery(error.clone())
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
@@ -332,6 +342,10 @@ impl Channels {
             .cloned()
             .collect::<Vec<_>>();
 
+        self.connection_killswitch.reset();
+        self.channel0.update_recovery();
+        self.channel0.finalize_connection();
+
         Connection::for_reconnect(
             self.configuration.clone(),
             self.connection_status.clone(),
@@ -341,12 +355,12 @@ impl Channels {
         .start(self.uri.clone(), self.options.clone())
         .await?;
 
+        trace!("Connection recovered, now recovering channels");
+
         // TODO: use future::join! when stable
         for channel in channels {
             channel.start_recovery().await?;
         }
-
-        self.start_heartbeat();
 
         Ok(())
     }
@@ -358,6 +372,10 @@ impl Channels {
         if let Some(resolver) = connection_resolver {
             resolver.reject(error.clone());
         }
+    }
+
+    pub(crate) fn finish_connection_shutdown(&self) {
+        self.connection_killswitch.kill();
     }
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {

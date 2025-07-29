@@ -74,6 +74,13 @@ impl Error {
         }
     }
 
+    pub fn is_io_error(&self) -> bool {
+        if let ErrorKind::IOError(_) = self.kind() {
+            return true;
+        }
+        false
+    }
+
     pub fn is_amqp_error(&self) -> bool {
         if let ErrorKind::ProtocolError(_) = self.kind() {
             return true;
@@ -97,6 +104,27 @@ impl Error {
             }
         }
         false
+    }
+
+    pub fn can_be_recovered(&self) -> bool {
+        match self.kind() {
+            ErrorKind::ChannelsLimitReached => false,
+            ErrorKind::InvalidProtocolVersion(_) => false,
+
+            ErrorKind::InvalidChannel(_) => true,
+            ErrorKind::InvalidChannelState(..) => true,
+            ErrorKind::InvalidConnectionState(_) => true,
+
+            ErrorKind::IOError(_) => true,
+            ErrorKind::ParsingError(_) => false,
+            ErrorKind::ProtocolError(_) => true,
+            ErrorKind::SerialisationError(_) => false,
+
+            ErrorKind::MissingHeartbeatError => true,
+
+            ErrorKind::NoConfiguredExecutor => false,
+            ErrorKind::NoConfiguredReactor => false,
+        }
     }
 }
 

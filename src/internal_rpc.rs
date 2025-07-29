@@ -115,6 +115,10 @@ impl InternalRPCHandle {
         ));
     }
 
+    pub(crate) fn finish_connection_shutdown(&self) {
+        self.send(InternalCommand::FinishConnectionShutdown);
+    }
+
     pub(crate) fn init_connection_recovery(&self, error: Error) {
         self.send(InternalCommand::InitConnectionRecovery(error));
     }
@@ -171,10 +175,10 @@ impl InternalRPCHandle {
         &self,
         f: impl Future<Output = Result<()>> + Send + 'static,
     ) {
-        let internal_rpc = self.clone();
+        let handle = self.clone();
         self.executor.spawn(Box::pin(async move {
             if let Err(err) = f.await {
-                internal_rpc.set_connection_error(err);
+                handle.set_connection_error(err);
             }
         }));
     }
@@ -223,6 +227,7 @@ enum InternalCommand {
     CancelConsumer(ChannelId, String, ConsumerStatus),
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(ReplyCode, String, Identifier, Identifier),
+    FinishConnectionShutdown,
     InitConnectionRecovery(Error),
     InitConnectionShutdown(Error),
     RemoveChannel(ChannelId, Error),
@@ -351,14 +356,17 @@ impl InternalRPC {
                     })
                 }
                 CloseConnection(reply_code, reply_text, class_id, method_id) => {
-                    let channel = get_channel(0);
+                    let channel = channels.channel0();
                     handle.register_internal_future(async move {
-                        channel?
+                        channel
                             .connection_close(reply_code, &reply_text, class_id, method_id)
                             .await
                     })
                 }
-                InitConnectionRecovery(error) => channels.init_connection_recovery(error),
+                FinishConnectionShutdown => channels.finish_connection_shutdown(),
+                InitConnectionRecovery(error) => {
+                    channels.init_connection_recovery(error);
+                }
                 InitConnectionShutdown(error) => channels.init_connection_shutdown(error),
                 RemoveChannel(channel_id, error) => {
                     if !self.channel_ok(channel_id) {
@@ -369,9 +377,9 @@ impl InternalRPC {
                         .register_internal_future(async move { channels.remove(channel_id, error) })
                 }
                 SendConnectionCloseOk(error) => {
-                    let channel = get_channel(0);
+                    let channel = channels.channel0();
                     handle.register_internal_future(async move {
-                        channel?.connection_close_ok(error).await
+                        channel.connection_close_ok(error).await
                     })
                 }
                 SetChannelStatus(channel_id, killswitch) => {

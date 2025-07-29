@@ -1,28 +1,29 @@
 use crate::{connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) struct ConnectionCloser {
     status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,
-    noop: bool,
+    noop: AtomicBool,
 }
 
 impl ConnectionCloser {
-    pub(crate) fn new(
-        status: ConnectionStatus,
-        internal_rpc: InternalRPCHandle,
-        noop: bool,
-    ) -> Self {
+    pub(crate) fn new(status: ConnectionStatus, internal_rpc: InternalRPCHandle) -> Self {
         Self {
             status,
             internal_rpc,
-            noop,
+            noop: AtomicBool::new(false),
         }
+    }
+
+    pub(crate) fn noop(&self) {
+        self.noop.store(true, Ordering::SeqCst);
     }
 }
 
 impl Drop for ConnectionCloser {
     fn drop(&mut self) {
-        if self.noop {
+        if self.noop.load(Ordering::SeqCst) {
             return;
         }
 

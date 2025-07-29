@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
     time::{Duration, Instant},
 };
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Heartbeat {
@@ -111,6 +112,9 @@ impl Inner {
         // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
         // The specs tells us to close the connection after twice the configured interval has passed.
         if Instant::now().duration_since(self.last_read) > 4 * timeout {
+            error!(
+                "We haven't received anything from the server for too long, closing connection."
+            );
             self.timeout = None;
             killswitch.kill();
             channels.set_connection_error(ErrorKind::MissingHeartbeatError.into());

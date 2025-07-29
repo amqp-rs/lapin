@@ -163,12 +163,12 @@ impl Inner {
         let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
-        if self.check_poison(&resolver) {
-            return promise;
-        }
-
         if level_enabled!(Level::TRACE) {
             promise.set_marker("Frames".into());
+        }
+
+        if self.check_poison(&resolver) {
+            return promise;
         }
 
         for frame in frames {

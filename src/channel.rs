@@ -136,9 +136,7 @@ impl Channel {
     }
 
     pub async fn wait_for_recovery(&self, error: Error) -> Result<()> {
-        if self.recovery_config.auto_recover_channels
-            || self.recovery_config.auto_recover_connection
-        {
+        if self.recovery_config.can_recover(&error) {
             #[allow(deprecated)]
             if let Some(notifier) = error.notifier() {
                 notifier.await;
@@ -182,7 +180,7 @@ impl Channel {
     }
 
     fn error_consumers(&self, error: Error) {
-        let recover = self.is_recovering(&error);
+        let recover = self.recovery_config.can_recover(&error);
         self.consumers.error(error, recover);
     }
 
@@ -304,17 +302,14 @@ impl Channel {
         self.consumers.register(tag, consumer);
     }
 
-    fn is_recovering(&self, error: &Error) -> bool {
-        (self.recovery_config.auto_recover_channels && error.is_amqp_soft_error())
-            || (self.recovery_config.auto_recover_connection && error.is_amqp_hard_error())
+    pub(crate) fn finalize_connection(&self) {
+        self.status.finalize_connection();
     }
 
     pub(crate) fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
         match error {
-            Some(err) if self.is_recovering(&err) => {
-                let err = self.status.set_reconnecting(err, self.topology());
-                self.frames.drop_frames_for_channel(self.id, err.clone());
-                Some(err)
+            Some(err) if self.recovery_config.can_recover_channel(&err) => {
+                Some(self.init_recovery(err))
             }
             err => {
                 self.set_closing(err.clone());
@@ -323,17 +318,24 @@ impl Channel {
         }
     }
 
+    pub(crate) fn init_recovery(&self, error: Error) -> Error {
+        let err = self.status.set_reconnecting(error, self.topology());
+        self.frames.drop_frames_for_channel(self.id, err.clone());
+        err
+    }
+
+    pub(crate) fn update_recovery(&self) -> Option<ChannelDefinition> {
+        self.status.update_recovery_context(|ctx| {
+            // Cleanup any pending expecting reply
+            ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
+            // Also reset the acknowledgements state for this channel
+            self.acknowledgements.reset(ctx.cause());
+            ctx.topology()
+        })
+    }
+
     pub(crate) async fn start_recovery(&self) -> Result<()> {
-        let topology = self
-            .status
-            .update_recovery_context(|ctx| {
-                // Cleanup any pending expecting reply
-                ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
-                // Also reset the acknowledgements state for this channel
-                self.acknowledgements.reset(ctx.cause());
-                ctx.topology()
-            })
-            .expect("No topology during recovery");
+        let topology = self.update_recovery().expect("No topology during recovery");
 
         // First, reopen the channel
         self.channel_open(self.clone()).await?;
@@ -606,7 +608,8 @@ impl Channel {
     }
 
     fn on_connection_close_ok_sent(&self, error: Error) {
-        if !self.is_recovering(&error) {
+        self.internal_rpc.finish_connection_shutdown();
+        if !self.recovery_config.can_recover_connection(&error) {
             if let ErrorKind::ProtocolError(_) = error.kind() {
                 self.internal_rpc.set_connection_error(error);
             } else {
@@ -631,7 +634,10 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        if error.as_ref().is_none_or(|err| !self.is_recovering(err)) {
+        if error
+            .as_ref()
+            .is_none_or(|err| !self.recovery_config.can_recover_channel(err))
+        {
             self.set_closed(
                 error.clone().unwrap_or(
                     ErrorKind::InvalidChannelState(ChannelState::Closing, "channel.close-ok sent")
@@ -887,7 +893,7 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
-        if self.is_recovering(&error) {
+        if self.recovery_config.can_recover_connection(&error) {
             self.internal_rpc.init_connection_recovery(error.clone());
         } else {
             self.internal_rpc.init_connection_shutdown(error.clone());
@@ -924,7 +930,7 @@ impl Channel {
         channel: Channel,
     ) -> Result<()> {
         if !self.status.confirm() {
-            self.status.finalize_connection();
+            self.finalize_connection();
         }
         resolver.resolve(channel);
         Ok(())
@@ -961,10 +967,13 @@ impl Channel {
                 );
                 Error::from(ErrorKind::ProtocolError(error))
             }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok());
+        let recover = error
+            .as_ref()
+            .is_some_and(|err| self.recovery_config.can_recover_channel(err));
         let channel = self.clone();
         self.internal_rpc.register_internal_future(async move {
             channel.channel_close_ok(error).await?;
-            if channel.recovery_config.auto_recover_channels {
+            if recover {
                 channel.start_recovery().await?;
             }
             Ok(())
