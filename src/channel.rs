@@ -858,7 +858,9 @@ impl Channel {
                         configuration.heartbeat(),
                     )
                     .await?;
-                channel.connection_open(&vhost, connection, resolver).await
+                channel
+                    .connection_open(&vhost, Box::new(connection), resolver)
+                    .await
             });
             Ok(())
         } else {
@@ -872,7 +874,7 @@ impl Channel {
     fn on_connection_open_ok_received(
         &self,
         _: protocol::connection::OpenOk,
-        connection: Connection,
+        connection: Box<Connection>,
     ) -> Result<()> {
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
@@ -880,7 +882,7 @@ impl Channel {
             (state, self.connection_status.connection_step())
         {
             self.connection_status.set_state(ConnectionState::Connected);
-            resolver.resolve(connection);
+            resolver.resolve(*connection);
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");

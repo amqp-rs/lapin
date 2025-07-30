@@ -30,13 +30,13 @@
         "state": [
           {
             "name": "connection",
-            "type": "Connection"
+            "type": "Box<Connection>"
           }
         ],
         "extra_args": [
           {
             "name": "connection",
-            "type": "Connection"
+            "type": "Box<Connection>"
           },
           {
             "name": "conn_resolver",

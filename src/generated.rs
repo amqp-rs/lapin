@@ -159,7 +159,7 @@ pub(crate) enum Reply {
     BasicCancelOk(PromiseResolver<()>),
     BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
     BasicRecoverOk(PromiseResolver<()>),
-    ConnectionOpenOk(PromiseResolver<()>, Connection),
+    ConnectionOpenOk(PromiseResolver<()>, Box<Connection>),
     ConnectionCloseOk(PromiseResolver<()>),
     ConnectionUpdateSecretOk(PromiseResolver<()>),
     ChannelOpenOk(PromiseResolver<Channel>, Channel),
@@ -915,7 +915,7 @@ impl Channel {
     pub(crate) async fn connection_open(
         &self,
         virtual_host: &str,
-        connection: Connection,
+        connection: Box<Connection>,
         conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
