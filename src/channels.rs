@@ -331,7 +331,7 @@ impl Channels {
             .channels
             .values()
             .fold(error, |error, channel| channel.init_recovery(error));
-        self.channel0.init_recovery(error.clone())
+        self.channel0.init_recovery(error)
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
@@ -343,6 +343,7 @@ impl Channels {
             .collect::<Vec<_>>();
 
         self.connection_killswitch.reset();
+        self.frames.drop_poison();
         self.channel0.update_recovery();
         self.channel0.finalize_connection();
 

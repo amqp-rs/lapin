@@ -306,10 +306,10 @@ impl Channel {
         self.status.finalize_connection();
     }
 
-    pub(crate) fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
+    fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
         match error {
             Some(err) if self.recovery_config.can_recover_channel(&err) => {
-                Some(self.init_recovery(err))
+                Some(self.init_recovery_poison(err, false))
             }
             err => {
                 self.set_closing(err.clone());
@@ -319,9 +319,20 @@ impl Channel {
     }
 
     pub(crate) fn init_recovery(&self, error: Error) -> Error {
+        self.init_recovery_poison(error, true)
+    }
+
+    fn init_recovery_poison(&self, error: Error, poison: bool) -> Error {
         let err = self.status.set_reconnecting(error, self.topology());
         self.frames.drop_frames_for_channel(self.id, err.clone());
+        if poison {
+            self.poison(err.clone());
+        }
         err
+    }
+
+    fn poison(&self, error: Error) {
+        self.frames.poison_channel(self.id, error);
     }
 
     pub(crate) fn update_recovery(&self) -> Option<ChannelDefinition> {
@@ -330,6 +341,8 @@ impl Channel {
             ctx.set_expected_replies(self.frames.take_expected_replies(self.id));
             // Also reset the acknowledgements state for this channel
             self.acknowledgements.reset(ctx.cause());
+            // Also drop frames poisoning
+            self.frames.drop_channel_poison(self.id);
             ctx.topology()
         })
     }
@@ -460,7 +473,7 @@ impl Channel {
         );
 
         trace!(channel=%self.id, "send_frames");
-        let promise = self.frames.push_frames(frames);
+        let promise = self.frames.push_frames(self.id, frames);
         self.wake();
         promise.await?;
         Ok(publisher_confirms_result
@@ -634,16 +647,16 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        if error
+        let recover = error
             .as_ref()
-            .is_none_or(|err| !self.recovery_config.can_recover_channel(err))
-        {
-            self.set_closed(
-                error.clone().unwrap_or(
-                    ErrorKind::InvalidChannelState(ChannelState::Closing, "channel.close-ok sent")
-                        .into(),
-                ),
-            );
+            .is_some_and(|err| self.recovery_config.can_recover_channel(err));
+        let err = error.clone().unwrap_or_else(|| {
+            ErrorKind::InvalidChannelState(ChannelState::Closing, "channel.close-ok sent").into()
+        });
+
+        self.poison(err.clone());
+        if !recover {
+            self.set_closed(err);
             if let Some(error) = error {
                 self.error_handler.on_error(error);
             }

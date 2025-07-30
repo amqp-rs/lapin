@@ -35,8 +35,8 @@ impl Frames {
             .push(channel_id, frame, resolver, expected_reply);
     }
 
-    pub(crate) fn push_frames(&self, frames: Vec<AMQPFrame>) -> Promise<()> {
-        self.lock_inner().push_frames(frames)
+    pub(crate) fn push_frames(&self, channel_id: ChannelId, frames: Vec<AMQPFrame>) -> Promise<()> {
+        self.lock_inner().push_frames(channel_id, frames)
     }
 
     pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
@@ -102,8 +102,20 @@ impl Frames {
         self.lock_inner().drop_frames_for_channel(channel_id, error)
     }
 
+    pub(crate) fn poison_channel(&self, channel_id: ChannelId, error: Error) {
+        self.lock_inner().channels_poison.insert(channel_id, error);
+    }
+
     pub(crate) fn poison(&self) -> Option<Error> {
         self.lock_inner().poison.clone()
+    }
+
+    pub(crate) fn drop_poison(&self) {
+        self.lock_inner().poison.take();
+    }
+
+    pub(crate) fn drop_channel_poison(&self, channel_id: ChannelId) {
+        self.lock_inner().channels_poison.remove(&channel_id);
     }
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
@@ -121,6 +133,7 @@ struct Inner {
     low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
     expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
     poison: Option<Error>,
+    channels_poison: HashMap<ChannelId, Error>,
 }
 
 impl fmt::Debug for Frames {
@@ -141,7 +154,12 @@ impl Inner {
         resolver: PromiseResolver<()>,
         expected_reply: Option<ExpectedReply>,
     ) {
-        if self.check_poison(&resolver) {
+        if let Some(error) = self.check_poison(channel_id) {
+            trace!(channel=%channel_id, frame=?frame, "Discarding frame because of poisoning");
+            if let Some(reply) = expected_reply {
+                Self::cancel_expected_reply(reply, error.clone());
+            }
+            resolver.reject(error);
             return;
         }
 
@@ -159,7 +177,7 @@ impl Inner {
         }
     }
 
-    fn push_frames(&mut self, mut frames: Vec<AMQPFrame>) -> Promise<()> {
+    fn push_frames(&mut self, channel_id: ChannelId, mut frames: Vec<AMQPFrame>) -> Promise<()> {
         let (promise, resolver) = Promise::new();
         let last_frame = frames.pop();
 
@@ -167,7 +185,9 @@ impl Inner {
             promise.set_marker("Frames".into());
         }
 
-        if self.check_poison(&resolver) {
+        if let Some(error) = self.check_poison(channel_id) {
+            trace!(channel=%channel_id, frames=?frames, "Discarding frames because of poisoning");
+            resolver.reject(error);
             return promise;
         }
 
@@ -182,12 +202,11 @@ impl Inner {
         promise
     }
 
-    fn check_poison(&self, resolver: &PromiseResolver<()>) -> bool {
-        if let Some(error) = self.poison.clone() {
-            resolver.reject(error);
-            return true;
-        }
-        false
+    fn check_poison(&self, channel_id: ChannelId) -> Option<Error> {
+        self.channels_poison
+            .get(&channel_id)
+            .or(self.poison.as_ref())
+            .cloned()
     }
 
     fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
@@ -272,7 +291,7 @@ impl Inner {
         Self::drop_pending_frames_for_channel(channel_id, &mut self.retry_frames, error.clone());
         Self::drop_pending_frames_for_channel(channel_id, &mut self.publish_frames, error.clone());
         Self::drop_pending_frames_for_channel(channel_id, &mut self.frames, error.clone());
-        Self::drop_pending_frames_for_channel(channel_id, &mut self.low_prio_frames, error);
+        Self::drop_pending_frames_for_channel(channel_id, &mut self.low_prio_frames, error.clone());
     }
 
     fn drop_pending_frames_for_channel(
@@ -310,11 +329,16 @@ impl Inner {
     }
 
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
-        for ExpectedReply(reply, cancel) in replies {
-            match reply {
-                Reply::BasicCancelOk(resolver) => resolver.resolve(()),
-                _ => cancel.cancel(error.clone()),
-            }
+        for reply in replies {
+            Self::cancel_expected_reply(reply, error.clone());
+        }
+    }
+
+    fn cancel_expected_reply(reply: ExpectedReply, error: Error) {
+        let ExpectedReply(reply, cancel) = reply;
+        match reply {
+            Reply::BasicCancelOk(resolver) => resolver.resolve(()),
+            _ => cancel.cancel(error.clone()),
         }
     }
 }
