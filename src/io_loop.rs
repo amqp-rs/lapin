@@ -9,7 +9,7 @@ use crate::{
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
     reactor::FullReactor,
-    socket_state::{SocketEvent, SocketState},
+    socket_state::SocketState,
     tcp::HandshakeResult,
     thread::JoinHandle,
     types::FrameSize,
@@ -23,7 +23,7 @@ use std::{
     io,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
     thread::Builder as ThreadBuilder,
 };
 use tracing::{error, trace};
@@ -93,16 +93,6 @@ impl IoLoop {
         self.status = Status::Initial;
         self.receive_buffer.reset();
         self.send_buffer.reset();
-    }
-
-    fn readable_waker(&self) -> Waker {
-        let socket_state_handle = self.socket_state.handle();
-        waker_fn::waker_fn(move || socket_state_handle.send(SocketEvent::Readable))
-    }
-
-    fn writable_waker(&self) -> Waker {
-        let socket_state_handle = self.socket_state.handle();
-        waker_fn::waker_fn(move || socket_state_handle.send(SocketEvent::Writable))
     }
 
     fn finish_setup(&mut self) -> Result<bool> {
@@ -181,9 +171,9 @@ impl IoLoop {
             .spawn(move || {
                 let _enter = current_span.enter();
                 let connection_killswitch = self.channels.connection_killswitch();
-                let readable_waker = self.readable_waker();
+                let readable_waker = self.socket_state.readable_waker();
                 let mut readable_context = Context::from_waker(&readable_waker);
-                let writable_waker = self.writable_waker();
+                let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let mut stream = Box::into_pin(reactor.register(IOHandle::new(self.tcp_connect()?))?);

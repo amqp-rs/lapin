@@ -1,6 +1,9 @@
 use crate::Result;
 use flume::{Receiver, Sender};
-use std::task::Poll;
+use std::{
+    sync::Arc,
+    task::{Poll, Wake, Waker},
+};
 use tracing::trace;
 
 pub(crate) struct SocketState {
@@ -27,11 +30,16 @@ pub struct SocketStateHandle {
     sender: Sender<SocketEvent>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SocketEvent {
     Readable,
     Writable,
     Wake,
+}
+
+pub(crate) struct SocketStateWaker {
+    handle: SocketStateHandle,
+    event: SocketEvent,
 }
 
 impl SocketState {
@@ -103,6 +111,20 @@ impl SocketState {
             SocketEvent::Wake => {}
         }
     }
+
+    pub(crate) fn readable_waker(&self) -> Waker {
+        self.waker(SocketEvent::Readable)
+    }
+
+    pub(crate) fn writable_waker(&self) -> Waker {
+        self.waker(SocketEvent::Writable)
+    }
+
+    fn waker(&self, event: SocketEvent) -> Waker {
+        let handle = self.handle();
+        let waker = SocketStateWaker { handle, event };
+        Waker::from(Arc::new(waker))
+    }
 }
 
 impl SocketStateHandle {
@@ -112,5 +134,15 @@ impl SocketStateHandle {
 
     pub fn wake(&self) {
         self.send(SocketEvent::Wake);
+    }
+}
+
+impl Wake for SocketStateWaker {
+    fn wake(self: Arc<Self>) {
+        self.handle.send(self.event)
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.handle.send(self.event)
     }
 }
