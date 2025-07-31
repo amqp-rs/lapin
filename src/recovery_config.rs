@@ -8,7 +8,20 @@ pub struct RecoveryConfig {
 
 impl RecoveryConfig {
     #[cfg(feature = "unstable")]
+    pub fn full() -> Self {
+        Self::default()
+            .auto_recover_channels()
+            .auto_recover_connection()
+    }
+
+    #[cfg(feature = "unstable")]
     pub fn auto_recover_channels(mut self) -> Self {
+        self.auto_recover_channels = true;
+        self
+    }
+
+    #[cfg(feature = "unstable")]
+    pub fn auto_recover_connection(mut self) -> Self {
         self.auto_recover_channels = true;
         self
     }
