@@ -1,3 +1,13 @@
+### 3.1.0 (2025-07-31)
+
+#### Features
+
+* Add experimental ability to recover on connection failure
+
+#### Misc
+
+* Drop waker-fn dependency
+
 ### 3.0.2 (2025-07-25)
 
 #### Bug Fixes
