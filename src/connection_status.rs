@@ -56,7 +56,7 @@ impl ConnectionStatus {
     pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
         let resolver = self.lock_inner().connection_resolver();
         // We carry the Connection here to drop the lock() above before dropping the Connection
-        resolver.map(|(_, resolver, _connection)| resolver)
+        resolver.map(|(resolver, _connection)| resolver.resolver_in)
     }
 
     pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
@@ -128,17 +128,34 @@ impl ConnectionStatus {
     }
 }
 
+pub(crate) struct ConnectionResolver {
+    resolver_out: Option<PromiseResolver<()>>,
+    resolver_in: PromiseResolver<Connection>,
+}
+
+impl ConnectionResolver {
+    pub(crate) fn resolve(&self, conn: Connection) {
+        self.resolver_in.resolve(conn);
+    }
+
+    fn reject(&self, err: Error) {
+        if let Some(resolver) = self.resolver_out.as_ref() {
+            resolver.reject(err.clone());
+        }
+        self.resolver_in.reject(err);
+    }
+}
+
 pub(crate) enum ConnectionStep {
     ProtocolHeader(
-        PromiseResolver<()>,
-        PromiseResolver<Connection>,
+        ConnectionResolver,
         Connection,
         Credentials,
         SASLMechanism,
         ConnectionProperties,
     ),
-    StartOk(PromiseResolver<Connection>, Connection, Credentials),
-    Open(PromiseResolver<Connection>),
+    StartOk(ConnectionResolver, Connection, Credentials),
+    Open(ConnectionResolver),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -201,8 +218,10 @@ impl Inner {
     ) -> Result<()> {
         self.state = ConnectionState::Connecting;
         self.connection_step = Some(ConnectionStep::ProtocolHeader(
-            resolver_out,
-            resolver_in,
+            ConnectionResolver {
+                resolver_out: Some(resolver_out),
+                resolver_in,
+            },
             conn,
             creds,
             mechanism,
@@ -218,23 +237,15 @@ impl Inner {
         self.blocked = false;
     }
 
-    fn connection_resolver(
-        &mut self,
-    ) -> Option<(
-        Option<PromiseResolver<()>>,
-        PromiseResolver<Connection>,
-        Option<Connection>,
-    )> {
+    fn connection_resolver(&mut self) -> Option<(ConnectionResolver, Option<Connection>)> {
         self.connection_step
             .take()
             .map(|connection_step| match connection_step {
-                ConnectionStep::ProtocolHeader(resolver_out, resolver_in, connection, ..) => {
-                    (Some(resolver_out), resolver_in, Some(connection))
+                ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
+                    (resolver, Some(connection))
                 }
-                ConnectionStep::StartOk(resolver, connection, ..) => {
-                    (None, resolver, Some(connection))
-                }
-                ConnectionStep::Open(resolver, ..) => (None, resolver, None),
+                ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
+                ConnectionStep::Open(resolver, ..) => (resolver, None),
             })
     }
 
@@ -251,11 +262,8 @@ impl Inner {
     }
 
     fn poison(&mut self, err: Error) {
-        if let Some((resolver_out, resolver_in, _connection)) = self.connection_resolver() {
-            if let Some(resolver) = resolver_out {
-                resolver.reject(err.clone());
-            }
-            resolver_in.reject(err.clone());
+        if let Some((resolver, _connection)) = self.connection_resolver() {
+            resolver.reject(err.clone());
         }
         self.poison = Some(err);
     }

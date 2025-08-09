@@ -842,7 +842,7 @@ impl Channel {
         mechanism: &str,
         response: &str,
         locale: &str,
-        resolver: PromiseResolver<Connection>,
+        resolver: ConnectionResolver,
         connection: Connection,
         credentials: Credentials,
     ) -> Result<()> {
@@ -916,7 +916,7 @@ impl Channel {
         &self,
         virtual_host: &str,
         connection: Box<Connection>,
-        conn_resolver: PromiseResolver<Connection>,
+        conn_resolver: ConnectionResolver,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
             protocol::connection::Open {

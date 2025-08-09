@@ -8,7 +8,7 @@ use crate::{
     channel_receiver_state::DeliveryCause,
     channel_status::{ChannelState, ChannelStatus},
     connection_closer::ConnectionCloser,
-    connection_status::{ConnectionState, ConnectionStep},
+    connection_status::{ConnectionResolver, ConnectionState, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
     error_handler::ErrorHandler,
@@ -607,7 +607,7 @@ impl Channel {
 
     fn before_connection_start_ok(
         &self,
-        resolver: PromiseResolver<Connection>,
+        resolver: ConnectionResolver,
         connection: Connection,
         credentials: Credentials,
     ) {
@@ -615,7 +615,7 @@ impl Channel {
             .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
     }
 
-    fn before_connection_open(&self, resolver: PromiseResolver<Connection>) {
+    fn before_connection_open(&self, resolver: ConnectionResolver) {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
     }
@@ -725,7 +725,6 @@ impl Channel {
         if let (
             ConnectionState::Connecting,
             Some(ConnectionStep::ProtocolHeader(
-                _,
                 resolver,
                 connection,
                 credentials,
