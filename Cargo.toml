@@ -76,7 +76,7 @@ async-global-executor = "^3.1"
 futures-lite = "^2.0"
 serde_json = "^1.0"
 tokio-executor-trait = "^2.1"
-tokio-reactor-trait = "^2.0"
+tokio-reactor-trait = "^3.0"
 
 [dev-dependencies.tokio]
 version = "^1.17"
