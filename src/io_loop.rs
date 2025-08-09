@@ -173,7 +173,10 @@ impl IoLoop {
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
-                    let handle = IOHandle::new(self.tcp_connect()?);
+                    let handle = IOHandle::new(self.tcp_connect().inspect_err(|err| {
+                        trace!("Poison connection attempt");
+                        self.connection_status.poison(err.clone());
+                    })?);
                     self.internal_rpc.reactor_register(handle, resolver);
                     let mut stream = Box::into_pin(promise.wait()?);
                     let mut res = Ok(());

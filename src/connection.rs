@@ -4,7 +4,7 @@ use crate::{
     channels::Channels,
     configuration::Configuration,
     connection_closer::ConnectionCloser,
-    connection_status::{ConnectionState, ConnectionStatus, ConnectionStep},
+    connection_status::ConnectionStatus,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -233,16 +233,15 @@ impl Connection {
         }
         let channel0 = self.channels.channel0();
 
-        self.status.set_state(ConnectionState::Connecting);
-        self.status
-            .clone()
-            .set_connection_step(ConnectionStep::ProtocolHeader(
-                resolver_in,
-                self,
-                uri.authority.userinfo.into(),
-                uri.query.auth_mechanism.unwrap_or_default(),
-                options,
-            ));
+        trace!("Set connection as connecting");
+        self.status.clone().set_connecting(
+            resolver_out.clone(),
+            resolver_in,
+            self,
+            uri.authority.userinfo.into(),
+            uri.query.auth_mechanism.unwrap_or_default(),
+            options,
+        )?;
 
         trace!("Sending protocol header to server");
         channel0.send_frame(
@@ -314,6 +313,7 @@ mod tests {
     use crate::BasicProperties;
     use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::channel_status::ChannelState;
+    use crate::connection_status::ConnectionState;
     use crate::options::BasicConsumeOptions;
     use crate::types::{ChannelId, FieldTable, ShortString};
     use amq_protocol::frame::AMQPContentHeader;

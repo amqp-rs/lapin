@@ -725,6 +725,7 @@ impl Channel {
         if let (
             ConnectionState::Connecting,
             Some(ConnectionStep::ProtocolHeader(
+                _,
                 resolver,
                 connection,
                 credentials,

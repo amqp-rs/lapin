@@ -1,5 +1,5 @@
 use crate::{
-    Connection, ConnectionProperties, PromiseResolver,
+    Connection, ConnectionProperties, Error, PromiseResolver, Result,
     auth::{Credentials, SASLMechanism},
     uri::AMQPUri,
 };
@@ -28,6 +28,19 @@ impl ConnectionStatus {
         std::mem::replace(&mut inner.state, state)
     }
 
+    pub(crate) fn set_connecting(
+        &self,
+        resolver_out: PromiseResolver<()>,
+        resolver_in: PromiseResolver<Connection>,
+        conn: Connection,
+        creds: Credentials,
+        mechanism: SASLMechanism,
+        options: ConnectionProperties,
+    ) -> Result<()> {
+        self.lock_inner()
+            .set_connecting(resolver_out, resolver_in, conn, creds, mechanism, options)
+    }
+
     pub(crate) fn set_reconnecting(&self) {
         self.lock_inner().set_reconnecting();
     }
@@ -43,7 +56,7 @@ impl ConnectionStatus {
     pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
         let resolver = self.lock_inner().connection_resolver();
         // We carry the Connection here to drop the lock() above before dropping the Connection
-        resolver.map(|(resolver, _connection)| resolver)
+        resolver.map(|(_, resolver, _connection)| resolver)
     }
 
     pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
@@ -102,6 +115,10 @@ impl ConnectionStatus {
         self.lock_inner().state == ConnectionState::Error
     }
 
+    pub(crate) fn poison(&self, err: Error) {
+        self.lock_inner().poison(err);
+    }
+
     pub(crate) fn auto_close(&self) -> bool {
         [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.lock_inner().state)
     }
@@ -113,6 +130,7 @@ impl ConnectionStatus {
 
 pub(crate) enum ConnectionStep {
     ProtocolHeader(
+        PromiseResolver<()>,
         PromiseResolver<Connection>,
         Connection,
         Credentials,
@@ -155,6 +173,7 @@ struct Inner {
     vhost: String,
     username: String,
     blocked: bool,
+    poison: Option<Error>,
 }
 
 impl Default for Inner {
@@ -165,26 +184,57 @@ impl Default for Inner {
             vhost: "/".into(),
             username: "guest".into(),
             blocked: false,
+            poison: None,
         }
     }
 }
 
 impl Inner {
+    fn set_connecting(
+        &mut self,
+        resolver_out: PromiseResolver<()>,
+        resolver_in: PromiseResolver<Connection>,
+        conn: Connection,
+        creds: Credentials,
+        mechanism: SASLMechanism,
+        options: ConnectionProperties,
+    ) -> Result<()> {
+        self.state = ConnectionState::Connecting;
+        self.connection_step = Some(ConnectionStep::ProtocolHeader(
+            resolver_out,
+            resolver_in,
+            conn,
+            creds,
+            mechanism,
+            options,
+        ));
+        self.poison.take().map(Err).unwrap_or(Ok(()))
+    }
+
     fn set_reconnecting(&mut self) {
         let _ = self.connection_step.take();
+        let _ = self.poison.take();
         self.state = ConnectionState::Reconnecting;
         self.blocked = false;
     }
 
-    fn connection_resolver(&mut self) -> Option<(PromiseResolver<Connection>, Option<Connection>)> {
+    fn connection_resolver(
+        &mut self,
+    ) -> Option<(
+        Option<PromiseResolver<()>>,
+        PromiseResolver<Connection>,
+        Option<Connection>,
+    )> {
         self.connection_step
             .take()
             .map(|connection_step| match connection_step {
-                ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
-                    (resolver, Some(connection))
+                ConnectionStep::ProtocolHeader(resolver_out, resolver_in, connection, ..) => {
+                    (Some(resolver_out), resolver_in, Some(connection))
                 }
-                ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
-                ConnectionStep::Open(resolver, ..) => (resolver, None),
+                ConnectionStep::StartOk(resolver, connection, ..) => {
+                    (None, resolver, Some(connection))
+                }
+                ConnectionStep::Open(resolver, ..) => (None, resolver, None),
             })
     }
 
@@ -198,5 +248,15 @@ impl Inner {
         } else {
             None
         }
+    }
+
+    fn poison(&mut self, err: Error) {
+        if let Some((resolver_out, resolver_in, _connection)) = self.connection_resolver() {
+            if let Some(resolver) = resolver_out {
+                resolver.reject(err.clone());
+            }
+            resolver_in.reject(err.clone());
+        }
+        self.poison = Some(err);
     }
 }
