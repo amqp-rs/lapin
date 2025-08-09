@@ -1,3 +1,10 @@
+### 3.1.1 (2025-08-09)
+
+#### Bug Fixes
+
+* Fix hang when rabbitmq server is unavailable when connecting.
+* Fix crash in tokio reactor initial usage
+
 ### 3.1.0 (2025-07-31)
 
 #### Features
