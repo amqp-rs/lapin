@@ -1,20 +1,28 @@
 use lapin::{
     BasicProperties, Connection, ConnectionProperties,
     message::DeliveryResult,
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
+    options::{
+        BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions,
+        QueueDeclareOptions,
+    },
     types::FieldTable,
 };
 
-#[tokio::main]
-async fn main() {
-    let uri = "amqp://localhost:5672";
+async fn tokio_main(forever: bool) {
+    if std::env::var("RUST_LOG").is_err() {
+        unsafe { std::env::set_var("RUST_LOG", "info") };
+    }
+
+    tracing_subscriber::fmt::init();
+
+    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
     let options = ConnectionProperties::default()
         // Use tokio executor and reactor.
         // At the moment the reactor is only available for unix.
         .with_executor(tokio_executor_trait::Tokio::current())
         .with_reactor(tokio_reactor_trait::Tokio);
 
-    let connection = Connection::connect(uri, options).await.unwrap();
+    let connection = Connection::connect(&addr, options).await.unwrap();
     let channel = connection.create_channel().await.unwrap();
 
     let _queue = channel
@@ -70,5 +78,25 @@ async fn main() {
         .await
         .unwrap();
 
-    std::future::pending::<()>().await;
+    if forever {
+        std::future::pending::<()>().await;
+    } else {
+        channel
+            .basic_cancel("tag_foo", BasicCancelOptions::default())
+            .await
+            .unwrap();
+        connection.close(200, "OK").await.unwrap();
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    tokio_main(true).await
+}
+
+#[test]
+fn connection() {
+    tokio::runtime::Runtime::new()
+        .expect("failed to build tokio runtime")
+        .block_on(tokio_main(false));
 }

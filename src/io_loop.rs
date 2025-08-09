@@ -1,5 +1,5 @@
 use crate::{
-    Configuration, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result, TcpStream,
+    Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver, Result, TcpStream,
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
@@ -8,7 +8,6 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::FullReactor,
     socket_state::SocketState,
     tcp::HandshakeResult,
     thread::JoinHandle,
@@ -160,10 +159,7 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(
-        mut self,
-        reactor: Arc<dyn FullReactor + Send + Sync>,
-    ) -> Result<JoinHandle> {
+    pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -176,7 +172,10 @@ impl IoLoop {
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
-                    let mut stream = Box::into_pin(reactor.register(IOHandle::new(self.tcp_connect()?))?);
+                    let (promise, resolver) = Promise::new();
+                    let handle = IOHandle::new(self.tcp_connect()?);
+                    self.internal_rpc.reactor_register(handle, resolver);
+                    let mut stream = Box::into_pin(promise.wait()?);
                     let mut res = Ok(());
 
                     while self.should_continue(&connection_killswitch) {

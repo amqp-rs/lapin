@@ -3,6 +3,7 @@ use flume::{Receiver, Sender};
 use std::{
     fmt,
     future::Future,
+    io,
     pin::Pin,
     sync::{Arc, RwLock},
     task::{Context, Poll},
@@ -64,6 +65,12 @@ impl<T: Send + 'static> Promise<T> {
 
     pub(crate) fn try_wait(&self) -> Option<Result<T>> {
         self.recv.try_recv().ok()
+    }
+
+    pub(crate) fn wait(&self) -> Result<T> {
+        self.recv
+            .recv()
+            .unwrap_or_else(|err| Err(io::Error::other(err).into()))
     }
 }
 
