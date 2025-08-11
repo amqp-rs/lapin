@@ -20,6 +20,7 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 
 ## Features
 
+- hickory-dns: use hickory-dns for domain name resolution to avoid spurious network hangs
 - unstable: enable access to the experimental reconnection features
 - codegen: force code generation (default to pregenerated sources)
 - vendored-openssl: use a vendored openssl version instead of the system one (when using openssl backend)

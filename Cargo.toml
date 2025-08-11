@@ -16,6 +16,7 @@ rust-version = "1.85.0"
 [features]
 default                   = ["rustls", "default-runtime"]
 default-runtime           = ["dep:async-global-executor-trait", "dep:async-reactor-trait"]
+hickory-dns               = ["amq-protocol/hickory-dns"]
 unstable                  = []
 
 codegen                   = ["codegen-internal", "amq-protocol/codegen"]
@@ -34,7 +35,7 @@ rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but do
 rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
 
 [build-dependencies.amq-protocol-codegen]
-version = "^8.1"
+version = "^8.2"
 optional = true
 
 [build-dependencies.serde_json]
@@ -42,7 +43,7 @@ version = "^1.0"
 optional = true
 
 [dependencies.amq-protocol]
-version = "^8.1"
+version = "^8.2"
 default-features = false
 
 [dependencies.async-global-executor-trait]
