@@ -39,9 +39,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "8.2.0"
+version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e18a75151e094c68e8791991f6a5ab5e8fd47fbcec934cd4f7fe74ae379fb4"
+checksum = "894fbf80278aaabad65c95075f509fa54fc1668928199ec01ab2b91ad665ce5f"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "8.2.0"
+version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79ece33127018f6dcdb4dee78ca6454151558a31e8642ba6433057d3ae420d85"
+checksum = "5b8377f4a6b24aea62028e4d61e4ad8c899a081779840da9b68e416cf9f9de84"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -66,9 +66,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "8.2.0"
+version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c11a43a96c43cf38d786d05e80188d5c4d2e433a8dfa9480ebad488df4f17ddd"
+checksum = "fc1bfe0f0bce15b577780731d0cb6cb6fff455e7bd185d26dc7bad473de647bd"
 dependencies = [
  "amq-protocol-uri",
  "cfg-if",
@@ -79,9 +79,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "8.2.0"
+version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07948a8f34b59a40f4591f2d0522fde2f72cadd8b1e1a97e08b0b37e16eb5063"
+checksum = "050a8470138484a926549a650cf17be712476fda914ea6830ed82f0e9bb2c084"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -91,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "8.2.0"
+version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19e467ab180d9e0b608a324380e9a34a0c98e66d4e4a07d5953ac6d29d4be670"
+checksum = "01ed44087b37c33c35b5fec24f4463624077a22fca12f957797616ca68edfe7d"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -936,9 +936,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "glob"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "handlebars"
@@ -1237,7 +1237,7 @@ dependencies = [
 
 [[package]]
 name = "lapin"
-version = "3.1.1"
+version = "3.2.0"
 dependencies = [
  "amq-protocol",
  "amq-protocol-codegen",
@@ -2031,9 +2031,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-connector"
-version = "0.21.7"
+version = "0.21.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b68f41384a0c195494f07c9bf5d020dcfca869d3b1492c9391bbc267bd9904fd"
+checksum = "c50d602e059e8b92d30390d6baf0fb96560fcc4f12f45f474cc3af88799e6e3c"
 dependencies = [
  "log",
  "rustls",
@@ -2650,9 +2650,9 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "uuid"
-version = "1.17.0"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cf4199d1e5d15ddd86a694e4d0dffa9c323ce759fea589f00fef9d81cc1931d"
+checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",

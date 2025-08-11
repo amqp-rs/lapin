@@ -1,3 +1,9 @@
+### 3.2.0 (2025-08-11)
+
+#### Features
+
+* Add hickory-dns feature to use hickory-dns for domain name resolution to avoid spurious network hangs
+
 ### 3.1.1 (2025-08-09)
 
 #### Bug Fixes
