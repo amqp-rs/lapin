@@ -39,9 +39,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "8.3.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "118dbe9212e8af775bcb868ecba9f3f30e4ca0d3171eb40b3272db5c50819aab"
+checksum = "13f75725d55e9a04f7a72d1cb1d3a5be24e79b84565a246ac4c688621dc565ee"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "8.3.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce84860fc38f8ce9bcf176e6cd5612c07b3d2fa5fe45a662e9212a7faa4a7d26"
+checksum = "d82697f8912304294bd65e7310644f76452691e578baee91580c9ab1fca9ca6e"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -66,9 +66,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "8.3.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb26bf014584ac39ddfcf7a59ae78df98e5376496fb5f19fe67e71dd417b1cc4"
+checksum = "d5b411d1801ced680376efaa2dd25c3f6ca1cb6e8739962bc89af50f96f33a4f"
 dependencies = [
  "amq-protocol-uri",
  "async-trait",
@@ -82,9 +82,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "8.3.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18dbb243b6412bae5d2f063e3d254dd2a7d8adf2c721d3f7f4883fbe6cc46015"
+checksum = "5f7253fbb7397e002427ba823528662409d43cbadd9458129c7b5c945b8ee710"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -94,9 +94,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "8.3.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d38f93490399f58a0e9a74bd462b3242c627aeb22184f3b3000b9761482e922b"
+checksum = "5c404a9cf349ef09c05f944ddc522553b93e9a9d9cf5c33392eb618e8ccf5576"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -247,9 +247,9 @@ dependencies = [
 
 [[package]]
 name = "async-reactor-trait"
-version = "2.7.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d5a566cc5ddb94c9f34cd434ac2e16c59d731c3725dce80551677d3393954a"
+checksum = "6aee80e9828d3f00c4f9a9109d97fd04e8915446bf68ec907d92709073b6fe09"
 dependencies = [
  "async-io",
  "async-trait",
@@ -1079,9 +1079,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-to-socket-addrs"
-version = "1.3.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8bdfa866f521fc1b0e6e71d42b9c4277d36799d8b5f86da209d8234eeebf4ac"
+checksum = "fb75170d30edaba4bbe1c42bfe9eb3f0799c8c896ae89334199e3e7690a6aa3b"
 dependencies = [
  "async-trait",
  "hickory-resolver",
@@ -1934,9 +1934,9 @@ dependencies = [
 
 [[package]]
 name = "reactor-trait"
-version = "2.7.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d05d2072db44c9e2769ee9e700ec5e56330500b1753ab114d4eeeecacf81db"
+checksum = "2b15494b9b4ee2e5f1caff0e1fe4dc51620110c2db00b3327ba0befd286c64d9"
 dependencies = [
  "async-io",
  "async-trait",
@@ -2411,9 +2411,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.30.9"
+version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "282ebecea8280bce8b7a0695b5dc93a19839dd445cbba70d3e07c9f6e12c4653"
+checksum = "936a5fb21e17fe3e00892264ddcd8d9e6738d2436cda8d08c8293df68b663b3d"
 dependencies = [
  "async-native-tls",
  "async-openssl",
@@ -2587,9 +2587,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-reactor-trait"
-version = "3.8.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a342ef9732e1c59a80093a47dc8a9831ca66fab2b3d2f1fb17498dde72a4c731"
+checksum = "0b8bcbdfd54e97cf7c1d168b6280ece9b4c56efee19a78bf7140b4c0cf0c6d77"
 dependencies = [
  "async-trait",
  "futures-core",
