@@ -8,6 +8,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
+    reactor::FullReactor,
     socket_state::SocketState,
     tcp::HandshakeResult,
     thread::JoinHandle,
@@ -159,7 +160,10 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(mut self) -> Result<JoinHandle> {
+    pub(crate) fn start(
+        mut self,
+        reactor: Arc<dyn FullReactor + Send + Sync>,
+    ) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -177,7 +181,10 @@ impl IoLoop {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
                     })?);
-                    self.internal_rpc.reactor_register(handle, resolver);
+                    let reactor = reactor.clone();
+                    self.internal_rpc.register_internal_future_with_resolver(Box::pin(async move {
+                        reactor.register(handle).map_err(Error::from)
+                    }), resolver);
                     let mut stream = Box::into_pin(promise.wait()?);
                     let mut res = Ok(());
 

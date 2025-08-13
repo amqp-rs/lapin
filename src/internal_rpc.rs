@@ -5,13 +5,11 @@ use crate::{
     error_holder::ErrorHolder,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
-    reactor::FullReactor,
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
-use reactor_trait::{AsyncIOHandle, IOHandle};
 use std::{collections::HashMap, fmt, future::Future, sync::Arc};
 use tracing::trace;
 
@@ -19,7 +17,6 @@ pub(crate) struct InternalRPC {
     rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
     channels_status: HashMap<ChannelId, KillSwitch>,
-    reactor: Arc<dyn FullReactor + Send + Sync>,
 }
 
 #[derive(Clone)]
@@ -130,14 +127,6 @@ impl InternalRPCHandle {
         self.send(InternalCommand::InitConnectionShutdown(error));
     }
 
-    pub(crate) fn reactor_register(
-        &self,
-        handle: IOHandle,
-        resolver: PromiseResolver<Box<dyn AsyncIOHandle + Send>>,
-    ) {
-        self.send(InternalCommand::ReactorRegister(handle, resolver));
-    }
-
     pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
         self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
@@ -194,10 +183,10 @@ impl InternalRPCHandle {
         }));
     }
 
-    fn register_internal_future_with_resolver(
+    pub(crate) fn register_internal_future_with_resolver<T: Send + 'static>(
         &self,
-        f: impl Future<Output = Result<()>> + Send + 'static,
-        resolver: PromiseResolver<()>,
+        f: impl Future<Output = Result<T>> + Send + 'static,
+        resolver: PromiseResolver<T>,
     ) {
         self.executor.spawn(Box::pin(async move {
             let res = f.await;
@@ -241,7 +230,6 @@ enum InternalCommand {
     FinishConnectionShutdown,
     InitConnectionRecovery(Error),
     InitConnectionShutdown(Error),
-    ReactorRegister(IOHandle, PromiseResolver<Box<dyn AsyncIOHandle + Send>>),
     RemoveChannel(ChannelId, Error),
     SendConnectionCloseOk(Error),
     SetChannelStatus(ChannelId, KillSwitch),
@@ -254,7 +242,6 @@ enum InternalCommand {
 impl InternalRPC {
     pub(crate) fn new(
         executor: Arc<dyn FullExecutor + Send + Sync>,
-        reactor: Arc<dyn FullReactor + Send + Sync>,
         waker: SocketStateHandle,
     ) -> Self {
         let (sender, rpc) = flume::unbounded();
@@ -267,7 +254,6 @@ impl InternalRPC {
             rpc,
             handle,
             channels_status: Default::default(),
-            reactor,
         }
     }
 
@@ -382,9 +368,6 @@ impl InternalRPC {
                     channels.init_connection_recovery(error);
                 }
                 InitConnectionShutdown(error) => channels.init_connection_shutdown(error),
-                ReactorRegister(handle, resolver) => {
-                    resolver.complete(self.reactor.register(handle).map_err(Error::from));
-                }
                 RemoveChannel(channel_id, error) => {
                     if !self.channel_ok(channel_id) {
                         continue;
