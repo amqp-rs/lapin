@@ -69,8 +69,7 @@ async-trait = "^0.1.42"
 executor-trait = "^2.1"
 futures-core = "^0.3"
 futures-io = "^0.3"
-reactor-trait = "^2.0"
-waker-fn = "^1.1"
+reactor-trait = "^2.5"
 
 [dev-dependencies]
 async-global-executor = "^3.1"
