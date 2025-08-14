@@ -86,9 +86,5 @@ features = ["macros", "rt-multi-thread"]
 version = "^0.3"
 features = ["fmt"]
 
-[[example]]
-name = "custom_tls_connection"
-required-features = ["native-tls"]
-
 [badges]
 maintenance = { status = "actively-developed" }
