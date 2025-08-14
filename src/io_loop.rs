@@ -8,7 +8,6 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::FullReactor,
     socket_state::SocketState,
     tcp::HandshakeResult,
     thread::JoinHandle,
@@ -17,7 +16,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use futures_io::{AsyncRead, AsyncWrite};
-use reactor_trait::IOHandle;
+use reactor_trait::{IOHandle, Reactor};
 use std::{
     collections::VecDeque,
     io,
@@ -160,10 +159,7 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(
-        mut self,
-        reactor: Arc<dyn FullReactor + Send + Sync>,
-    ) -> Result<JoinHandle> {
+    pub(crate) fn start(mut self, reactor: Arc<dyn Reactor + Send + Sync>) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()

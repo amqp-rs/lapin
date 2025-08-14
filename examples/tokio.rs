@@ -15,14 +15,17 @@ async fn tokio_main(forever: bool) {
 
     tracing_subscriber::fmt::init();
 
-    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let options = ConnectionProperties::default()
-        // Use tokio executor and reactor.
-        // At the moment the reactor is only available for unix.
-        .with_executor(tokio_executor_trait::Tokio::current())
-        .with_reactor(tokio_reactor_trait::Tokio::current());
+    // Use tokio executor and reactor.
+    // At the moment the reactor is only available for unix.
+    lapin::runtime::install_runtime(
+        tokio_executor_trait::Tokio::current(),
+        tokio_reactor_trait::Tokio::current(),
+    );
 
-    let connection = Connection::connect(&addr, options).await.unwrap();
+    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+    let connection = Connection::connect(&addr, ConnectionProperties::default())
+        .await
+        .unwrap();
     let channel = connection.create_channel().await.unwrap();
 
     let _queue = channel

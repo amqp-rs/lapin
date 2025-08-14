@@ -122,6 +122,7 @@ pub mod acker;
 pub mod heartbeat;
 pub mod message;
 pub mod publisher_confirm;
+pub mod runtime;
 pub mod socket_state;
 
 use promise::{Promise, PromiseResolver};

@@ -247,9 +247,9 @@ dependencies = [
 
 [[package]]
 name = "async-reactor-trait"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6aee80e9828d3f00c4f9a9109d97fd04e8915446bf68ec907d92709073b6fe09"
+checksum = "f0fefd4d5f5c70cc576dade97bce87e007ce2573d2ae84e5df613261e09adcd0"
 dependencies = [
  "async-io",
  "async-trait",
@@ -1934,9 +1934,9 @@ dependencies = [
 
 [[package]]
 name = "reactor-trait"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b15494b9b4ee2e5f1caff0e1fe4dc51620110c2db00b3327ba0befd286c64d9"
+checksum = "3ca7ed32322a65b7d117313b73e6adef5ae225d71349a4d4330cd0a084dcd1a8"
 dependencies = [
  "async-io",
  "async-trait",
@@ -2587,9 +2587,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-reactor-trait"
-version = "4.0.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b8bcbdfd54e97cf7c1d168b6280ece9b4c56efee19a78bf7140b4c0cf0c6d77"
+checksum = "545088c25943d4f1c5c141386606a1905c91dcc2a151afcad053a6df11bddcfc"
 dependencies = [
  "async-trait",
  "futures-core",

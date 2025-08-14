@@ -9,6 +9,7 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    runtime,
     socket_state::SocketState,
     tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
     thread::ThreadHandle,
@@ -182,8 +183,8 @@ impl Connection {
         connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
         options: ConnectionProperties,
     ) -> Result<Connection> {
-        let executor = options.executor()?;
-        let reactor = options.reactor()?;
+        let executor = runtime::executor()?;
+        let reactor = runtime::reactor()?;
         let configuration = Configuration::new(&uri);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();

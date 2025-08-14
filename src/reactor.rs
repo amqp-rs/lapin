@@ -1,4 +1,4 @@
-use reactor_trait::{Reactor, TimeReactor};
+use reactor_trait::{Reactor, TcpReactor, TimeReactor};
 
-pub trait FullReactor: Reactor + TimeReactor {}
-impl<R: Reactor + TimeReactor> FullReactor for R {}
+pub trait FullReactor: Reactor + TcpReactor + TimeReactor {}
+impl<R: Reactor + TcpReactor + TimeReactor> FullReactor for R {}
