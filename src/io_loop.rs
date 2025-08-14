@@ -1,5 +1,5 @@
 use crate::{
-    Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver, Result, TcpStream,
+    Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver, Result,
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
@@ -44,7 +44,9 @@ pub struct IoLoop {
     frames: Frames,
     heartbeat: Heartbeat,
     socket_state: SocketState,
-    connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+    connect: Arc<
+        dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>) + Send + Sync,
+    >,
     uri: AMQPUri,
     status: Status,
     frame_size: FrameSize,
@@ -61,7 +63,11 @@ impl IoLoop {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
-        connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        connect: Arc<
+            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>)
+                + Send
+                + Sync,
+        >,
         uri: AMQPUri,
         heartbeat: Heartbeat,
     ) -> Self {
@@ -173,15 +179,28 @@ impl IoLoop {
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
-                    let handle = IOHandle::new(self.tcp_connect().inspect_err(|err| {
+                    let reactor = reactor.clone();
+                    let connect = Box::into_pin((self.connect)(self.uri.clone()));
+                    self.internal_rpc.register_internal_future_with_resolver(Box::pin(async move {
+                        let mut res = connect.await;
+                        let stream = loop {
+                            match res {
+                                Ok(stream) => {
+                                    break stream;
+                                }
+                                Err(mid) => {
+                                    res = mid.into_mid_handshake_tls_stream()?.handshake();
+                                }
+                            }
+                        };
+                        let handle = IOHandle::new(stream);
+                        reactor.register(handle).map_err(Error::from)
+                    }), resolver);
+                    let mut stream = Box::into_pin(promise.wait()
+                        .inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
                     })?);
-                    let reactor = reactor.clone();
-                    self.internal_rpc.register_internal_future_with_resolver(Box::pin(async move {
-                        reactor.register(handle).map_err(Error::from)
-                    }), resolver);
-                    let mut stream = Box::into_pin(promise.wait()?);
                     let mut res = Ok(());
 
                     while self.should_continue(&connection_killswitch) {
@@ -557,20 +576,6 @@ impl IoLoop {
                     self.critical_error(connection_killswitch, ErrorKind::ParsingError(e).into())?;
                 }
                 Ok(None)
-            }
-        }
-    }
-
-    pub(crate) fn tcp_connect(&self) -> Result<TcpStream> {
-        let mut res = (self.connect)(&self.uri);
-        loop {
-            match res {
-                Ok(stream) => {
-                    return Ok(stream);
-                }
-                Err(mid) => {
-                    res = mid.into_mid_handshake_tls_stream()?.handshake();
-                }
             }
         }
     }

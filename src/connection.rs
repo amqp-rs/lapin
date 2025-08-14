@@ -180,7 +180,11 @@ impl Connection {
 
     pub async fn connector(
         uri: AMQPUri,
-        connect: Box<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        connect: Box<
+            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>)
+                + Send
+                + Sync,
+        >,
         options: ConnectionProperties,
     ) -> Result<Connection> {
         let executor = runtime::executor()?;
@@ -284,9 +288,15 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         config: OwnedTLSConfig,
     ) -> Result<Connection> {
+        let config = Arc::new(config);
         Connection::connector(
             self,
-            Box::new(move |uri| AMQPUriTcpExt::connect_with_config(uri, config.as_ref())),
+            Box::new(move |uri| {
+                let config = config.clone();
+                Box::new(
+                    async move { AMQPUriTcpExt::connect_with_config(&uri, (*config).as_ref()) },
+                )
+            }),
             options,
         )
         .await
