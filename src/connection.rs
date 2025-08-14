@@ -9,6 +9,7 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
+    reactor::FullReactor,
     runtime,
     socket_state::SocketState,
     tcp::{AMQPUriTcpExt, OwnedTLSConfig},
@@ -18,6 +19,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
+use executor_trait::FullExecutor;
 use std::{fmt, io, sync::Arc};
 use tracing::{Level, level_enabled, trace};
 
@@ -181,7 +183,11 @@ impl Connection {
     pub async fn connector(
         uri: AMQPUri,
         connect: Box<
-            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+            dyn (Fn(
+                    AMQPUri,
+                    Arc<dyn FullExecutor + Send + Sync + 'static>,
+                    Arc<dyn FullReactor + Send + Sync + 'static>,
+                ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -194,7 +200,7 @@ impl Connection {
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let internal_rpc = InternalRPC::new(executor.clone(), socket_state.handle());
-        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -202,7 +208,7 @@ impl Connection {
             internal_rpc.handle(),
             frames.clone(),
             heartbeat.clone(),
-            executor,
+            executor.clone(),
             uri.clone(),
             options.clone(),
         );
@@ -220,7 +226,7 @@ impl Connection {
         );
 
         internal_rpc.start(conn.channels.clone());
-        conn.io_loop.register(io_loop.start()?);
+        conn.io_loop.register(io_loop.start(executor, reactor)?);
         conn.start(uri, options).await
     }
 
@@ -288,12 +294,10 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         config: OwnedTLSConfig,
     ) -> Result<Connection> {
-        let executor = runtime::executor()?;
-        let reactor = runtime::reactor()?;
         let config = Arc::new(config);
         Connection::connector(
             self,
-            Box::new(move |uri| {
+            Box::new(move |uri, executor, reactor| {
                 let config = config.clone();
                 let reactor = reactor.clone();
                 let executor = executor.clone();

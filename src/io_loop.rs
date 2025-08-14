@@ -9,12 +9,14 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
+    reactor::FullReactor,
     socket_state::SocketState,
     thread::JoinHandle,
     types::FrameSize,
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
+use executor_trait::FullExecutor;
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
@@ -44,7 +46,11 @@ pub struct IoLoop {
     heartbeat: Heartbeat,
     socket_state: SocketState,
     connect: Arc<
-        dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+        dyn (Fn(
+                AMQPUri,
+                Arc<dyn FullExecutor + Send + Sync + 'static>,
+                Arc<dyn FullReactor + Send + Sync + 'static>,
+            ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
             + Send
             + Sync,
     >,
@@ -65,7 +71,11 @@ impl IoLoop {
         frames: Frames,
         socket_state: SocketState,
         connect: Arc<
-            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+            dyn (Fn(
+                    AMQPUri,
+                    Arc<dyn FullExecutor + Send + Sync + 'static>,
+                    Arc<dyn FullReactor + Send + Sync + 'static>,
+                ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -166,7 +176,11 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(mut self) -> Result<JoinHandle> {
+    pub(crate) fn start(
+        mut self,
+        executor: Arc<dyn FullExecutor + Send + Sync + 'static>,
+        reactor: Arc<dyn FullReactor + Send + Sync + 'static>,
+    ) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -180,7 +194,7 @@ impl IoLoop {
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
-                    let connect = Box::into_pin((self.connect)(self.uri.clone()));
+                    let connect = Box::into_pin((self.connect)(self.uri.clone(), executor.clone(), reactor.clone()));
                     self.internal_rpc.register_internal_future_with_resolver(async move { Ok(connect.await?) }, resolver);
                     let mut stream = promise.wait().inspect_err(|err| {
                         trace!("Poison connection attempt");
