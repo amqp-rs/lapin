@@ -8,17 +8,17 @@ use lapin::{
     types::FieldTable,
 };
 
-async fn tokio_main(forever: bool) {
+async fn smol_main(forever: bool) {
     if std::env::var("RUST_LOG").is_err() {
         unsafe { std::env::set_var("RUST_LOG", "info") };
     }
 
     tracing_subscriber::fmt::init();
 
-    // Use tokio executor and reactor.
+    // Use smol executor and reactor.
     lapin::runtime::install_runtime(
-        tokio_executor_trait::Tokio::current(),
-        tokio_reactor_trait::Tokio::current(),
+        async_global_executor_trait::AsyncGlobalExecutor,
+        async_reactor_trait::AsyncIo,
     );
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
@@ -91,14 +91,11 @@ async fn tokio_main(forever: bool) {
     }
 }
 
-#[tokio::main]
-async fn main() {
-    tokio_main(true).await
+fn main() {
+    smol::block_on(smol_main(true));
 }
 
 #[test]
 fn connection() {
-    tokio::runtime::Runtime::new()
-        .expect("failed to build tokio runtime")
-        .block_on(tokio_main(false));
+    smol::block_on(smol_main(false));
 }
