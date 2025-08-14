@@ -1,5 +1,6 @@
 use crate::{
-    Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver, Result,
+    AsyncTcpStream, Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver,
+    Result,
     buffer::Buffer,
     channels::Channels,
     connection_status::ConnectionState,
@@ -9,14 +10,12 @@ use crate::{
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::SocketState,
-    tcp::HandshakeResult,
     thread::JoinHandle,
     types::FrameSize,
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use futures_io::{AsyncRead, AsyncWrite};
-use reactor_trait::{IOHandle, Reactor};
 use std::{
     collections::VecDeque,
     io,
@@ -45,7 +44,9 @@ pub struct IoLoop {
     heartbeat: Heartbeat,
     socket_state: SocketState,
     connect: Arc<
-        dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>) + Send + Sync,
+        dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+            + Send
+            + Sync,
     >,
     uri: AMQPUri,
     status: Status,
@@ -64,7 +65,7 @@ impl IoLoop {
         frames: Frames,
         socket_state: SocketState,
         connect: Arc<
-            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>)
+            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -165,7 +166,7 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(mut self, reactor: Arc<dyn Reactor + Send + Sync>) -> Result<JoinHandle> {
+    pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -179,32 +180,16 @@ impl IoLoop {
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
-                    let reactor = reactor.clone();
                     let connect = Box::into_pin((self.connect)(self.uri.clone()));
-                    self.internal_rpc.register_internal_future_with_resolver(Box::pin(async move {
-                        let mut res = connect.await;
-                        let stream = loop {
-                            match res {
-                                Ok(stream) => {
-                                    break stream;
-                                }
-                                Err(mid) => {
-                                    res = mid.into_mid_handshake_tls_stream()?.handshake();
-                                }
-                            }
-                        };
-                        let handle = IOHandle::new(stream);
-                        reactor.register(handle).map_err(Error::from)
-                    }), resolver);
-                    let mut stream = Box::into_pin(promise.wait()
-                        .inspect_err(|err| {
+                    self.internal_rpc.register_internal_future_with_resolver(async move { Ok(connect.await?) }, resolver);
+                    let mut stream = promise.wait().inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
-                    })?);
+                    })?;
                     let mut res = Ok(());
 
                     while self.should_continue(&connection_killswitch) {
-                        if let Err(err) = self.run(stream.as_mut(), &mut readable_context, &mut writable_context, &connection_killswitch) {
+                        if let Err(err) = self.run(Pin::new(&mut stream), &mut readable_context, &mut writable_context, &connection_killswitch) {
                             res = self.critical_error(&connection_killswitch, err);
                         }
                     }
@@ -229,8 +214,7 @@ impl IoLoop {
                 let internal_rpc = self.internal_rpc.clone();
                 if self.heartbeat.killswitch().killed() {
                     internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
-                        stream
-                            .as_mut()
+                        Pin::new(&mut stream)
                             .poll_close(cx)
                             .map(|res| res.map_err(From::from))
                     }));

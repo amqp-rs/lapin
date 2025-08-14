@@ -101,7 +101,7 @@
 pub use amq_protocol::{
     auth,
     protocol::{self, BasicProperties},
-    tcp::{self, TcpStream},
+    tcp::{self, AsyncTcpStream},
     types, uri,
 };
 

@@ -1,5 +1,5 @@
 use crate::{
-    ConnectionProperties, Error, ErrorKind, Promise, Result,
+    AsyncTcpStream, ConnectionProperties, Error, ErrorKind, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -11,7 +11,7 @@ use crate::{
     io_loop::IoLoop,
     runtime,
     socket_state::SocketState,
-    tcp::{AMQPUriTcpExt, HandshakeResult, OwnedTLSConfig},
+    tcp::{AMQPUriTcpExt, OwnedTLSConfig},
     thread::ThreadHandle,
     types::ReplyCode,
     uri::AMQPUri,
@@ -181,7 +181,7 @@ impl Connection {
     pub async fn connector(
         uri: AMQPUri,
         connect: Box<
-            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = HandshakeResult> + Send + Sync>)
+            dyn (Fn(AMQPUri) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -194,7 +194,7 @@ impl Connection {
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let internal_rpc = InternalRPC::new(executor.clone(), socket_state.handle());
-        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -220,7 +220,7 @@ impl Connection {
         );
 
         internal_rpc.start(conn.channels.clone());
-        conn.io_loop.register(io_loop.start(reactor)?);
+        conn.io_loop.register(io_loop.start()?);
         conn.start(uri, options).await
     }
 
@@ -288,14 +288,24 @@ impl Connect for AMQPUri {
         options: ConnectionProperties,
         config: OwnedTLSConfig,
     ) -> Result<Connection> {
+        let executor = runtime::executor()?;
+        let reactor = runtime::reactor()?;
         let config = Arc::new(config);
         Connection::connector(
             self,
             Box::new(move |uri| {
                 let config = config.clone();
-                Box::new(
-                    async move { AMQPUriTcpExt::connect_with_config(&uri, (*config).as_ref()) },
-                )
+                let reactor = reactor.clone();
+                let executor = executor.clone();
+                Box::new(async move {
+                    AMQPUriTcpExt::connect_with_config_async(
+                        &uri,
+                        (*config).as_ref(),
+                        reactor,
+                        executor,
+                    )
+                    .await
+                })
             }),
             options,
         )
