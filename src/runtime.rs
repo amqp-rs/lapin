@@ -31,7 +31,7 @@ pub(crate) fn executor() -> Result<Arc<dyn FullExecutor + Send + Sync + 'static>
 
     #[cfg(feature = "default-runtime")]
     {
-        return Ok(Arc::new(async_global_executor_trait::AsyncGlobalExecutor));
+        return Ok(Arc::new(tokio_executor_trait::Tokio::current()));
     }
 
     #[allow(unreachable_code)]
@@ -45,7 +45,7 @@ pub(crate) fn reactor() -> Result<Arc<dyn FullReactor + Send + Sync + 'static>> 
 
     #[cfg(feature = "default-runtime")]
     {
-        return Ok(Arc::new(async_reactor_trait::AsyncIo));
+        return Ok(Arc::new(tokio_reactor_trait::Tokio::current()));
     }
 
     #[allow(unreachable_code)]

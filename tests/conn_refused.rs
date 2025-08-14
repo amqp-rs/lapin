@@ -7,11 +7,9 @@ async fn tokio_main() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn connection() {
-    let res = tokio::runtime::Runtime::new()
-        .expect("failed to build tokio runtime")
-        .block_on(tokio_main());
+#[tokio::test]
+async fn connection() {
+    let res = tokio_main().await;
     assert!(res.is_err());
     let err = res.unwrap_err();
     assert!(err.is_io_error());

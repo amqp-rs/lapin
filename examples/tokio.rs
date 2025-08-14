@@ -96,9 +96,7 @@ async fn main() {
     tokio_main(true).await
 }
 
-#[test]
-fn connection() {
-    tokio::runtime::Runtime::new()
-        .expect("failed to build tokio runtime")
-        .block_on(tokio_main(false));
+#[tokio::test]
+async fn connection() {
+    tokio_main(false).await
 }
