@@ -20,7 +20,7 @@ async fn main() {
 
     //receive channel
     let channel = conn.create_channel().await.expect("create_channel");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     let queue = channel
         .queue_declare(
@@ -30,7 +30,7 @@ async fn main() {
         )
         .await
         .expect("queue_declare");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!(?queue, "Declared queue");
 
     info!("will consume");
@@ -43,7 +43,7 @@ async fn main() {
         )
         .await
         .expect("basic_consume");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     while let Some(delivery) = consumer.next().await {
         info!(message=?delivery, "received message");

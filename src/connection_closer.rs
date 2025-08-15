@@ -1,4 +1,4 @@
-use crate::{connection_status::ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
+use crate::{ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) struct ConnectionCloser {

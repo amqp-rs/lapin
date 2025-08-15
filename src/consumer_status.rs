@@ -34,14 +34,14 @@ impl fmt::Debug for ConsumerStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ConsumerStatus");
         if let Some(inner) = self.try_read() {
-            debug.field("state", &inner.state());
+            debug.field("state", &inner.state);
         }
         debug.finish()
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConsumerState {
+pub(crate) enum ConsumerState {
     Active,
     ActiveWithDelegate,
     Canceling,
@@ -49,7 +49,7 @@ pub enum ConsumerState {
 }
 
 impl ConsumerState {
-    pub fn is_active(self) -> bool {
+    pub(crate) fn is_active(self) -> bool {
         matches!(
             self,
             ConsumerState::Active | ConsumerState::ActiveWithDelegate

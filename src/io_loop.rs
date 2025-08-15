@@ -1,9 +1,8 @@
 use crate::{
-    AsyncTcpStream, Configuration, ConnectionStatus, Error, ErrorKind, Promise, PromiseResolver,
-    Result,
+    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind, Promise,
+    PromiseResolver, Result,
     buffer::Buffer,
     channels::Channels,
-    connection_status::ConnectionState,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,

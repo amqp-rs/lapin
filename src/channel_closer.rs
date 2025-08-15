@@ -1,6 +1,4 @@
-use crate::{
-    channel_status::ChannelStatus, internal_rpc::InternalRPCHandle, protocol, types::ChannelId,
-};
+use crate::{ChannelStatus, internal_rpc::InternalRPCHandle, protocol, types::ChannelId};
 use std::fmt;
 
 pub(crate) struct ChannelCloser {

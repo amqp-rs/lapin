@@ -26,7 +26,7 @@ async fn tokio_main() {
     let channel_a = conn.create_channel().await.expect("create_channel");
     //receive channel
     let channel_b = conn.create_channel().await.expect("create_channel");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     //create the hello queue
     let queue = channel_a
@@ -37,14 +37,14 @@ async fn tokio_main() {
         )
         .await
         .expect("queue_declare");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!(?queue, "Declared queue");
 
     channel_a
         .confirm_select(ConfirmSelectOptions::default())
         .await
         .expect("confirm_select");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!("Enabled publisher-confirms");
 
     info!("will consume");
@@ -66,7 +66,7 @@ async fn tokio_main() {
                     .expect("basic_ack");
             }
         });
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     info!("will publish");
     let payload = b"Hello world!";
@@ -84,7 +84,7 @@ async fn tokio_main() {
         .expect("publisher-confirms");
     assert!(confirm.is_ack());
     assert_eq!(confirm.take_message(), None);
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     for _ in 1..=2 {
         channel_a

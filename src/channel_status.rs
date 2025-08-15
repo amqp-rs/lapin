@@ -73,10 +73,6 @@ impl ChannelStatus {
         inner.finalize_connection();
     }
 
-    pub fn state(&self) -> ChannelState {
-        self.lock_inner().state
-    }
-
     pub(crate) fn set_state(&self, state: ChannelState) {
         self.lock_inner().state = state;
     }

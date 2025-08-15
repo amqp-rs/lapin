@@ -1,8 +1,5 @@
-use crate::{
-    Connection, ConnectionProperties, Error, PromiseResolver, Result,
-    auth::{Credentials, SASLMechanism},
-    uri::AMQPUri,
-};
+use crate::{Connection, ConnectionProperties, Error, PromiseResolver, Result, uri::AMQPUri};
+use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
@@ -19,7 +16,7 @@ impl ConnectionStatus {
         status
     }
 
-    pub fn state(&self) -> ConnectionState {
+    pub(crate) fn state(&self) -> ConnectionState {
         self.lock_inner().state
     }
 

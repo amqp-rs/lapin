@@ -89,10 +89,12 @@ impl Acker {
         Ok(true)
     }
 
+    /// True if our channel got closed or encountered an error
     pub fn poisoned(&self) -> bool {
         self.channel_killswitch.killed()
     }
 
+    /// False if poisoned or already used
     pub fn usable(&self) -> bool {
         !self.poisoned() && !self.killswitch.killed()
     }

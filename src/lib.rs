@@ -22,7 +22,7 @@
 //! ```rust,no_run
 //! use futures_lite::stream::StreamExt;
 //! use lapin::{
-//!     options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
+//!     options::*, Confirmation, types::FieldTable, BasicProperties, Connection,
 //!     ConnectionProperties, Result,
 //! };
 //! use tracing::info;
@@ -99,12 +99,12 @@
 //! [`Connection`]: ./struct.Connection.html
 
 pub use amq_protocol::{
-    auth,
     protocol::{self, BasicProperties},
     tcp::{self, AsyncTcpStream},
     types, uri,
 };
 
+pub use acker::Acker;
 pub use channel::{Channel, options};
 pub use channel_status::{ChannelState, ChannelStatus};
 pub use configuration::Configuration;
@@ -112,21 +112,18 @@ pub use connection::{Connect, Connection};
 pub use connection_properties::ConnectionProperties;
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use consumer::{Consumer, ConsumerDelegate};
-pub use consumer_status::ConsumerState;
 pub use error::{Error, ErrorKind, Result};
 pub use exchange::ExchangeKind;
+pub use publisher_confirm::Confirmation;
 pub use queue::Queue;
 pub use recovery_config::RecoveryConfig;
 
-pub mod acker;
-pub mod heartbeat;
 pub mod message;
-pub mod publisher_confirm;
 pub mod runtime;
-pub mod socket_state;
 
 use promise::{Promise, PromiseResolver};
 
+mod acker;
 mod acknowledgement;
 mod basic_get_delivery;
 mod buffer;
@@ -150,6 +147,7 @@ mod error_handler;
 mod error_holder;
 mod exchange;
 mod frames;
+mod heartbeat;
 mod id_sequence;
 mod internal_rpc;
 mod io_loop;
@@ -157,11 +155,13 @@ mod killswitch;
 mod notifier;
 mod parsing;
 mod promise;
+mod publisher_confirm;
 mod queue;
 mod reactor;
 mod recovery_config;
 mod registry;
 mod returned_messages;
+mod socket_state;
 mod thread;
 mod topology;
 mod wakers;

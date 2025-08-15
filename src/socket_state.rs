@@ -26,12 +26,12 @@ impl Default for SocketState {
 }
 
 #[derive(Clone)]
-pub struct SocketStateHandle {
+pub(crate) struct SocketStateHandle {
     sender: Sender<SocketEvent>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum SocketEvent {
+pub(crate) enum SocketEvent {
     Readable,
     Writable,
     Wake,
@@ -128,11 +128,11 @@ impl SocketState {
 }
 
 impl SocketStateHandle {
-    pub fn send(&self, event: SocketEvent) {
+    pub(crate) fn send(&self, event: SocketEvent) {
         let _ = self.sender.send(event);
     }
 
-    pub fn wake(&self) {
+    pub(crate) fn wake(&self) {
         self.send(SocketEvent::Wake);
     }
 }

@@ -1,10 +1,9 @@
 use crate::{
-    AsyncTcpStream, ConnectionProperties, Error, ErrorKind, Promise, Result,
+    AsyncTcpStream, ConnectionProperties, ConnectionStatus, Error, ErrorKind, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
     connection_closer::ConnectionCloser,
-    connection_status::ConnectionStatus,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -334,12 +333,10 @@ impl Connect for &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::BasicProperties;
     use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
-    use crate::channel_status::ChannelState;
-    use crate::connection_status::ConnectionState;
     use crate::options::BasicConsumeOptions;
     use crate::types::{ChannelId, FieldTable, ShortString};
+    use crate::{BasicProperties, ChannelState, ConnectionState};
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{AMQPClass, basic};
     use executor_trait::FullExecutor;
@@ -451,9 +448,7 @@ mod tests {
         {
             let body_frame = AMQPFrame::Body(channel.id(), b"{}".to_vec());
             conn.channels.handle_frame(body_frame).unwrap();
-            let channel_state = channel.status().state();
-            let expected_state = ChannelState::Connected;
-            assert_eq!(channel_state, expected_state);
+            assert!(channel.status().connected());
         }
     }
 
@@ -513,9 +508,7 @@ mod tests {
                 }),
             );
             conn.channels.handle_frame(header_frame).unwrap();
-            let channel_state = channel.status().state();
-            let expected_state = ChannelState::Connected;
-            assert_eq!(channel_state, expected_state);
+            assert!(channel.status().connected());
         }
     }
 }

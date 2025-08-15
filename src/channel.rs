@@ -1,14 +1,12 @@
 use crate::{
-    BasicProperties, Configuration, Connection, ConnectionStatus, Error, ErrorKind, ExchangeKind,
-    Promise, PromiseResolver, Result,
+    BasicProperties, ChannelState, ChannelStatus, Configuration, Connection, ConnectionState,
+    ConnectionStatus, Error, ErrorKind, ExchangeKind, Promise, PromiseResolver, Result,
     acknowledgement::Acknowledgements,
-    auth::Credentials,
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
-    channel_status::{ChannelState, ChannelStatus},
     connection_closer::ConnectionCloser,
-    connection_status::{ConnectionResolver, ConnectionState, ConnectionStep},
+    connection_status::{ConnectionResolver, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
     error_handler::ErrorHandler,
@@ -25,7 +23,10 @@ use crate::{
     topology::ChannelDefinition,
     types::*,
 };
-use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use amq_protocol::{
+    auth::Credentials,
+    frame::{AMQPContentHeader, AMQPFrame},
+};
 use executor_trait::FullExecutor;
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{Level, error, info, level_enabled, trace};

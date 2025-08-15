@@ -1,6 +1,6 @@
 use lapin::{
-    BasicProperties, Connection, ConnectionProperties, message::DeliveryResult, options::*,
-    publisher_confirm::Confirmation, types::FieldTable,
+    BasicProperties, Confirmation, Connection, ConnectionProperties, message::DeliveryResult,
+    options::*, types::FieldTable,
 };
 use tracing::info;
 
@@ -25,7 +25,7 @@ fn main() {
             let channel_a = conn.create_channel().await.expect("create_channel");
             //receive channel
             let channel_b = conn.create_channel().await.expect("create_channel");
-            info!(state=?conn.status().state());
+            info!(state=?conn.status());
 
             //create the hello queue
             let queue = channel_a
@@ -36,7 +36,7 @@ fn main() {
                 )
                 .await
                 .expect("queue_declare");
-            info!(state=?conn.status().state());
+            info!(state=?conn.status());
             info!(?queue, "Declared queue");
 
             info!("will consume");
@@ -66,7 +66,7 @@ fn main() {
                         }
                     }
                 });
-            info!(state=?conn.status().state());
+            info!(state=?conn.status());
 
             info!("will publish");
             let payload = b"Hello world!";
@@ -83,7 +83,7 @@ fn main() {
                 .await
                 .expect("publisher-confirms");
             assert_eq!(confirm, Confirmation::NotRequested);
-            info!(state=?conn.status().state());
+            info!(state=?conn.status());
         }
 
         conn.run().expect("conn.run");

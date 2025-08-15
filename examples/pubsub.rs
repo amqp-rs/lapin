@@ -1,7 +1,7 @@
 use futures_lite::stream::StreamExt;
 use lapin::{
-    BasicProperties, Connection, ConnectionProperties, Result, options::*,
-    publisher_confirm::Confirmation, types::FieldTable,
+    BasicProperties, Confirmation, Connection, ConnectionProperties, Result, options::*,
+    types::FieldTable,
 };
 use tracing::info;
 

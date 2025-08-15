@@ -1,6 +1,5 @@
 use crate::{
-    channel_status::ChannelState, connection_status::ConnectionState, notifier::Notifier,
-    protocol::AMQPError, types::ChannelId,
+    ChannelState, ConnectionState, notifier::Notifier, protocol::AMQPError, types::ChannelId,
 };
 use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
@@ -48,8 +47,7 @@ impl Error {
         &self.kind
     }
 
-    #[deprecated(note = "Please use Channel::wait_for_recovery instead")]
-    pub fn notifier(&self) -> Option<Notifier> {
+    pub(crate) fn notifier(&self) -> Option<Notifier> {
         self.notifier.clone()
     }
 

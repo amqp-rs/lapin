@@ -1,6 +1,6 @@
 use lapin::{
-    BasicProperties, Connection, ConnectionProperties, ConsumerDelegate, message::DeliveryResult,
-    options::*, publisher_confirm::Confirmation, types::FieldTable,
+    BasicProperties, Confirmation, Connection, ConnectionProperties, ConsumerDelegate,
+    message::DeliveryResult, options::*, types::FieldTable,
 };
 use std::{
     future::Future,
@@ -76,7 +76,7 @@ async fn tokio_main() {
         )
         .await
         .expect("queue_declare");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!(?queue, "Declared queue");
 
     //purge the hello queue in case it already exists with contents in it
@@ -84,7 +84,7 @@ async fn tokio_main() {
         .queue_purge("hello-async", QueuePurgeOptions::default())
         .await
         .expect("queue_purge");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!(purge=?queue, "Purged queue");
 
     info!("will consume");
@@ -119,7 +119,7 @@ async fn tokio_main() {
     assert_eq!(confirm, Confirmation::Ack(None));
 
     consumer.set_delegate(subscriber);
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     info!("will publish");
     let confirm = channel_a
@@ -135,7 +135,7 @@ async fn tokio_main() {
         .await
         .expect("publisher-confirms");
     assert_eq!(confirm, Confirmation::Ack(None));
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     tokio::time::sleep(time::Duration::from_millis(500)).await;
     assert_eq!(hello_world.load(Ordering::SeqCst), 2);

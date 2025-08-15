@@ -1,8 +1,7 @@
 use lapin::{
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties, Confirmation, Connection, ConnectionProperties,
     message::DeliveryResult,
     options::*,
-    publisher_confirm::Confirmation,
     tcp::{OwnedIdentity, OwnedTLSConfig},
     types::FieldTable,
 };
@@ -48,7 +47,7 @@ async fn main() {
     let channel_a = conn.create_channel().await.expect("create_channel");
     //receive channel
     let channel_b = conn.create_channel().await.expect("create_channel");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     //create the hello queue
     let queue = channel_a
@@ -59,7 +58,7 @@ async fn main() {
         )
         .await
         .expect("queue_declare");
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
     info!(?queue, "Declared queue");
 
     info!("will consume");
@@ -81,7 +80,7 @@ async fn main() {
                     .expect("basic_ack");
             }
         });
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 
     info!("will publish");
     let payload = b"Hello world!";
@@ -98,5 +97,5 @@ async fn main() {
         .await
         .expect("publisher-confirms");
     assert_eq!(confirm, Confirmation::NotRequested);
-    info!(state=?conn.status().state());
+    info!(state=?conn.status());
 }

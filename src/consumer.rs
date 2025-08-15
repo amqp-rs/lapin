@@ -2,7 +2,7 @@ use crate::{
     BasicProperties, Error, Result,
     channel_closer::ChannelCloser,
     consumer_canceler::ConsumerCanceler,
-    consumer_status::{ConsumerState, ConsumerStatus},
+    consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
     message::{Delivery, DeliveryResult},
@@ -211,11 +211,6 @@ impl Consumer {
     /// this contains the server generated consumer tag.
     pub fn tag(&self) -> ShortString {
         self.consumer_tag.clone()
-    }
-
-    /// Gets the current state of the Consumer.
-    pub fn state(&self) -> ConsumerState {
-        self.status.state()
     }
 
     /// Get the name of the queue we're consuming
