@@ -1,3 +1,9 @@
+### 3.2.1 (2025-08-19)
+
+#### Misc
+
+* Add `Acker::mock()` to help writing tests in external programs
+
 ### 3.2.0 (2025-08-11)
 
 #### Features
