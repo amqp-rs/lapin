@@ -47,12 +47,12 @@ version = "^8.3"
 default-features = false
 
 [dependencies.async-global-executor-trait]
-version = "^2.2"
+version = "^3.1"
 features = ["async-io"]
 optional = true
 
 [dependencies.async-reactor-trait]
-version = "^2.0"
+version = "^3.1"
 optional = true
 
 [dependencies.flume]
@@ -75,8 +75,8 @@ reactor-trait = "^2.7"
 async-global-executor = "^3.1"
 futures-lite = "^2.0"
 serde_json = "^1.0"
-tokio-executor-trait = "^2.1"
-tokio-reactor-trait = "^3.8"
+tokio-executor-trait = "^3.1"
+tokio-reactor-trait = "^4.1"
 
 [dev-dependencies.tokio]
 version = "^1.17"
