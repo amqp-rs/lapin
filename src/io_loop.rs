@@ -194,7 +194,7 @@ impl IoLoop {
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
                     let connect = Box::into_pin((self.connect)(self.uri.clone(), executor.clone(), reactor.clone()));
-                    self.internal_rpc.register_internal_future_with_resolver(async move { Ok(connect.await?) }, resolver);
+                    self.internal_rpc.spawn_with_resolver(async move { Ok(connect.await?) }, resolver);
                     let mut stream = promise.wait().inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
@@ -226,7 +226,7 @@ impl IoLoop {
                 trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
                 let internal_rpc = self.internal_rpc.clone();
                 if self.heartbeat.killswitch().killed() {
-                    internal_rpc.register_internal_future(std::future::poll_fn(move |cx| {
+                    internal_rpc.spawn(std::future::poll_fn(move |cx| {
                         Pin::new(&mut stream)
                             .poll_close(cx)
                             .map(|res| res.map_err(From::from))

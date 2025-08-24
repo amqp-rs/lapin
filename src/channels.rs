@@ -215,7 +215,7 @@ impl Channels {
 
         self.channel0
             .send_frame(AMQPFrame::Heartbeat(0), resolver, None);
-        self.internal_rpc.register_internal_future(promise);
+        self.internal_rpc.spawn(promise);
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
@@ -257,7 +257,7 @@ impl Channels {
                     let channel0 = self.channel0();
                     {
                         let error = error.clone();
-                        self.internal_rpc.register_internal_future(async move {
+                        self.internal_rpc.spawn(async move {
                             channel0
                                 .connection_close(
                                     error.get_id(),
@@ -281,7 +281,7 @@ impl Channels {
                     let channel0 = self.channel0();
                     {
                         let error = error.clone();
-                        self.internal_rpc.register_internal_future(async move {
+                        self.internal_rpc.spawn(async move {
                             channel0
                                 .connection_close(
                                     error.get_id(),

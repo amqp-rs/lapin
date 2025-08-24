@@ -593,7 +593,7 @@ impl Channel {
         error!("Got a bad acknowledgement from server, closing channel");
         let channel = self.clone();
         let err = error.clone();
-        self.internal_rpc.register_internal_future(async move {
+        self.internal_rpc.spawn(async move {
             channel
                 .do_channel_close(
                     error.get_id(),
@@ -787,7 +787,7 @@ impl Channel {
                 .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
             let channel = self.clone();
-            self.internal_rpc.register_internal_future(async move {
+            self.internal_rpc.spawn(async move {
                 channel
                     .connection_start_ok(
                         options.client_properties,
@@ -818,7 +818,7 @@ impl Channel {
             (state, self.connection_status.connection_step())
         {
             let channel = self.clone();
-            self.internal_rpc.register_internal_future(async move {
+            self.internal_rpc.spawn(async move {
                 channel
                     .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
                     .await
@@ -851,7 +851,7 @@ impl Channel {
             let channel = self.clone();
             let configuration = self.configuration.clone();
             let vhost = self.connection_status.vhost();
-            self.internal_rpc.register_internal_future(async move {
+            self.internal_rpc.spawn(async move {
                 channel
                     .connection_tune_ok(
                         configuration.channel_max(),
@@ -955,7 +955,7 @@ impl Channel {
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
         let channel = self.clone();
-        self.internal_rpc.register_internal_future(async move {
+        self.internal_rpc.spawn(async move {
             channel
                 .channel_flow_ok(ChannelFlowOkOptions {
                     active: method.active,
@@ -987,7 +987,7 @@ impl Channel {
             .as_ref()
             .is_some_and(|err| self.recovery_config.can_recover_channel(err));
         let channel = self.clone();
-        self.internal_rpc.register_internal_future(async move {
+        self.internal_rpc.spawn(async move {
             channel.channel_close_ok(error).await?;
             if recover {
                 channel.start_recovery().await?;
@@ -1208,9 +1208,8 @@ impl Channel {
         self.consumers.deregister(method.consumer_tag.as_str());
         if !method.nowait {
             let channel = self.clone();
-            self.internal_rpc.register_internal_future(async move {
-                channel.basic_cancel_ok(method.consumer_tag.as_str()).await
-            });
+            self.internal_rpc
+                .spawn(async move { channel.basic_cancel_ok(method.consumer_tag.as_str()).await });
         }
         Ok(())
     }
