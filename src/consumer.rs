@@ -90,36 +90,41 @@ impl<
 ///
 /// ## Example
 /// ```rust,no_run
+/// use async_rs::{Runtime, traits::*};
 /// use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties, Result};
 /// use futures_lite::stream::StreamExt;
 /// use std::future::Future;
 ///
-/// let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+/// fn main() -> Result<()> {
+///     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+///     let runtime = lapin::runtime::default_runtime().unwrap();
 ///
-/// let res: Result<()> = async_global_executor::block_on(async {
-///     let conn = Connection::connect(
-///         &addr,
-///         ConnectionProperties::default(),
-///     )
-///     .await?;
-///     let channel = conn.create_channel().await?;
-///     let mut consumer = channel
-///         .basic_consume(
-///             "hello",
-///             "my_consumer",
-///             BasicConsumeOptions::default(),
-///             FieldTable::default(),
+///     runtime.clone().block_on(async move {
+///         let conn = Connection::connect_with_runtime(
+///             &addr,
+///             ConnectionProperties::default(),
+///             runtime,
 ///         )
 ///         .await?;
-///
-///     while let Some(delivery) = consumer.next().await {
-///         let delivery = delivery.expect("error in consumer");
-///         delivery
-///             .ack(BasicAckOptions::default())
+///         let channel = conn.create_channel().await?;
+///         let mut consumer = channel
+///             .basic_consume(
+///                 "hello",
+///                 "my_consumer",
+///                 BasicConsumeOptions::default(),
+///                 FieldTable::default(),
+///             )
 ///             .await?;
-///     }
-///     Ok(())
-/// });
+///
+///         while let Some(delivery) = consumer.next().await {
+///             let delivery = delivery.expect("error in consumer");
+///             delivery
+///                 .ack(BasicAckOptions::default())
+///                 .await?;
+///         }
+///         Ok(())
+///     })
+/// }
 /// ```
 ///
 /// [`Channel::basic_consume`]: ./struct.Channel.html#method.basic_consume
@@ -454,7 +459,7 @@ mod test {
     use super::*;
 
     use crate::{
-        ConnectionStatus, ErrorKind, heartbeat::Heartbeat, internal_rpc::InternalRPC,
+        ConnectionStatus, ErrorKind, heartbeat::Heartbeat, internal_rpc::InternalRPC, runtime,
         socket_state::SocketState, uri::AMQPUri,
     };
 
@@ -479,11 +484,10 @@ mod test {
     fn create_consumer(tag: &str, queue: &str) -> Consumer {
         let uri = AMQPUri::default();
         let status = ConnectionStatus::new(&uri);
-        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let reactor = Arc::new(async_reactor_trait::AsyncIo);
-        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
+        let runtime = runtime::default_runtime().unwrap();
+        let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
         let socket_state = SocketState::default();
-        let internal_rpc = InternalRPC::new(executor, heartbeat, socket_state.handle());
+        let internal_rpc = InternalRPC::new(runtime, heartbeat, socket_state.handle());
         Consumer::new(
             ShortString::from(tag),
             internal_rpc.handle(),

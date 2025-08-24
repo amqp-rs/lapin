@@ -299,16 +299,15 @@ impl Inner {
         frames: &mut VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
         error: Error,
     ) {
-        use AMQPFrame::*;
-
-        frames.retain(|(f, r)| match f {
-            Method(id, _) | Header(id, _, _) | Body(id, _) | Heartbeat(id) if *id == channel_id => {
+        frames.retain(|(f, r)| {
+            if f.channel_id() == channel_id {
                 if let Some(r) = r {
                     r.reject(error.clone());
                 }
                 false
+            } else {
+                true
             }
-            _ => true,
         })
     }
 

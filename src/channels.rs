@@ -204,7 +204,7 @@ impl Channels {
         }
 
         self.channel0
-            .send_frame(AMQPFrame::Heartbeat(0), resolver, None);
+            .send_frame(AMQPFrame::Heartbeat, resolver, None);
         self.internal_rpc.spawn(promise);
     }
 
@@ -235,33 +235,27 @@ impl Channels {
             AMQPFrame::Method(channel_id, method) => {
                 self.receive_method(channel_id, method)?;
             }
-            AMQPFrame::Heartbeat(channel_id) => {
-                if channel_id == 0 {
-                    debug!("received heartbeat from server");
-                } else {
-                    error!(channel=%channel_id, "received invalid heartbeat");
-                    let error = AMQPError::new(
-                        AMQPHardError::FRAMEERROR.into(),
-                        format!("heartbeat frame received on channel {channel_id}").into(),
-                    );
-                    let channel0 = self.channel0();
-                    {
-                        let error = error.clone();
-                        self.internal_rpc.spawn(async move {
-                            channel0
-                                .connection_close(
-                                    error.get_id(),
-                                    error.get_message().as_str(),
-                                    0,
-                                    0,
-                                )
-                                .await
-                        });
-                    }
-                    return Err(ErrorKind::ProtocolError(error).into());
-                }
+            AMQPFrame::Heartbeat => {
+                debug!("received heartbeat from server");
             }
-            AMQPFrame::Header(channel_id, class_id, header) => {
+            AMQPFrame::InvalidHeartbeat(channel_id) => {
+                error!(channel=%channel_id, "received invalid heartbeat");
+                let error = AMQPError::new(
+                    AMQPHardError::FRAMEERROR.into(),
+                    format!("heartbeat frame received on channel {channel_id}").into(),
+                );
+                let channel0 = self.channel0();
+                {
+                    let error = error.clone();
+                    self.internal_rpc.spawn(async move {
+                        channel0
+                            .connection_close(error.get_id(), error.get_message().as_str(), 0, 0)
+                            .await
+                    });
+                }
+                return Err(ErrorKind::ProtocolError(error).into());
+            }
+            AMQPFrame::Header(channel_id, header) => {
                 if channel_id == 0 {
                     error!(channel=%channel_id, "received content header");
                     let error = AMQPError::new(
@@ -276,7 +270,7 @@ impl Channels {
                                 .connection_close(
                                     error.get_id(),
                                     error.get_message().as_str(),
-                                    class_id,
+                                    header.class_id,
                                     0,
                                 )
                                 .await
@@ -286,7 +280,7 @@ impl Channels {
                 } else {
                     self.handle_content_header_frame(
                         channel_id,
-                        class_id,
+                        header.class_id,
                         header.body_size,
                         header.properties,
                     )?;

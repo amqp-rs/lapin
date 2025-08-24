@@ -20,6 +20,7 @@
 //! ## Example
 //!
 //! ```rust,no_run
+//! use async_rs::traits::*;
 //! use futures_lite::stream::StreamExt;
 //! use lapin::{
 //!     options::*, Confirmation, types::FieldTable, BasicProperties, Connection,
@@ -35,11 +36,13 @@
 //!     tracing_subscriber::fmt::init();
 //!
 //!     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+//!     let runtime = lapin::runtime::default_runtime()?;
 //!
-//!     async_global_executor::block_on(async {
-//!         let conn = Connection::connect(
+//!     runtime.clone().block_on(async move {
+//!         let conn = Connection::connect_with_runtime(
 //!             &addr,
 //!             ConnectionProperties::default(),
+//!             runtime.clone(),
 //!         )
 //!         .await?;
 //!
@@ -66,7 +69,7 @@
 //!                 FieldTable::default(),
 //!             )
 //!             .await?;
-//!         async_global_executor::spawn(async move {
+//!         runtime.spawn(async move {
 //!             info!("will consume");
 //!             while let Some(delivery) = consumer.next().await {
 //!                 let delivery = delivery.expect("error in consumer");
@@ -75,7 +78,7 @@
 //!                     .await
 //!                     .expect("ack");
 //!             }
-//!         }).detach();
+//!         });
 //!
 //!         let payload = b"Hello world!";
 //!
@@ -157,7 +160,6 @@ mod parsing;
 mod promise;
 mod publisher_confirm;
 mod queue;
-mod reactor;
 mod recovery_config;
 mod registry;
 mod returned_messages;

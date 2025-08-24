@@ -1,3 +1,4 @@
+use async_rs::{Runtime, traits::*};
 use futures_lite::stream::StreamExt;
 use lapin::{
     BasicProperties, Confirmation, Connection, ConnectionProperties, Result, options::*,
@@ -14,10 +15,12 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+    let runtime = Runtime::tokio_current();
 
-    let conn = Connection::connect(
+    let conn = Connection::connect_with_runtime(
         &addr,
         ConnectionProperties::default().with_connection_name("pubsub-example".into()),
+        runtime.clone(),
     )
     .await?;
 
@@ -44,14 +47,13 @@ async fn main() -> Result<()> {
             FieldTable::default(),
         )
         .await?;
-    async_global_executor::spawn(async move {
+    runtime.spawn(async move {
         info!("will consume");
         while let Some(delivery) = consumer.next().await {
             let delivery = delivery.expect("error in consumer");
             delivery.ack(BasicAckOptions::default()).await.expect("ack");
         }
-    })
-    .detach();
+    });
 
     let payload = b"Hello world!";
 

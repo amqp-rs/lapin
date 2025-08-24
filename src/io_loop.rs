@@ -1,5 +1,5 @@
 use crate::{
-    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind, Promise,
+    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind,
     PromiseResolver, Result,
     buffer::Buffer,
     channels::Channels,
@@ -8,14 +8,13 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
-    reactor::FullReactor,
     socket_state::SocketState,
     thread::JoinHandle,
     types::FrameSize,
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
-use executor_trait::FullExecutor;
+use async_rs::{Runtime, traits::*};
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
@@ -36,21 +35,22 @@ enum Status {
     Stop,
 }
 
-pub struct IoLoop {
+pub struct IoLoop<RK: RuntimeKit + Clone + Send + 'static> {
     connection_status: ConnectionStatus,
     configuration: Configuration,
     channels: Channels,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     socket_state: SocketState,
-    heartbeat: Heartbeat,
+    heartbeat: Heartbeat<RK>,
+    runtime: Runtime<RK>,
     connect: Arc<
         dyn (Fn(
                 AMQPUri,
-                Arc<dyn FullExecutor + Send + Sync + 'static>,
-                Arc<dyn FullReactor + Send + Sync + 'static>,
-            ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
-            + Send
+                Runtime<RK>,
+            ) -> Box<
+                dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
+            >) + Send
             + Sync,
     >,
     uri: AMQPUri,
@@ -61,7 +61,7 @@ pub struct IoLoop {
     serialized_frames: VecDeque<(FrameSize, Option<PromiseResolver<()>>)>,
 }
 
-impl IoLoop {
+impl<RK: RuntimeKit + Clone + Send + 'static> IoLoop<RK> {
     pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
@@ -69,14 +69,15 @@ impl IoLoop {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
-        heartbeat: Heartbeat,
+        heartbeat: Heartbeat<RK>,
+        runtime: Runtime<RK>,
         connect: Arc<
             dyn (Fn(
                     AMQPUri,
-                    Arc<dyn FullExecutor + Send + Sync + 'static>,
-                    Arc<dyn FullReactor + Send + Sync + 'static>,
-                ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
-                + Send
+                    Runtime<RK>,
+                ) -> Box<
+                    dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
+                >) + Send
                 + Sync,
         >,
         uri: AMQPUri,
@@ -94,6 +95,7 @@ impl IoLoop {
             frames,
             socket_state,
             heartbeat,
+            runtime,
             connect,
             uri,
             status: Status::Initial,
@@ -175,11 +177,7 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn start(
-        mut self,
-        executor: Arc<dyn FullExecutor + Send + Sync + 'static>,
-        reactor: Arc<dyn FullReactor + Send + Sync + 'static>,
-    ) -> Result<JoinHandle> {
+    pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
         let current_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -192,11 +190,8 @@ impl IoLoop {
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
-                    let (promise, resolver) = Promise::new();
-                    let connect = Box::into_pin((self.connect)(self.uri.clone(), executor.clone(), reactor.clone()));
-                    // FIXME: block_on once switched to async-rs
-                    executor.spawn(Box::pin(async move { resolver.complete(connect.await) }));
-                    let mut stream = promise.wait().inspect_err(|err| {
+                    let connect = Box::into_pin((self.connect)(self.uri.clone(), self.runtime.clone()));
+                    let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
                     })?;

@@ -1,7 +1,5 @@
-use crate::{
-    ConnectionStatus, ErrorKind, channels::Channels, killswitch::KillSwitch, reactor::FullReactor,
-};
-use executor_trait::FullExecutor;
+use crate::{ConnectionStatus, ErrorKind, channels::Channels, killswitch::KillSwitch};
+use async_rs::{Runtime, traits::*};
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
@@ -10,27 +8,21 @@ use std::{
 use tracing::error;
 
 #[derive(Clone)]
-pub struct Heartbeat {
+pub struct Heartbeat<RK: RuntimeKit + Clone + Send + 'static> {
     connection_status: ConnectionStatus,
     killswitch: KillSwitch,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
-    reactor: Arc<dyn FullReactor + Send + Sync>,
+    runtime: Runtime<RK>,
     inner: Arc<Mutex<Inner>>,
 }
 
-impl Heartbeat {
-    pub(crate) fn new(
-        connection_status: ConnectionStatus,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
-        reactor: Arc<dyn FullReactor + Send + Sync>,
-    ) -> Self {
+impl<RK: RuntimeKit + Clone + Send + 'static> Heartbeat<RK> {
+    pub(crate) fn new(connection_status: ConnectionStatus, runtime: Runtime<RK>) -> Self {
         let killswitch = Default::default();
         let inner = Default::default();
         Self {
             connection_status,
             killswitch,
-            executor,
-            reactor,
+            runtime,
             inner,
         }
     }
@@ -45,9 +37,9 @@ impl Heartbeat {
 
     pub(crate) fn start(&self, channels: Channels) {
         let heartbeat = self.clone();
-        self.executor.spawn(Box::pin(async move {
+        self.runtime.spawn(Box::pin(async move {
             while let Some(dur) = heartbeat.poll_timeout(&channels) {
-                heartbeat.reactor.sleep(dur).await;
+                heartbeat.runtime.sleep(dur).await;
             }
         }));
     }
@@ -83,7 +75,7 @@ impl Heartbeat {
     }
 }
 
-impl fmt::Debug for Heartbeat {
+impl<RK: RuntimeKit + Clone + Send + 'static> fmt::Debug for Heartbeat<RK> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Heartbeat").finish()
     }

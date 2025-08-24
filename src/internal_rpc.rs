@@ -9,17 +9,17 @@ use crate::{
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
 };
-use executor_trait::FullExecutor;
+use async_rs::{Runtime, traits::*};
 use flume::{Receiver, Sender};
-use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, future::Future, pin::Pin, time::Duration};
 use tracing::trace;
 
-pub(crate) struct InternalRPC {
+pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
     rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
     channels_status: HashMap<ChannelId, KillSwitch>,
-    heartbeat: Heartbeat,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
+    heartbeat: Heartbeat<RK>,
+    runtime: Runtime<RK>,
 }
 
 #[derive(Clone)]
@@ -244,10 +244,10 @@ enum InternalCommand {
     StartHeartbeat(Duration),
 }
 
-impl InternalRPC {
+impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
     pub(crate) fn new(
-        executor: Arc<dyn FullExecutor + Send + Sync>,
-        heartbeat: Heartbeat,
+        runtime: Runtime<RK>,
+        heartbeat: Heartbeat<RK>,
         waker: SocketStateHandle,
     ) -> Self {
         let (sender, rpc) = flume::unbounded();
@@ -257,7 +257,7 @@ impl InternalRPC {
             handle,
             channels_status: Default::default(),
             heartbeat,
-            executor,
+            runtime,
         }
     }
 
@@ -276,7 +276,7 @@ impl InternalRPC {
         fut: impl Future<Output = Result<()>> + Send + 'static,
     ) {
         let handle = self.handle();
-        self.executor.spawn(Box::pin(async move {
+        self.runtime.spawn(Box::pin(async move {
             if let Err(err) = fut.await {
                 handle.set_connection_error(err);
             }
@@ -296,7 +296,7 @@ impl InternalRPC {
     }
 
     pub(crate) fn start(self, channels: Channels) {
-        self.executor.clone().spawn(Box::pin(self.run(channels)));
+        self.runtime.clone().spawn(Box::pin(self.run(channels)));
     }
 
     async fn run(mut self, channels: Channels) {

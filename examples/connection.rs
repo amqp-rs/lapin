@@ -1,3 +1,4 @@
+use async_rs::{Runtime, traits::*};
 use lapin::{
     BasicProperties, Confirmation, Connection, ConnectionProperties, message::DeliveryResult,
     options::*, types::FieldTable,
@@ -12,11 +13,13 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+    let runtime = Runtime::async_global_executor();
 
-    async_global_executor::block_on(async {
-        let conn = Connection::connect(&addr, ConnectionProperties::default())
-            .await
-            .expect("connection error");
+    runtime.clone().block_on(async move {
+        let conn =
+            Connection::connect_with_runtime(&addr, ConnectionProperties::default(), runtime)
+                .await
+                .expect("connection error");
 
         info!("CONNECTED");
 

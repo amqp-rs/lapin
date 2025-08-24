@@ -1,3 +1,4 @@
+use async_rs::Runtime;
 use lapin::{
     BasicProperties, Connection, ConnectionProperties,
     message::DeliveryResult,
@@ -15,16 +16,11 @@ async fn smol_main(forever: bool) {
 
     tracing_subscriber::fmt::init();
 
-    // Use smol executor and reactor.
-    lapin::runtime::install_runtime(
-        async_global_executor_trait::AsyncGlobalExecutor,
-        async_reactor_trait::AsyncIo,
-    );
-
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let connection = Connection::connect(&addr, ConnectionProperties::default())
-        .await
-        .unwrap();
+    let connection =
+        Connection::connect_with_runtime(&addr, ConnectionProperties::default(), Runtime::smol())
+            .await
+            .unwrap();
     let channel = connection.create_channel().await.unwrap();
 
     let _queue = channel

@@ -1,3 +1,4 @@
+use async_rs::Runtime;
 use lapin::{
     BasicProperties, Connection, ConnectionProperties,
     message::DeliveryResult,
@@ -15,16 +16,14 @@ async fn tokio_main(forever: bool) {
 
     tracing_subscriber::fmt::init();
 
-    // Use tokio executor and reactor.
-    lapin::runtime::install_runtime(
-        tokio_executor_trait::Tokio::current(),
-        tokio_reactor_trait::Tokio::current(),
-    );
-
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let connection = Connection::connect(&addr, ConnectionProperties::default())
-        .await
-        .unwrap();
+    let connection = Connection::connect_with_runtime(
+        &addr,
+        ConnectionProperties::default(),
+        Runtime::tokio_current(),
+    )
+    .await
+    .unwrap();
     let channel = connection.create_channel().await.unwrap();
 
     let _queue = channel

@@ -39,9 +39,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "9.0.1"
+version = "10.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec600655faf1607bd89c1a8645d247c84ef8d0391e067d3f3fe452704259ced"
+checksum = "a80a2bd48a153b3bcb75fef06f573bd4d01d280a71d71286864b1eefd703c669"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "9.0.1"
+version = "10.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0fcac525a3e45fa9cfc93dd75a2c77b8964cbc64aa6703b54eb7f659424df2"
+checksum = "5c4331bfe497b10dc897126f33f3246db12573f399ccae93ecb365cd563386c0"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -66,25 +66,22 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "9.0.1"
+version = "10.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5700b056da2fb6d785193868b11bcf468c671bcbe1ce4373527de5bd78163181"
+checksum = "f9267f7b9c63f7b96aad275c8afd91703dd0848104977ddc4d2e0ce009f1d2d3"
 dependencies = [
  "amq-protocol-uri",
- "async-trait",
+ "async-rs",
  "cfg-if",
- "executor-trait",
- "hickory-to-socket-addrs",
- "reactor-trait",
  "tcp-stream",
  "tracing",
 ]
 
 [[package]]
 name = "amq-protocol-types"
-version = "9.0.1"
+version = "10.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c23fda1f50f435f17585070e07b03a5921ab742c4a83607f31f3a32016b6fa3"
+checksum = "1248d049e4b30dc77bf5750912a99f0e2c5041ddcaf597b518c0b8156f6f9ec1"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -94,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "9.0.1"
+version = "10.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec3a600f97d6905c2355c0507c645f5347f612ed4dfb7eb152edf44d0d6813cd"
+checksum = "f462dad5bbe0fdfbd435957d1fcf39a329a097776241a71387cbe817199c3112"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -195,17 +192,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-global-executor-trait"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9af57045d58eeb1f7060e7025a1631cbc6399e0a1d10ad6735b3d0ea7f8346ce"
-dependencies = [
- "async-global-executor",
- "async-trait",
- "executor-trait",
-]
-
-[[package]]
 name = "async-io"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,15 +273,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-reactor-trait"
-version = "3.1.1"
+name = "async-rs"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ab52004af1f14a170088bd9e10a2d3b2f2307ce04320e58a6ce36ee531be625"
+checksum = "3cbed74e7251984fb596cf8d083ed029a9544255ef6ac96ad3c8c5b0a4c05ccc"
 dependencies = [
+ "async-global-executor",
  "async-io",
  "async-trait",
+ "cfg-if",
  "futures-core",
- "reactor-trait",
+ "futures-executor",
+ "futures-io",
+ "hickory-resolver",
+ "smol",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
 ]
 
 [[package]]
@@ -846,15 +840,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executor-trait"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13c39dff9342e4e0e16ce96be751eb21a94e94a87bb2f6e63ad1961c2ce109bf"
-dependencies = [
- "async-trait",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -927,6 +912,17 @@ name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -1134,18 +1130,6 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "hickory-to-socket-addrs"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb75170d30edaba4bbe1c42bfe9eb3f0799c8c896ae89334199e3e7690a6aa3b"
-dependencies = [
- "async-trait",
- "hickory-resolver",
- "reactor-trait",
- "tokio",
 ]
 
 [[package]]
@@ -1359,21 +1343,16 @@ version = "3.2.1"
 dependencies = [
  "amq-protocol",
  "amq-protocol-codegen",
- "async-global-executor",
- "async-global-executor-trait",
- "async-reactor-trait",
+ "async-rs",
  "async-trait",
- "executor-trait",
+ "cfg-if",
  "flume",
  "futures-core",
  "futures-io",
  "futures-lite",
- "reactor-trait",
  "serde_json",
  "smol",
  "tokio",
- "tokio-executor-trait",
- "tokio-reactor-trait",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1993,20 +1972,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reactor-trait"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b1c85237926dd82e8bc3634240ecf2236ea81e904b3d83cdb1df974af9af293"
-dependencies = [
- "async-io",
- "async-trait",
- "executor-trait",
- "flume",
- "futures-core",
- "futures-io",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2017,14 +1982,14 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
+checksum = "23d7fd106d8c02486a8d64e778353d1cffe08ce79ac2e82f540c86d0facf6912"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.9",
- "regex-syntax 0.8.5",
+ "regex-automata 0.4.10",
+ "regex-syntax 0.8.6",
 ]
 
 [[package]]
@@ -2038,13 +2003,13 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.9"
+version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
+checksum = "6b9458fa0bfeeac22b5ca447c63aaf45f28439a709ccd244698632f9aa6394d6"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.8.5",
+ "regex-syntax 0.8.6",
 ]
 
 [[package]]
@@ -2055,9 +2020,9 @@ checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
+checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
 
 [[package]]
 name = "resolv-conf"
@@ -2152,9 +2117,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-connector"
-version = "0.21.11"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10eb7ce243317e6b6a342ef6bff8c2e0d46d78120a9aeb2ee39693a569615c96"
+checksum = "f510f2d983baf4a45354ae8ca5abf5a6cdb3c47244ea22f705499d6d9c09a912"
 dependencies = [
  "futures-io",
  "futures-rustls",
@@ -2497,18 +2462,18 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.31.2"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936a5fb21e17fe3e00892264ddcd8d9e6738d2436cda8d08c8293df68b663b3d"
+checksum = "8b6a09b896366d3eb42c238d34e7b60eceff759d63067b7b26517fa75ae0d6b8"
 dependencies = [
  "async-native-tls",
  "async-openssl",
+ "async-rs",
  "cfg-if",
  "futures-io",
  "native-tls",
  "openssl",
  "p12-keystore",
- "reactor-trait",
  "rustls-connector",
  "rustls-pemfile",
 ]
@@ -2650,17 +2615,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-executor-trait"
-version = "2.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6278565f9fd60c2d205dfbc827e8bb1236c2b1a57148708e95861eff7a6b3bad"
-dependencies = [
- "async-trait",
- "executor-trait",
- "tokio",
-]
-
-[[package]]
 name = "tokio-macros"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2669,21 +2623,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tokio-reactor-trait"
-version = "4.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5410ef3f06b4ca0b3868bebeb24e19fef3a05e2ad086f2b8230f2bdf4052cdf"
-dependencies = [
- "async-trait",
- "futures-core",
- "futures-io",
- "reactor-trait",
- "tokio",
- "tokio-stream",
- "tokio-util",
 ]
 
 [[package]]

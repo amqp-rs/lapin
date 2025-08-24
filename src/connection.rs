@@ -8,7 +8,6 @@ use crate::{
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
-    reactor::FullReactor,
     runtime,
     socket_state::SocketState,
     tcp::{AMQPUriTcpExt, OwnedTLSConfig},
@@ -17,8 +16,8 @@ use crate::{
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
+use async_rs::{Runtime, traits::*};
 use async_trait::async_trait;
-use executor_trait::FullExecutor;
 use std::{fmt, io, sync::Arc};
 use tracing::{Level, level_enabled, trace};
 
@@ -79,31 +78,53 @@ impl Connection {
     ///
     /// Note that the virtual host has to be escaped with
     /// [URL encoding](https://en.wikipedia.org/wiki/Percent-encoding).
-    pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Connection> {
-        Connect::connect(uri, options, OwnedTLSConfig::default()).await
+    pub async fn connect(uri: &str, options: ConnectionProperties) -> Result<Self> {
+        Connect::connect(uri, options).await
     }
 
     /// Connect to an AMQP Server.
-    pub async fn connect_with_config(
+    pub async fn connect_with_runtime<RK: RuntimeKit + Send + Sync + Clone + 'static>(
+        uri: &str,
+        options: ConnectionProperties,
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        uri.connect_with_config(options, OwnedTLSConfig::default(), runtime)
+            .await
+    }
+
+    /// Connect to an AMQP Server.
+    pub async fn connect_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
         uri: &str,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
-    ) -> Result<Connection> {
-        Connect::connect(uri, options, config).await
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        uri.connect_with_config(options, config, runtime).await
     }
 
     /// Connect to an AMQP Server.
-    pub async fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Result<Connection> {
-        Connect::connect(uri, options, OwnedTLSConfig::default()).await
+    pub async fn connect_uri(uri: AMQPUri, options: ConnectionProperties) -> Result<Self> {
+        Connect::connect(uri, options).await
     }
 
     /// Connect to an AMQP Server
-    pub async fn connect_uri_with_config(
+    pub async fn connect_uri_with_runtime<RK: RuntimeKit + Send + Sync + Clone + 'static>(
+        uri: AMQPUri,
+        options: ConnectionProperties,
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        uri.connect_with_config(options, OwnedTLSConfig::default(), runtime)
+            .await
+    }
+
+    /// Connect to an AMQP Server
+    pub async fn connect_uri_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
         uri: AMQPUri,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
-    ) -> Result<Connection> {
-        Connect::connect(uri, options, config).await
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        uri.connect_with_config(options, config, runtime).await
     }
 
     /// Creates a new [`Channel`] on this connection.
@@ -179,28 +200,27 @@ impl Connection {
             .await
     }
 
-    pub async fn connector(
+    pub async fn connector<RK: RuntimeKit + Clone + Send + 'static>(
         uri: AMQPUri,
+        runtime: Runtime<RK>,
         connect: Box<
             dyn (Fn(
                     AMQPUri,
-                    Arc<dyn FullExecutor + Send + Sync + 'static>,
-                    Arc<dyn FullReactor + Send + Sync + 'static>,
-                ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
-                + Send
+                    Runtime<RK>,
+                ) -> Box<
+                    dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
+                >) + Send
                 + Sync,
         >,
         options: ConnectionProperties,
-    ) -> Result<Connection> {
-        let executor = runtime::executor()?;
-        let reactor = runtime::reactor()?;
+    ) -> Result<Self> {
         let configuration = Configuration::new(&uri);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
-        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
+        let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
         let internal_rpc =
-            InternalRPC::new(executor.clone(), heartbeat.clone(), socket_state.handle());
+            InternalRPC::new(runtime.clone(), heartbeat.clone(), socket_state.handle());
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -219,20 +239,17 @@ impl Connection {
             frames,
             socket_state,
             heartbeat,
+            runtime,
             connect.into(),
             uri.clone(),
         );
 
         internal_rpc.start(conn.channels.clone());
-        conn.io_loop.register(io_loop.start(executor, reactor)?);
+        conn.io_loop.register(io_loop.start()?);
         conn.start(uri, options).await
     }
 
-    pub(crate) async fn start(
-        self,
-        uri: AMQPUri,
-        options: ConnectionProperties,
-    ) -> Result<Connection> {
+    pub(crate) async fn start(self, uri: AMQPUri, options: ConnectionProperties) -> Result<Self> {
         let (promise_out, resolver_out) = Promise::new();
         let (promise_in, resolver_in) = Promise::new();
         if level_enabled!(Level::TRACE) {
@@ -278,35 +295,53 @@ impl fmt::Debug for Connection {
 #[async_trait]
 pub trait Connect {
     /// connect to an AMQP server
-    async fn connect(
+    async fn connect(self, options: ConnectionProperties) -> Result<Connection>
+    where
+        Self: Sized,
+    {
+        self.connect_with_config(
+            options,
+            OwnedTLSConfig::default(),
+            runtime::default_runtime()?,
+        )
+        .await
+    }
+
+    /// connect to an AMQP server
+    async fn connect_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
         self,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
-    ) -> Result<Connection>;
+        runtime: Runtime<RK>,
+    ) -> Result<Connection>
+    where
+        Self: Sized;
 }
 
 #[async_trait]
 impl Connect for AMQPUri {
-    async fn connect(
+    async fn connect_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
         self,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
+        runtime: Runtime<RK>,
     ) -> Result<Connection> {
         let config = Arc::new(config);
         Connection::connector(
             self,
-            Box::new(move |uri, executor, reactor| {
+            runtime,
+            Box::new(move |uri, runtime| {
                 let config = config.clone();
-                let reactor = reactor.clone();
-                let executor = executor.clone();
+                let runtime = runtime.clone();
                 Box::new(async move {
-                    Ok(AMQPUriTcpExt::connect_with_config_async(
-                        &uri,
-                        (*config).as_ref(),
-                        reactor,
-                        executor,
+                    Ok(
+                        AMQPUriTcpExt::connect_with_config_async(
+                            &uri,
+                            (*config).as_ref(),
+                            &runtime,
+                        )
+                        .await?,
                     )
-                    .await?)
                 })
             }),
             options,
@@ -317,13 +352,14 @@ impl Connect for AMQPUri {
 
 #[async_trait]
 impl Connect for &str {
-    async fn connect(
+    async fn connect_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
         self,
         options: ConnectionProperties,
         config: OwnedTLSConfig,
+        runtime: Runtime<RK>,
     ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
-            Ok(uri) => Connect::connect(uri, options, config).await,
+            Ok(uri) => uri.connect_with_config(options, config, runtime).await,
             Err(err) => Err(io::Error::other(err).into()),
         }
     }
@@ -338,19 +374,16 @@ mod tests {
     use crate::{BasicProperties, ChannelState, ConnectionState};
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{AMQPClass, basic};
-    use executor_trait::FullExecutor;
 
-    fn create_connection(
-        executor: Arc<dyn FullExecutor + Send + Sync>,
-    ) -> (Connection, InternalRPCHandle) {
+    fn create_connection() -> (Connection, InternalRPCHandle) {
         let uri = AMQPUri::default();
-        let reactor = Arc::new(async_reactor_trait::AsyncIo);
+        let runtime = runtime::default_runtime().unwrap();
         let configuration = Configuration::new(&uri);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
-        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
-        let internal_rpc = InternalRPC::new(executor, heartbeat, socket_state.handle());
+        let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
+        let internal_rpc = InternalRPC::new(runtime, heartbeat, socket_state.handle());
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -370,8 +403,7 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         // Bootstrap connection state to a consuming state
-        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let conn = create_connection(executor.clone()).0;
+        let conn = create_connection().0;
         conn.configuration.set_channel_max(ChannelId::MAX);
         for _ in 1..=ChannelId::MAX {
             conn.channels.create(conn.closer.clone()).unwrap();
@@ -390,8 +422,7 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
-        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let (conn, internal_rpc) = create_connection(executor.clone());
+        let (conn, internal_rpc) = create_connection();
         conn.configuration.set_channel_max(2047);
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
@@ -431,12 +462,11 @@ mod tests {
         {
             let header_frame = AMQPFrame::Header(
                 channel.id(),
-                60,
-                Box::new(AMQPContentHeader {
+                AMQPContentHeader {
                     class_id: 60,
                     body_size: 2,
                     properties: BasicProperties::default(),
-                }),
+                },
             );
             conn.channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().receiver_state();
@@ -458,8 +488,7 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
-        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let (conn, internal_rpc) = create_connection(executor.clone());
+        let (conn, internal_rpc) = create_connection();
         conn.configuration.set_channel_max(2047);
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
@@ -499,12 +528,11 @@ mod tests {
         {
             let header_frame = AMQPFrame::Header(
                 channel.id(),
-                60,
-                Box::new(AMQPContentHeader {
+                AMQPContentHeader {
                     class_id: 60,
                     body_size: 0,
                     properties: BasicProperties::default(),
-                }),
+                },
             );
             conn.channels.handle_frame(header_frame).unwrap();
             assert!(channel.status().connected());

@@ -36,10 +36,14 @@ async fn main() {
     let addr = std::env::var("AMQP_ADDR")
         .unwrap_or_else(|_| "amqps://localhost:5671/%2f?auth_mechanism=external".into());
 
-    let conn =
-        Connection::connect_with_config(&addr, ConnectionProperties::default(), get_tls_config())
-            .await
-            .expect("connection error");
+    let conn = Connection::connect_with_config(
+        &addr,
+        ConnectionProperties::default(),
+        get_tls_config(),
+        lapin::runtime::default_runtime().unwrap(),
+    )
+    .await
+    .expect("connection error");
 
     info!("CONNECTED");
 

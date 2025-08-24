@@ -459,7 +459,7 @@ impl Channel {
         let frame_max = self.configuration.frame_max();
         let mut frames = vec![
             AMQPFrame::Method(self.id, method),
-            AMQPFrame::Header(self.id, class_id, Box::new(header)),
+            AMQPFrame::Header(self.id, header),
         ];
 
         frames.extend(
