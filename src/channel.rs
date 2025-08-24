@@ -27,7 +27,6 @@ use amq_protocol::{
     auth::Credentials,
     frame::{AMQPContentHeader, AMQPFrame},
 };
-use executor_trait::FullExecutor;
 use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{Level, error, info, level_enabled, trace};
 
@@ -55,7 +54,6 @@ pub struct Channel {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     error_handler: ErrorHandler,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
     connection_closer: Option<Arc<ConnectionCloser>>,
     recovery_config: RecoveryConfig,
@@ -92,7 +90,6 @@ impl Channel {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
         recovery_config: RecoveryConfig,
     ) -> Channel {
@@ -121,7 +118,6 @@ impl Channel {
             internal_rpc,
             frames,
             error_handler: ErrorHandler::default(),
-            executor,
             channel_closer,
             connection_closer,
             recovery_config,
@@ -208,7 +204,6 @@ impl Channel {
             internal_rpc: self.internal_rpc.clone(),
             frames: self.frames.clone(),
             error_handler: self.error_handler.clone(),
-            executor: self.executor.clone(),
             channel_closer: None,
             connection_closer: self.connection_closer.clone(),
             recovery_config: self.recovery_config.clone(),

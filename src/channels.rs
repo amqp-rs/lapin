@@ -14,7 +14,6 @@ use crate::{
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
-use executor_trait::FullExecutor;
 use std::{
     collections::HashMap,
     fmt,
@@ -30,7 +29,6 @@ pub(crate) struct Channels {
     configuration: Configuration,
     connection_status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
     frames: Frames,
     connection_killswitch: KillSwitch,
     error_handler: ErrorHandler,
@@ -46,7 +44,6 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Self {
@@ -57,7 +54,6 @@ impl Channels {
             connection_status.clone(),
             internal_rpc.clone(),
             frames.clone(),
-            executor.clone(),
             None,
         );
         channel0.set_state(ChannelState::Connected);
@@ -68,7 +64,6 @@ impl Channels {
             configuration,
             connection_status,
             internal_rpc,
-            executor,
             frames,
             connection_killswitch: KillSwitch::default(),
             error_handler: ErrorHandler::default(),
@@ -83,7 +78,6 @@ impl Channels {
             self.connection_status.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
-            self.executor.clone(),
             connection_closer,
         )
     }
@@ -425,7 +419,6 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
@@ -436,7 +429,6 @@ impl Inner {
             self.waker.clone(),
             internal_rpc,
             frames,
-            executor,
             connection_closer,
             self.recovery_config.clone(),
         )
@@ -447,7 +439,6 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");
@@ -468,7 +459,6 @@ impl Inner {
                     connection_status,
                     internal_rpc,
                     frames,
-                    executor,
                     Some(connection_closer),
                 );
                 self.channels.insert(id, channel.clone_internal());
