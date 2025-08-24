@@ -341,7 +341,9 @@ mod tests {
     use amq_protocol::protocol::{AMQPClass, basic};
     use executor_trait::FullExecutor;
 
-    fn create_connection(executor: Arc<dyn FullExecutor + Send + Sync>) -> Connection {
+    fn create_connection(
+        executor: Arc<dyn FullExecutor + Send + Sync>,
+    ) -> (Connection, InternalRPCHandle) {
         let uri = AMQPUri::default();
         let reactor = Arc::new(async_reactor_trait::AsyncIo);
         let configuration = Configuration::new(&uri);
@@ -362,7 +364,7 @@ mod tests {
         );
         let conn = Connection::new(configuration, status, channels, internal_rpc.handle());
         conn.status.set_state(ConnectionState::Connected);
-        conn
+        (conn, internal_rpc.handle())
     }
 
     #[test]
@@ -371,7 +373,7 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let conn = create_connection(executor.clone());
+        let conn = create_connection(executor.clone()).0;
         conn.configuration.set_channel_max(ChannelId::MAX);
         for _ in 1..=ChannelId::MAX {
             conn.channels.create(conn.closer.clone()).unwrap();
@@ -391,7 +393,7 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let conn = create_connection(executor.clone());
+        let (conn, internal_rpc) = create_connection(executor.clone());
         conn.configuration.set_channel_max(2047);
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
@@ -399,7 +401,7 @@ mod tests {
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
-            executor,
+            internal_rpc,
             None,
             queue_name.clone(),
             BasicConsumeOptions::default(),
@@ -459,7 +461,7 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
-        let conn = create_connection(executor.clone());
+        let (conn, internal_rpc) = create_connection(executor.clone());
         conn.configuration.set_channel_max(2047);
         let channel = conn.channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
@@ -467,7 +469,7 @@ mod tests {
         let consumer_tag = ShortString::from("consumer-tag");
         let consumer = Consumer::new(
             consumer_tag.clone(),
-            executor,
+            internal_rpc,
             None,
             queue_name.clone(),
             BasicConsumeOptions::default(),

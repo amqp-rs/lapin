@@ -165,6 +165,13 @@ impl InternalRPCHandle {
         self.send(InternalCommand::Spawn(Box::pin(f)));
     }
 
+    pub(crate) fn spawn_infallible(&self, f: impl Future<Output = ()> + Send + 'static) {
+        self.send(InternalCommand::Spawn(Box::pin(async move {
+            f.await;
+            Ok(())
+        })));
+    }
+
     pub(crate) fn start_channels_recovery(&self) {
         self.send(InternalCommand::StartChannelsRecovery);
     }

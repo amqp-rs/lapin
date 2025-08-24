@@ -256,7 +256,7 @@ impl Channel {
         let consumer = self
             .do_basic_consume(queue, consumer_tag, options, arguments, None)
             .await?;
-        Ok(consumer.external(self.id, self.internal_rpc.clone()))
+        Ok(consumer.external(self.id))
     }
 
     pub async fn basic_get(
@@ -1170,7 +1170,7 @@ impl Channel {
         let consumer = original.unwrap_or_else(|| {
             Consumer::new(
                 method.consumer_tag.clone(),
-                self.executor.clone(),
+                self.internal_rpc.clone(),
                 channel_closer,
                 queue,
                 options,

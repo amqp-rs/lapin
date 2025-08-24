@@ -11,7 +11,6 @@ use crate::{
     types::{FieldTable, ShortString},
     wakers::Wakers,
 };
-use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
 use futures_core::stream::Stream;
 use std::{
@@ -137,6 +136,7 @@ pub struct Consumer {
     consumer_tag: ShortString,
     inner: Arc<Mutex<Inner>>,
     status: ConsumerStatus,
+    internal_rpc: InternalRPCHandle,
     channel_closer: Option<Arc<ChannelCloser>>,
     consumer_canceler: Option<Arc<ConsumerCanceler>>,
     queue: ShortString,
@@ -145,13 +145,12 @@ pub struct Consumer {
     deliveries_in: Sender<DeliveryResult>,
     wakers: Wakers,
     error: ErrorHolder,
-    executor: Arc<dyn FullExecutor + Send + Sync>,
 }
 
 impl Consumer {
     pub(crate) fn new(
         consumer_tag: ShortString,
-        executor: Arc<dyn FullExecutor + Send + Sync>,
+        internal_rpc: InternalRPCHandle,
         channel_closer: Option<Arc<ChannelCloser>>,
         queue: ShortString,
         options: BasicConsumeOptions,
@@ -161,8 +160,13 @@ impl Consumer {
         let status = ConsumerStatus::default();
         Self {
             consumer_tag: consumer_tag.clone(),
-            inner: Arc::new(Mutex::new(Inner::new(consumer_tag, receiver))),
+            inner: Arc::new(Mutex::new(Inner::new(
+                consumer_tag,
+                receiver,
+                internal_rpc.clone(),
+            ))),
             status,
+            internal_rpc,
             channel_closer,
             consumer_canceler: None,
             queue,
@@ -171,34 +175,18 @@ impl Consumer {
             deliveries_in: sender,
             wakers: Wakers::default(),
             error: ErrorHolder::default(),
-            executor,
         }
     }
 
-    pub(crate) fn external(
-        &self,
-        channel_id: ChannelId,
-        internal_rpc_handle: InternalRPCHandle,
-    ) -> Self {
-        Self {
-            consumer_tag: self.consumer_tag.clone(),
-            inner: self.inner.clone(),
-            status: self.status.clone(),
-            channel_closer: None,
-            consumer_canceler: Some(Arc::new(ConsumerCanceler::new(
-                channel_id,
-                self.consumer_tag.to_string(),
-                self.status.clone(),
-                internal_rpc_handle,
-            ))),
-            queue: self.queue.clone(),
-            options: self.options,
-            arguments: self.arguments.clone(),
-            deliveries_in: self.deliveries_in.clone(),
-            wakers: self.wakers.clone(),
-            error: self.error.clone(),
-            executor: self.executor.clone(),
-        }
+    pub(crate) fn external(&self, channel_id: ChannelId) -> Self {
+        let mut consumer = self.clone();
+        consumer.consumer_canceler = Some(Arc::new(ConsumerCanceler::new(
+            channel_id,
+            self.consumer_tag.to_string(),
+            self.status.clone(),
+            self.internal_rpc.clone(),
+        )));
+        consumer
     }
 
     pub(crate) fn error(&self) -> ErrorHolder {
@@ -233,14 +221,15 @@ impl Consumer {
         let mut inner = self.lock_inner();
         let mut status = self.status.write();
         while let Some(delivery) = inner.next_delivery() {
-            self.executor.spawn(delegate.on_new_delivery(delivery));
+            self.internal_rpc
+                .spawn_infallible(delegate.on_new_delivery(delivery));
         }
         status.set_delegate(Some(Arc::new(Box::new(delegate))));
     }
 
     pub(crate) fn reset(&self) {
         self.lock_inner()
-            .reset(self.options.no_ack, &self.executor, self.status.delegate());
+            .reset(self.options.no_ack, self.status.delegate());
     }
 
     pub(crate) fn start_new_delivery(&self, delivery: Delivery) {
@@ -264,7 +253,7 @@ impl Consumer {
 
     pub(crate) fn drop_prefetched_messages(&self) {
         self.lock_inner()
-            .drop_prefetched_messages(&self.executor, self.status.delegate());
+            .drop_prefetched_messages(self.status.delegate());
     }
 
     pub(crate) fn start_cancel(&self) {
@@ -319,7 +308,8 @@ impl Consumer {
         delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
     ) {
         if let Some(delegate) = delegate {
-            self.executor.spawn(delegate.on_new_delivery(delivery));
+            self.internal_rpc
+                .spawn_infallible(delegate.on_new_delivery(delivery));
         } else {
             self.deliveries_in.send(delivery).expect(error);
         }
@@ -351,26 +341,27 @@ impl Drop for Consumer {
 struct Inner {
     current_message: Option<Delivery>,
     deliveries_out: Receiver<DeliveryResult>,
+    internal_rpc: InternalRPCHandle,
     tag: ShortString,
 }
 
 impl Inner {
-    fn new(consumer_tag: ShortString, deliveries_out: Receiver<DeliveryResult>) -> Self {
+    fn new(
+        consumer_tag: ShortString,
+        deliveries_out: Receiver<DeliveryResult>,
+        internal_rpc: InternalRPCHandle,
+    ) -> Self {
         Self {
             current_message: None,
             deliveries_out,
+            internal_rpc,
             tag: consumer_tag,
         }
     }
 
-    fn reset(
-        &mut self,
-        no_ack: bool,
-        executor: &dyn FullExecutor,
-        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
-    ) {
+    fn reset(&mut self, no_ack: bool, delegate: Option<Arc<Box<dyn ConsumerDelegate>>>) {
         if !no_ack {
-            self.drop_prefetched_messages(executor, delegate);
+            self.drop_prefetched_messages(delegate);
         }
         self.current_message = None;
     }
@@ -410,14 +401,11 @@ impl Inner {
             .inspect(|_| trace!(consumer_tag=%self.tag, "new_delivery"))
     }
 
-    fn drop_prefetched_messages(
-        &mut self,
-        executor: &dyn FullExecutor,
-        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
-    ) {
+    fn drop_prefetched_messages(&mut self, delegate: Option<Arc<Box<dyn ConsumerDelegate>>>) {
         trace!(consumer_tag=%self.tag, "drop_prefetched_messages");
         if let Some(delegate) = delegate {
-            executor.spawn(delegate.drop_prefetched_messages());
+            self.internal_rpc
+                .spawn_infallible(delegate.drop_prefetched_messages());
         }
         while let Some(delivery) = self.next_delivery() {
             if let Ok(Some(delivery)) = delivery {
@@ -462,10 +450,13 @@ impl Stream for Consumer {
 }
 
 #[cfg(test)]
-mod futures_tests {
+mod test {
     use super::*;
 
-    use crate::ErrorKind;
+    use crate::{
+        ConnectionStatus, ErrorKind, heartbeat::Heartbeat, internal_rpc::InternalRPC,
+        socket_state::SocketState, uri::AMQPUri,
+    };
 
     use std::{
         sync::{
@@ -485,20 +476,31 @@ mod futures_tests {
         }
     }
 
+    fn create_consumer(tag: &str, queue: &str) -> Consumer {
+        let uri = AMQPUri::default();
+        let status = ConnectionStatus::new(&uri);
+        let executor = Arc::new(async_global_executor_trait::AsyncGlobalExecutor);
+        let reactor = Arc::new(async_reactor_trait::AsyncIo);
+        let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
+        let socket_state = SocketState::default();
+        let internal_rpc = InternalRPC::new(executor, heartbeat, socket_state.handle());
+        Consumer::new(
+            ShortString::from(tag),
+            internal_rpc.handle(),
+            None,
+            queue.into(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        )
+    }
+
     #[test]
     fn stream_on_cancel() {
         let awoken_count = Arc::new(Counter(AtomicUsize::new(0)));
         let waker = Waker::from(awoken_count.clone());
         let mut cx = Context::from_waker(&waker);
 
-        let mut consumer = Consumer::new(
-            ShortString::from("test-consumer"),
-            Arc::new(async_global_executor_trait::AsyncGlobalExecutor),
-            None,
-            "test".into(),
-            BasicConsumeOptions::default(),
-            FieldTable::default(),
-        );
+        let mut consumer = create_consumer("test-consumer", "test");
         {
             let mut next = consumer.next();
 
@@ -522,14 +524,7 @@ mod futures_tests {
         let waker = Waker::from(awoken_count.clone());
         let mut cx = Context::from_waker(&waker);
 
-        let mut consumer = Consumer::new(
-            ShortString::from("test-consumer"),
-            Arc::new(async_global_executor_trait::AsyncGlobalExecutor),
-            None,
-            "test".into(),
-            BasicConsumeOptions::default(),
-            FieldTable::default(),
-        );
+        let mut consumer = create_consumer("test-consumer", "test");
         {
             let mut next = consumer.next();
 
