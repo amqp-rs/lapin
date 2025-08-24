@@ -65,7 +65,7 @@ impl Heartbeat {
         self.lock_inner().update_last_write();
     }
 
-    pub(crate) fn update_last_read(&mut self) {
+    pub(crate) fn update_last_read(&self) {
         self.lock_inner().update_last_read();
     }
 

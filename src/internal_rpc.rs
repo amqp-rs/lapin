@@ -3,6 +3,7 @@ use crate::{
     channels::Channels,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
+    heartbeat::Heartbeat,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
@@ -10,13 +11,14 @@ use crate::{
 };
 use executor_trait::FullExecutor;
 use flume::{Receiver, Sender};
-use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc};
+use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tracing::trace;
 
 pub(crate) struct InternalRPC {
     rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
     channels_status: HashMap<ChannelId, KillSwitch>,
+    heartbeat: Heartbeat,
     executor: Arc<dyn FullExecutor + Send + Sync>,
 }
 
@@ -91,6 +93,10 @@ impl InternalRPCHandle {
         ));
     }
 
+    pub(crate) fn cancel_heartbeat(&self) {
+        self.send(InternalCommand::CancelHeartbeat);
+    }
+
     pub(crate) fn close_channel(
         &self,
         channel_id: ChannelId,
@@ -131,6 +137,10 @@ impl InternalRPCHandle {
         self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
 
+    pub(crate) fn reset_heartbeat(&self) {
+        self.send(InternalCommand::ResetHeartbeat);
+    }
+
     pub(crate) fn send_connection_close_ok(&self, error: Error) {
         self.send(InternalCommand::SendConnectionCloseOk(error));
     }
@@ -169,6 +179,10 @@ impl InternalRPCHandle {
 
     pub(crate) fn start_channels_recovery(&self) {
         self.send(InternalCommand::StartChannelsRecovery);
+    }
+
+    pub(crate) fn start_heartbeat(&self, heartbeat: Duration) {
+        self.send(InternalCommand::StartHeartbeat(heartbeat));
     }
 
     pub(crate) fn stop(&self) {
@@ -217,12 +231,14 @@ enum InternalCommand {
         Option<ErrorHolder>,
     ),
     CancelConsumer(ChannelId, String, ConsumerStatus),
+    CancelHeartbeat,
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(ReplyCode, String, Identifier, Identifier),
     FinishConnectionShutdown,
     InitConnectionRecovery(Error),
     InitConnectionShutdown(Error),
     RemoveChannel(ChannelId, Error),
+    ResetHeartbeat,
     SendConnectionCloseOk(Error),
     SetChannelStatus(ChannelId, KillSwitch),
     SetConnectionClosing,
@@ -230,11 +246,13 @@ enum InternalCommand {
     SetConnectionError(Error),
     Spawn(Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>),
     StartChannelsRecovery,
+    StartHeartbeat(Duration),
 }
 
 impl InternalRPC {
     pub(crate) fn new(
         executor: Arc<dyn FullExecutor + Send + Sync>,
+        heartbeat: Heartbeat,
         waker: SocketStateHandle,
     ) -> Self {
         let (sender, rpc) = flume::unbounded();
@@ -243,6 +261,7 @@ impl InternalRPC {
             rpc,
             handle,
             channels_status: Default::default(),
+            heartbeat,
             executor,
         }
     }
@@ -359,6 +378,7 @@ impl InternalRPC {
                         }
                     })
                 }
+                CancelHeartbeat => self.heartbeat.cancel(),
                 CloseChannel(channel_id, reply_code, reply_text) => {
                     if !self.channel_ok(channel_id) {
                         continue;
@@ -388,6 +408,7 @@ impl InternalRPC {
                     let channels = channels.clone();
                     self.register_internal_future(async move { channels.remove(channel_id, error) })
                 }
+                ResetHeartbeat => self.heartbeat.reset(),
                 SendConnectionCloseOk(error) => {
                     let channel = channels.channel0();
                     self.register_internal_future(async move {
@@ -404,6 +425,10 @@ impl InternalRPC {
                 StartChannelsRecovery => {
                     let channels = channels.clone();
                     self.register_internal_future(async move { channels.start_recovery().await })
+                }
+                StartHeartbeat(heartbeat) => {
+                    self.heartbeat.set_timeout(heartbeat);
+                    self.heartbeat.start(channels.clone());
                 }
             }
             self.handle.waker.wake();

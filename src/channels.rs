@@ -4,7 +4,6 @@ use crate::{
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
     frames::Frames,
-    heartbeat::Heartbeat,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
@@ -33,7 +32,6 @@ pub(crate) struct Channels {
     internal_rpc: InternalRPCHandle,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     frames: Frames,
-    heartbeat: Heartbeat,
     connection_killswitch: KillSwitch,
     error_handler: ErrorHandler,
     uri: AMQPUri,
@@ -48,7 +46,6 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        heartbeat: Heartbeat,
         executor: Arc<dyn FullExecutor + Send + Sync>,
         uri: AMQPUri,
         options: ConnectionProperties,
@@ -73,7 +70,6 @@ impl Channels {
             internal_rpc,
             executor,
             frames,
-            heartbeat,
             connection_killswitch: KillSwitch::default(),
             error_handler: ErrorHandler::default(),
             uri,
@@ -155,7 +151,7 @@ impl Channels {
     }
 
     pub(crate) fn set_connection_closing(&self) {
-        self.heartbeat.cancel();
+        self.internal_rpc.cancel_heartbeat();
         self.connection_status.set_state(ConnectionState::Closing);
         for channel in self.lock_inner().channels.values() {
             channel.set_closing(None);
@@ -317,14 +313,13 @@ impl Channels {
         let heartbeat = self.configuration.heartbeat();
         if heartbeat != 0 {
             let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
-            self.heartbeat.set_timeout(heartbeat);
-            self.heartbeat.start(self.clone());
+            self.internal_rpc.start_heartbeat(heartbeat);
         }
     }
 
     pub(crate) fn init_connection_recovery(&self, error: Error) -> Error {
         trace!("init connection recovery");
-        self.heartbeat.reset();
+        self.internal_rpc.reset_heartbeat();
         self.connection_status.set_reconnecting();
         let error = self
             .lock_inner()

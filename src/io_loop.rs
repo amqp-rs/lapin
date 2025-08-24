@@ -42,8 +42,8 @@ pub struct IoLoop {
     channels: Channels,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
-    heartbeat: Heartbeat,
     socket_state: SocketState,
+    heartbeat: Heartbeat,
     connect: Arc<
         dyn (Fn(
                 AMQPUri,
@@ -69,6 +69,7 @@ impl IoLoop {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         socket_state: SocketState,
+        heartbeat: Heartbeat,
         connect: Arc<
             dyn (Fn(
                     AMQPUri,
@@ -79,7 +80,6 @@ impl IoLoop {
                 + Sync,
         >,
         uri: AMQPUri,
-        heartbeat: Heartbeat,
     ) -> Self {
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE,
@@ -92,8 +92,8 @@ impl IoLoop {
             channels,
             internal_rpc,
             frames,
-            heartbeat,
             socket_state,
+            heartbeat,
             connect,
             uri,
             status: Status::Initial,
