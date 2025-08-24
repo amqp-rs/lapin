@@ -165,18 +165,6 @@ impl InternalRPCHandle {
         self.send(InternalCommand::Spawn(Box::pin(f)));
     }
 
-    pub(crate) fn spawn_with_resolver<T: Send + 'static>(
-        &self,
-        fut: impl Future<Output = Result<T>> + Send + 'static,
-        resolver: PromiseResolver<T>,
-    ) {
-        self.spawn(async move {
-            let res = fut.await;
-            resolver.complete(res);
-            Ok(())
-        });
-    }
-
     pub(crate) fn start_channels_recovery(&self) {
         self.send(InternalCommand::StartChannelsRecovery);
     }

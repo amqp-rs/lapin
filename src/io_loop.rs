@@ -49,7 +49,7 @@ pub struct IoLoop {
                 AMQPUri,
                 Arc<dyn FullExecutor + Send + Sync + 'static>,
                 Arc<dyn FullReactor + Send + Sync + 'static>,
-            ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+            ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
             + Send
             + Sync,
     >,
@@ -75,7 +75,7 @@ impl IoLoop {
                     AMQPUri,
                     Arc<dyn FullExecutor + Send + Sync + 'static>,
                     Arc<dyn FullReactor + Send + Sync + 'static>,
-                ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+                ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -194,7 +194,8 @@ impl IoLoop {
                 let (mut stream, res) = loop {
                     let (promise, resolver) = Promise::new();
                     let connect = Box::into_pin((self.connect)(self.uri.clone(), executor.clone(), reactor.clone()));
-                    self.internal_rpc.spawn_with_resolver(async move { Ok(connect.await?) }, resolver);
+                    // FIXME: block_on once switched to async-rs
+                    executor.spawn(Box::pin(async move { resolver.complete(connect.await) }));
                     let mut stream = promise.wait().inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());

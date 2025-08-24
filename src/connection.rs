@@ -186,7 +186,7 @@ impl Connection {
                     AMQPUri,
                     Arc<dyn FullExecutor + Send + Sync + 'static>,
                     Arc<dyn FullReactor + Send + Sync + 'static>,
-                ) -> Box<dyn Future<Output = io::Result<AsyncTcpStream>> + Send>)
+                ) -> Box<dyn Future<Output = Result<AsyncTcpStream>> + Send>)
                 + Send
                 + Sync,
         >,
@@ -301,13 +301,13 @@ impl Connect for AMQPUri {
                 let reactor = reactor.clone();
                 let executor = executor.clone();
                 Box::new(async move {
-                    AMQPUriTcpExt::connect_with_config_async(
+                    Ok(AMQPUriTcpExt::connect_with_config_async(
                         &uri,
                         (*config).as_ref(),
                         reactor,
                         executor,
                     )
-                    .await
+                    .await?)
                 })
             }),
             options,
