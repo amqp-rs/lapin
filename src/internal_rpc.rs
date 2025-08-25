@@ -3,6 +3,7 @@ use crate::{
     channels::Channels,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
+    future::InternalFuture,
     heartbeat::Heartbeat,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
@@ -11,7 +12,7 @@ use crate::{
 };
 use async_rs::{Runtime, traits::*};
 use flume::{Receiver, Sender};
-use std::{collections::HashMap, fmt, future::Future, pin::Pin, time::Duration};
+use std::{collections::HashMap, fmt, future::Future, time::Duration};
 use tracing::trace;
 
 pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
@@ -162,14 +163,14 @@ impl InternalRPCHandle {
     }
 
     pub(crate) fn spawn(&self, f: impl Future<Output = Result<()>> + Send + 'static) {
-        self.send(InternalCommand::Spawn(Box::pin(f)));
+        self.send(InternalCommand::Spawn(InternalFuture(Box::pin(f))));
     }
 
     pub(crate) fn spawn_infallible(&self, f: impl Future<Output = ()> + Send + 'static) {
-        self.send(InternalCommand::Spawn(Box::pin(async move {
+        self.spawn(async move {
             f.await;
             Ok(())
-        })));
+        });
     }
 
     pub(crate) fn start_channels_recovery(&self) {
@@ -190,7 +191,7 @@ impl InternalRPCHandle {
     }
 
     fn send(&self, command: InternalCommand) {
-        trace!("Queuing internal RPC command"); // FIXME: restore ?command (future is not debug for Spawn)
+        trace!(?command, "Queuing internal RPC command");
         // The only scenario where this can fail if this is the IoLoop already exited
         let _ = self.sender.send(Some(command));
         self.waker.wake();
@@ -203,6 +204,7 @@ impl fmt::Debug for InternalRPCHandle {
     }
 }
 
+#[derive(Debug)]
 enum InternalCommand {
     BasicAck(
         ChannelId,
@@ -239,7 +241,7 @@ enum InternalCommand {
     SetConnectionClosing,
     SetConnectionClosed(Error),
     SetConnectionError(Error),
-    Spawn(Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>),
+    Spawn(InternalFuture),
     StartChannelsRecovery,
     StartHeartbeat(Duration),
 }
@@ -310,7 +312,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         };
 
         while let Ok(Some(command)) = rpc.recv_async().await {
-            trace!("Handling internal RPC command"); // FIXME: restore ?command (future is not debug for Spawn)
+            trace!(?command, "Handling internal RPC command");
             match command {
                 BasicAck(channel_id, delivery_tag, options, resolver, error) => {
                     if !self.channel_ok(channel_id) {

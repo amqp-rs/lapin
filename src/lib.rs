@@ -150,6 +150,7 @@ mod error_handler;
 mod error_holder;
 mod exchange;
 mod frames;
+mod future;
 mod heartbeat;
 mod id_sequence;
 mod internal_rpc;
