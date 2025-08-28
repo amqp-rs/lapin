@@ -3,6 +3,7 @@ use crate::{
     ConnectionState, ConnectionStatus, Error, ErrorKind, Promise, Result,
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
+    events::{Events, EventsSender},
     frames::Frames,
     heartbeat::Heartbeat,
     id_sequence::IdSequence,
@@ -36,6 +37,7 @@ pub(crate) struct Channels {
     heartbeat: Heartbeat,
     connection_killswitch: KillSwitch,
     error_handler: ErrorHandler,
+    events: Events,
     uri: AMQPUri,
     options: ConnectionProperties,
     recovery_config: RecoveryConfig,
@@ -52,6 +54,7 @@ impl Channels {
         executor: Arc<dyn FullExecutor + Send + Sync>,
         uri: AMQPUri,
         options: ConnectionProperties,
+        events: Events,
     ) -> Self {
         let recovery_config = options.recovery_config.clone().unwrap_or_default();
         let mut inner = Inner::new(configuration.clone(), waker, recovery_config.clone());
@@ -61,6 +64,7 @@ impl Channels {
             internal_rpc.clone(),
             frames.clone(),
             executor.clone(),
+            events.sender(),
             None,
         );
         channel0.set_state(ChannelState::Connected);
@@ -76,6 +80,7 @@ impl Channels {
             heartbeat,
             connection_killswitch: KillSwitch::default(),
             error_handler: ErrorHandler::default(),
+            events,
             uri,
             options,
             recovery_config,
@@ -88,6 +93,7 @@ impl Channels {
             self.internal_rpc.clone(),
             self.frames.clone(),
             self.executor.clone(),
+            self.events.sender(),
             connection_closer,
         )
     }
@@ -190,6 +196,7 @@ impl Channels {
         }
 
         self.frames.drop_pending(error.clone());
+        self.events.sender().error(error.clone());
         self.error_handler.on_error(error.clone());
         for (id, channel) in self.lock_inner().channels.iter() {
             self.frames.clear_expected_replies(*id, error.clone());
@@ -352,6 +359,7 @@ impl Channels {
             self.connection_status.clone(),
             self.clone(),
             self.internal_rpc.clone(),
+            self.events.clone(),
         )
         .start(self.uri.clone(), self.options.clone())
         .await?;
@@ -431,6 +439,7 @@ impl Inner {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
+        events_sender: EventsSender,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
@@ -444,6 +453,7 @@ impl Inner {
             executor,
             connection_closer,
             self.recovery_config.clone(),
+            events_sender,
         )
     }
 
@@ -453,6 +463,7 @@ impl Inner {
         internal_rpc: InternalRPCHandle,
         frames: Frames,
         executor: Arc<dyn FullExecutor + Send + Sync>,
+        events_sender: EventsSender,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");
@@ -474,6 +485,7 @@ impl Inner {
                     internal_rpc,
                     frames,
                     executor,
+                    events_sender,
                     Some(connection_closer),
                 );
                 self.channels.insert(id, channel.clone_internal());

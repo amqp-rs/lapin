@@ -1,10 +1,11 @@
 use crate::{
-    ConnectionProperties, Error, ErrorKind, Promise, Result,
+    ConnectionProperties, Error, ErrorKind, Event, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
     connection_closer::ConnectionCloser,
     connection_status::ConnectionStatus,
+    events::Events,
     frames::Frames,
     heartbeat::Heartbeat,
     internal_rpc::{InternalRPC, InternalRPCHandle},
@@ -17,6 +18,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_trait::async_trait;
+use futures_core::Stream;
 use std::{fmt, io, sync::Arc};
 use tracing::{Level, level_enabled, trace};
 
@@ -35,6 +37,7 @@ pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
     channels: Channels,
+    events: Events,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
 }
@@ -45,12 +48,14 @@ impl Connection {
         status: ConnectionStatus,
         channels: Channels,
         internal_rpc: InternalRPCHandle,
+        events: Events,
     ) -> Self {
         let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc));
         Self {
             configuration,
             status,
             channels,
+            events,
             io_loop: ThreadHandle::default(),
             closer,
         }
@@ -61,8 +66,9 @@ impl Connection {
         status: ConnectionStatus,
         channels: Channels,
         internal_rpc: InternalRPCHandle,
+        events: Events,
     ) -> Self {
-        let conn = Self::new(configuration, status, channels, internal_rpc);
+        let conn = Self::new(configuration, status, channels, internal_rpc, events);
         conn.closer.noop();
         conn
     }
@@ -118,6 +124,11 @@ impl Connection {
         let channel = self.channels.create(self.closer.clone())?;
         // FIXME: make sure we have a notifier on error+reconnect
         channel.clone().channel_open(channel).await
+    }
+
+    /// Get a Stream of connection Events
+    pub fn events_listener(&self) -> impl Stream<Item = Event> + Send + 'static {
+        self.events.listener()
     }
 
     /// Block current thread while the connection is still active.
@@ -190,6 +201,7 @@ impl Connection {
         let socket_state = SocketState::default();
         let internal_rpc = InternalRPC::new(executor.clone(), socket_state.handle());
         let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor.clone());
+        let events = Events::new();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -200,8 +212,15 @@ impl Connection {
             executor,
             uri.clone(),
             options.clone(),
+            events.clone(),
         );
-        let conn = Connection::new(configuration, status, channels, internal_rpc.handle());
+        let conn = Connection::new(
+            configuration,
+            status,
+            channels,
+            internal_rpc.handle(),
+            events,
+        );
         let io_loop = IoLoop::new(
             conn.status.clone(),
             conn.configuration.clone(),
@@ -328,6 +347,7 @@ mod tests {
         let socket_state = SocketState::default();
         let internal_rpc = InternalRPC::new(executor.clone(), socket_state.handle());
         let heartbeat = Heartbeat::new(status.clone(), executor.clone(), reactor);
+        let events = Events::new();
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -338,8 +358,15 @@ mod tests {
             executor,
             uri.clone(),
             ConnectionProperties::default(),
+            events.clone(),
         );
-        let conn = Connection::new(configuration, status, channels, internal_rpc.handle());
+        let conn = Connection::new(
+            configuration,
+            status,
+            channels,
+            internal_rpc.handle(),
+            events,
+        );
         conn.status.set_state(ConnectionState::Connected);
         conn
     }

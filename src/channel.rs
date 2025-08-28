@@ -12,6 +12,7 @@ use crate::{
     consumer::Consumer,
     consumers::Consumers,
     error_handler::ErrorHandler,
+    events::EventsSender,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
@@ -54,9 +55,10 @@ pub struct Channel {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     error_handler: ErrorHandler,
+    events_sender: EventsSender,
     executor: Arc<dyn FullExecutor + Send + Sync>,
     channel_closer: Option<Arc<ChannelCloser>>,
-    connection_closer: Option<Arc<ConnectionCloser>>,
+    _connection_closer: Option<Arc<ConnectionCloser>>,
     recovery_config: RecoveryConfig,
 }
 
@@ -94,6 +96,7 @@ impl Channel {
         executor: Arc<dyn FullExecutor + Send + Sync>,
         connection_closer: Option<Arc<ConnectionCloser>>,
         recovery_config: RecoveryConfig,
+        events_sender: EventsSender,
     ) -> Channel {
         let returned_messages = ReturnedMessages::default();
         let status = ChannelStatus::new(channel_id, internal_rpc.clone());
@@ -120,9 +123,10 @@ impl Channel {
             internal_rpc,
             frames,
             error_handler: ErrorHandler::default(),
+            events_sender,
             executor,
             channel_closer,
-            connection_closer,
+            _connection_closer: connection_closer,
             recovery_config,
         }
     }
@@ -193,25 +197,9 @@ impl Channel {
     }
 
     pub(crate) fn clone_internal(&self) -> Self {
-        Self {
-            id: self.id,
-            configuration: self.configuration.clone(),
-            status: self.status.clone(),
-            connection_status: self.connection_status.clone(),
-            local_registry: self.local_registry.clone(),
-            acknowledgements: self.acknowledgements.clone(),
-            consumers: self.consumers.clone(),
-            basic_get_delivery: self.basic_get_delivery.clone(),
-            returned_messages: self.returned_messages.clone(),
-            waker: self.waker.clone(),
-            internal_rpc: self.internal_rpc.clone(),
-            frames: self.frames.clone(),
-            error_handler: self.error_handler.clone(),
-            executor: self.executor.clone(),
-            channel_closer: None,
-            connection_closer: self.connection_closer.clone(),
-            recovery_config: self.recovery_config.clone(),
-        }
+        let mut this = self.clone();
+        this.channel_closer = None;
+        this
     }
 
     fn wake(&self) {
@@ -658,6 +646,7 @@ impl Channel {
         if !recover {
             self.set_closed(err);
             if let Some(error) = error {
+                self.events_sender.error(error.clone());
                 self.error_handler.on_error(error);
             }
         }
@@ -883,6 +872,7 @@ impl Channel {
         {
             self.connection_status.set_state(ConnectionState::Connected);
             resolver.resolve(*connection);
+            self.events_sender.connected();
             Ok(())
         } else {
             error!(?state, ?step, "Invalid state");
@@ -919,6 +909,7 @@ impl Channel {
 
     fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
         self.connection_status.block();
+        self.events_sender.connection_blocked();
         Ok(())
     }
 
@@ -927,6 +918,7 @@ impl Channel {
         _method: protocol::connection::Unblocked,
     ) -> Result<()> {
         self.connection_status.unblock();
+        self.events_sender.connection_unblocked();
         self.wake();
         Ok(())
     }
