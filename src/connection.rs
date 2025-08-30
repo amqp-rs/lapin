@@ -195,16 +195,6 @@ impl Connection {
             .await
     }
 
-    /// Block all consumers and publishers on this connection
-    pub async fn block(&self, reason: &str) -> Result<()> {
-        self.channels.channel0().connection_blocked(reason).await
-    }
-
-    /// Unblock all consumers and publishers on this connection
-    pub async fn unblock(&self) -> Result<()> {
-        self.channels.channel0().connection_unblocked().await
-    }
-
     /// Update the secret used by some authentication module such as OAuth2
     pub async fn update_secret(&self, new_secret: &str, reason: &str) -> Result<()> {
         self.channels

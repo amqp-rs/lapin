@@ -1047,38 +1047,12 @@ impl Channel {
             ),
         }
     }
-    pub(crate) async fn connection_blocked(&self, reason: &str) -> Result<()> {
-        let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Blocked(
-            protocol::connection::Blocked {
-                reason: reason.into(),
-            },
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("connection.blocked".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        promise.await
-    }
     fn receive_connection_blocked(&self, method: protocol::connection::Blocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
         if !self.status.can_receive_messages() {
             return Err(self.status.state_error("connection.blocked"));
         }
         self.on_connection_blocked_received(method)
-    }
-    pub(crate) async fn connection_unblocked(&self) -> Result<()> {
-        let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Unblocked(
-            protocol::connection::Unblocked {},
-        ));
-
-        let (promise, send_resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("connection.unblocked".into());
-        }
-        self.send_method_frame(method, send_resolver, None);
-        promise.await
     }
     fn receive_connection_unblocked(&self, method: protocol::connection::Unblocked) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
