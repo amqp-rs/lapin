@@ -9,7 +9,6 @@ use crate::{
     connection_status::{ConnectionResolver, ConnectionStep},
     consumer::Consumer,
     consumers::Consumers,
-    error_handler::ErrorHandler,
     events::EventsSender,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
@@ -54,7 +53,6 @@ pub struct Channel {
     waker: SocketStateHandle,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
-    error_handler: ErrorHandler,
     events_sender: EventsSender,
     channel_closer: Option<Arc<ChannelCloser>>,
     _connection_closer: Option<Arc<ConnectionCloser>>,
@@ -120,7 +118,6 @@ impl Channel {
             waker,
             internal_rpc,
             frames,
-            error_handler: ErrorHandler::default(),
             events_sender,
             channel_closer,
             _connection_closer: connection_closer,
@@ -132,14 +129,8 @@ impl Channel {
         &self.status
     }
 
-    #[deprecated(note = "Please use Connection::events_listener instead")]
-    pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
-        self.error_handler.set_handler(handler);
-    }
-
     pub async fn wait_for_recovery(&self, error: Error) -> Result<()> {
         if self.recovery_config.can_recover(&error) {
-            #[allow(deprecated)]
             if let Some(notifier) = error.notifier() {
                 notifier.await;
                 return Ok(());
@@ -645,7 +636,6 @@ impl Channel {
             self.set_closed(err);
             if let Some(error) = error {
                 self.events_sender.error(error.clone());
-                self.error_handler.on_error(error);
             }
         }
     }

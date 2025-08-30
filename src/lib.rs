@@ -147,7 +147,6 @@ mod consumer_canceler;
 mod consumer_status;
 mod consumers;
 mod error;
-mod error_handler;
 mod error_holder;
 mod events;
 mod exchange;

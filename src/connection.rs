@@ -1,6 +1,5 @@
 use crate::{
-    AsyncTcpStream, ConnectionProperties, ConnectionStatus, Error, ErrorKind, Event, Promise,
-    Result,
+    AsyncTcpStream, ConnectionProperties, ConnectionStatus, ErrorKind, Event, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -162,11 +161,6 @@ impl Connection {
         let io_loop = self.io_loop.clone();
         drop(self);
         io_loop.wait("io loop")
-    }
-
-    #[deprecated(note = "Please use Connection::events_listener instead")]
-    pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
-        self.channels.set_error_handler(handler);
     }
 
     pub fn configuration(&self) -> &Configuration {

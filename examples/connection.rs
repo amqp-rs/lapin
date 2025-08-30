@@ -18,7 +18,7 @@ fn main() {
 
     runtime.clone().block_on(async move {
         let conn =
-            Connection::connect_with_runtime(&addr, ConnectionProperties::default(), runtime)
+            Connection::connect_with_runtime(&addr, ConnectionProperties::default(), runtime.clone())
                 .await
                 .expect("connection error");
 

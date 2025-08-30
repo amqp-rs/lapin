@@ -2,7 +2,6 @@ use crate::{
     BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionProperties,
     ConnectionState, ConnectionStatus, Error, ErrorKind, Promise, Result,
     connection_closer::ConnectionCloser,
-    error_handler::ErrorHandler,
     events::{Events, EventsSender},
     frames::Frames,
     id_sequence::IdSequence,
@@ -32,7 +31,6 @@ pub(crate) struct Channels {
     internal_rpc: InternalRPCHandle,
     frames: Frames,
     connection_killswitch: KillSwitch,
-    error_handler: ErrorHandler,
     events: Events,
     uri: AMQPUri,
     options: ConnectionProperties,
@@ -71,7 +69,6 @@ impl Channels {
             internal_rpc,
             frames,
             connection_killswitch: KillSwitch::default(),
-            error_handler: ErrorHandler::default(),
             events,
             uri,
             options,
@@ -188,7 +185,6 @@ impl Channels {
 
         self.frames.drop_pending(error.clone());
         self.events.sender().error(error.clone());
-        self.error_handler.on_error(error.clone());
         for (id, channel) in self.lock_inner().channels.iter() {
             self.frames.clear_expected_replies(*id, error.clone());
             channel.set_connection_error(error.clone());
@@ -301,10 +297,6 @@ impl Channels {
         Ok(())
     }
 
-    pub(crate) fn set_error_handler<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
-        self.error_handler.set_handler(handler);
-    }
-
     pub(crate) fn start_heartbeat(&self) {
         let heartbeat = self.configuration.heartbeat();
         if heartbeat != 0 {
@@ -388,7 +380,6 @@ impl fmt::Debug for Channels {
         debug
             .field("frames", &self.frames)
             .field("connection_status", &self.connection_status)
-            .field("error_handler", &self.error_handler)
             .finish()
     }
 }
