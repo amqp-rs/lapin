@@ -135,6 +135,7 @@ impl Channel {
         &self.status
     }
 
+    #[deprecated(note = "Please use Connection::events_listener instead")]
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.error_handler.set_handler(handler);
     }

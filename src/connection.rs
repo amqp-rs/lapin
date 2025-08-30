@@ -140,6 +140,7 @@ impl Connection {
         io_loop.wait("io loop")
     }
 
+    #[deprecated(note = "Please use Connection::events_listener instead")]
     pub fn on_error<E: FnMut(Error) + Send + 'static>(&self, handler: E) {
         self.channels.set_error_handler(handler);
     }
