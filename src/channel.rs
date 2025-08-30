@@ -907,9 +907,9 @@ impl Channel {
         Ok(())
     }
 
-    fn on_connection_blocked_received(&self, _method: protocol::connection::Blocked) -> Result<()> {
+    fn on_connection_blocked_received(&self, method: protocol::connection::Blocked) -> Result<()> {
         self.connection_status.block();
-        self.events_sender.connection_blocked();
+        self.events_sender.connection_blocked(method.reason.into());
         Ok(())
     }
 

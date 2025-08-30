@@ -45,8 +45,8 @@ impl EventsSender {
         self.send(Event::Connected);
     }
 
-    pub(crate) fn connection_blocked(&self) {
-        self.send(Event::ConnectionBlocked);
+    pub(crate) fn connection_blocked(&self, reason: String) {
+        self.send(Event::ConnectionBlocked(reason));
     }
 
     pub(crate) fn connection_unblocked(&self) {
@@ -63,7 +63,7 @@ impl EventsSender {
 #[non_exhaustive]
 pub enum Event {
     Connected,
-    ConnectionBlocked,
+    ConnectionBlocked(String),
     ConnectionUnblocked,
     Error(Error),
 }
