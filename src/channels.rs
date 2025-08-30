@@ -3,6 +3,7 @@ use crate::{
     ConnectionState, ConnectionStatus, Error, ErrorKind, Promise, Result,
     connection_closer::ConnectionCloser,
     error_handler::ErrorHandler,
+    events::{Events, EventsSender},
     frames::Frames,
     id_sequence::IdSequence,
     internal_rpc::InternalRPCHandle,
@@ -32,12 +33,14 @@ pub(crate) struct Channels {
     frames: Frames,
     connection_killswitch: KillSwitch,
     error_handler: ErrorHandler,
+    events: Events,
     uri: AMQPUri,
     options: ConnectionProperties,
     recovery_config: RecoveryConfig,
 }
 
 impl Channels {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         configuration: Configuration,
         connection_status: ConnectionStatus,
@@ -46,6 +49,7 @@ impl Channels {
         frames: Frames,
         uri: AMQPUri,
         options: ConnectionProperties,
+        events: Events,
     ) -> Self {
         let recovery_config = options.recovery_config.clone().unwrap_or_default();
         let mut inner = Inner::new(configuration.clone(), waker, recovery_config.clone());
@@ -54,6 +58,7 @@ impl Channels {
             connection_status.clone(),
             internal_rpc.clone(),
             frames.clone(),
+            events.sender(),
             None,
         );
         channel0.set_state(ChannelState::Connected);
@@ -67,6 +72,7 @@ impl Channels {
             frames,
             connection_killswitch: KillSwitch::default(),
             error_handler: ErrorHandler::default(),
+            events,
             uri,
             options,
             recovery_config,
@@ -78,6 +84,7 @@ impl Channels {
             self.connection_status.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
+            self.events.sender(),
             connection_closer,
         )
     }
@@ -180,6 +187,7 @@ impl Channels {
         }
 
         self.frames.drop_pending(error.clone());
+        self.events.sender().error(error.clone());
         self.error_handler.on_error(error.clone());
         for (id, channel) in self.lock_inner().channels.iter() {
             self.frames.clear_expected_replies(*id, error.clone());
@@ -335,6 +343,7 @@ impl Channels {
             self.connection_status.clone(),
             self.clone(),
             self.internal_rpc.clone(),
+            self.events.clone(),
         )
         .start(self.uri.clone(), self.options.clone())
         .await?;
@@ -413,6 +422,7 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
+        events_sender: EventsSender,
         connection_closer: Option<Arc<ConnectionCloser>>,
     ) -> Channel {
         debug!(%id, "create channel");
@@ -425,6 +435,7 @@ impl Inner {
             frames,
             connection_closer,
             self.recovery_config.clone(),
+            events_sender,
         )
     }
 
@@ -433,6 +444,7 @@ impl Inner {
         connection_status: ConnectionStatus,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
+        events_sender: EventsSender,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
         debug!("create channel");
@@ -453,6 +465,7 @@ impl Inner {
                     connection_status,
                     internal_rpc,
                     frames,
+                    events_sender,
                     Some(connection_closer),
                 );
                 self.channels.insert(id, channel.clone_internal());

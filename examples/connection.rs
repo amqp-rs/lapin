@@ -1,4 +1,5 @@
 use async_rs::{Runtime, traits::*};
+use futures_lite::stream::StreamExt;
 use lapin::{
     BasicProperties, Confirmation, Connection, ConnectionProperties, message::DeliveryResult,
     options::*, types::FieldTable,
@@ -21,11 +22,20 @@ fn main() {
                 .await
                 .expect("connection error");
 
+        let mut events_listener = conn.events_listener();
+
+        runtime.spawn(async move {
+            while let Some(event) = events_listener.next().await {
+                info!(?event, "GOT EVENT");
+            }
+        });
+
         info!("CONNECTED");
 
         {
             //send channel
             let channel_a = conn.create_channel().await.expect("create_channel");
+
             //receive channel
             let channel_b = conn.create_channel().await.expect("create_channel");
             info!(state=?conn.status());

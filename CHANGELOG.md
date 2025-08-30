@@ -1,3 +1,9 @@
+### 3.3.0 (2025-08-30)
+
+#### Features
+
+- Add `Connection::events_listener` for listening to internal events
+
 ### 3.2.1 (2025-08-19)
 
 #### Misc
