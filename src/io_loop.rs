@@ -35,7 +35,13 @@ enum Status {
     Stop,
 }
 
-pub struct IoLoop<RK: RuntimeKit + Clone + Send + 'static> {
+pub struct IoLoop<
+    RK: RuntimeKit + Clone + Send + 'static,
+    C: AsyncFn(AMQPUri, Runtime<RK>) -> Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>
+        + Send
+        + Sync
+        + 'static,
+> {
     connection_status: ConnectionStatus,
     configuration: Configuration,
     channels: Channels,
@@ -44,15 +50,7 @@ pub struct IoLoop<RK: RuntimeKit + Clone + Send + 'static> {
     socket_state: SocketState,
     heartbeat: Heartbeat<RK>,
     runtime: Runtime<RK>,
-    connect: Arc<
-        dyn (Fn(
-                AMQPUri,
-                Runtime<RK>,
-            ) -> Box<
-                dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
-            >) + Send
-            + Sync,
-    >,
+    connect: C,
     uri: AMQPUri,
     status: Status,
     frame_size: FrameSize,
@@ -61,7 +59,14 @@ pub struct IoLoop<RK: RuntimeKit + Clone + Send + 'static> {
     serialized_frames: VecDeque<(FrameSize, Option<PromiseResolver<()>>)>,
 }
 
-impl<RK: RuntimeKit + Clone + Send + 'static> IoLoop<RK> {
+impl<
+    RK: RuntimeKit + Clone + Send + 'static,
+    C: AsyncFn(AMQPUri, Runtime<RK>) -> Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>
+        + Send
+        + Sync
+        + 'static,
+> IoLoop<RK, C>
+{
     pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
@@ -71,15 +76,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> IoLoop<RK> {
         socket_state: SocketState,
         heartbeat: Heartbeat<RK>,
         runtime: Runtime<RK>,
-        connect: Arc<
-            dyn (Fn(
-                    AMQPUri,
-                    Runtime<RK>,
-                ) -> Box<
-                    dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
-                >) + Send
-                + Sync,
-        >,
+        connect: C,
         uri: AMQPUri,
     ) -> Self {
         let frame_size = std::cmp::max(
@@ -190,7 +187,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> IoLoop<RK> {
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
-                    let connect = Box::into_pin((self.connect)(self.uri.clone(), self.runtime.clone()));
+                    let connect = (self.connect)(self.uri.clone(), self.runtime.clone());
                     let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());

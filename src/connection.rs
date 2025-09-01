@@ -200,15 +200,13 @@ impl Connection {
     pub async fn connector<RK: RuntimeKit + Clone + Send + 'static>(
         uri: AMQPUri,
         runtime: Runtime<RK>,
-        connect: Box<
-            dyn (Fn(
-                    AMQPUri,
-                    Runtime<RK>,
-                ) -> Box<
-                    dyn Future<Output = Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>> + Send,
-                >) + Send
-                + Sync,
-        >,
+        connect: impl AsyncFn(
+            AMQPUri,
+            Runtime<RK>,
+        ) -> Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>
+        + Send
+        + Sync
+        + 'static,
         options: ConnectionProperties,
     ) -> Result<Self> {
         let configuration = Configuration::new(&uri);
@@ -245,7 +243,7 @@ impl Connection {
             socket_state,
             heartbeat,
             runtime,
-            connect.into(),
+            connect,
             uri.clone(),
         );
 
@@ -331,24 +329,15 @@ impl Connect for AMQPUri {
         config: OwnedTLSConfig,
         runtime: Runtime<RK>,
     ) -> Result<Connection> {
-        let config = Arc::new(config);
         Connection::connector(
             self,
             runtime,
-            Box::new(move |uri, runtime| {
-                let config = config.clone();
-                let runtime = runtime.clone();
-                Box::new(async move {
-                    Ok(
-                        AMQPUriTcpExt::connect_with_config_async(
-                            &uri,
-                            (*config).as_ref(),
-                            &runtime,
-                        )
+            async move |uri, runtime| {
+                Ok(
+                    AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
                         .await?,
-                    )
-                })
-            }),
+                )
+            },
             options,
         )
         .await
