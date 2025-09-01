@@ -17,10 +17,13 @@ fn main() {
     let runtime = Runtime::async_global_executor();
 
     runtime.clone().block_on(async move {
-        let conn =
-            Connection::connect_with_runtime(&addr, ConnectionProperties::default(), runtime.clone())
-                .await
-                .expect("connection error");
+        let conn = Connection::connect_with_runtime(
+            &addr,
+            ConnectionProperties::default(),
+            runtime.clone(),
+        )
+        .await
+        .expect("connection error");
 
         let mut events_listener = conn.events_listener();
 
