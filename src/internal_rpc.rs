@@ -278,11 +278,11 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         fut: impl Future<Output = Result<()>> + Send + 'static,
     ) {
         let handle = self.handle();
-        self.runtime.spawn(Box::pin(async move {
+        self.runtime.spawn(async move {
             if let Err(err) = fut.await {
                 handle.set_connection_error(err);
             }
-        }));
+        });
     }
 
     pub(crate) fn register_internal_future_with_resolver<T: Send + 'static>(
@@ -298,7 +298,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
     }
 
     pub(crate) fn start(self, channels: Channels) {
-        self.runtime.clone().spawn(Box::pin(self.run(channels)));
+        self.runtime.clone().spawn(self.run(channels));
     }
 
     async fn run(mut self, channels: Channels) {

@@ -67,6 +67,7 @@ impl<
         + 'static,
 > IoLoop<RK, C>
 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
@@ -217,15 +218,15 @@ impl<
                 };
 
                 trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
-                let internal_rpc = self.internal_rpc.clone();
+                self.internal_rpc.stop();
                 if self.heartbeat.killswitch().killed() {
-                    internal_rpc.spawn(std::future::poll_fn(move |cx| {
+                    if let Err(err) = self.runtime.block_on(std::future::poll_fn(move |cx| {
                         Pin::new(&mut stream)
                             .poll_close(cx)
-                            .map(|res| res.map_err(From::from))
-                    }));
+                    })) {
+                        error!(?err, "Failed to close IO stream");
+                    }
                 }
-                internal_rpc.stop();
                 res
             })?;
         waker.wake();

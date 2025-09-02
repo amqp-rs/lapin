@@ -1,5 +1,5 @@
 use crate::{Error, Result};
-use flume::{Receiver, Sender};
+use flume::{Receiver, Sender, r#async::RecvFut};
 use std::{
     fmt,
     future::Future,
@@ -10,19 +10,19 @@ use std::{
 use tracing::{trace, warn};
 
 #[must_use = "Promise should be used or you can miss errors"]
-pub(crate) struct Promise<T> {
+pub(crate) struct Promise<T: 'static> {
     recv: Receiver<Result<T>>,
-    recv_fut: Pin<Box<dyn Future<Output = Result<T>> + Send>>,
+    recv_fut: RecvFut<'static, Result<T>>,
     resolver: PromiseResolver<T>,
 }
 
-impl<T> fmt::Debug for Promise<T> {
+impl<T: 'static> fmt::Debug for Promise<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Promise")
     }
 }
 
-impl<T> Drop for Promise<T> {
+impl<T: 'static> Drop for Promise<T> {
     fn drop(&mut self) {
         trace!(
             promise = %self.resolver.marker(),
@@ -39,10 +39,6 @@ impl<T: Send + 'static> Promise<T> {
             marker: Default::default(),
         };
         let recv_fut = recv.clone().into_recv_async();
-        let recv_fut = Box::pin(async move {
-            // Since we always hold a ref to sender, we can safely unwrap here
-            recv_fut.await.unwrap()
-        });
         let promise = Self {
             recv,
             recv_fut,
@@ -71,7 +67,10 @@ impl<T: Send + 'static> Future for Promise<T> {
     type Output = Result<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.recv_fut).poll(cx)
+        // Since we always hold a ref to sender, we can safely unwrap here
+        Pin::new(&mut self.recv_fut)
+            .poll(cx)
+            .map(std::result::Result::unwrap)
     }
 }
 

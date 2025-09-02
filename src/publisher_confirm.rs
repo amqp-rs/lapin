@@ -14,15 +14,15 @@ pub struct PublisherConfirm {
 
 #[derive(Debug, PartialEq)]
 pub enum Confirmation {
-    Ack(Option<Box<BasicReturnMessage>>),
-    Nack(Option<Box<BasicReturnMessage>>),
+    Ack(Option<BasicReturnMessage>),
+    Nack(Option<BasicReturnMessage>),
     NotRequested,
 }
 
 impl Confirmation {
     pub fn take_message(self) -> Option<BasicReturnMessage> {
-        if let Confirmation::Ack(Some(msg)) | Confirmation::Nack(Some(msg)) = self {
-            Some(*msg)
+        if let Confirmation::Ack(msg) | Confirmation::Nack(msg) = self {
+            msg
         } else {
             None
         }

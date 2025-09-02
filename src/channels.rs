@@ -38,7 +38,6 @@ pub(crate) struct Channels {
 }
 
 impl Channels {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         configuration: Configuration,
         connection_status: ConnectionStatus,

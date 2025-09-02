@@ -128,7 +128,7 @@ impl Inner {
                 confirmation
             {
                 trace!("PublisherConfirm was carrying a message, storing it");
-                messages.push(*message);
+                messages.push(message);
             } else {
                 trace!("PublisherConfirm was ready but didn't carry a message, discarding");
             }

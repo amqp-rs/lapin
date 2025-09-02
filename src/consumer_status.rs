@@ -13,7 +13,7 @@ impl ConsumerStatus {
         self.read().state()
     }
 
-    pub(crate) fn delegate(&self) -> Option<Arc<Box<dyn ConsumerDelegate>>> {
+    pub(crate) fn delegate(&self) -> Option<Arc<dyn ConsumerDelegate>> {
         self.read().delegate()
     }
 
@@ -66,7 +66,7 @@ impl Default for ConsumerState {
 #[derive(Default)]
 pub(crate) struct ConsumerStatusInner {
     state: ConsumerState,
-    delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
+    delegate: Option<Arc<dyn ConsumerDelegate>>,
 }
 
 impl ConsumerStatusInner {
@@ -74,11 +74,11 @@ impl ConsumerStatusInner {
         self.state
     }
 
-    pub(crate) fn delegate(&self) -> Option<Arc<Box<dyn ConsumerDelegate>>> {
+    pub(crate) fn delegate(&self) -> Option<Arc<dyn ConsumerDelegate>> {
         self.delegate.clone()
     }
 
-    pub(crate) fn set_delegate(&mut self, delegate: Option<Arc<Box<dyn ConsumerDelegate>>>) {
+    pub(crate) fn set_delegate(&mut self, delegate: Option<Arc<dyn ConsumerDelegate>>) {
         if self.state.is_active() {
             self.state = ConsumerState::ActiveWithDelegate;
             self.delegate = delegate;

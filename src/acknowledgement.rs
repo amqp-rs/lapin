@@ -122,7 +122,7 @@ impl Inner {
         delivery_tag: DeliveryTag,
         resolvers: (PromiseResolver<Confirmation>, PromiseResolver<()>),
     ) {
-        let returned_message = self.returned_messages.get_waiting_message().map(Box::new);
+        let returned_message = self.returned_messages.get_waiting_message();
         resolvers.0.resolve(if success {
             Confirmation::Ack(returned_message)
         } else {

@@ -15,7 +15,7 @@ use flume::{Receiver, Sender};
 use futures_core::stream::Stream;
 use std::{
     fmt,
-    future::Future,
+    future::{self, Future},
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard},
     task::{Context, Poll},
@@ -26,7 +26,7 @@ pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult)
     -> Pin<Box<dyn Future<Output = ()> + Send>>;
     fn drop_prefetched_messages(&self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-        Box::pin(async move {})
+        Box::pin(future::ready(()))
     }
 }
 
@@ -229,7 +229,7 @@ impl Consumer {
             self.internal_rpc
                 .spawn_infallible(delegate.on_new_delivery(delivery));
         }
-        status.set_delegate(Some(Arc::new(Box::new(delegate))));
+        status.set_delegate(Some(Arc::new(delegate)));
     }
 
     pub(crate) fn reset(&self) {
@@ -310,7 +310,7 @@ impl Consumer {
         &self,
         delivery: DeliveryResult,
         error: &'static str,
-        delegate: Option<Arc<Box<dyn ConsumerDelegate>>>,
+        delegate: Option<Arc<dyn ConsumerDelegate>>,
     ) {
         if let Some(delegate) = delegate {
             self.internal_rpc
@@ -364,7 +364,7 @@ impl Inner {
         }
     }
 
-    fn reset(&mut self, no_ack: bool, delegate: Option<Arc<Box<dyn ConsumerDelegate>>>) {
+    fn reset(&mut self, no_ack: bool, delegate: Option<Arc<dyn ConsumerDelegate>>) {
         if !no_ack {
             self.drop_prefetched_messages(delegate);
         }
@@ -406,7 +406,7 @@ impl Inner {
             .inspect(|_| trace!(consumer_tag=%self.tag, "new_delivery"))
     }
 
-    fn drop_prefetched_messages(&mut self, delegate: Option<Arc<Box<dyn ConsumerDelegate>>>) {
+    fn drop_prefetched_messages(&mut self, delegate: Option<Arc<dyn ConsumerDelegate>>) {
         trace!(consumer_tag=%self.tag, "drop_prefetched_messages");
         if let Some(delegate) = delegate {
             self.internal_rpc

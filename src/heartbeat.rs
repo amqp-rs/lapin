@@ -37,11 +37,11 @@ impl<RK: RuntimeKit + Clone + Send + 'static> Heartbeat<RK> {
 
     pub(crate) fn start(&self, channels: Channels) {
         let heartbeat = self.clone();
-        self.runtime.spawn(Box::pin(async move {
+        self.runtime.spawn(async move {
             while let Some(dur) = heartbeat.poll_timeout(&channels) {
                 heartbeat.runtime.sleep(dur).await;
             }
-        }));
+        });
     }
 
     fn poll_timeout(&self, channels: &Channels) -> Option<Duration> {
