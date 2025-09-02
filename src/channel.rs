@@ -604,6 +604,11 @@ impl Channel {
             .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
     }
 
+    fn before_connection_secure_ok(&self, resolver: ConnectionResolver, connection: Connection) {
+        self.connection_status
+            .set_connection_step(ConnectionStep::SecureOk(resolver, connection));
+    }
+
     fn before_connection_open(&self, resolver: ConnectionResolver) {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
@@ -803,13 +808,19 @@ impl Channel {
 
         let state = self.connection_status.state();
         let step = self.connection_status.connection_step_name();
-        if let (ConnectionState::Connecting, Some(ConnectionStep::StartOk(.., credentials))) =
-            (state, self.connection_status.connection_step())
+        if let (
+            ConnectionState::Connecting,
+            Some(ConnectionStep::StartOk(resolver, connection, credentials)),
+        ) = (state, self.connection_status.connection_step())
         {
             let channel = self.clone();
             self.internal_rpc.register_internal_future(async move {
                 channel
-                    .connection_secure_ok(&credentials.rabbit_cr_demo_answer())
+                    .connection_secure_ok(
+                        &credentials.rabbit_cr_demo_answer(),
+                        resolver,
+                        connection,
+                    )
                     .await
             });
             Ok(())
@@ -825,40 +836,42 @@ impl Channel {
         trace!(?method, "Server sent Connection::Tune");
 
         let state = self.connection_status.state();
-        let step = self.connection_status.connection_step_name();
-        if let (
-            ConnectionState::Connecting,
-            Some(ConnectionStep::StartOk(resolver, connection, _)),
-        ) = (state, self.connection_status.connection_step())
-        {
-            self.tune_connection_configuration(
-                method.channel_max,
-                method.frame_max,
-                method.heartbeat,
-            );
+        let step = self.connection_status.connection_step();
+        let step_name = step.as_ref().map(ConnectionStep::name);
 
-            let channel = self.clone();
-            let configuration = self.configuration.clone();
-            let vhost = self.connection_status.vhost();
-            self.internal_rpc.register_internal_future(async move {
-                channel
-                    .connection_tune_ok(
-                        configuration.channel_max(),
-                        configuration.frame_max(),
-                        configuration.heartbeat(),
-                    )
-                    .await?;
-                channel
-                    .connection_open(&vhost, Box::new(connection), resolver)
-                    .await
-            });
-            Ok(())
-        } else {
-            error!(?state, ?step, "Invalid state");
-            let error: Error = ErrorKind::InvalidConnectionState(state).into();
-            self.internal_rpc.set_connection_error(error.clone());
-            Err(error)
+        if let (ConnectionState::Connecting, Some(step)) = (state, step) {
+            if let ConnectionStep::StartOk(resolver, connection, _)
+            | ConnectionStep::SecureOk(resolver, connection) = step
+            {
+                self.tune_connection_configuration(
+                    method.channel_max,
+                    method.frame_max,
+                    method.heartbeat,
+                );
+
+                let channel = self.clone();
+                let configuration = self.configuration.clone();
+                let vhost = self.connection_status.vhost();
+                self.internal_rpc.register_internal_future(async move {
+                    channel
+                        .connection_tune_ok(
+                            configuration.channel_max(),
+                            configuration.frame_max(),
+                            configuration.heartbeat(),
+                        )
+                        .await?;
+                    channel
+                        .connection_open(&vhost, Box::new(connection), resolver)
+                        .await
+                });
+                return Ok(());
+            }
         }
+
+        error!(?state, step = step_name, "Invalid state");
+        let error: Error = ErrorKind::InvalidConnectionState(state).into();
+        self.internal_rpc.set_connection_error(error.clone());
+        Err(error)
     }
 
     fn on_connection_open_ok_received(
