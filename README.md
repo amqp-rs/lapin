@@ -65,7 +65,7 @@ To enable this, you need to enable the `unstable` feature for lapin, and add it 
 
 ```rust
 let recovery_config = RecoveryConfig::full();
-let properties = ConnectionProperties::default().with_experimental_recovery_config(recovery_config);
+let properties = ConnectionProperties::default().with_recovery_config(recovery_config);
 // connect using properties.
 ```
 
