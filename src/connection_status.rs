@@ -59,10 +59,6 @@ impl ConnectionStatus {
         resolver.map(|(resolver, _connection)| resolver.resolver_in)
     }
 
-    pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
-        self.lock_inner().connection_step_name()
-    }
-
     pub fn vhost(&self) -> String {
         self.lock_inner().vhost.clone()
     }
@@ -138,7 +134,7 @@ impl ConnectionResolver {
         self.resolver_in.resolve(conn);
     }
 
-    fn reject(&self, err: Error) {
+    pub(crate) fn reject(&self, err: Error) {
         if let Some(resolver) = self.resolver_out.as_ref() {
             resolver.reject(err.clone());
         }
@@ -264,10 +260,6 @@ impl Inner {
         self.connection_step
             .take()
             .map(ConnectionStep::into_connection_resolver)
-    }
-
-    fn connection_step_name(&self) -> Option<&'static str> {
-        self.connection_step.as_ref().map(ConnectionStep::name)
     }
 
     fn poison(&mut self, err: Error) {
