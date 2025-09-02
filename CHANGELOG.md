@@ -1,3 +1,10 @@
+### 3.4.0 (2025-09-02)
+
+#### Bug Fixes
+
+* Fix rabbit-cr-demo auth
+* Make sure we always recover on connection process errors
+
 ### 3.3.0 (2025-08-30)
 
 #### Features
