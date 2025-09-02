@@ -56,10 +56,6 @@ impl ConnectionStatus {
         resolver.map(|(resolver, _connection)| resolver.resolver_in)
     }
 
-    pub(crate) fn connection_step_name(&self) -> Option<&'static str> {
-        self.lock_inner().connection_step_name()
-    }
-
     pub fn vhost(&self) -> String {
         self.lock_inner().vhost.clone()
     }
@@ -135,7 +131,7 @@ impl ConnectionResolver {
         self.resolver_in.resolve(conn);
     }
 
-    fn reject(&self, err: Error) {
+    pub(crate) fn reject(&self, err: Error) {
         if let Some(resolver) = self.resolver_out.as_ref() {
             resolver.reject(err.clone());
         }
@@ -152,7 +148,30 @@ pub(crate) enum ConnectionStep {
         ConnectionProperties,
     ),
     StartOk(ConnectionResolver, Connection, Credentials),
+    SecureOk(ConnectionResolver, Connection),
     Open(ConnectionResolver),
+}
+
+impl ConnectionStep {
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
+            ConnectionStep::StartOk(..) => "StartOk",
+            ConnectionStep::SecureOk(..) => "SecureOk",
+            ConnectionStep::Open(..) => "Open",
+        }
+    }
+
+    pub(crate) fn into_connection_resolver(self) -> (ConnectionResolver, Option<Connection>) {
+        match self {
+            ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
+                (resolver, Some(connection))
+            }
+            ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
+            ConnectionStep::SecureOk(resolver, connection) => (resolver, Some(connection)),
+            ConnectionStep::Open(resolver, ..) => (resolver, None),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -237,25 +256,7 @@ impl Inner {
     fn connection_resolver(&mut self) -> Option<(ConnectionResolver, Option<Connection>)> {
         self.connection_step
             .take()
-            .map(|connection_step| match connection_step {
-                ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
-                    (resolver, Some(connection))
-                }
-                ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
-                ConnectionStep::Open(resolver, ..) => (resolver, None),
-            })
-    }
-
-    fn connection_step_name(&self) -> Option<&'static str> {
-        if let ConnectionState::Connecting = self.state {
-            self.connection_step.as_ref().map(|step| match step {
-                ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
-                ConnectionStep::StartOk(..) => "StartOk",
-                ConnectionStep::Open(..) => "Open",
-            })
-        } else {
-            None
-        }
+            .map(ConnectionStep::into_connection_resolver)
     }
 
     fn poison(&mut self, err: Error) {

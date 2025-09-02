@@ -24,6 +24,23 @@
         }
       }
     },
+    "secure-ok": {
+      "metadata": {
+        "extra_args": [
+          {
+            "name": "resolver",
+            "type": "ConnectionResolver"
+          },
+          {
+            "name": "connection",
+            "type": "Connection"
+          }
+        ],
+        "send_hook": {
+          "params": ["resolver", "connection"]
+        }
+      }
+    },
     "open": {
       "metadata": {
         "internal": true,

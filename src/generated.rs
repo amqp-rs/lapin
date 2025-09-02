@@ -870,7 +870,12 @@ impl Channel {
         }
         self.on_connection_secure_received(method)
     }
-    async fn connection_secure_ok(&self, response: &str) -> Result<()> {
+    async fn connection_secure_ok(
+        &self,
+        response: &str,
+        resolver: ConnectionResolver,
+        connection: Connection,
+    ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
             protocol::connection::SecureOk {
                 response: response.into(),
@@ -881,6 +886,7 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.secure-ok".into());
         }
+        self.before_connection_secure_ok(resolver, connection);
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
