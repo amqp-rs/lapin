@@ -55,6 +55,28 @@ pub struct Delivery {
 }
 
 impl Delivery {
+    /// Craft a new Delivery for mocking in integration testing
+    pub fn mock(
+        delivery_tag: DeliveryTag,
+        exchange: ShortString,
+        routing_key: ShortString,
+        redelivered: bool,
+        data: Vec<u8>,
+    ) -> Self {
+        let mut this = Self::new(
+            0,
+            delivery_tag,
+            exchange,
+            routing_key,
+            redelivered,
+            None,
+            None,
+            KillSwitch::default(),
+        );
+        this.data = data;
+        this
+    }
+
     pub(crate) fn new(
         channel_id: ChannelId,
         delivery_tag: DeliveryTag,

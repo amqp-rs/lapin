@@ -35,17 +35,6 @@ impl Acker {
         }
     }
 
-    pub fn mock() -> Self {
-        Self {
-            channel_id: 0,
-            delivery_tag: 0,
-            internal_rpc: None,
-            error: None,
-            killswitch: Default::default(),
-            channel_killswitch: Default::default(),
-        }
-    }
-
     pub async fn ack(&self, options: BasicAckOptions) -> Result<bool> {
         self.rpc(|internal_rpc, resolver| {
             internal_rpc.basic_ack(
