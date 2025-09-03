@@ -844,7 +844,7 @@ impl Channel {
         locale: &str,
         resolver: ConnectionResolver,
         connection: Connection,
-        credentials: Credentials,
+        auth_provider: Arc<Mutex<dyn AuthProvider>>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
             protocol::connection::StartOk {
@@ -859,7 +859,7 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.start-ok".into());
         }
-        self.before_connection_start_ok(resolver, connection, credentials);
+        self.before_connection_start_ok(resolver, connection, auth_provider);
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }
@@ -875,6 +875,7 @@ impl Channel {
         response: &str,
         resolver: ConnectionResolver,
         connection: Connection,
+        auth_provider: Arc<Mutex<dyn AuthProvider>>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
             protocol::connection::SecureOk {
@@ -886,7 +887,7 @@ impl Channel {
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.secure-ok".into());
         }
-        self.before_connection_secure_ok(resolver, connection);
+        self.before_connection_secure_ok(resolver, connection, auth_provider);
         self.send_method_frame(method, send_resolver, None);
         promise.await
     }

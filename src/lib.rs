@@ -122,6 +122,7 @@ pub use publisher_confirm::Confirmation;
 pub use queue::Queue;
 pub use recovery_config::RecoveryConfig;
 
+pub mod auth;
 pub mod message;
 pub mod runtime;
 

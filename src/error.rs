@@ -35,6 +35,7 @@ pub enum ErrorKind {
     ParsingError(ParserError),
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
+    AuthProviderError(String),
 
     MissingHeartbeatError,
 }
@@ -114,6 +115,7 @@ impl Error {
             ErrorKind::ParsingError(_) => false,
             ErrorKind::ProtocolError(_) => true,
             ErrorKind::SerialisationError(_) => false,
+            ErrorKind::AuthProviderError(_) => false,
 
             ErrorKind::MissingHeartbeatError => true,
         }
@@ -143,6 +145,7 @@ impl fmt::Display for Error {
             ErrorKind::ParsingError(e) => write!(f, "failed to parse: {e}"),
             ErrorKind::ProtocolError(e) => write!(f, "protocol error: {e}"),
             ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {e}"),
+            ErrorKind::AuthProviderError(e) => write!(f, "failure during authentication: {e}"),
 
             ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")

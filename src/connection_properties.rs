@@ -1,12 +1,15 @@
 use crate::{
+    auth::AuthProvider,
     recovery_config::RecoveryConfig,
-    types::{AMQPValue, FieldTable, LongString},
+    types::{AMQPValue, FieldTable, LongString, ShortString},
 };
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct ConnectionProperties {
     pub(crate) locale: String,
     pub(crate) client_properties: FieldTable,
+    pub(crate) auth_provider: Option<Arc<Mutex<dyn AuthProvider>>>,
     pub(crate) recovery_config: Option<RecoveryConfig>,
 }
 
@@ -15,6 +18,7 @@ impl Default for ConnectionProperties {
         Self {
             locale: "en_US".into(),
             client_properties: FieldTable::default(),
+            auth_provider: None,
             recovery_config: None,
         }
     }
@@ -28,11 +32,20 @@ impl ConnectionProperties {
     }
 
     #[must_use]
-    pub fn with_connection_name(mut self, connection_name: LongString) -> Self {
-        self.client_properties.insert(
-            "connection_name".into(),
-            AMQPValue::LongString(connection_name),
-        );
+    pub fn with_client_property(mut self, key: ShortString, value: LongString) -> Self {
+        self.client_properties
+            .insert(key, AMQPValue::LongString(value));
+        self
+    }
+
+    #[must_use]
+    pub fn with_connection_name(self, connection_name: LongString) -> Self {
+        self.with_client_property("connection_name".into(), connection_name)
+    }
+
+    #[must_use]
+    pub fn with_auth_provider<AP: AuthProvider>(mut self, provider: AP) -> Self {
+        self.auth_provider = Some(Arc::new(Mutex::new(provider)));
         self
     }
 

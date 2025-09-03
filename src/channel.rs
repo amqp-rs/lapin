@@ -2,6 +2,7 @@ use crate::{
     BasicProperties, ChannelState, ChannelStatus, Configuration, Connection, ConnectionState,
     ConnectionStatus, Error, ErrorKind, ExchangeKind, Promise, PromiseResolver, Result,
     acknowledgement::Acknowledgements,
+    auth::{AuthProvider, DefaultAuthProvider},
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
@@ -23,11 +24,12 @@ use crate::{
     topology::ChannelDefinition,
     types::*,
 };
-use amq_protocol::{
-    auth::Credentials,
-    frame::{AMQPContentHeader, AMQPFrame},
+use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use std::{
+    convert::TryFrom,
+    fmt,
+    sync::{Arc, Mutex},
 };
-use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{Level, error, info, level_enabled, trace};
 
 /// Main entry point for most AMQP operations.
@@ -586,15 +588,24 @@ impl Channel {
         &self,
         resolver: ConnectionResolver,
         connection: Connection,
-        credentials: Credentials,
+        auth_provider: Arc<Mutex<dyn AuthProvider>>,
     ) {
         self.connection_status
-            .set_connection_step(ConnectionStep::StartOk(resolver, connection, credentials));
+            .set_connection_step(ConnectionStep::StartOk(resolver, connection, auth_provider));
     }
 
-    fn before_connection_secure_ok(&self, resolver: ConnectionResolver, connection: Connection) {
+    fn before_connection_secure_ok(
+        &self,
+        resolver: ConnectionResolver,
+        connection: Connection,
+        auth_provider: Arc<Mutex<dyn AuthProvider>>,
+    ) {
         self.connection_status
-            .set_connection_step(ConnectionStep::SecureOk(resolver, connection));
+            .set_connection_step(ConnectionStep::SecureOk(
+                resolver,
+                connection,
+                auth_provider,
+            ));
     }
 
     fn before_connection_open(&self, resolver: ConnectionResolver) {
@@ -790,17 +801,29 @@ impl Channel {
                     .client_properties
                     .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
+                let auth_provider = options.auth_provider.take().unwrap_or_else(|| {
+                    Arc::new(Mutex::new(DefaultAuthProvider::new(credentials, mechanism)))
+                });
+                let (auth_mechanism, auth_starter) = {
+                    let mut auth_provider = auth_provider.lock().unwrap_or_else(|e| e.into_inner());
+                    (
+                        auth_provider.mechanism(),
+                        auth_provider
+                            .auth_starter()
+                            .map_err(ErrorKind::AuthProviderError)?,
+                    )
+                };
                 let channel = self.clone();
                 self.internal_rpc.spawn(async move {
                     channel
                         .connection_start_ok(
                             options.client_properties,
-                            &mechanism_str,
-                            &credentials.sasl_auth_string(mechanism),
+                            &auth_mechanism,
+                            &auth_starter,
                             &locale,
                             resolver,
                             connection,
-                            credentials,
+                            auth_provider,
                         )
                         .await
                 });
@@ -823,15 +846,17 @@ impl Channel {
         };
 
         match step {
-            ConnectionStep::StartOk(resolver, connection, credentials) => {
+            ConnectionStep::StartOk(resolver, connection, auth_provider)
+            | ConnectionStep::SecureOk(resolver, connection, auth_provider) => {
                 let channel = self.clone();
+                let response = auth_provider
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .continue_auth(method.challenge)
+                    .map_err(ErrorKind::AuthProviderError)?;
                 self.internal_rpc.spawn(async move {
                     channel
-                        .connection_secure_ok(
-                            &credentials.rabbit_cr_demo_answer(),
-                            resolver,
-                            connection,
-                        )
+                        .connection_secure_ok(&response, resolver, connection, auth_provider)
                         .await
                 });
                 Ok(())
@@ -854,7 +879,7 @@ impl Channel {
 
         match step {
             ConnectionStep::StartOk(resolver, connection, _)
-            | ConnectionStep::SecureOk(resolver, connection) => {
+            | ConnectionStep::SecureOk(resolver, connection, _) => {
                 self.tune_connection_configuration(
                     method.channel_max,
                     method.frame_max,

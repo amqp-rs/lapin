@@ -39,9 +39,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.0.0-beta.5"
+version = "10.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d82086a0043b72923358934cea8420c2d73b5ebcdf8baf0a3b964bd4c819591"
+checksum = "7d306081d93969ccc812f13ffd298d435d61f459042537b31228b6d2a76d97af"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.0.0-beta.5"
+version = "10.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "126cff8f1f8beed931dc63018b6b4a61b360bbabf54c86e4463b3e85ec1d7952"
+checksum = "461b8e14b4f5fab5c79485f1f04afc010b80fa560276dac9d24bdd86026f14ec"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -66,9 +66,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.0.0-beta.5"
+version = "10.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f24891da156e0ab2d6918aa8b8ee1ca1238867e150eb4b21b0111f2bda3dc645"
+checksum = "8e5c7ce543b4bba320b7335fdb3e842a390b06d8bda977cdb09f07b17db41868"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -79,9 +79,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.0.0-beta.5"
+version = "10.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d7da6d74dd9ce21725bf7dbbfb174c3396c4059cffc4a94ddac30f03d9605d8"
+checksum = "2c56e0c445fd06603a77c23e4a2640ae7b820513bddc323a30121a73a0013bbb"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -91,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.0.0-beta.5"
+version = "10.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a862e074e7cbc22ab14ac9e76aa0824153ac8bff5af7a7a10b3bbc005c7109"
+checksum = "c027c2f709f6f027e0fd57ad9d7d3e6403cef8b789d195148a72377a088c83c1"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",

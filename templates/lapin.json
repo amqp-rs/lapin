@@ -15,12 +15,12 @@
             "type": "Connection"
           },
           {
-            "name": "credentials",
-            "type": "Credentials"
+            "name": "auth_provider",
+            "type": "Arc<Mutex<dyn AuthProvider>>"
           }
         ],
         "send_hook": {
-          "params": ["resolver", "connection", "credentials"]
+          "params": ["resolver", "connection", "auth_provider"]
         }
       }
     },
@@ -34,10 +34,14 @@
           {
             "name": "connection",
             "type": "Connection"
+          },
+          {
+            "name": "auth_provider",
+            "type": "Arc<Mutex<dyn AuthProvider>>"
           }
         ],
         "send_hook": {
-          "params": ["resolver", "connection"]
+          "params": ["resolver", "connection", "auth_provider"]
         }
       }
     },

@@ -1,4 +1,7 @@
-use crate::{Connection, ConnectionProperties, Error, PromiseResolver, Result, uri::AMQPUri};
+use crate::{
+    Connection, ConnectionProperties, Error, PromiseResolver, Result, auth::AuthProvider,
+    uri::AMQPUri,
+};
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
     fmt,
@@ -147,8 +150,8 @@ pub(crate) enum ConnectionStep {
         SASLMechanism,
         ConnectionProperties,
     ),
-    StartOk(ConnectionResolver, Connection, Credentials),
-    SecureOk(ConnectionResolver, Connection),
+    StartOk(ConnectionResolver, Connection, Arc<Mutex<dyn AuthProvider>>),
+    SecureOk(ConnectionResolver, Connection, Arc<Mutex<dyn AuthProvider>>),
     Open(ConnectionResolver),
 }
 
@@ -168,7 +171,7 @@ impl ConnectionStep {
                 (resolver, Some(connection))
             }
             ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
-            ConnectionStep::SecureOk(resolver, connection) => (resolver, Some(connection)),
+            ConnectionStep::SecureOk(resolver, connection, ..) => (resolver, Some(connection)),
             ConnectionStep::Open(resolver, ..) => (resolver, None),
         }
     }
