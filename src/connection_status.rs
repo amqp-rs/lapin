@@ -150,8 +150,8 @@ pub(crate) enum ConnectionStep {
         SASLMechanism,
         ConnectionProperties,
     ),
-    StartOk(ConnectionResolver, Connection, Arc<Mutex<dyn AuthProvider>>),
-    SecureOk(ConnectionResolver, Connection, Arc<Mutex<dyn AuthProvider>>),
+    StartOk(ConnectionResolver, Connection, Arc<dyn AuthProvider>),
+    SecureOk(ConnectionResolver, Connection, Arc<dyn AuthProvider>),
     Open(ConnectionResolver),
 }
 

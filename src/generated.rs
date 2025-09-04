@@ -844,7 +844,7 @@ impl Channel {
         locale: &str,
         resolver: ConnectionResolver,
         connection: Connection,
-        auth_provider: Arc<Mutex<dyn AuthProvider>>,
+        auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
             protocol::connection::StartOk {
@@ -875,7 +875,7 @@ impl Channel {
         response: &str,
         resolver: ConnectionResolver,
         connection: Connection,
-        auth_provider: Arc<Mutex<dyn AuthProvider>>,
+        auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
             protocol::connection::SecureOk {

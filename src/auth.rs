@@ -1,44 +1,50 @@
 use crate::types::LongString;
 use amq_protocol::auth::{Credentials, SASLMechanism};
+use std::{
+    sync::{Mutex, MutexGuard},
+    time::Duration,
+};
 
 /// A trait used to integrate custom authentication process during connection
-pub trait AuthProvider: Send + 'static {
+pub trait AuthProvider: Send + Sync + 'static {
     /// The String representation of the auth mechanism as understood by the RabbitMQ server
     fn mechanism(&self) -> String {
         SASLMechanism::External.name().to_string()
     }
 
     /// The initial data to provide to the RabbitMQ server for authentication
-    fn auth_starter(&mut self) -> Result<String, String> {
+    fn auth_starter(&self) -> Result<String, String> {
         Ok(String::new())
     }
 
     /// The answer to the received challenge to forward to the RabbitMQ server (Connection.SecureOk)
-    fn continue_auth(&mut self, challenge: LongString) -> Result<String, String> {
+    fn continue_auth(&self, challenge: LongString) -> Result<String, String> {
         Err(format!(
             "Received Connection.Secure with challenge '{challenge}' but we don't know how to handle it for {0}.",
             self.mechanism(),
         ))
     }
 
-    /// Does the current session need refreshing a token?
-    fn needs_refresh(&self) -> bool {
-        false
+    /// How long is the current session/token valid for? None means no expiration.
+    fn valid_for(&self) -> Option<Duration> {
+        None
     }
 
     /// Refresh the current session token (Connection.UpdateSecret)
-    fn refresh(&mut self) -> Result<String, String> {
+    fn refresh(&self) -> Result<String, String> {
         Err("Refresh not supported on current auth provider".to_string())
     }
 }
 
 /// Provider to create tokens used for (OAuth2) auth
-pub trait TokenProvider: Send + 'static {
-    /// Check whether the current token is expired
-    fn expired(&self) -> bool;
+pub trait TokenProvider: Send + Sync + 'static {
+    /// Check for how long the current token is still valid. `None` means no expiration.
+    fn valid_for(&self) -> Option<Duration> {
+        None
+    }
 
     /// Create a new token
-    fn create_token(&mut self) -> Result<String, String>;
+    fn create_token(&self) -> Result<String, String>;
 }
 
 pub(crate) struct DefaultAuthProvider {
@@ -60,11 +66,11 @@ impl AuthProvider for DefaultAuthProvider {
         self.mechanism.name().to_string()
     }
 
-    fn auth_starter(&mut self) -> Result<String, String> {
+    fn auth_starter(&self) -> Result<String, String> {
         Ok(self.credentials.sasl_auth_string(self.mechanism))
     }
 
-    fn continue_auth(&mut self, challenge: LongString) -> Result<String, String> {
+    fn continue_auth(&self, challenge: LongString) -> Result<String, String> {
         if self.mechanism != SASLMechanism::RabbitCrDemo {
             return Err(format!(
                 "Received invalid Connection.Secure with challenge '{challenge}' for SASL mechanism {0} with default provider.",
@@ -112,18 +118,18 @@ impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
         self.mechanism.name().to_string()
     }
 
-    fn auth_starter(&mut self) -> Result<String, String> {
+    fn auth_starter(&self) -> Result<String, String> {
         Ok(
             Credentials::new(String::new(), self.token_provider.create_token()?)
                 .sasl_auth_string(self.mechanism),
         )
     }
 
-    fn needs_refresh(&self) -> bool {
-        self.token_provider.expired()
+    fn valid_for(&self) -> Option<Duration> {
+        self.token_provider.valid_for()
     }
 
-    fn refresh(&mut self) -> Result<String, String> {
+    fn refresh(&self) -> Result<String, String> {
         self.token_provider.create_token()
     }
 }
@@ -136,39 +142,45 @@ impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
 /// use lapin::auth::{DefaultTokenProvider, TokenAuthProvider};
 ///
 /// let auth_provider: TokenAuthProvider<_> = DefaultTokenProvider::new(
-///     |_token| false /* never expire */,
+///     |_token| None /* never expire */,
 ///     || Ok("my new valid token".to_string()),
 /// ).into();
 /// ```
 pub struct DefaultTokenProvider {
-    expired: Box<dyn Fn(&str) -> bool + Send + 'static>,
-    create_token: Box<dyn Fn() -> Result<String, String> + Send + 'static>,
-    token: String,
+    #[allow(clippy::type_complexity)]
+    valid_for: Box<dyn Fn(&str) -> Option<Duration> + Send + Sync + 'static>,
+    create_token: Box<dyn Fn() -> Result<String, String> + Send + Sync + 'static>,
+    token: Mutex<String>,
 }
 
 impl DefaultTokenProvider {
     pub fn new<
-        E: Fn(&str) -> bool + Send + 'static,
-        CT: Fn() -> Result<String, String> + Send + 'static,
+        VF: Fn(&str) -> Option<Duration> + Send + Sync + 'static,
+        CT: Fn() -> Result<String, String> + Send + Sync + 'static,
     >(
-        expired: E,
+        valid_for: VF,
         create_token: CT,
     ) -> Self {
         Self {
-            expired: Box::new(expired),
+            valid_for: Box::new(valid_for),
             create_token: Box::new(create_token),
-            token: String::new(),
+            token: Mutex::new(String::new()),
         }
+    }
+
+    fn lock_token(&self) -> MutexGuard<'_, String> {
+        self.token.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl TokenProvider for DefaultTokenProvider {
-    fn expired(&self) -> bool {
-        (self.expired)(&self.token)
+    fn valid_for(&self) -> Option<Duration> {
+        (self.valid_for)(&self.lock_token())
     }
 
-    fn create_token(&mut self) -> Result<String, String> {
-        self.token = (self.create_token)()?;
-        Ok(self.token.clone())
+    fn create_token(&self) -> Result<String, String> {
+        let token = (self.create_token)()?;
+        *self.lock_token() = token.clone();
+        Ok(token)
     }
 }

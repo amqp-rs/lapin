@@ -3,13 +3,13 @@ use crate::{
     recovery_config::RecoveryConfig,
     types::{AMQPValue, FieldTable, LongString, ShortString},
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ConnectionProperties {
     pub(crate) locale: String,
     pub(crate) client_properties: FieldTable,
-    pub(crate) auth_provider: Option<Arc<Mutex<dyn AuthProvider>>>,
+    pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
     pub(crate) recovery_config: Option<RecoveryConfig>,
 }
 
@@ -45,7 +45,7 @@ impl ConnectionProperties {
 
     #[must_use]
     pub fn with_auth_provider<AP: AuthProvider>(mut self, provider: AP) -> Self {
-        self.auth_provider = Some(Arc::new(Mutex::new(provider)));
+        self.auth_provider = Some(Arc::new(provider));
         self
     }
 

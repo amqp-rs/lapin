@@ -25,11 +25,7 @@ use crate::{
     types::*,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use std::{
-    convert::TryFrom,
-    fmt,
-    sync::{Arc, Mutex},
-};
+use std::{convert::TryFrom, fmt, sync::Arc};
 use tracing::{Level, error, info, level_enabled, trace};
 
 /// Main entry point for most AMQP operations.
@@ -588,7 +584,7 @@ impl Channel {
         &self,
         resolver: ConnectionResolver,
         connection: Connection,
-        auth_provider: Arc<Mutex<dyn AuthProvider>>,
+        auth_provider: Arc<dyn AuthProvider>,
     ) {
         self.connection_status
             .set_connection_step(ConnectionStep::StartOk(resolver, connection, auth_provider));
@@ -598,7 +594,7 @@ impl Channel {
         &self,
         resolver: ConnectionResolver,
         connection: Connection,
-        auth_provider: Arc<Mutex<dyn AuthProvider>>,
+        auth_provider: Arc<dyn AuthProvider>,
     ) {
         self.connection_status
             .set_connection_step(ConnectionStep::SecureOk(
@@ -801,18 +797,14 @@ impl Channel {
                     .client_properties
                     .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-                let auth_provider = options.auth_provider.take().unwrap_or_else(|| {
-                    Arc::new(Mutex::new(DefaultAuthProvider::new(credentials, mechanism)))
-                });
-                let (auth_mechanism, auth_starter) = {
-                    let mut auth_provider = auth_provider.lock().unwrap_or_else(|e| e.into_inner());
-                    (
-                        auth_provider.mechanism(),
-                        auth_provider
-                            .auth_starter()
-                            .map_err(ErrorKind::AuthProviderError)?,
-                    )
-                };
+                let auth_provider = options
+                    .auth_provider
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(credentials, mechanism)));
+                let auth_mechanism = auth_provider.mechanism();
+                let auth_starter = auth_provider
+                    .auth_starter()
+                    .map_err(ErrorKind::AuthProviderError)?;
                 let channel = self.clone();
                 self.internal_rpc.spawn(async move {
                     channel
@@ -850,8 +842,6 @@ impl Channel {
             | ConnectionStep::SecureOk(resolver, connection, auth_provider) => {
                 let channel = self.clone();
                 let response = auth_provider
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
                     .continue_auth(method.challenge)
                     .map_err(ErrorKind::AuthProviderError)?;
                 self.internal_rpc.spawn(async move {

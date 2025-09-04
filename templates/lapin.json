@@ -16,7 +16,7 @@
           },
           {
             "name": "auth_provider",
-            "type": "Arc<Mutex<dyn AuthProvider>>"
+            "type": "Arc<dyn AuthProvider>"
           }
         ],
         "send_hook": {
@@ -37,7 +37,7 @@
           },
           {
             "name": "auth_provider",
-            "type": "Arc<Mutex<dyn AuthProvider>>"
+            "type": "Arc<dyn AuthProvider>"
           }
         ],
         "send_hook": {
