@@ -14,7 +14,7 @@ use std::{
 #[derive(Default, Clone)]
 pub struct Notifier {
     done: Arc<AtomicBool>,
-    wakers: Arc<Wakers>,
+    wakers: Wakers,
 }
 
 impl Notifier {

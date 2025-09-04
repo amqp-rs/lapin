@@ -2,29 +2,33 @@ use crate::{Error, Result};
 
 use std::{
     fmt,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 type Inner = Option<Error>;
 
 #[derive(Clone, Default)]
-pub(crate) struct ErrorHolder(Arc<Mutex<Inner>>);
+pub(crate) struct ErrorHolder(Arc<RwLock<Inner>>);
 
 impl ErrorHolder {
     pub(crate) fn set(&self, error: Error) {
-        *self.lock_inner() = Some(error);
+        *self.write() = Some(error);
     }
 
     pub(crate) fn check(&self) -> Result<()> {
-        self.lock_inner()
+        self.read()
             .clone()
             .map(Err)
             .transpose()
             .map(Option::unwrap_or_default)
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    fn read(&self) -> RwLockReadGuard<'_, Inner> {
+        self.0.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.0.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
