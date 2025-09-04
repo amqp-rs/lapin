@@ -1,8 +1,10 @@
 use crate::Result;
 use std::{
+    panic,
     sync::{Arc, Mutex, MutexGuard},
     thread,
 };
+use tracing::error;
 
 pub type JoinHandle = thread::JoinHandle<Result<()>>;
 type Inner = Option<JoinHandle>;
@@ -28,7 +30,13 @@ impl ThreadHandle {
     pub(crate) fn wait(&self, context: &'static str) -> Result<()> {
         if let Some(handle) = self.take() {
             if handle.thread().id() != thread::current().id() {
-                handle.join().expect(context)?;
+                match handle.join() {
+                    Ok(res) => return res,
+                    Err(e) => {
+                        error!(%context, "Failed waiting for thread");
+                        panic::resume_unwind(e);
+                    }
+                }
             }
         }
         Ok(())

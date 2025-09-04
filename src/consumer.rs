@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
     task::{Context, Poll},
 };
-use tracing::trace;
+use tracing::{error, trace};
 
 pub trait ConsumerDelegate: Send + Sync {
     fn on_new_delivery(&self, delivery: DeliveryResult)
@@ -316,7 +316,9 @@ impl Consumer {
             self.internal_rpc
                 .spawn_infallible(delegate.on_new_delivery(delivery));
         } else {
-            self.deliveries_in.send(delivery).expect(error);
+            if let Err(err) = self.deliveries_in.send(delivery) {
+                error!(?err, error);
+            }
         }
         self.wakers.wake();
     }

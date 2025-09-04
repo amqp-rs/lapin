@@ -230,13 +230,9 @@ impl Inner {
                     .map(|(frame, _)| frame.is_header())
                     .unwrap_or(false)
                 {
-                    // Yes, this will always be Some() with a Header frame, but let's keep our unwrap() count low
-                    if let Some(next_frame) = self.low_prio_frames.pop_front() {
-                        self.publish_frames.push_back(next_frame);
-                    }
                     while let Some(next_frame) = self.low_prio_frames.pop_front() {
                         match next_frame.0 {
-                            AMQPFrame::Body(..) => {
+                            AMQPFrame::Header(..) | AMQPFrame::Body(..) => {
                                 self.publish_frames.push_back(next_frame);
                             }
                             _ => {

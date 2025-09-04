@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
     task::{Poll, Wake, Waker},
 };
-use tracing::trace;
+use tracing::{error, trace};
 
 pub(crate) struct SocketState {
     readable: bool,
@@ -52,7 +52,10 @@ impl SocketState {
     }
 
     pub(crate) fn wait(&mut self) {
-        self.handle_event(self.events.recv().expect("waiting for socket event failed"))
+        match self.events.recv() {
+            Ok(event) => self.handle_event(event),
+            Err(err) => error!(?err, "waiting for socket event failed"),
+        }
     }
 
     pub(crate) fn reset(&mut self) {
