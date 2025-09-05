@@ -86,7 +86,7 @@ async fn tokio_main(forever: bool) {
             .basic_cancel("tag_foo", BasicCancelOptions::default())
             .await
             .unwrap();
-        connection.close(200, "OK").await.unwrap();
+        connection.close(200, "OK".to_string()).await.unwrap();
     }
 }
 

@@ -332,11 +332,10 @@ impl Channels {
         Connection::for_reconnect(
             self.configuration.clone(),
             self.connection_status.clone(),
-            self.clone(),
             self.internal_rpc.clone(),
             self.events.clone(),
         )
-        .start(self.uri.clone(), self.options.clone())
+        .start(self.channel0(), self.uri.clone(), self.options.clone())
         .await?;
 
         trace!("Connection recovered, now recovering channels");

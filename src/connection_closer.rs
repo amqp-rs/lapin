@@ -1,6 +1,7 @@
 use crate::{ConnectionStatus, internal_rpc::InternalRPCHandle, protocol};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[derive(Debug)]
 pub(crate) struct ConnectionCloser {
     status: ConnectionStatus,
     internal_rpc: InternalRPCHandle,

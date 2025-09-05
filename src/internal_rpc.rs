@@ -1,6 +1,7 @@
 use crate::{
-    Error, ErrorKind, PromiseResolver, Result,
+    Channel, Error, ErrorKind, Promise, PromiseResolver, Result,
     channels::Channels,
+    connection_closer::ConnectionCloser,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
     future::InternalFuture,
@@ -12,7 +13,7 @@ use crate::{
 };
 use async_rs::{Runtime, traits::*};
 use flume::{Receiver, Sender};
-use std::{collections::HashMap, fmt, future::Future, time::Duration};
+use std::{collections::HashMap, fmt, future::Future, sync::Arc, time::Duration};
 use tracing::trace;
 
 pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
@@ -118,8 +119,36 @@ impl InternalRPCHandle {
     ) {
         self.set_connection_closing();
         self.send(InternalCommand::CloseConnection(
-            reply_code, reply_text, class_id, method_id,
+            reply_code, reply_text, class_id, method_id, None,
         ));
+    }
+
+    pub(crate) async fn close_connection_checked(
+        &self,
+        reply_code: ReplyCode,
+        reply_text: String,
+        class_id: Identifier,
+        method_id: Identifier,
+    ) -> Result<()> {
+        self.set_connection_closing();
+        let (promise, resolver) = Promise::new();
+        self.send(InternalCommand::CloseConnection(
+            reply_code,
+            reply_text,
+            class_id,
+            method_id,
+            Some(resolver),
+        ));
+        promise.await
+    }
+
+    pub(crate) async fn create_channel(
+        &self,
+        connection_closer: Arc<ConnectionCloser>,
+    ) -> Result<Channel> {
+        let (promise, resolver) = Promise::new();
+        self.send(InternalCommand::CreateChannel(connection_closer, resolver));
+        promise.await
     }
 
     pub(crate) fn finish_connection_shutdown(&self) {
@@ -181,6 +210,12 @@ impl InternalRPCHandle {
         self.send(InternalCommand::StartHeartbeat(heartbeat));
     }
 
+    pub(crate) async fn update_secret(&self, secret: String, reason: String) -> Result<()> {
+        let (promise, resolver) = Promise::new();
+        self.send(InternalCommand::UpdateSecret(secret, reason, resolver));
+        promise.await
+    }
+
     pub(crate) fn stop(&self) {
         trace!("Stopping internal RPC command");
         let _ = self.sender.send(None);
@@ -230,7 +265,14 @@ enum InternalCommand {
     CancelConsumer(ChannelId, String, ConsumerStatus),
     CancelHeartbeat,
     CloseChannel(ChannelId, ReplyCode, String),
-    CloseConnection(ReplyCode, String, Identifier, Identifier),
+    CloseConnection(
+        ReplyCode,
+        String,
+        Identifier,
+        Identifier,
+        Option<PromiseResolver<()>>,
+    ),
+    CreateChannel(Arc<ConnectionCloser>, PromiseResolver<Channel>),
     FinishConnectionShutdown,
     InitConnectionRecovery(Error),
     InitConnectionShutdown(Error),
@@ -244,6 +286,7 @@ enum InternalCommand {
     Spawn(InternalFuture),
     StartChannelsRecovery,
     StartHeartbeat(Duration),
+    UpdateSecret(String, String, PromiseResolver<()>),
 }
 
 impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
@@ -385,14 +428,26 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                         channel?.close(reply_code, &reply_text).await
                     })
                 }
-                CloseConnection(reply_code, reply_text, class_id, method_id) => {
-                    let channel = channels.channel0();
-                    self.register_internal_future(async move {
-                        channel
+                CloseConnection(reply_code, reply_text, class_id, method_id, resolver) => {
+                    let channel0 = channels.channel0();
+                    let fut = async move {
+                        channel0
                             .connection_close(reply_code, &reply_text, class_id, method_id)
                             .await
-                    })
+                    };
+                    if let Some(resolver) = resolver {
+                        self.register_internal_future_with_resolver(fut, resolver)
+                    } else {
+                        self.register_internal_future(fut)
+                    }
                 }
+                CreateChannel(closer, resolver) => match channels.create(closer) {
+                    Ok(channel) => self.register_internal_future_with_resolver(
+                        async move { channel.clone().channel_open(channel).await },
+                        resolver,
+                    ),
+                    Err(err) => resolver.reject(err),
+                },
                 FinishConnectionShutdown => channels.finish_connection_shutdown(),
                 InitConnectionRecovery(error) => {
                     channels.init_connection_recovery(error);
@@ -426,6 +481,18 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 StartHeartbeat(heartbeat) => {
                     self.heartbeat.set_timeout(heartbeat);
                     self.heartbeat.start(channels.clone());
+                }
+                UpdateSecret(secret, reason, resolver) => {
+                    let channels = channels.clone();
+                    self.register_internal_future_with_resolver(
+                        async move {
+                            channels
+                                .channel0()
+                                .connection_update_secret(&secret, &reason)
+                                .await
+                        },
+                        resolver,
+                    )
                 }
             }
             self.handle.waker.wake();

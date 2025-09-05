@@ -1,5 +1,5 @@
 use crate::{
-    AsyncTcpStream, ConnectionProperties, ConnectionStatus, ErrorKind, Event, Promise, Result,
+    AsyncTcpStream, ConnectionProperties, ConnectionStatus, Event, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -37,7 +37,7 @@ use tracing::{Level, level_enabled, trace};
 pub struct Connection {
     configuration: Configuration,
     status: ConnectionStatus,
-    channels: Channels,
+    internal_rpc: InternalRPCHandle,
     events: Events,
     io_loop: ThreadHandle,
     closer: Arc<ConnectionCloser>,
@@ -47,15 +47,14 @@ impl Connection {
     fn new(
         configuration: Configuration,
         status: ConnectionStatus,
-        channels: Channels,
         internal_rpc: InternalRPCHandle,
         events: Events,
     ) -> Self {
-        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc));
+        let closer = Arc::new(ConnectionCloser::new(status.clone(), internal_rpc.clone()));
         Self {
             configuration,
             status,
-            channels,
+            internal_rpc,
             events,
             io_loop: ThreadHandle::default(),
             closer,
@@ -65,11 +64,10 @@ impl Connection {
     pub(crate) fn for_reconnect(
         configuration: Configuration,
         status: ConnectionStatus,
-        channels: Channels,
         internal_rpc: InternalRPCHandle,
         events: Events,
     ) -> Self {
-        let conn = Self::new(configuration, status, channels, internal_rpc, events);
+        let conn = Self::new(configuration, status, internal_rpc, events);
         conn.closer.noop();
         conn
     }
@@ -141,12 +139,8 @@ impl Connection {
     /// [`Channel`]: ./struct.Channel.html
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
     pub async fn create_channel(&self) -> Result<Channel> {
-        if !self.status.connected() {
-            return Err(ErrorKind::InvalidConnectionState(self.status.state()).into());
-        }
-        let channel = self.channels.create(self.closer.clone())?;
-        // FIXME: make sure we have a notifier on error+reconnect
-        channel.clone().channel_open(channel).await
+        self.status.ensure_connected()?;
+        self.internal_rpc.create_channel(self.closer.clone()).await
     }
 
     /// Get a Stream of connection Events
@@ -177,24 +171,17 @@ impl Connection {
     /// otherwise an [`InvalidConnectionState`] error is returned.
     ///
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
-    pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
-        if !self.status.connected() {
-            return Err(ErrorKind::InvalidConnectionState(self.status.state()).into());
-        }
-
-        self.channels.set_connection_closing();
-        self.channels
-            .channel0()
-            .connection_close(reply_code, reply_text, 0, 0)
+    pub async fn close(&self, reply_code: ReplyCode, reply_text: String) -> Result<()> {
+        self.status.ensure_connected()?;
+        self.internal_rpc
+            .close_connection_checked(reply_code, reply_text, 0, 0)
             .await
     }
 
     /// Update the secret used by some authentication module such as OAuth2
-    pub async fn update_secret(&self, new_secret: &str, reason: &str) -> Result<()> {
-        self.channels
-            .channel0()
-            .connection_update_secret(new_secret, reason)
-            .await
+    pub async fn update_secret(&self, new_secret: String, reason: String) -> Result<()> {
+        self.status.ensure_connected()?;
+        self.internal_rpc.update_secret(new_secret, reason).await
     }
 
     pub async fn connector<RK: RuntimeKit + Clone + Send + 'static>(
@@ -227,17 +214,12 @@ impl Connection {
             options.clone(),
             events.clone(),
         );
-        let conn = Connection::new(
-            configuration,
-            status,
-            channels,
-            internal_rpc.handle(),
-            events,
-        );
+        let channel0 = channels.channel0();
+        let conn = Connection::new(configuration, status, internal_rpc.handle(), events);
         let io_loop = IoLoop::new(
             conn.status.clone(),
             conn.configuration.clone(),
-            conn.channels.clone(),
+            channels.clone(),
             internal_rpc.handle(),
             frames,
             socket_state,
@@ -247,19 +229,23 @@ impl Connection {
             uri.clone(),
         );
 
-        internal_rpc.start(conn.channels.clone());
+        internal_rpc.start(channels);
         conn.io_loop.register(io_loop.start()?);
-        conn.start(uri, options).await
+        conn.start(channel0, uri, options).await
     }
 
-    pub(crate) async fn start(self, uri: AMQPUri, options: ConnectionProperties) -> Result<Self> {
+    pub(crate) async fn start(
+        self,
+        channel0: Channel,
+        uri: AMQPUri,
+        options: ConnectionProperties,
+    ) -> Result<Self> {
         let (promise_out, resolver_out) = Promise::new();
         let (promise_in, resolver_in) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise_out.set_marker("ProtocolHeader".into());
             promise_in.set_marker("ProtocolHeader.Ok".into());
         }
-        let channel0 = self.channels.channel0();
 
         trace!("Set connection as connecting");
         self.status.clone().set_connecting(
@@ -289,7 +275,6 @@ impl fmt::Debug for Connection {
         f.debug_struct("Connection")
             .field("configuration", &self.configuration)
             .field("status", &self.status)
-            .field("channels", &self.channels)
             .finish()
     }
 }
@@ -365,11 +350,11 @@ mod tests {
     use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
     use crate::options::BasicConsumeOptions;
     use crate::types::{ChannelId, FieldTable, ShortString};
-    use crate::{BasicProperties, ChannelState, ConnectionState};
+    use crate::{BasicProperties, ChannelState, ConnectionState, ErrorKind};
     use amq_protocol::frame::AMQPContentHeader;
     use amq_protocol::protocol::{AMQPClass, basic};
 
-    fn create_connection() -> (Connection, InternalRPCHandle) {
+    fn create_connection() -> (Connection, Channels, InternalRPCHandle) {
         let uri = AMQPUri::default();
         let runtime = runtime::default_runtime().unwrap();
         let configuration = Configuration::new(&uri);
@@ -389,15 +374,9 @@ mod tests {
             ConnectionProperties::default(),
             events.clone(),
         );
-        let conn = Connection::new(
-            configuration,
-            status,
-            channels,
-            internal_rpc.handle(),
-            events,
-        );
+        let conn = Connection::new(configuration, status, internal_rpc.handle(), events);
         conn.status.set_state(ConnectionState::Connected);
-        (conn, internal_rpc.handle())
+        (conn, channels, internal_rpc.handle())
     }
 
     #[test]
@@ -405,14 +384,14 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         // Bootstrap connection state to a consuming state
-        let conn = create_connection().0;
+        let (conn, channels, _) = create_connection();
         conn.configuration.set_channel_max(ChannelId::MAX);
         for _ in 1..=ChannelId::MAX {
-            conn.channels.create(conn.closer.clone()).unwrap();
+            channels.create(conn.closer.clone()).unwrap();
         }
 
         assert_eq!(
-            conn.channels.create(conn.closer.clone()),
+            channels.create(conn.closer.clone()),
             Err(ErrorKind::ChannelsLimitReached.into())
         );
     }
@@ -424,9 +403,9 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
-        let (conn, internal_rpc) = create_connection();
+        let (conn, channels, internal_rpc) = create_connection();
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create(conn.closer.clone()).unwrap();
+        let channel = channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let consumer_tag = ShortString::from("consumer-tag");
@@ -438,7 +417,7 @@ mod tests {
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
-        if let Some(c) = conn.channels.get(channel.id()) {
+        if let Some(c) = channels.get(channel.id()) {
             c.register_consumer(consumer_tag.clone(), consumer);
             c.register_queue(queue_name.clone(), Default::default(), Default::default());
         }
@@ -453,7 +432,7 @@ mod tests {
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
-            conn.channels.handle_frame(deliver_frame).unwrap();
+            channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
@@ -470,7 +449,7 @@ mod tests {
                     properties: BasicProperties::default(),
                 },
             );
-            conn.channels.handle_frame(header_frame).unwrap();
+            channels.handle_frame(header_frame).unwrap();
             let channel_state = channel.status().receiver_state();
             let expected_state =
                 ChannelReceiverState::ReceivingContent(DeliveryCause::Consume(consumer_tag), 2);
@@ -478,7 +457,7 @@ mod tests {
         }
         {
             let body_frame = AMQPFrame::Body(channel.id(), b"{}".to_vec());
-            conn.channels.handle_frame(body_frame).unwrap();
+            channels.handle_frame(body_frame).unwrap();
             assert!(channel.status().connected());
         }
     }
@@ -490,9 +469,9 @@ mod tests {
         use crate::consumer::Consumer;
 
         // Bootstrap connection state to a consuming state
-        let (conn, internal_rpc) = create_connection();
+        let (conn, channels, internal_rpc) = create_connection();
         conn.configuration.set_channel_max(2047);
-        let channel = conn.channels.create(conn.closer.clone()).unwrap();
+        let channel = channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
         let consumer_tag = ShortString::from("consumer-tag");
@@ -504,7 +483,7 @@ mod tests {
             BasicConsumeOptions::default(),
             FieldTable::default(),
         );
-        if let Some(c) = conn.channels.get(channel.id()) {
+        if let Some(c) = channels.get(channel.id()) {
             c.register_consumer(consumer_tag.clone(), consumer);
             c.register_queue(queue_name.clone(), Default::default(), Default::default());
         }
@@ -519,7 +498,7 @@ mod tests {
             }));
             let class_id = method.get_amqp_class_id();
             let deliver_frame = AMQPFrame::Method(channel.id(), method);
-            conn.channels.handle_frame(deliver_frame).unwrap();
+            channels.handle_frame(deliver_frame).unwrap();
             let channel_state = channel.status().receiver_state();
             let expected_state = ChannelReceiverState::WillReceiveContent(
                 class_id,
@@ -536,7 +515,7 @@ mod tests {
                     properties: BasicProperties::default(),
                 },
             );
-            conn.channels.handle_frame(header_frame).unwrap();
+            channels.handle_frame(header_frame).unwrap();
             assert!(channel.status().connected());
         }
     }

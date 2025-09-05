@@ -1,6 +1,6 @@
 use crate::{
-    Connection, ConnectionProperties, Error, PromiseResolver, Result, auth::AuthProvider,
-    uri::AMQPUri,
+    Connection, ConnectionProperties, Error, ErrorKind, PromiseResolver, Result,
+    auth::AuthProvider, uri::AMQPUri,
 };
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
@@ -89,6 +89,13 @@ impl ConnectionStatus {
 
     pub fn connected(&self) -> bool {
         self.lock_inner().state == ConnectionState::Connected
+    }
+
+    pub(crate) fn ensure_connected(&self) -> Result<()> {
+        if !self.connected() {
+            return Err(ErrorKind::InvalidConnectionState(self.state()).into());
+        }
+        Ok(())
     }
 
     pub fn connecting(&self) -> bool {
