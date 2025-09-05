@@ -900,6 +900,7 @@ impl Channel {
         }
     }
 
+    #[allow(clippy::boxed_local)]
     fn on_connection_open_ok_received(
         &self,
         _: protocol::connection::OpenOk,

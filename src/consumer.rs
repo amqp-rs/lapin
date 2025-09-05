@@ -315,10 +315,8 @@ impl Consumer {
         if let Some(delegate) = delegate {
             self.internal_rpc
                 .spawn_infallible(delegate.on_new_delivery(delivery));
-        } else {
-            if let Err(err) = self.deliveries_in.send(delivery) {
-                error!(?err, error);
-            }
+        } else if let Err(err) = self.deliveries_in.send(delivery) {
+            error!(?err, error);
         }
         self.wakers.wake();
     }
