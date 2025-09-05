@@ -455,6 +455,24 @@ impl Channel {
             .unwrap_or_else(|| PublisherConfirm::not_requested(self.returned_messages.clone())))
     }
 
+    pub(crate) fn report_protocol_violation(
+        &self,
+        error: AMQPError,
+        class_id: Identifier,
+        method_id: Identifier,
+    ) -> Result<()> {
+        error!(%error);
+        self.internal_rpc.close_connection(
+            error.get_id(),
+            error.get_message().to_string(),
+            class_id,
+            method_id,
+        );
+        let error = Error::from(ErrorKind::ProtocolError(error));
+        self.internal_rpc.set_connection_error(error.clone());
+        Err(error)
+    }
+
     fn handle_invalid_contents(
         &self,
         error: String,
@@ -463,13 +481,7 @@ impl Channel {
     ) -> Result<()> {
         error!(%error);
         let error = AMQPError::new(AMQPHardError::UNEXPECTEDFRAME.into(), error.into());
-        self.internal_rpc.close_connection(
-            error.get_id(),
-            error.get_message().to_string(),
-            class_id,
-            method_id,
-        );
-        Err(ErrorKind::ProtocolError(error).into())
+        self.report_protocol_violation(error, class_id, method_id)
     }
 
     pub(crate) fn handle_content_header_frame(
@@ -500,17 +512,8 @@ impl Channel {
                 }
             },
             |msg| {
-                error!(%msg);
                 let error = AMQPError::new(AMQPHardError::FRAMEERROR.into(), msg.into());
-                self.internal_rpc.close_connection(
-                    error.get_id(),
-                    error.get_message().to_string(),
-                    class_id,
-                    0,
-                );
-                let error: Error = ErrorKind::ProtocolError(error).into();
-                self.internal_rpc.set_connection_error(error.clone());
-                Err(error)
+                self.report_protocol_violation(error, class_id, 0)
             },
             |msg| self.handle_invalid_contents(msg, class_id, 0),
         )

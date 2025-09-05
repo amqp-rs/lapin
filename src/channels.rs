@@ -247,16 +247,7 @@ impl Channels {
                     AMQPHardError::FRAMEERROR.into(),
                     format!("heartbeat frame received on channel {channel_id}").into(),
                 );
-                let channel0 = self.channel0();
-                {
-                    let error = error.clone();
-                    self.internal_rpc.spawn(async move {
-                        channel0
-                            .connection_close(error.get_id(), error.get_message().as_str(), 0, 0)
-                            .await
-                    });
-                }
-                return Err(ErrorKind::ProtocolError(error).into());
+                return self.channel0().report_protocol_violation(error, 0, 0);
             }
             AMQPFrame::Header(channel_id, header) => {
                 if channel_id == 0 {
@@ -265,21 +256,9 @@ impl Channels {
                         AMQPHardError::CHANNELERROR.into(),
                         format!("content header frame received on channel {channel_id}").into(),
                     );
-                    let channel0 = self.channel0();
-                    {
-                        let error = error.clone();
-                        self.internal_rpc.spawn(async move {
-                            channel0
-                                .connection_close(
-                                    error.get_id(),
-                                    error.get_message().as_str(),
-                                    header.class_id,
-                                    0,
-                                )
-                                .await
-                        });
-                    }
-                    return Err(ErrorKind::ProtocolError(error).into());
+                    return self
+                        .channel0()
+                        .report_protocol_violation(error, header.class_id, 0);
                 } else {
                     self.handle_content_header_frame(
                         channel_id,
