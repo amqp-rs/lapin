@@ -201,8 +201,12 @@ impl Connection {
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let internal_rpc =
-            InternalRPC::new(runtime.clone(), heartbeat.clone(), socket_state.handle());
+        let internal_rpc = InternalRPC::new(
+            runtime.clone(),
+            heartbeat.clone(),
+            frames.clone(),
+            socket_state.handle(),
+        );
         let events = Events::new();
         let channels = Channels::new(
             configuration.clone(),
@@ -362,7 +366,8 @@ mod tests {
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let internal_rpc = InternalRPC::new(runtime, heartbeat, socket_state.handle());
+        let internal_rpc =
+            InternalRPC::new(runtime, heartbeat, frames.clone(), socket_state.handle());
         let events = Events::new();
         let channels = Channels::new(
             configuration.clone(),

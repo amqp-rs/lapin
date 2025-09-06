@@ -1,4 +1,4 @@
-use crate::{ConnectionStatus, ErrorKind, channels::Channels, killswitch::KillSwitch};
+use crate::{ConnectionStatus, ErrorKind, internal_rpc::InternalRPCHandle, killswitch::KillSwitch};
 use async_rs::{Runtime, traits::*};
 use std::{
     fmt,
@@ -35,22 +35,23 @@ impl<RK: RuntimeKit + Clone + Send + 'static> Heartbeat<RK> {
         self.killswitch.clone()
     }
 
-    pub(crate) fn start(&self, channels: Channels) {
+    pub(crate) fn start(&self, internal_rpc: InternalRPCHandle) {
         let heartbeat = self.clone();
         self.runtime.spawn(async move {
-            while let Some(dur) = heartbeat.poll_timeout(&channels) {
+            while let Some(dur) = heartbeat.poll_timeout(&internal_rpc) {
                 heartbeat.runtime.sleep(dur).await;
             }
         });
     }
 
-    fn poll_timeout(&self, channels: &Channels) -> Option<Duration> {
+    fn poll_timeout(&self, internal_rpc: &InternalRPCHandle) -> Option<Duration> {
         if !self.connection_status.connected() {
             self.cancel();
             return None;
         }
 
-        self.lock_inner().poll_timeout(channels, &self.killswitch)
+        self.lock_inner()
+            .poll_timeout(internal_rpc, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
@@ -98,7 +99,11 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn poll_timeout(&mut self, channels: &Channels, killswitch: &KillSwitch) -> Option<Duration> {
+    fn poll_timeout(
+        &mut self,
+        internal_rpc: &InternalRPCHandle,
+        killswitch: &KillSwitch,
+    ) -> Option<Duration> {
         let timeout = self.timeout?;
 
         // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
@@ -109,7 +114,7 @@ impl Inner {
             );
             self.timeout = None;
             killswitch.kill();
-            channels.set_connection_error(ErrorKind::MissingHeartbeatError.into());
+            internal_rpc.set_connection_error(ErrorKind::MissingHeartbeatError.into());
             return None;
         }
 
@@ -119,7 +124,7 @@ impl Inner {
             .or_else(|| {
                 // Update last_write so that if we cannot write to the socket yet, we don't enqueue countless heartbeats
                 self.update_last_write();
-                channels.send_heartbeat();
+                internal_rpc.send_heartbeat();
                 Some(timeout)
             })
     }

@@ -23,6 +23,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
     thread::Builder as ThreadBuilder,
+    time::Duration,
 };
 use tracing::{error, trace};
 
@@ -118,7 +119,11 @@ impl<
                 .grow(FRAMES_STORAGE * self.frame_size as usize);
             self.send_buffer
                 .grow(FRAMES_STORAGE * self.frame_size as usize);
-            self.channels.start_heartbeat();
+            let heartbeat = self.configuration.heartbeat();
+            if heartbeat != 0 {
+                let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
+                self.internal_rpc.start_heartbeat(heartbeat);
+            }
             self.status = Status::Connected;
         }
         Ok(true)
@@ -306,7 +311,7 @@ impl<
             resolver.reject(error.clone());
         }
         self.stop();
-        self.channels.set_connection_error(error.clone());
+        self.internal_rpc.set_connection_error(error.clone());
         self.clear_serialized_frames(error.clone());
         Err(error)
     }
@@ -527,7 +532,9 @@ impl<
         let mut did_something = false;
         while self.can_parse() {
             if let Some(frame) = self.parse(connection_killswitch)? {
-                self.channels.handle_frame(frame)?;
+                self.channels
+                    .handle_frame(frame)
+                    .inspect_err(|err| self.internal_rpc.set_connection_error(err.clone()))?;
                 did_something = true;
             } else {
                 break;
@@ -547,16 +554,10 @@ impl<
                         AMQPHardError::FRAMEERROR.into(),
                         format!("frame too large: {consumed} bytes").into(),
                     );
-                    self.internal_rpc.close_connection(
-                        error.get_id(),
-                        error.get_message().to_string(),
-                        0,
-                        0,
-                    );
-                    self.critical_error(
-                        connection_killswitch,
-                        ErrorKind::ProtocolError(error).into(),
-                    )?;
+                    self.channels
+                        .channel0()
+                        .report_protocol_violation(error, 0, 0)
+                        .or_else(|err| self.critical_error(connection_killswitch, err))?;
                 }
                 self.receive_buffer.consume(consumed);
                 Ok(Some(f))

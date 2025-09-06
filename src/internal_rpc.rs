@@ -1,9 +1,10 @@
 use crate::{
-    Channel, Error, ErrorKind, Promise, PromiseResolver, Result,
+    Channel, Connection, Error, ErrorKind, Promise, PromiseResolver, Result,
     channels::Channels,
     connection_closer::ConnectionCloser,
     consumer_status::ConsumerStatus,
     error_holder::ErrorHolder,
+    frames::Frames,
     future::InternalFuture,
     heartbeat::Heartbeat,
     killswitch::KillSwitch,
@@ -11,15 +12,17 @@ use crate::{
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
 };
+use amq_protocol::frame::AMQPFrame;
 use async_rs::{Runtime, traits::*};
 use flume::{Receiver, Sender};
 use std::{collections::HashMap, fmt, future::Future, sync::Arc, time::Duration};
-use tracing::trace;
+use tracing::{Level, debug, level_enabled, trace};
 
 pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
     rpc: Receiver<Option<InternalCommand>>,
     handle: InternalRPCHandle,
     channels_status: HashMap<ChannelId, KillSwitch>,
+    frames: Frames,
     heartbeat: Heartbeat<RK>,
     runtime: Runtime<RK>,
 }
@@ -95,10 +98,6 @@ impl InternalRPCHandle {
         ));
     }
 
-    pub(crate) fn cancel_heartbeat(&self) {
-        self.send(InternalCommand::CancelHeartbeat);
-    }
-
     pub(crate) fn close_channel(
         &self,
         channel_id: ChannelId,
@@ -159,20 +158,28 @@ impl InternalRPCHandle {
         self.send(InternalCommand::InitConnectionRecovery(error));
     }
 
-    pub(crate) fn init_connection_shutdown(&self, error: Error) {
-        self.send(InternalCommand::InitConnectionShutdown(error));
+    pub(crate) fn init_connection_shutdown(
+        &self,
+        error: Error,
+        connection_resolver: Option<PromiseResolver<Connection>>,
+    ) {
+        self.set_connection_closing();
+        self.send(InternalCommand::InitConnectionShutdown(
+            error,
+            connection_resolver,
+        ));
     }
 
     pub(crate) fn remove_channel(&self, channel_id: ChannelId, error: Error) {
         self.send(InternalCommand::RemoveChannel(channel_id, error));
     }
 
-    pub(crate) fn reset_heartbeat(&self) {
-        self.send(InternalCommand::ResetHeartbeat);
-    }
-
     pub(crate) fn send_connection_close_ok(&self, error: Error) {
         self.send(InternalCommand::SendConnectionCloseOk(error));
+    }
+
+    pub(crate) fn send_heartbeat(&self) {
+        self.send(InternalCommand::SendHeartbeat);
     }
 
     pub(crate) fn set_channel_status(&self, channel_id: ChannelId, killswitch: KillSwitch) {
@@ -263,7 +270,6 @@ enum InternalCommand {
         Option<ErrorHolder>,
     ),
     CancelConsumer(ChannelId, String, ConsumerStatus),
-    CancelHeartbeat,
     CloseChannel(ChannelId, ReplyCode, String),
     CloseConnection(
         ReplyCode,
@@ -275,10 +281,10 @@ enum InternalCommand {
     CreateChannel(Arc<ConnectionCloser>, PromiseResolver<Channel>),
     FinishConnectionShutdown,
     InitConnectionRecovery(Error),
-    InitConnectionShutdown(Error),
+    InitConnectionShutdown(Error, Option<PromiseResolver<Connection>>),
     RemoveChannel(ChannelId, Error),
-    ResetHeartbeat,
     SendConnectionCloseOk(Error),
+    SendHeartbeat,
     SetChannelStatus(ChannelId, KillSwitch),
     SetConnectionClosing,
     SetConnectionClosed(Error),
@@ -293,6 +299,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
     pub(crate) fn new(
         runtime: Runtime<RK>,
         heartbeat: Heartbeat<RK>,
+        frames: Frames,
         waker: SocketStateHandle,
     ) -> Self {
         let (sender, rpc) = flume::unbounded();
@@ -301,6 +308,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
             rpc,
             handle,
             channels_status: Default::default(),
+            frames,
             heartbeat,
             runtime,
         }
@@ -348,6 +356,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         use InternalCommand::*;
 
         let rpc = self.rpc.clone();
+        let recovery_config = channels.recovery_config();
         let get_channel = |id| {
             channels
                 .get(id)
@@ -418,7 +427,6 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                         }
                     })
                 }
-                CancelHeartbeat => self.heartbeat.cancel(),
                 CloseChannel(channel_id, reply_code, reply_text) => {
                     if !self.channel_ok(channel_id) {
                         continue;
@@ -450,9 +458,12 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 },
                 FinishConnectionShutdown => channels.finish_connection_shutdown(),
                 InitConnectionRecovery(error) => {
+                    self.heartbeat.reset();
                     channels.init_connection_recovery(error);
                 }
-                InitConnectionShutdown(error) => channels.init_connection_shutdown(error),
+                InitConnectionShutdown(error, connection_resolver) => {
+                    channels.init_connection_shutdown(error, connection_resolver)
+                }
                 RemoveChannel(channel_id, error) => {
                     if !self.channel_ok(channel_id) {
                         continue;
@@ -460,19 +471,43 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     let channels = channels.clone();
                     self.register_internal_future(async move { channels.remove(channel_id, error) })
                 }
-                ResetHeartbeat => self.heartbeat.reset(),
                 SendConnectionCloseOk(error) => {
                     let channel = channels.channel0();
                     self.register_internal_future(async move {
                         channel.connection_close_ok(error).await
                     })
                 }
+                SendHeartbeat => {
+                    debug!("send heartbeat");
+                    let (promise, resolver) = Promise::new();
+                    if level_enabled!(Level::TRACE) {
+                        promise.set_marker("Heartbeat".into());
+                    }
+                    channels
+                        .channel0()
+                        .send_frame(AMQPFrame::Heartbeat, resolver, None);
+                    self.register_internal_future(promise);
+                }
                 SetChannelStatus(channel_id, killswitch) => {
                     self.channels_status.insert(channel_id, killswitch);
                 }
-                SetConnectionClosing => channels.set_connection_closing(),
-                SetConnectionClosed(error) => channels.set_connection_closed(error),
-                SetConnectionError(error) => channels.set_connection_error(error),
+                SetConnectionClosing => {
+                    self.heartbeat.cancel();
+                    channels.set_connection_closing();
+                }
+                SetConnectionClosed(error) => {
+                    self.frames.clear_all_expected_replies(error.clone());
+                    channels.set_connection_closed(error);
+                }
+                SetConnectionError(error) => {
+                    if recovery_config.can_recover_connection(&error) {
+                        if channels.should_init_connection_recovery() {
+                            self.handle.init_connection_recovery(error);
+                        }
+                    } else {
+                        channels.set_connection_error(error)
+                    }
+                }
                 Spawn(fut) => self.register_internal_future(fut),
                 StartChannelsRecovery => {
                     let channels = channels.clone();
@@ -480,7 +515,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 }
                 StartHeartbeat(heartbeat) => {
                     self.heartbeat.set_timeout(heartbeat);
-                    self.heartbeat.start(channels.clone());
+                    self.heartbeat.start(self.handle());
                 }
                 UpdateSecret(secret, reason, resolver) => {
                     let channels = channels.clone();

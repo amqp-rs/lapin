@@ -94,6 +94,10 @@ impl Frames {
         }
     }
 
+    pub(crate) fn clear_all_expected_replies(&self, error: Error) {
+        self.lock_inner().clear_all_expected_replies(error)
+    }
+
     pub(crate) fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {
         Inner::cancel_expected_replies(replies, error)
     }
@@ -261,9 +265,7 @@ impl Inner {
         Self::drop_pending_frames(&mut self.publish_frames, error.clone());
         Self::drop_pending_frames(&mut self.frames, error.clone());
         Self::drop_pending_frames(&mut self.low_prio_frames, error.clone());
-        for (_, replies) in self.expected_replies.drain() {
-            Self::cancel_expected_replies(replies, error.clone());
-        }
+        self.clear_all_expected_replies(error.clone());
         self.poison = Some(error);
     }
 
@@ -321,6 +323,12 @@ impl Inner {
             }
         }
         None
+    }
+
+    fn clear_all_expected_replies(&mut self, error: Error) {
+        for (_, replies) in self.expected_replies.drain() {
+            Self::cancel_expected_replies(replies, error.clone());
+        }
     }
 
     fn cancel_expected_replies(replies: VecDeque<ExpectedReply>, error: Error) {

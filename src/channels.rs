@@ -1,6 +1,6 @@
 use crate::{
     BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionProperties,
-    ConnectionState, ConnectionStatus, Error, ErrorKind, Promise, Result,
+    ConnectionState, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
     connection_closer::ConnectionCloser,
     events::{Events, EventsSender},
     frames::Frames,
@@ -18,9 +18,8 @@ use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, Mutex, MutexGuard},
-    time::Duration,
 };
-use tracing::{Level, debug, error, level_enabled, trace};
+use tracing::{debug, error, trace};
 
 #[derive(Clone)]
 pub(crate) struct Channels {
@@ -148,7 +147,6 @@ impl Channels {
     }
 
     pub(crate) fn set_connection_closing(&self) {
-        self.internal_rpc.cancel_heartbeat();
         self.connection_status.set_state(ConnectionState::Closing);
         for channel in self.lock_inner().channels.values() {
             channel.set_closing(None);
@@ -157,21 +155,20 @@ impl Channels {
 
     pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        for (id, channel) in self.lock_inner().channels.iter() {
-            self.frames.clear_expected_replies(*id, error.clone());
+        for channel in self.lock_inner().channels.values() {
             channel.set_closed(error.clone());
         }
     }
 
-    pub(crate) fn set_connection_error(&self, error: Error) {
-        if self.recovery_config.can_recover_connection(&error) {
-            if self.connection_status.connected() {
-                self.connection_killswitch.kill();
-                self.init_connection_recovery(error);
-            }
-            return;
+    pub(crate) fn should_init_connection_recovery(&self) -> bool {
+        if self.connection_status.connected() {
+            self.connection_killswitch.kill();
+            return true;
         }
+        false
+    }
 
+    pub(crate) fn set_connection_error(&self, error: Error) {
         // Do nothing if we were already in error
         if let ConnectionState::Error = self.connection_status.set_state(ConnectionState::Error) {
             return;
@@ -184,8 +181,7 @@ impl Channels {
 
         self.frames.drop_pending(error.clone());
         self.events.sender().error(error.clone());
-        for (id, channel) in self.lock_inner().channels.iter() {
-            self.frames.clear_expected_replies(*id, error.clone());
+        for channel in self.lock_inner().channels.values() {
             channel.set_connection_error(error.clone());
         }
     }
@@ -197,30 +193,7 @@ impl Channels {
             .all(|c| c.status().flow())
     }
 
-    pub(crate) fn send_heartbeat(&self) {
-        debug!("send heartbeat");
-
-        let (promise, resolver) = Promise::new();
-
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("Heartbeat".into());
-        }
-
-        self.channel0
-            .send_frame(AMQPFrame::Heartbeat, resolver, None);
-        self.internal_rpc.spawn(promise);
-    }
-
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
-        if let Err(err) = self.do_handle_frame(f) {
-            self.set_connection_error(err.clone());
-            Err(err)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn do_handle_frame(&self, f: AMQPFrame) -> Result<()> {
         trace!(frame=?f, "will handle frame");
         match f {
             AMQPFrame::ProtocolHeader(version) => {
@@ -247,7 +220,7 @@ impl Channels {
                     AMQPHardError::FRAMEERROR.into(),
                     format!("heartbeat frame received on channel {channel_id}").into(),
                 );
-                return self.channel0().report_protocol_violation(error, 0, 0);
+                return self.channel0.report_protocol_violation(error, 0, 0);
             }
             AMQPFrame::Header(channel_id, header) => {
                 if channel_id == 0 {
@@ -257,7 +230,7 @@ impl Channels {
                         format!("content header frame received on channel {channel_id}").into(),
                     );
                     return self
-                        .channel0()
+                        .channel0
                         .report_protocol_violation(error, header.class_id, 0);
                 } else {
                     self.handle_content_header_frame(
@@ -275,17 +248,8 @@ impl Channels {
         Ok(())
     }
 
-    pub(crate) fn start_heartbeat(&self) {
-        let heartbeat = self.configuration.heartbeat();
-        if heartbeat != 0 {
-            let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
-            self.internal_rpc.start_heartbeat(heartbeat);
-        }
-    }
-
     pub(crate) fn init_connection_recovery(&self, error: Error) -> Error {
         trace!("init connection recovery");
-        self.internal_rpc.reset_heartbeat();
         self.connection_status.set_reconnecting();
         let error = self
             .lock_inner()
@@ -327,9 +291,11 @@ impl Channels {
         Ok(())
     }
 
-    pub(crate) fn init_connection_shutdown(&self, error: Error) {
-        let connection_resolver = self.connection_status.connection_resolver();
-        self.set_connection_closing();
+    pub(crate) fn init_connection_shutdown(
+        &self,
+        error: Error,
+        connection_resolver: Option<PromiseResolver<Connection>>,
+    ) {
         self.frames.drop_pending(error.clone());
         if let Some(resolver) = connection_resolver {
             resolver.reject(error.clone());

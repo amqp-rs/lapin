@@ -945,7 +945,9 @@ impl Channel {
         if self.recovery_config.can_recover_connection(&error) {
             self.internal_rpc.init_connection_recovery(error.clone());
         } else {
-            self.internal_rpc.init_connection_shutdown(error.clone());
+            let connection_resolver = self.connection_status.connection_resolver();
+            self.internal_rpc
+                .init_connection_shutdown(error.clone(), connection_resolver);
         }
         self.internal_rpc.send_connection_close_ok(error);
         Ok(())
