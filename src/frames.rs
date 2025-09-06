@@ -12,7 +12,10 @@ use std::{
 };
 use tracing::{Level, level_enabled, trace};
 
-pub(crate) struct ExpectedReply(pub(crate) Reply, pub(crate) Box<dyn Cancelable + Send>);
+pub(crate) struct ExpectedReply(
+    pub(crate) Reply,
+    pub(crate) Box<dyn Cancelable + Send + Sync>,
+);
 
 impl fmt::Debug for ExpectedReply {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

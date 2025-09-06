@@ -10,47 +10,47 @@ use crate::{
 };
 use std::{
     fmt,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use tracing::trace;
 
 #[derive(Clone)]
-pub struct ChannelStatus(Arc<Mutex<Inner>>);
+pub struct ChannelStatus(Arc<RwLock<Inner>>);
 
 impl ChannelStatus {
     pub(crate) fn new(id: ChannelId, internal_rpc: InternalRPCHandle) -> Self {
-        Self(Arc::new(Mutex::new(Inner::new(id, internal_rpc))))
+        Self(Arc::new(RwLock::new(Inner::new(id, internal_rpc))))
     }
 
     pub fn initializing(&self) -> bool {
-        [ChannelState::Initial, ChannelState::Reconnecting].contains(&self.lock_inner().state)
+        [ChannelState::Initial, ChannelState::Reconnecting].contains(&self.read().state)
     }
 
     pub fn closing(&self) -> bool {
-        [ChannelState::Closing, ChannelState::Reconnecting].contains(&self.lock_inner().state)
+        [ChannelState::Closing, ChannelState::Reconnecting].contains(&self.read().state)
     }
 
     pub fn connected(&self) -> bool {
-        self.lock_inner().state == ChannelState::Connected
+        self.read().state == ChannelState::Connected
     }
 
     pub fn reconnecting(&self) -> bool {
-        self.lock_inner().state == ChannelState::Reconnecting
+        self.read().state == ChannelState::Reconnecting
     }
 
     pub(crate) fn connected_or_recovering(&self) -> bool {
-        [ChannelState::Connected, ChannelState::Reconnecting].contains(&self.lock_inner().state)
+        [ChannelState::Connected, ChannelState::Reconnecting].contains(&self.read().state)
     }
 
     pub(crate) fn update_recovery_context<R, F: Fn(&mut ChannelRecoveryContext) -> R>(
         &self,
         apply: F,
     ) -> Option<R> {
-        Some(apply(self.lock_inner().recovery_context.as_mut()?))
+        Some(apply(self.write().recovery_context.as_mut()?))
     }
 
     pub(crate) fn finalize_connection(&self) {
-        self.lock_inner().finalize_connection();
+        self.write().finalize_connection();
     }
 
     pub(crate) fn can_receive_messages(&self) -> bool {
@@ -59,26 +59,26 @@ impl ChannelStatus {
             ChannelState::Connected,
             ChannelState::Reconnecting,
         ]
-        .contains(&self.lock_inner().state)
+        .contains(&self.read().state)
     }
 
     pub fn confirm(&self) -> bool {
-        self.lock_inner().confirm
+        self.read().confirm
     }
 
     pub(crate) fn set_confirm(&self) {
-        let mut inner = self.lock_inner();
+        let mut inner = self.write();
         inner.confirm = true;
         trace!("Publisher confirms activated");
         inner.finalize_connection();
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
-        self.lock_inner().state = state;
+        self.write().state = state;
     }
 
     pub(crate) fn state_error(&self, context: &'static str) -> Error {
-        let inner = self.lock_inner();
+        let inner = self.read();
         let error = Error::from(ErrorKind::InvalidChannelState(inner.state, context));
         if inner.state == ChannelState::Reconnecting {
             return error.with_notifier(inner.notifier());
@@ -87,16 +87,16 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_reconnecting(&self, error: Error, topology: ChannelDefinition) -> Error {
-        self.lock_inner().set_reconnecting(error, topology)
+        self.write().set_reconnecting(error, topology)
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
-        id != 0 && self.lock_inner().state == ChannelState::Connected
+        id != 0 && self.connected()
     }
 
     #[cfg(test)]
     pub(crate) fn receiver_state(&self) -> crate::channel_receiver_state::ChannelReceiverState {
-        self.lock_inner().receiver_state.receiver_state()
+        self.write().receiver_state.receiver_state()
     }
 
     pub(crate) fn set_will_receive(
@@ -104,7 +104,7 @@ impl ChannelStatus {
         class_id: Identifier,
         delivery_cause: DeliveryCause,
     ) -> KillSwitch {
-        let mut inner = self.lock_inner();
+        let mut inner = self.write();
         inner
             .receiver_state
             .set_will_receive(class_id, delivery_cause);
@@ -124,7 +124,7 @@ impl ChannelStatus {
         invalid_class_hanlder: OnInvalidClass,
         error_handler: OnError,
     ) -> Result<()> {
-        let mut inner = self.lock_inner();
+        let mut inner = self.write();
         let confirm_mode = inner.confirm;
         inner.receiver_state.set_content_length(
             channel_id,
@@ -147,7 +147,7 @@ impl ChannelStatus {
         handler: Handler,
         error_handler: OnError,
     ) -> Result<()> {
-        let mut inner = self.lock_inner();
+        let mut inner = self.write();
         let confirm_mode = inner.confirm;
         inner
             .receiver_state
@@ -155,15 +155,19 @@ impl ChannelStatus {
     }
 
     pub(crate) fn set_send_flow(&self, flow: bool) {
-        self.lock_inner().send_flow = flow;
+        self.write().send_flow = flow;
     }
 
     pub(crate) fn flow(&self) -> bool {
-        self.lock_inner().send_flow
+        self.read().send_flow
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    fn read(&self) -> RwLockReadGuard<'_, Inner> {
+        self.0.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.0.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -181,7 +185,7 @@ pub enum ChannelState {
 impl fmt::Debug for ChannelStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ChannelStatus");
-        if let Ok(inner) = self.0.try_lock() {
+        if let Ok(inner) = self.0.try_read() {
             debug
                 .field("state", &inner.state)
                 .field("receiver_state", &inner.receiver_state)
