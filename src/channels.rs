@@ -17,13 +17,13 @@ use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use std::{
     collections::HashMap,
     fmt,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use tracing::{debug, error, trace};
 
 #[derive(Clone)]
 pub(crate) struct Channels {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<RwLock<Inner>>,
     channel0: Channel,
     configuration: Configuration,
     connection_status: ConnectionStatus,
@@ -60,7 +60,7 @@ impl Channels {
         channel0.set_state(ChannelState::Connected);
 
         Self {
-            inner: Arc::new(Mutex::new(inner)),
+            inner: Arc::new(RwLock::new(inner)),
             channel0,
             configuration,
             connection_status,
@@ -75,7 +75,7 @@ impl Channels {
     }
 
     pub(crate) fn create(&self, connection_closer: Arc<ConnectionCloser>) -> Result<Channel> {
-        self.lock_inner().create(
+        self.write().create(
             self.connection_status.clone(),
             self.internal_rpc.clone(),
             self.frames.clone(),
@@ -96,7 +96,7 @@ impl Channels {
         if id == 0 {
             Some(self.channel0())
         } else {
-            self.lock_inner().channels.get(&id).cloned()
+            self.read().channels.get(&id).cloned()
         }
     }
 
@@ -107,7 +107,7 @@ impl Channels {
             return Ok(());
         }
 
-        if self.lock_inner().channels.remove(&id).is_some() {
+        if self.write().channels.remove(&id).is_some() {
             Ok(())
         } else {
             Err(ErrorKind::InvalidChannel(id).into())
@@ -148,14 +148,14 @@ impl Channels {
 
     pub(crate) fn set_connection_closing(&self) {
         self.connection_status.set_state(ConnectionState::Closing);
-        for channel in self.lock_inner().channels.values() {
+        for channel in self.read().channels.values() {
             channel.set_closing(None);
         }
     }
 
     pub(crate) fn set_connection_closed(&self, error: Error) {
         self.connection_status.set_state(ConnectionState::Closed);
-        for channel in self.lock_inner().channels.values() {
+        for channel in self.read().channels.values() {
             channel.set_closed(error.clone());
         }
     }
@@ -181,16 +181,13 @@ impl Channels {
 
         self.frames.drop_pending(error.clone());
         self.events.sender().error(error.clone());
-        for channel in self.lock_inner().channels.values() {
+        for channel in self.read().channels.values() {
             channel.set_connection_error(error.clone());
         }
     }
 
     pub(crate) fn flow(&self) -> bool {
-        self.lock_inner()
-            .channels
-            .values()
-            .all(|c| c.status().flow())
+        self.read().channels.values().all(|c| c.status().flow())
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
@@ -252,7 +249,7 @@ impl Channels {
         trace!("init connection recovery");
         self.connection_status.set_reconnecting();
         let error = self
-            .lock_inner()
+            .read()
             .channels
             .values()
             .fold(error, |error, channel| channel.init_recovery(error));
@@ -260,12 +257,7 @@ impl Channels {
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
-        let channels = self
-            .lock_inner()
-            .channels
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let channels = self.read().channels.values().cloned().collect::<Vec<_>>();
 
         self.connection_killswitch.reset();
         self.frames.drop_poison();
@@ -306,15 +298,19 @@ impl Channels {
         self.connection_killswitch.kill();
     }
 
-    fn lock_inner(&self) -> MutexGuard<'_, Inner> {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    fn read(&self) -> RwLockReadGuard<'_, Inner> {
+        self.inner.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.inner.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl fmt::Debug for Channels {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Channels");
-        if let Ok(inner) = self.inner.try_lock() {
+        if let Ok(inner) = self.inner.try_read() {
             debug
                 .field("channels", &inner.channels.values())
                 .field("channel_id", &inner.channel_id)
