@@ -53,6 +53,10 @@ impl EventsSender {
         self.send(Event::ConnectionUnblocked);
     }
 
+    pub(crate) fn send_flow(&self, active: bool) {
+        self.send(Event::SendFlow(active));
+    }
+
     pub(crate) fn error(&self, error: Error) {
         self.send(Event::Error(error));
     }
@@ -65,5 +69,6 @@ pub enum Event {
     Connected,
     ConnectionBlocked(String),
     ConnectionUnblocked,
+    SendFlow(bool),
     Error(Error),
 }
