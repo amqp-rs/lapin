@@ -6,6 +6,9 @@
 - Removed deprecated `on_error` callback setup. Use `Connection::events_listener` instead.
 - Runtime is now configured in the `Connection::connect_with_runtime` method
 - `Connection::block` and `Connection:unblock` have been removed (they were actually a protocol violation)
+- Replaced `Acker::mock` with `Delivery::mock`
+- Changed `Connection::collector` callback to an async fn
+- Added an AuthProvider mechanism configurable through `ConnectionProperties` (to support e.g. automatic oauth2 token refresh)
 
 #### Misc
 

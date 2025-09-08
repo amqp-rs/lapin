@@ -26,6 +26,12 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 - vendored-openssl: use a vendored openssl version instead of the system one (when using openssl backend)
 - verbose-errors: enable more verbose errors in the AMQP parser
 
+## Runtime
+
+- tokio (default)
+- smol
+- async-global-executor
+
 ## TLS backends
 
 - native-tls
@@ -47,13 +53,9 @@ Available options are:
 
 ## Integration with third-party runtimes
 
-Lapin can use any runtime of your choice by passing it to the `ConnectionProperties`.
+Lapin can use any runtime of your choice by passing an `async_rs::Runtime` when connecting.
 
-You can configure the executor to use through [executor-trait](https://crates.io/crates/executor-trait).
-
-You can configure the reactor to use through [reactor-trait](https://crates.io/crates/reactor-trait).
-
-There are implementations for tokio, async-std and others.
+There are implementations for tokio, smol and others in [async-rs](https://docs.rs/async-rs)
 
 ## Experimental automatic reconnection
 
