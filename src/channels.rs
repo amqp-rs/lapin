@@ -179,7 +179,7 @@ impl Channels {
             resolver.reject(error.clone());
         }
 
-        self.frames.drop_pending(error.clone());
+        self.frames.drop_pending(error.clone(), &self.internal_rpc);
         self.events.sender().error(error.clone());
         for channel in self.read().channels.values() {
             channel.set_connection_error(error.clone());
@@ -288,7 +288,7 @@ impl Channels {
         error: Error,
         connection_resolver: Option<PromiseResolver<Connection>>,
     ) {
-        self.frames.drop_pending(error.clone());
+        self.frames.drop_pending(error.clone(), &self.internal_rpc);
         if let Some(resolver) = connection_resolver {
             resolver.reject(error.clone());
         }

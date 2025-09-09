@@ -30,15 +30,14 @@ impl ConnectionStatus {
 
     pub(crate) fn set_connecting(
         &self,
-        resolver_out: PromiseResolver<()>,
-        resolver_in: PromiseResolver<Connection>,
+        resolver: PromiseResolver<Connection>,
         conn: Connection,
         creds: Credentials,
         mechanism: SASLMechanism,
         options: ConnectionProperties,
     ) -> Result<()> {
         self.write()
-            .set_connecting(resolver_out, resolver_in, conn, creds, mechanism, options)
+            .set_connecting(resolver, conn, creds, mechanism, options)
     }
 
     pub(crate) fn set_reconnecting(&self) {
@@ -56,7 +55,7 @@ impl ConnectionStatus {
     pub(crate) fn connection_resolver(&self) -> Option<PromiseResolver<Connection>> {
         let resolver = self.write().connection_resolver();
         // We carry the Connection here to drop the lock() above before dropping the Connection
-        resolver.map(|(resolver, _connection)| resolver.resolver_in)
+        resolver.map(|(resolver, _connection)| resolver)
     }
 
     pub fn vhost(&self) -> String {
@@ -135,35 +134,25 @@ impl ConnectionStatus {
     }
 }
 
-pub(crate) struct ConnectionResolver {
-    resolver_out: Option<PromiseResolver<()>>,
-    resolver_in: PromiseResolver<Connection>,
-}
-
-impl ConnectionResolver {
-    pub(crate) fn resolve(&self, conn: Connection) {
-        self.resolver_in.resolve(conn);
-    }
-
-    pub(crate) fn reject(&self, err: Error) {
-        if let Some(resolver) = self.resolver_out.as_ref() {
-            resolver.reject(err.clone());
-        }
-        self.resolver_in.reject(err);
-    }
-}
-
 pub(crate) enum ConnectionStep {
     ProtocolHeader(
-        ConnectionResolver,
+        PromiseResolver<Connection>,
         Connection,
         Credentials,
         SASLMechanism,
         ConnectionProperties,
     ),
-    StartOk(ConnectionResolver, Connection, Arc<dyn AuthProvider>),
-    SecureOk(ConnectionResolver, Connection, Arc<dyn AuthProvider>),
-    Open(ConnectionResolver),
+    StartOk(
+        PromiseResolver<Connection>,
+        Connection,
+        Arc<dyn AuthProvider>,
+    ),
+    SecureOk(
+        PromiseResolver<Connection>,
+        Connection,
+        Arc<dyn AuthProvider>,
+    ),
+    Open(PromiseResolver<Connection>),
 }
 
 impl ConnectionStep {
@@ -176,7 +165,9 @@ impl ConnectionStep {
         }
     }
 
-    pub(crate) fn into_connection_resolver(self) -> (ConnectionResolver, Option<Connection>) {
+    pub(crate) fn into_connection_resolver(
+        self,
+    ) -> (PromiseResolver<Connection>, Option<Connection>) {
         match self {
             ConnectionStep::ProtocolHeader(resolver, connection, ..) => {
                 (resolver, Some(connection))
@@ -239,8 +230,7 @@ impl Default for Inner {
 impl Inner {
     fn set_connecting(
         &mut self,
-        resolver_out: PromiseResolver<()>,
-        resolver_in: PromiseResolver<Connection>,
+        resolver: PromiseResolver<Connection>,
         conn: Connection,
         creds: Credentials,
         mechanism: SASLMechanism,
@@ -248,14 +238,7 @@ impl Inner {
     ) -> Result<()> {
         self.state = ConnectionState::Connecting;
         self.connection_step = Some(ConnectionStep::ProtocolHeader(
-            ConnectionResolver {
-                resolver_out: Some(resolver_out),
-                resolver_in,
-            },
-            conn,
-            creds,
-            mechanism,
-            options,
+            resolver, conn, creds, mechanism, options,
         ));
         self.poison.take().map(Err).unwrap_or(Ok(()))
     }
@@ -267,7 +250,7 @@ impl Inner {
         self.blocked = false;
     }
 
-    fn connection_resolver(&mut self) -> Option<(ConnectionResolver, Option<Connection>)> {
+    fn connection_resolver(&mut self) -> Option<(PromiseResolver<Connection>, Option<Connection>)> {
         self.connection_step
             .take()
             .map(ConnectionStep::into_connection_resolver)

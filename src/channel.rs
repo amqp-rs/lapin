@@ -7,13 +7,14 @@ use crate::{
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
     connection_closer::ConnectionCloser,
-    connection_status::{ConnectionResolver, ConnectionStep},
+    connection_status::ConnectionStep,
     consumer::Consumer,
     consumers::Consumers,
     events::EventsSender,
     frames::{ExpectedReply, Frames},
     internal_rpc::InternalRPCHandle,
     message::{BasicGetMessage, BasicReturnMessage, Delivery},
+    promise::Cancelable,
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
@@ -405,29 +406,38 @@ impl Channel {
     pub(crate) fn send_method_frame(
         &self,
         method: AMQPClass,
-        resolver: PromiseResolver<()>,
+        canceler: Box<dyn Cancelable + Send + Sync>,
         expected_reply: Option<ExpectedReply>,
+        resolver: Option<PromiseResolver<()>>,
     ) {
-        self.send_frame(AMQPFrame::Method(self.id, method), resolver, expected_reply);
+        self.send_frame(
+            AMQPFrame::Method(self.id, method),
+            canceler,
+            expected_reply,
+            resolver,
+        );
     }
 
     pub(crate) fn send_frame(
         &self,
         frame: AMQPFrame,
-        resolver: PromiseResolver<()>,
+        canceler: Box<dyn Cancelable + Send + Sync>,
         expected_reply: Option<ExpectedReply>,
+        resolver: Option<PromiseResolver<()>>,
     ) {
         trace!(channel=%self.id, "send_frame");
-        self.frames.push(self.id, frame, resolver, expected_reply);
+        self.frames
+            .push(self.id, frame, canceler, expected_reply, resolver);
         self.wake();
     }
 
-    async fn send_method_frame_with_body(
+    fn send_method_frame_with_body(
         &self,
         method: AMQPClass,
         payload: &[u8],
         properties: BasicProperties,
         publisher_confirms_result: Option<PublisherConfirm>,
+        resolver: PromiseResolver<()>,
     ) -> Result<PublisherConfirm> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
@@ -448,9 +458,8 @@ impl Channel {
         );
 
         trace!(channel=%self.id, "send_frames");
-        let promise = self.frames.push_frames(self.id, frames);
+        self.frames.push_frames(self.id, frames, resolver);
         self.wake();
-        promise.await?;
         Ok(publisher_confirms_result
             .unwrap_or_else(|| PublisherConfirm::not_requested(self.returned_messages.clone())))
     }
@@ -585,7 +594,7 @@ impl Channel {
 
     fn before_connection_start_ok(
         &self,
-        resolver: ConnectionResolver,
+        resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) {
@@ -595,7 +604,7 @@ impl Channel {
 
     fn before_connection_secure_ok(
         &self,
-        resolver: ConnectionResolver,
+        resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) {
@@ -607,7 +616,7 @@ impl Channel {
             ));
     }
 
-    fn before_connection_open(&self, resolver: ConnectionResolver) {
+    fn before_connection_open(&self, resolver: PromiseResolver<Connection>) {
         self.connection_status
             .set_connection_step(ConnectionStep::Open(resolver));
     }
@@ -1242,8 +1251,12 @@ impl Channel {
         Ok(())
     }
 
+    pub(crate) fn deregister_consumer(&self, consumer_tag: &str) {
+        self.consumers.deregister(consumer_tag);
+    }
+
     fn on_basic_cancel_received(&self, method: protocol::basic::Cancel) -> Result<()> {
-        self.consumers.deregister(method.consumer_tag.as_str());
+        self.deregister_consumer(method.consumer_tag.as_str());
         if !method.nowait {
             let channel = self.clone();
             self.internal_rpc
@@ -1253,7 +1266,7 @@ impl Channel {
     }
 
     fn on_basic_cancel_ok_received(&self, method: protocol::basic::CancelOk) -> Result<()> {
-        self.consumers.deregister(method.consumer_tag.as_str());
+        self.deregister_consumer(method.consumer_tag.as_str());
         Ok(())
     }
 

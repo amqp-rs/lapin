@@ -345,23 +345,19 @@ impl Channel {
             global,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.qos".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.qos.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::BasicQosOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_basic_qos_ok(&self, method: protocol::basic::QosOk) -> Result<()> {
@@ -419,17 +415,13 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.consume".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.consume.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::BasicConsumeOk(
                     resolver.clone(),
@@ -441,13 +433,13 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
                 consumer_tag: consumer_tag.into(),
             })?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_basic_consume_ok(&self, method: protocol::basic::ConsumeOk) -> Result<()> {
@@ -502,28 +494,24 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.cancel".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.cancel.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::BasicCancelOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_basic_cancel_ok(protocol::basic::CancelOk {
                 consumer_tag: consumer_tag.into(),
             })?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_basic_cancel(&self, method: protocol::basic::Cancel) -> Result<()> {
@@ -543,11 +531,11 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.cancel-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     fn receive_basic_cancel_ok(&self, method: protocol::basic::CancelOk) -> Result<()> {
@@ -599,8 +587,13 @@ impl Channel {
             },
         ));
 
-        self.send_method_frame_with_body(method, payload, properties, start_hook_res)
-            .await
+        let (promise, resolver) = Promise::new();
+        if level_enabled!(Level::TRACE) {
+            promise.set_marker("basic.publish".into());
+        }
+        let send_res =
+            self.send_method_frame_with_body(method, payload, properties, start_hook_res, resolver);
+        promise.await.and(send_res)
     }
     fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
         if !self.status.can_receive_messages() {
@@ -630,24 +623,20 @@ impl Channel {
             no_ack,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.get".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.get.Ok".into());
         }
         let resolver = original.unwrap_or(resolver);
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::BasicGetOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_basic_get_ok(&self, method: protocol::basic::GetOk) -> Result<()> {
@@ -691,11 +680,11 @@ impl Channel {
             multiple,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.ack".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_ack_sent(multiple, delivery_tag);
         promise.await
     }
@@ -722,11 +711,11 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.reject".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     pub async fn basic_recover_async(&self, options: BasicRecoverAsyncOptions) -> Result<()> {
@@ -739,11 +728,11 @@ impl Channel {
             protocol::basic::RecoverAsync { requeue },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover-async".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_recover_async_sent();
         promise.await
     }
@@ -757,23 +746,19 @@ impl Channel {
             protocol::basic::Recover { requeue },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.recover".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("basic.recover.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::BasicRecoverOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_basic_recover_ok(&self, method: protocol::basic::RecoverOk) -> Result<()> {
@@ -815,11 +800,11 @@ impl Channel {
             requeue,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("basic.nack".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_nack_sent(multiple, delivery_tag);
         promise.await
     }
@@ -842,7 +827,7 @@ impl Channel {
         mechanism: &str,
         response: &str,
         locale: &str,
-        resolver: ConnectionResolver,
+        conn_resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
@@ -855,12 +840,12 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.start-ok".into());
         }
-        self.before_connection_start_ok(resolver, connection, auth_provider);
-        self.send_method_frame(method, send_resolver, None);
+        self.before_connection_start_ok(conn_resolver, connection, auth_provider);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
@@ -873,7 +858,7 @@ impl Channel {
     async fn connection_secure_ok(
         &self,
         response: &str,
-        resolver: ConnectionResolver,
+        conn_resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
@@ -883,12 +868,12 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.secure-ok".into());
         }
-        self.before_connection_secure_ok(resolver, connection, auth_provider);
-        self.send_method_frame(method, send_resolver, None);
+        self.before_connection_secure_ok(conn_resolver, connection, auth_provider);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     fn receive_connection_tune(&self, method: protocol::connection::Tune) -> Result<()> {
@@ -912,18 +897,18 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.tune-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     pub(crate) async fn connection_open(
         &self,
         virtual_host: &str,
         connection: Box<Connection>,
-        conn_resolver: ConnectionResolver,
+        conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
             protocol::connection::Open {
@@ -931,24 +916,20 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.open".into());
-        }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("connection.open.Ok".into());
         }
         self.before_connection_open(conn_resolver);
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConnectionOpenOk(resolver.clone(), connection),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_connection_open_ok(&self, method: protocol::connection::OpenOk) -> Result<()> {
@@ -991,23 +972,19 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("connection.close.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConnectionCloseOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_connection_close(&self, method: protocol::connection::Close) -> Result<()> {
@@ -1022,11 +999,11 @@ impl Channel {
             protocol::connection::CloseOk {},
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.close-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_connection_close_ok_sent(error);
         promise.await
     }
@@ -1080,23 +1057,19 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("connection.update-secret".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("connection.update-secret.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConnectionUpdateSecretOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_connection_update_secret_ok(
@@ -1129,23 +1102,19 @@ impl Channel {
             protocol::channel::Open {},
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.open".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("channel.open.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ChannelOpenOk(resolver.clone(), channel),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_channel_open_ok(&self, method: protocol::channel::OpenOk) -> Result<()> {
@@ -1179,23 +1148,19 @@ impl Channel {
             protocol::channel::Flow { active },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.flow".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("channel.flow.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ChannelFlowOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_channel_flow(&self, method: protocol::channel::Flow) -> Result<()> {
@@ -1214,11 +1179,11 @@ impl Channel {
             protocol::channel::FlowOk { active },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.flow-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     fn receive_channel_flow_ok(&self, method: protocol::channel::FlowOk) -> Result<()> {
@@ -1263,23 +1228,19 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("channel.close.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ChannelCloseOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_channel_close(&self, method: protocol::channel::Close) -> Result<()> {
@@ -1297,11 +1258,11 @@ impl Channel {
             protocol::channel::CloseOk {},
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("channel.close-ok".into());
         }
-        self.send_method_frame(method, send_resolver, None);
+        self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_channel_close_ok_sent(error);
         promise.await
     }
@@ -1349,23 +1310,19 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("access.request".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("access.request.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::AccessRequestOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_access_request_ok(&self, method: protocol::access::RequestOk) -> Result<()> {
@@ -1424,17 +1381,13 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.declare".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("exchange.declare.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ExchangeDeclareOk(
                     resolver.clone(),
@@ -1445,11 +1398,11 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {})?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_exchange_declare_ok(&self, method: protocol::exchange::DeclareOk) -> Result<()> {
@@ -1502,26 +1455,22 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.delete".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("exchange.delete.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ExchangeDeleteOk(resolver.clone(), exchange.into()),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {})?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_exchange_delete_ok(&self, method: protocol::exchange::DeleteOk) -> Result<()> {
@@ -1571,17 +1520,13 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.bind".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("exchange.bind.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ExchangeBindOk(
                     resolver.clone(),
@@ -1592,11 +1537,11 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_exchange_bind_ok(protocol::exchange::BindOk {})?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_exchange_bind_ok(&self, method: protocol::exchange::BindOk) -> Result<()> {
@@ -1657,17 +1602,13 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("exchange.unbind".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("exchange.unbind.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ExchangeUnbindOk(
                     resolver.clone(),
@@ -1678,11 +1619,11 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {})?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_exchange_unbind_ok(&self, method: protocol::exchange::UnbindOk) -> Result<()> {
@@ -1749,21 +1690,18 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.declare".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("queue.declare.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::QueueDeclareOk(resolver.clone(), options, creation_arguments),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_queue_declare_ok(protocol::queue::DeclareOk {
@@ -1771,7 +1709,6 @@ impl Channel {
                 ..Default::default()
             })?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_queue_declare_ok(&self, method: protocol::queue::DeclareOk) -> Result<()> {
@@ -1817,17 +1754,13 @@ impl Channel {
             arguments,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.bind".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("queue.bind.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::QueueBindOk(
                     resolver.clone(),
@@ -1838,11 +1771,11 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_queue_bind_ok(protocol::queue::BindOk {})?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_queue_bind_ok(&self, method: protocol::queue::BindOk) -> Result<()> {
@@ -1895,23 +1828,19 @@ impl Channel {
             nowait,
         }));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.purge".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("queue.purge.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::QueuePurgeOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_queue_purge_ok(&self, method: protocol::queue::PurgeOk) -> Result<()> {
@@ -1959,28 +1888,24 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.delete".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("queue.delete.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::QueueDeleteOk(resolver.clone(), queue.into()),
                 Box::new(resolver),
             )),
+            None,
         );
         if nowait {
             self.receive_queue_delete_ok(protocol::queue::DeleteOk {
                 ..Default::default()
             })?;
         }
-        promise_out.await?;
         promise.await
     }
     fn receive_queue_delete_ok(&self, method: protocol::queue::DeleteOk) -> Result<()> {
@@ -2025,17 +1950,13 @@ impl Channel {
             },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("queue.unbind".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("queue.unbind.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::QueueUnbindOk(
                     resolver.clone(),
@@ -2046,8 +1967,8 @@ impl Channel {
                 ),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_queue_unbind_ok(&self, method: protocol::queue::UnbindOk) -> Result<()> {
@@ -2091,23 +2012,19 @@ impl Channel {
 
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Select(protocol::tx::Select {}));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.select".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("tx.select.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::TxSelectOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_tx_select_ok(&self, method: protocol::tx::SelectOk) -> Result<()> {
@@ -2141,23 +2058,19 @@ impl Channel {
 
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Commit(protocol::tx::Commit {}));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.commit".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("tx.commit.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::TxCommitOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_tx_commit_ok(&self, method: protocol::tx::CommitOk) -> Result<()> {
@@ -2193,23 +2106,19 @@ impl Channel {
             protocol::tx::Rollback {},
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("tx.rollback".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("tx.rollback.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::TxRollbackOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_tx_rollback_ok(&self, method: protocol::tx::RollbackOk) -> Result<()> {
@@ -2246,23 +2155,19 @@ impl Channel {
             protocol::confirm::Select { nowait },
         ));
 
-        let (promise, send_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
             promise.set_marker("confirm.select".into());
         }
-        let ((promise, resolver), promise_out) = (Promise::new(), promise);
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("confirm.select.Ok".into());
-        }
         self.send_method_frame(
             method,
-            send_resolver,
+            Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConfirmSelectOk(resolver.clone()),
                 Box::new(resolver),
             )),
+            None,
         );
-        promise_out.await?;
         promise.await
     }
     fn receive_confirm_select_ok(&self, method: protocol::confirm::SelectOk) -> Result<()> {

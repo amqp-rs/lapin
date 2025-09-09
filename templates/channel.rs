@@ -121,24 +121,19 @@ impl Channel {
       {{/each_argument ~}}
     }));
 
-    {{#if method.metadata.carry_headers ~}}
-    self.send_method_frame_with_body(method, payload, properties, start_hook_res).await
-    {{else}}
-    let (promise, send_resolver) = Promise::new();
+    let (promise, resolver) = Promise::new();
     if level_enabled!(Level::TRACE) {
       promise.set_marker("{{class.name}}.{{method.name}}".into());
     }
-    {{#if method.synchronous ~}}
-    let ((promise, resolver), promise_out) = (Promise::new(), promise);
-    if level_enabled!(Level::TRACE) {
-      promise.set_marker("{{class.name}}.{{method.name}}.Ok".into());
-    }
-    {{/if ~}}
+    {{#if method.metadata.carry_headers ~}}
+    let send_res = self.send_method_frame_with_body(method, payload, properties, start_hook_res, resolver);
+    promise.await.and(send_res)
+    {{else}}
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     {{#if method.metadata.send_hook ~}}
     self.before_{{snake class.name false}}_{{snake method.name false}}({{#if method.metadata.send_hook.params ~}}{{#each method.metadata.send_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
-    self.send_method_frame(method, send_resolver, {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/if ~}}{{/each ~}}{{/if ~}}), Box::new(resolver))){{else}}None{{/if ~}});
+    self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/if ~}}{{/each ~}}{{/if ~}}), Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
     {{#if method.metadata.end_hook ~}}
     self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#if method.metadata.end_hook.params ~}}{{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
@@ -149,9 +144,6 @@ impl Channel {
       self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#if method.metadata.nowait_hook.fields ~}}{{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{/if ~}}{{#if method.metadata.nowait_hook.nonexhaustive_args ~}}..Default::default(){{/if ~}} })?;
     }
     {{/if ~}}
-    {{/if ~}}
-    {{#if method.synchronous ~}}
-    promise_out.await?;
     {{/if ~}}
     promise.await
     {{/if ~}}

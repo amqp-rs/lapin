@@ -1,9 +1,8 @@
 use crate::{
-    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind,
-    PromiseResolver, Result,
+    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind, Result,
     buffer::Buffer,
     channels::Channels,
-    frames::Frames,
+    frames::{FrameSending, Frames},
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
@@ -57,7 +56,7 @@ pub struct IoLoop<
     frame_size: FrameSize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
-    serialized_frames: VecDeque<(FrameSize, Option<PromiseResolver<()>>)>,
+    serialized_frames: VecDeque<(FrameSize, FrameSending)>,
 }
 
 impl<
@@ -317,12 +316,12 @@ impl<
     }
 
     fn clear_serialized_frames(&mut self, error: Error) {
-        for (_, resolver) in std::mem::take(&mut self.serialized_frames) {
-            if let Some(resolver) = resolver {
-                trace!(
-                    "We're quitting but had leftover frames, tag them as 'not sent' with current error"
-                );
-                resolver.reject(error.clone());
+        if !self.serialized_frames.is_empty() {
+            trace!(
+                "We're quitting but had leftover frames, tag them as 'not sent' with current error"
+            );
+            for (_, sending) in std::mem::take(&mut self.serialized_frames) {
+                sending.reject(error.clone());
             }
         }
     }
@@ -413,16 +412,14 @@ impl<
 
                 let mut written = sz as FrameSize;
                 while written > 0 {
-                    if let Some((to_write, resolver)) = self.serialized_frames.pop_front() {
+                    if let Some((to_write, sending)) = self.serialized_frames.pop_front() {
                         if written < to_write {
                             self.serialized_frames
-                                .push_front((to_write - written, resolver));
+                                .push_front((to_write - written, sending));
                             trace!("{} to write to complete this frame", to_write - written);
                             written = 0;
                         } else {
-                            if let Some(resolver) = resolver {
-                                resolver.resolve(());
-                            }
+                            sending.resolve();
                             written -= to_write;
                         }
                     } else {
@@ -498,20 +495,20 @@ impl<
     }
 
     fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
-        while let Some((next_msg, resolver)) = self.frames.pop(self.channels.flow()) {
+        while let Some(next_msg) = self.frames.pop(self.channels.flow()) {
             trace!(%next_msg, "will write to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
                 Ok(sz) => self
                     .serialized_frames
-                    .push_back((sz as FrameSize, resolver)),
+                    .push_back(next_msg.into_serialized_frame(sz as FrameSize)),
                 Err(e) => {
                     self.send_buffer.rollback(checkpoint);
                     match e {
                         GenError::BufferTooSmall(_) => {
                             // Requeue msg
-                            self.frames.retry((next_msg, resolver));
+                            self.frames.retry(next_msg);
                             break;
                         }
                         e => {

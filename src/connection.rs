@@ -244,17 +244,14 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let (promise_out, resolver_out) = Promise::new();
-        let (promise_in, resolver_in) = Promise::new();
+        let (promise, resolver) = Promise::new();
         if level_enabled!(Level::TRACE) {
-            promise_out.set_marker("ProtocolHeader".into());
-            promise_in.set_marker("ProtocolHeader.Ok".into());
+            promise.set_marker("ProtocolHeader".into());
         }
 
         trace!("Set connection as connecting");
         self.status.clone().set_connecting(
-            resolver_out.clone(),
-            resolver_in,
+            resolver.clone(),
             self,
             uri.authority.userinfo.into(),
             uri.query.auth_mechanism.unwrap_or_default(),
@@ -264,13 +261,13 @@ impl Connection {
         trace!("Sending protocol header to server");
         channel0.send_frame(
             AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
-            resolver_out,
+            Box::new(resolver),
+            None, // FIXME: switch to ExpectedReply instead of connection status?
             None,
         );
 
-        promise_out.await?;
         trace!("Sent protocol header to server, waiting for connection flow");
-        promise_in.await
+        promise.await
     }
 }
 

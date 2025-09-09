@@ -1,5 +1,9 @@
 use crate::{
-    Error, Promise, PromiseResolver, channel::Reply, promise::Cancelable, types::ChannelId,
+    Error, PromiseResolver,
+    channel::Reply,
+    internal_rpc::InternalRPCHandle,
+    promise::Cancelable,
+    types::{ChannelId, FrameSize},
 };
 use amq_protocol::{
     frame::AMQPFrame,
@@ -8,9 +12,10 @@ use amq_protocol::{
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
+    ops::Deref,
     sync::{Arc, Mutex, MutexGuard},
 };
-use tracing::{Level, level_enabled, trace};
+use tracing::trace;
 
 pub(crate) struct ExpectedReply(
     pub(crate) Reply,
@@ -31,22 +36,28 @@ impl Frames {
         &self,
         channel_id: ChannelId,
         frame: AMQPFrame,
-        resolver: PromiseResolver<()>,
+        canceler: Box<dyn Cancelable + Send + Sync>,
         expected_reply: Option<ExpectedReply>,
+        resolver: Option<PromiseResolver<()>>,
     ) {
         self.lock_inner()
-            .push(channel_id, frame, resolver, expected_reply);
+            .push(channel_id, frame, canceler, expected_reply, resolver);
     }
 
-    pub(crate) fn push_frames(&self, channel_id: ChannelId, frames: Vec<AMQPFrame>) -> Promise<()> {
-        self.lock_inner().push_frames(channel_id, frames)
+    pub(crate) fn push_frames(
+        &self,
+        channel_id: ChannelId,
+        frames: Vec<AMQPFrame>,
+        resolver: PromiseResolver<()>,
+    ) {
+        self.lock_inner().push_frames(channel_id, frames, resolver);
     }
 
-    pub(crate) fn retry(&self, frame: (AMQPFrame, Option<PromiseResolver<()>>)) {
+    pub(crate) fn retry(&self, frame: FrameEntry) {
         self.lock_inner().retry_frames.push_back(frame);
     }
 
-    pub(crate) fn pop(&self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
+    pub(crate) fn pop(&self, flow: bool) -> Option<FrameEntry> {
         self.lock_inner().pop(flow)
     }
 
@@ -80,8 +91,8 @@ impl Frames {
         self.lock_inner().has_pending()
     }
 
-    pub(crate) fn drop_pending(&self, error: Error) {
-        self.lock_inner().drop_pending(error);
+    pub(crate) fn drop_pending(&self, error: Error, internal_rpc: &InternalRPCHandle) {
+        self.lock_inner().drop_pending(error, internal_rpc);
     }
 
     pub(crate) fn take_expected_replies(
@@ -130,14 +141,87 @@ impl Frames {
     }
 }
 
+pub(crate) struct FrameEntry {
+    frame: AMQPFrame,
+    sending: FrameSending,
+}
+
+impl From<AMQPFrame> for FrameEntry {
+    fn from(frame: AMQPFrame) -> Self {
+        (frame, None).into()
+    }
+}
+
+impl From<(AMQPFrame, Option<PromiseResolver<()>>)> for FrameEntry {
+    fn from(entry: (AMQPFrame, Option<PromiseResolver<()>>)) -> Self {
+        Self::new(entry.0, FrameSending::new(None, entry.1))
+    }
+}
+
+impl Deref for FrameEntry {
+    type Target = AMQPFrame;
+
+    fn deref(&self) -> &Self::Target {
+        &self.frame
+    }
+}
+
+impl FrameEntry {
+    fn new(frame: AMQPFrame, sending: FrameSending) -> Self {
+        Self { frame, sending }
+    }
+
+    fn reject(&self, error: Error) {
+        self.sending.reject(error)
+    }
+
+    pub(crate) fn into_serialized_frame(self, sz: FrameSize) -> (FrameSize, FrameSending) {
+        (sz, self.sending)
+    }
+}
+
+impl fmt::Display for FrameEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.frame.fmt(f)
+    }
+}
+
+pub(crate) struct FrameSending {
+    canceler: Option<Box<dyn Cancelable + Send + Sync>>,
+    resolver: Option<PromiseResolver<()>>,
+}
+
+impl FrameSending {
+    fn new(
+        canceler: Option<Box<dyn Cancelable + Send + Sync>>,
+        resolver: Option<PromiseResolver<()>>,
+    ) -> Self {
+        Self { canceler, resolver }
+    }
+
+    pub(crate) fn reject(&self, error: Error) {
+        if let Some(resolver) = self.resolver.as_ref() {
+            resolver.reject(error);
+        } else if let Some(canceler) = self.canceler.as_ref() {
+            canceler.cancel(error);
+        }
+    }
+
+    pub(crate) fn resolve(&self) {
+        if let Some(resolver) = self.resolver.as_ref() {
+            resolver.resolve(());
+        }
+    }
+}
+
 #[derive(Default)]
 struct Inner {
     /* Header frames must follow basic.publish frames directly, otherwise RabbitMQ-server send us an UNEXPECTED_FRAME */
     /* After sending the Header frame, we need to send the associated Body frames before anything else for the same reason */
-    publish_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
-    retry_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
-    frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
-    low_prio_frames: VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+    publish_frames: VecDeque<FrameEntry>,
+    retry_frames: VecDeque<FrameEntry>,
+    frames: VecDeque<FrameEntry>,
+    low_prio_frames: VecDeque<FrameEntry>,
     expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
     poison: Option<Error>,
     channels_poison: HashMap<ChannelId, Error>,
@@ -158,19 +242,21 @@ impl Inner {
         &mut self,
         channel_id: ChannelId,
         frame: AMQPFrame,
-        resolver: PromiseResolver<()>,
+        canceler: Box<dyn Cancelable + Send + Sync>,
         expected_reply: Option<ExpectedReply>,
+        resolver: Option<PromiseResolver<()>>,
     ) {
+        let sending = FrameSending::new(Some(canceler), resolver);
         if let Some(error) = self.check_poison(channel_id) {
             trace!(channel=%channel_id, frame=?frame, "Discarding frame because of poisoning");
             if let Some(reply) = expected_reply {
                 Self::cancel_expected_reply(reply, error.clone());
             }
-            resolver.reject(error);
+            sending.reject(error);
             return;
         }
 
-        self.frames.push_back((frame, Some(resolver)));
+        self.frames.push_back(FrameEntry::new(frame, sending));
         if let Some(reply) = expected_reply {
             trace!(
                 channel=%channel_id,
@@ -184,29 +270,30 @@ impl Inner {
         }
     }
 
-    fn push_frames(&mut self, channel_id: ChannelId, mut frames: Vec<AMQPFrame>) -> Promise<()> {
-        let (promise, resolver) = Promise::new();
+    fn push_frames(
+        &mut self,
+        channel_id: ChannelId,
+        mut frames: Vec<AMQPFrame>,
+        resolver: PromiseResolver<()>,
+    ) {
         let last_frame = frames.pop();
-
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("Frames".into());
-        }
 
         if let Some(error) = self.check_poison(channel_id) {
             trace!(channel=%channel_id, frames=?frames, "Discarding frames because of poisoning");
             resolver.reject(error);
-            return promise;
+            return;
         }
 
         for frame in frames {
-            self.low_prio_frames.push_back((frame, None));
+            self.low_prio_frames.push_back(frame.into());
         }
+
         if let Some(last_frame) = last_frame {
-            self.low_prio_frames.push_back((last_frame, Some(resolver)));
+            self.low_prio_frames
+                .push_back((last_frame, Some(resolver)).into());
         } else {
             resolver.resolve(());
         }
-        promise
     }
 
     fn check_poison(&self, channel_id: ChannelId) -> Option<Error> {
@@ -216,7 +303,7 @@ impl Inner {
             .cloned()
     }
 
-    fn pop(&mut self, flow: bool) -> Option<(AMQPFrame, Option<PromiseResolver<()>>)> {
+    fn pop(&mut self, flow: bool) -> Option<FrameEntry> {
         if let Some(frame) = self
             .retry_frames
             .pop_front()
@@ -234,11 +321,11 @@ impl Inner {
                 if self
                     .low_prio_frames
                     .front()
-                    .map(|(frame, _)| frame.is_header())
+                    .map(|frame| frame.is_header())
                     .unwrap_or(false)
                 {
                     while let Some(next_frame) = self.low_prio_frames.pop_front() {
-                        match next_frame.0 {
+                        match *next_frame {
                             AMQPFrame::Header(..) | AMQPFrame::Body(..) => {
                                 self.publish_frames.push_back(next_frame);
                             }
@@ -263,27 +350,27 @@ impl Inner {
             && self.low_prio_frames.is_empty())
     }
 
-    fn drop_pending(&mut self, error: Error) {
-        Self::drop_pending_frames(&mut self.retry_frames, error.clone());
-        Self::drop_pending_frames(&mut self.publish_frames, error.clone());
-        Self::drop_pending_frames(&mut self.frames, error.clone());
-        Self::drop_pending_frames(&mut self.low_prio_frames, error.clone());
+    fn drop_pending(&mut self, error: Error, internal_rpc: &InternalRPCHandle) {
+        Self::drop_pending_frames(&mut self.retry_frames, error.clone(), internal_rpc);
+        Self::drop_pending_frames(&mut self.publish_frames, error.clone(), internal_rpc);
+        Self::drop_pending_frames(&mut self.frames, error.clone(), internal_rpc);
+        Self::drop_pending_frames(&mut self.low_prio_frames, error.clone(), internal_rpc);
         self.clear_all_expected_replies(error.clone());
         self.poison = Some(error);
     }
 
     fn drop_pending_frames(
-        frames: &mut VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+        frames: &mut VecDeque<FrameEntry>,
         error: Error,
+        internal_rpc: &InternalRPCHandle,
     ) {
-        for (frame, resolver) in std::mem::take(frames) {
-            if let Some(resolver) = resolver {
-                match frame {
-                    AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Cancel(_))) => {
-                        resolver.resolve(())
-                    }
-                    _ => resolver.reject(error.clone()),
+        for frame in std::mem::take(frames) {
+            match frame.frame {
+                AMQPFrame::Method(channel_id, AMQPClass::Basic(AMQPMethod::Cancel(cancel))) => {
+                    internal_rpc.deregister_consumer(channel_id, cancel.consumer_tag);
+                    frame.sending.resolve();
                 }
+                _ => frame.reject(error.clone()),
             }
         }
     }
@@ -297,14 +384,12 @@ impl Inner {
 
     fn drop_pending_frames_for_channel(
         channel_id: ChannelId,
-        frames: &mut VecDeque<(AMQPFrame, Option<PromiseResolver<()>>)>,
+        frames: &mut VecDeque<FrameEntry>,
         error: Error,
     ) {
-        frames.retain(|(f, r)| {
-            if f.channel_id() == channel_id {
-                if let Some(r) = r {
-                    r.reject(error.clone());
-                }
+        frames.retain(|frame| {
+            if frame.channel_id() == channel_id {
+                frame.reject(error.clone());
                 false
             } else {
                 true

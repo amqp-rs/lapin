@@ -10,7 +10,7 @@ use crate::{
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
-    types::{ChannelId, DeliveryTag, Identifier, ReplyCode},
+    types::{ChannelId, DeliveryTag, Identifier, ReplyCode, ShortString},
 };
 use amq_protocol::frame::AMQPFrame;
 use async_rs::{Runtime, traits::*};
@@ -150,6 +150,13 @@ impl InternalRPCHandle {
         promise.await
     }
 
+    pub(crate) fn deregister_consumer(&self, channel_id: ChannelId, consumer_tag: ShortString) {
+        self.send(InternalCommand::DeregisterConsumer(
+            channel_id,
+            consumer_tag,
+        ));
+    }
+
     pub(crate) fn finish_connection_shutdown(&self) {
         self.send(InternalCommand::FinishConnectionShutdown);
     }
@@ -279,6 +286,7 @@ enum InternalCommand {
         Option<PromiseResolver<()>>,
     ),
     CreateChannel(Arc<ConnectionCloser>, PromiseResolver<Channel>),
+    DeregisterConsumer(ChannelId, ShortString),
     FinishConnectionShutdown,
     InitConnectionRecovery(Error),
     InitConnectionShutdown(Error, Option<PromiseResolver<Connection>>),
@@ -456,6 +464,11 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     ),
                     Err(err) => resolver.reject(err),
                 },
+                DeregisterConsumer(channel_id, consumer_tag) => {
+                    if let Ok(channel) = get_channel(channel_id) {
+                        channel.deregister_consumer(consumer_tag.as_str());
+                    }
+                }
                 FinishConnectionShutdown => channels.finish_connection_shutdown(),
                 InitConnectionRecovery(error) => {
                     self.heartbeat.reset();
@@ -483,9 +496,12 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     if level_enabled!(Level::TRACE) {
                         promise.set_marker("Heartbeat".into());
                     }
-                    channels
-                        .channel0()
-                        .send_frame(AMQPFrame::Heartbeat, resolver, None);
+                    channels.channel0().send_frame(
+                        AMQPFrame::Heartbeat,
+                        Box::new(resolver.clone()),
+                        None,
+                        Some(resolver),
+                    );
                     self.register_internal_future(promise);
                 }
                 SetChannelStatus(channel_id, killswitch) => {
