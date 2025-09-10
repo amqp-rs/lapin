@@ -47,7 +47,10 @@ impl PublisherConfirm {
 
     pub(crate) fn not_requested(returned_messages: ReturnedMessages) -> Self {
         Self {
-            inner: Some(Promise::new_with_data(Ok(Confirmation::NotRequested))),
+            inner: Some(Promise::new_with_data(
+                "publisher-confirms.not-requested",
+                Ok(Confirmation::NotRequested),
+            )),
             returned_messages,
         }
     }

@@ -121,14 +121,10 @@ impl Channel {
       {{/each_argument ~}}
     }));
 
-    let (promise, resolver) = Promise::new();
-    if level_enabled!(Level::TRACE) {
-      promise.set_marker("{{class.name}}.{{method.name}}".into());
-    }
     {{#if method.metadata.carry_headers ~}}
-    let send_res = self.send_method_frame_with_body(method, payload, properties, start_hook_res, resolver);
-    promise.await.and(send_res)
+    self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties, start_hook_res).await
     {{else}}
+    let (promise, resolver) = Promise::new("{{class.name}}.{{method.name}}");
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     {{#if method.metadata.send_hook ~}}
     self.before_{{snake class.name false}}_{{snake method.name false}}({{#if method.metadata.send_hook.params ~}}{{#each method.metadata.send_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});

@@ -4,10 +4,9 @@ use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::{Arc, RwLock},
     task::{Context, Poll},
 };
-use tracing::{trace, warn};
+use tracing::{Level, level_enabled, trace, warn};
 
 #[must_use = "Promise should be used or you can miss errors"]
 pub(crate) struct Promise<T: 'static> {
@@ -32,11 +31,15 @@ impl<T: 'static> Drop for Promise<T> {
 }
 
 impl<T: Send + 'static> Promise<T> {
-    pub(crate) fn new() -> (Self, PromiseResolver<T>) {
+    pub(crate) fn new(marker: &str) -> (Self, PromiseResolver<T>) {
         let (send, recv) = flume::unbounded();
         let resolver = PromiseResolver {
             send,
-            marker: Default::default(),
+            marker: if level_enabled!(Level::TRACE) {
+                Some(marker.into())
+            } else {
+                None
+            },
         };
         let recv_fut = recv.clone().into_recv_async();
         let promise = Self {
@@ -48,14 +51,10 @@ impl<T: Send + 'static> Promise<T> {
         (promise, resolver)
     }
 
-    pub(crate) fn new_with_data(data: Result<T>) -> Self {
-        let (promise, resolver) = Self::new();
+    pub(crate) fn new_with_data(marker: &str, data: Result<T>) -> Self {
+        let (promise, resolver) = Self::new(marker);
         resolver.complete(data);
         promise
-    }
-
-    pub(crate) fn set_marker(&self, marker: String) {
-        self.resolver.set_marker(marker)
     }
 
     pub(crate) fn try_wait(&self) -> Option<Result<T>> {
@@ -80,7 +79,7 @@ pub trait Cancelable {
 
 pub(crate) struct PromiseResolver<T> {
     send: Sender<Result<T>>,
-    marker: Arc<RwLock<Option<String>>>,
+    marker: Option<String>,
 }
 
 impl<T> fmt::Debug for PromiseResolver<T> {
@@ -121,14 +120,8 @@ impl<T> PromiseResolver<T> {
         }
     }
 
-    fn set_marker(&self, marker: String) {
-        *self.marker.write().unwrap_or_else(|e| e.into_inner()) = Some(marker);
-    }
-
     fn marker(&self) -> String {
         self.marker
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map_or(String::default(), |marker| format!("[{marker}] "))
     }

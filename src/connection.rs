@@ -21,7 +21,7 @@ use async_rs::{Runtime, traits::*};
 use async_trait::async_trait;
 use futures_core::Stream;
 use std::{fmt, io, sync::Arc};
-use tracing::{Level, level_enabled, trace};
+use tracing::trace;
 
 /// A TCP connection to the AMQP server.
 ///
@@ -244,10 +244,7 @@ impl Connection {
         uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let (promise, resolver) = Promise::new();
-        if level_enabled!(Level::TRACE) {
-            promise.set_marker("ProtocolHeader".into());
-        }
+        let (promise, resolver) = Promise::new("ProtocolHeader");
 
         trace!("Set connection as connecting");
         self.status.clone().set_connecting(

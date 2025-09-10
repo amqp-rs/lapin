@@ -36,7 +36,7 @@ impl Acker {
     }
 
     pub async fn ack(&self, options: BasicAckOptions) -> Result<bool> {
-        self.rpc(|internal_rpc, resolver| {
+        self.rpc("basic.ack", |internal_rpc, resolver| {
             internal_rpc.basic_ack(
                 self.channel_id,
                 self.delivery_tag,
@@ -49,7 +49,7 @@ impl Acker {
     }
 
     pub async fn nack(&self, options: BasicNackOptions) -> Result<bool> {
-        self.rpc(|internal_rpc, resolver| {
+        self.rpc("basic.nack", |internal_rpc, resolver| {
             internal_rpc.basic_nack(
                 self.channel_id,
                 self.delivery_tag,
@@ -62,7 +62,7 @@ impl Acker {
     }
 
     pub async fn reject(&self, options: BasicRejectOptions) -> Result<bool> {
-        self.rpc(|internal_rpc, resolver| {
+        self.rpc("basic.reject", |internal_rpc, resolver| {
             internal_rpc.basic_reject(
                 self.channel_id,
                 self.delivery_tag,
@@ -74,7 +74,11 @@ impl Acker {
         .await
     }
 
-    async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(&self, f: F) -> Result<bool> {
+    async fn rpc<F: Fn(&InternalRPCHandle, PromiseResolver<()>)>(
+        &self,
+        marker: &str,
+        f: F,
+    ) -> Result<bool> {
         if self.poisoned() || !self.killswitch.kill() {
             return Ok(false);
         }
@@ -82,7 +86,7 @@ impl Acker {
             error.check()?;
         }
         if let Some(internal_rpc) = self.internal_rpc.as_ref() {
-            let (promise, resolver) = Promise::new();
+            let (promise, resolver) = Promise::new(marker);
             f(internal_rpc, resolver);
             promise.await?;
         }

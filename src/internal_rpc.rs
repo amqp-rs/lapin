@@ -16,7 +16,7 @@ use amq_protocol::frame::AMQPFrame;
 use async_rs::{Runtime, traits::*};
 use flume::{Receiver, Sender};
 use std::{collections::HashMap, fmt, future::Future, sync::Arc, time::Duration};
-use tracing::{Level, debug, level_enabled, trace};
+use tracing::{debug, trace};
 
 pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
     rpc: Receiver<Option<InternalCommand>>,
@@ -130,7 +130,7 @@ impl InternalRPCHandle {
         method_id: Identifier,
     ) -> Result<()> {
         self.set_connection_closing();
-        let (promise, resolver) = Promise::new();
+        let (promise, resolver) = Promise::new("connection.close");
         self.send(InternalCommand::CloseConnection(
             reply_code,
             reply_text,
@@ -145,7 +145,7 @@ impl InternalRPCHandle {
         &self,
         connection_closer: Arc<ConnectionCloser>,
     ) -> Result<Channel> {
-        let (promise, resolver) = Promise::new();
+        let (promise, resolver) = Promise::new("channel.create");
         self.send(InternalCommand::CreateChannel(connection_closer, resolver));
         promise.await
     }
@@ -225,7 +225,7 @@ impl InternalRPCHandle {
     }
 
     pub(crate) async fn update_secret(&self, secret: String, reason: String) -> Result<()> {
-        let (promise, resolver) = Promise::new();
+        let (promise, resolver) = Promise::new("connection.update-secret");
         self.send(InternalCommand::UpdateSecret(secret, reason, resolver));
         promise.await
     }
@@ -492,10 +492,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 }
                 SendHeartbeat => {
                     debug!("send heartbeat");
-                    let (promise, resolver) = Promise::new();
-                    if level_enabled!(Level::TRACE) {
-                        promise.set_marker("Heartbeat".into());
-                    }
+                    let (promise, resolver) = Promise::new("Heartbeat");
                     channels.channel0().send_frame(
                         AMQPFrame::Heartbeat,
                         Box::new(resolver.clone()),

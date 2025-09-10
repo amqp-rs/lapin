@@ -27,7 +27,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
 use std::{convert::TryFrom, fmt, sync::Arc};
-use tracing::{Level, error, info, level_enabled, trace};
+use tracing::{error, info, trace};
 
 /// Main entry point for most AMQP operations.
 ///
@@ -431,13 +431,13 @@ impl Channel {
         self.wake();
     }
 
-    fn send_method_frame_with_body(
+    async fn send_method_frame_with_body(
         &self,
+        ctx: &'static str,
         method: AMQPClass,
         payload: &[u8],
         properties: BasicProperties,
         publisher_confirms_result: Option<PublisherConfirm>,
-        resolver: PromiseResolver<()>,
     ) -> Result<PublisherConfirm> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
@@ -458,8 +458,10 @@ impl Channel {
         );
 
         trace!(channel=%self.id, "send_frames");
+        let (promise, resolver) = Promise::new(ctx);
         self.frames.push_frames(self.id, frames, resolver);
         self.wake();
+        promise.await?;
         Ok(publisher_confirms_result
             .unwrap_or_else(|| PublisherConfirm::not_requested(self.returned_messages.clone())))
     }

@@ -108,8 +108,8 @@ impl Inner {
     fn register_pending(&mut self) -> PublisherConfirm {
         let delivery_tag = self.delivery_tag.next();
         trace!("Publishing with delivery_tag {}", delivery_tag);
-        let (promise, resolver) = Promise::new();
-        let (err_promise, err_resolver) = Promise::new();
+        let (promise, resolver) = Promise::new("acknowledgement");
+        let (err_promise, err_resolver) = Promise::new("acknowledgement-error");
         let promise = PublisherConfirm::new(promise, self.returned_messages.clone());
         self.last = Some(err_promise);
         self.pending.insert(delivery_tag, (resolver, err_resolver));
