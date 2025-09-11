@@ -1,85 +1,80 @@
 use crate::{Error, Result};
-use flume::{Receiver, Sender, r#async::RecvFut};
 use std::{
     fmt,
     future::Future,
     pin::Pin,
-    task::{Context, Poll},
+    sync::{Arc, Mutex, MutexGuard},
+    task::{Context, Poll, Waker},
 };
-use tracing::{Level, level_enabled, trace, warn};
+use tracing::{Level, level_enabled, trace};
 
 #[must_use = "Promise should be used or you can miss errors"]
-pub(crate) struct Promise<T: 'static> {
-    recv: Receiver<Result<T>>,
-    recv_fut: RecvFut<'static, Result<T>>,
-    resolver: PromiseResolver<T>,
+pub(crate) struct Promise<T> {
+    shared: Arc<Mutex<Shared<T>>>,
 }
 
-impl<T: 'static> fmt::Debug for Promise<T> {
+impl<T> fmt::Debug for Promise<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Promise")
     }
 }
 
-impl<T: 'static> Drop for Promise<T> {
+impl<T> Drop for Promise<T> {
     fn drop(&mut self) {
         trace!(
-            promise = %self.resolver.marker(),
+            promise = %self.shared().marker(),
             "Dropping promise.",
         );
     }
 }
 
-impl<T: Send + 'static> Promise<T> {
+impl<T> Promise<T> {
     pub(crate) fn new(marker: &str) -> (Self, PromiseResolver<T>) {
-        let (send, recv) = flume::unbounded();
-        let resolver = PromiseResolver {
-            send,
-            marker: if level_enabled!(Level::TRACE) {
-                Some(marker.into())
-            } else {
-                None
-            },
-        };
-        let recv_fut = recv.clone().into_recv_async();
         let promise = Self {
-            recv,
-            recv_fut,
-            resolver,
+            shared: Shared::new(None, marker),
         };
-        let resolver = promise.resolver.clone();
+        let resolver = promise.resolver();
         (promise, resolver)
     }
 
     pub(crate) fn new_with_data(marker: &str, data: Result<T>) -> Self {
-        let (promise, resolver) = Self::new(marker);
-        resolver.complete(data);
-        promise
+        Self {
+            shared: Shared::new(Some(data), marker),
+        }
     }
 
     pub(crate) fn try_wait(&self) -> Option<Result<T>> {
-        self.recv.try_recv().ok()
+        self.shared().take()
+    }
+
+    fn resolver(&self) -> PromiseResolver<T> {
+        PromiseResolver {
+            shared: self.shared.clone(),
+        }
+    }
+
+    fn shared(&self) -> MutexGuard<'_, Shared<T>> {
+        self.shared.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
-impl<T: Send + 'static> Future for Promise<T> {
+impl<T> Future for Promise<T> {
     type Output = Result<T>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Since we always hold a ref to sender, we can safely unwrap here
-        Pin::new(&mut self.recv_fut)
-            .poll(cx)
-            .map(std::result::Result::unwrap)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut shared = self.shared();
+        match shared.take() {
+            Some(data) => Poll::Ready(data),
+            None => {
+                shared.register(cx.waker());
+                Poll::Pending
+            }
+        }
     }
-}
-
-pub trait Cancelable {
-    fn cancel(&self, err: Error);
 }
 
 pub(crate) struct PromiseResolver<T> {
-    send: Sender<Result<T>>,
-    marker: Option<String>,
+    shared: Arc<Mutex<Shared<T>>>,
 }
 
 impl<T> fmt::Debug for PromiseResolver<T> {
@@ -91,8 +86,7 @@ impl<T> fmt::Debug for PromiseResolver<T> {
 impl<T> Clone for PromiseResolver<T> {
     fn clone(&self) -> Self {
         Self {
-            send: self.send.clone(),
-            marker: self.marker.clone(),
+            shared: self.shared.clone(),
         }
     }
 }
@@ -107,28 +101,73 @@ impl<T> PromiseResolver<T> {
     }
 
     pub(crate) fn complete(&self, res: Result<T>) {
+        let mut shared = self.shared();
         trace!(
-            promise = %self.marker(),
+            promise = %shared.marker(),
             "Resolving promise.",
         );
-        if let Err(err) = self.send.send(res) {
-            warn!(
-                promise = %self.marker(),
-                error = %err,
-                "Failed resolving promise, promise has vanished.",
-            );
+        shared.set(res)
+    }
+
+    fn shared(&self) -> MutexGuard<'_, Shared<T>> {
+        self.shared.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+pub trait Cancelable {
+    fn cancel(&self, err: Error);
+}
+
+impl<T> Cancelable for PromiseResolver<T> {
+    fn cancel(&self, err: Error) {
+        self.reject(err)
+    }
+}
+
+struct Shared<T> {
+    data: Option<Result<T>>,
+    marker: Option<String>,
+    wakers: Vec<Waker>,
+}
+
+impl<T> Shared<T> {
+    fn new(data: Option<Result<T>>, marker: &str) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self {
+            data,
+            marker: if level_enabled!(Level::TRACE) {
+                Some(marker.into())
+            } else {
+                None
+            },
+            wakers: Vec::new(),
+        }))
+    }
+
+    fn set(&mut self, data: Result<T>) {
+        if self.data.is_none() {
+            self.data = Some(data);
+            for w in self.wakers.drain(..) {
+                w.wake();
+            }
         }
+    }
+
+    fn take(&mut self) -> Option<Result<T>> {
+        self.data.take()
+    }
+
+    fn register(&mut self, waker: &Waker) {
+        for w in self.wakers.iter() {
+            if w.will_wake(waker) {
+                return;
+            }
+        }
+        self.wakers.push(waker.clone());
     }
 
     fn marker(&self) -> String {
         self.marker
             .as_ref()
             .map_or(String::default(), |marker| format!("[{marker}] "))
-    }
-}
-
-impl<T> Cancelable for PromiseResolver<T> {
-    fn cancel(&self, err: Error) {
-        self.reject(err)
     }
 }
