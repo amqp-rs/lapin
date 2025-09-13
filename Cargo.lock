@@ -39,9 +39,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.0.0-beta.7"
+version = "10.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d306081d93969ccc812f13ffd298d435d61f459042537b31228b6d2a76d97af"
+checksum = "e445667167e06121d374f7838cba00d65b29730895186e3a9c0bb8a442335faa"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.0.0-beta.7"
+version = "10.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "461b8e14b4f5fab5c79485f1f04afc010b80fa560276dac9d24bdd86026f14ec"
+checksum = "daa7fa638c51b282c2f535a81833d068930749d5e56b4646f1386d8427b23986"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -66,9 +66,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.0.0-beta.7"
+version = "10.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e5c7ce543b4bba320b7335fdb3e842a390b06d8bda977cdb09f07b17db41868"
+checksum = "3afb19c5bdf7be133ecc16bbab6bbc18c74208e6dcf23ff0e18a9c755c0b5531"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -79,9 +79,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.0.0-beta.7"
+version = "10.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c56e0c445fd06603a77c23e4a2640ae7b820513bddc323a30121a73a0013bbb"
+checksum = "4d9511159c380a5e72a3971baeff7497e1a1f0954ef49237239fee04d86f183b"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -91,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.0.0-beta.7"
+version = "10.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c027c2f709f6f027e0fd57ad9d7d3e6403cef8b789d195148a72377a088c83c1"
+checksum = "b3c8a858b7169690271557e3278154447800d7773a602e46afd53f057671fb89"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -287,9 +287,9 @@ dependencies = [
 
 [[package]]
 name = "async-rs"
-version = "0.7.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aab1b1faee31d4d4fc13f259842c2327467e2efc376611abfc5fd65373a6bd0c"
+checksum = "cc222a468bdc5ebbe7ce4c595e16d433d531b3b8eda094b2ace18d9fd02fcaa3"
 dependencies = [
  "async-compat",
  "async-global-executor",
@@ -2421,9 +2421,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.33.1"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e5a7d30f24fa0fc577100d4e454d4df1d97b4ffc3f32077272a9ea1e4c62d05"
+checksum = "1845ea23c5b8a645f0ecf6c32e2ae6b3e4da066b2caf0b23144428255c5a26cf"
 dependencies = [
  "async-native-tls",
  "async-openssl",

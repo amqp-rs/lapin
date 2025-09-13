@@ -197,7 +197,15 @@ impl<
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let connect = || (self.connect)(self.uri.clone(), self.runtime.clone());
-                    let connect = connect.retry(self.backoff).sleep(RuntimeSleeper(self.runtime.clone()));
+                    let connect = connect.retry(self.backoff).sleep({
+                        let runtime = self.runtime.clone();
+                        move |dur| {
+                            let runtime = runtime.clone();
+                            async move {
+                                runtime.sleep(dur).await;
+                            }
+                        }
+                    });
                     let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
@@ -572,15 +580,5 @@ impl<
                 Ok(None)
             }
         }
-    }
-}
-
-struct RuntimeSleeper<RK: RuntimeKit + Clone + Send + 'static>(Runtime<RK>);
-
-impl<RK: RuntimeKit + Clone + Send + 'static> backon::Sleeper for RuntimeSleeper<RK> {
-    type Sleep = Pin<Box<dyn Future<Output = ()> + Send + 'static>>; // FIXME
-
-    fn sleep(&self, dur: Duration) -> Self::Sleep {
-        Box::pin(self.0.sleep(dur))
     }
 }

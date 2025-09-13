@@ -39,7 +39,7 @@ rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but do
 rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
 
 [build-dependencies.amq-protocol-codegen]
-version = "^10.0.0-beta.7"
+version = "^10.0.0-rc.1"
 optional = true
 
 [build-dependencies.serde_json]
@@ -53,11 +53,11 @@ futures-core = "^0.3"
 futures-io = "^0.3"
 
 [dependencies.amq-protocol]
-version = "^10.0.0-beta.7"
+version = "^10.0.0-rc.1"
 default-features = false
 
 [dependencies.async-rs]
-version = "^0.7"
+version = "^0.8"
 default-features = false
 
 [dependencies.backon]
