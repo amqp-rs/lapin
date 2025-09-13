@@ -14,6 +14,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use async_rs::{Runtime, traits::*};
+use backon::{ExponentialBuilder, Retryable};
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
@@ -52,6 +53,7 @@ pub struct IoLoop<
     runtime: Runtime<RK>,
     connect: C,
     uri: AMQPUri,
+    backoff: ExponentialBuilder,
     status: Status,
     frame_size: FrameSize,
     receive_buffer: Buffer,
@@ -79,6 +81,7 @@ impl<
         runtime: Runtime<RK>,
         connect: C,
         uri: AMQPUri,
+        backoff: ExponentialBuilder,
     ) -> Self {
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE,
@@ -96,6 +99,7 @@ impl<
             runtime,
             connect,
             uri,
+            backoff,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
@@ -192,7 +196,8 @@ impl<
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
-                    let connect = (self.connect)(self.uri.clone(), self.runtime.clone());
+                    let connect = || (self.connect)(self.uri.clone(), self.runtime.clone());
+                    let connect = connect.retry(self.backoff).sleep(RuntimeSleeper(self.runtime.clone()));
                     let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
@@ -567,5 +572,15 @@ impl<
                 Ok(None)
             }
         }
+    }
+}
+
+struct RuntimeSleeper<RK: RuntimeKit + Clone + Send + 'static>(Runtime<RK>);
+
+impl<RK: RuntimeKit + Clone + Send + 'static> backon::Sleeper for RuntimeSleeper<RK> {
+    type Sleep = Pin<Box<dyn Future<Output = ()> + Send + 'static>>; // FIXME
+
+    fn sleep(&self, dur: Duration) -> Self::Sleep {
+        Box::pin(self.0.sleep(dur))
     }
 }

@@ -3,6 +3,7 @@ use crate::{
     recovery_config::RecoveryConfig,
     types::{AMQPValue, FieldTable, LongString, ShortString},
 };
+use backon::ExponentialBuilder;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -11,6 +12,7 @@ pub struct ConnectionProperties {
     pub(crate) client_properties: FieldTable,
     pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
     pub(crate) recovery_config: Option<RecoveryConfig>,
+    pub(crate) backoff: Option<ExponentialBuilder>,
 }
 
 impl Default for ConnectionProperties {
@@ -20,6 +22,7 @@ impl Default for ConnectionProperties {
             client_properties: FieldTable::default(),
             auth_provider: None,
             recovery_config: None,
+            backoff: None,
         }
     }
 }
@@ -54,5 +57,17 @@ impl ConnectionProperties {
     pub fn with_recovery_config(mut self, config: RecoveryConfig) -> Self {
         self.recovery_config = Some(config);
         self
+    }
+
+    #[must_use]
+    pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
+        self.backoff = Some(backoff);
+        self
+    }
+
+    pub(crate) fn backoff(&self) -> ExponentialBuilder {
+        self.backoff.unwrap_or_else(|| {
+            ExponentialBuilder::default().with_max_times(0 /* no retry by default */)
+        })
     }
 }
