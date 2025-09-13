@@ -4,6 +4,7 @@ use crate::{
     recovery_config::RecoveryConfig,
     types::{AMQPValue, FieldTable, LongString},
 };
+use backon::ExponentialBuilder;
 use executor_trait::FullExecutor;
 use std::sync::Arc;
 
@@ -14,6 +15,7 @@ pub struct ConnectionProperties {
     pub executor: Option<Arc<dyn FullExecutor + Send + Sync>>,
     pub reactor: Option<Arc<dyn FullReactor + Send + Sync>>,
     pub recovery_config: Option<RecoveryConfig>,
+    pub backoff: Option<ExponentialBuilder>,
 }
 
 impl Default for ConnectionProperties {
@@ -24,6 +26,7 @@ impl Default for ConnectionProperties {
             executor: None,
             reactor: None,
             recovery_config: None,
+            backoff: None,
         }
     }
 }
@@ -57,6 +60,12 @@ impl ConnectionProperties {
         self
     }
 
+    #[must_use]
+    pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
+        self.backoff = Some(backoff);
+        self
+    }
+
     pub(crate) fn executor(&self) -> Result<Arc<dyn FullExecutor + Send + Sync>> {
         if let Some(executor) = self.executor.clone() {
             return Ok(executor);
@@ -83,5 +92,11 @@ impl ConnectionProperties {
 
         #[allow(unreachable_code)]
         Err(ErrorKind::NoConfiguredReactor.into())
+    }
+
+    pub(crate) fn backoff(&self) -> ExponentialBuilder {
+        self.backoff.unwrap_or_else(|| {
+            ExponentialBuilder::default().with_max_times(0 /* no retry by default */)
+        })
     }
 }

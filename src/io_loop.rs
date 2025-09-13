@@ -16,6 +16,7 @@ use crate::{
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
+use backon::{BlockingRetryableWithContext, ExponentialBuilder};
 use futures_io::{AsyncRead, AsyncWrite};
 use reactor_trait::IOHandle;
 use std::{
@@ -46,6 +47,7 @@ pub struct IoLoop {
     heartbeat: Heartbeat,
     socket_state: SocketState,
     connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+    backoff: ExponentialBuilder,
     uri: AMQPUri,
     status: Status,
     frame_size: FrameSize,
@@ -55,6 +57,7 @@ pub struct IoLoop {
 }
 
 impl IoLoop {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
         configuration: Configuration,
@@ -63,6 +66,7 @@ impl IoLoop {
         frames: Frames,
         socket_state: SocketState,
         connect: Arc<dyn Fn(&AMQPUri) -> HandshakeResult + Send + Sync>,
+        backoff: ExponentialBuilder,
         uri: AMQPUri,
         heartbeat: Heartbeat,
     ) -> Self {
@@ -80,6 +84,7 @@ impl IoLoop {
             heartbeat,
             socket_state,
             connect,
+            backoff,
             uri,
             status: Status::Initial,
             frame_size,
@@ -565,7 +570,15 @@ impl IoLoop {
         }
     }
 
-    pub(crate) fn tcp_connect(&self) -> Result<TcpStream> {
+    fn tcp_connect(&self) -> Result<TcpStream> {
+        connection_attempt
+            .retry(self.backoff)
+            .context(self)
+            .call()
+            .1
+    }
+
+    fn tcp_connect_attempt(&self) -> Result<TcpStream> {
         let mut res = (self.connect)(&self.uri);
         loop {
             match res {
@@ -578,4 +591,9 @@ impl IoLoop {
             }
         }
     }
+}
+
+fn connection_attempt(io_loop: &IoLoop) -> (&IoLoop, Result<TcpStream>) {
+    let res = io_loop.tcp_connect_attempt();
+    (io_loop, res)
 }
