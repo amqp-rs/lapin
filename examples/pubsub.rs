@@ -47,17 +47,18 @@ async fn main() -> Result<()> {
             FieldTable::default(),
         )
         .await?;
-    runtime.spawn(async move {
+    let cons = runtime.spawn(async move {
         info!("will consume");
         while let Some(delivery) = consumer.next().await {
-            let delivery = delivery.expect("error in consumer");
-            delivery.ack(BasicAckOptions::default()).await.expect("ack");
+            let delivery = delivery?;
+            delivery.ack(BasicAckOptions::default()).await?;
         }
+        Ok(())
     });
 
     let payload = b"Hello world!";
 
-    loop {
+    for _ in 0..1500000 {
         let confirm = channel_a
             .basic_publish(
                 "",
@@ -70,4 +71,10 @@ async fn main() -> Result<()> {
             .await?;
         assert_eq!(confirm, Confirmation::NotRequested);
     }
+
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    channel_b
+        .basic_cancel("my_consumer", BasicCancelOptions::default())
+        .await?;
+    cons.await
 }
