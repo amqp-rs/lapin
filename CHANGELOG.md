@@ -1,3 +1,9 @@
+### 3.5.0 (2025-09-13)
+
+#### Features
+
+* Allow configuring exponential backoff for retrying TCP connection (using the backon crate)
+
 ### 3.4.0 (2025-09-02)
 
 #### Bug Fixes
