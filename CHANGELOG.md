@@ -15,6 +15,12 @@
 - Switched our async runtimes integration from `executor-trait` and `reactor-trait` to `async-rs`
 - Update amq-protocol to 10.0
 
+### 3.6.0 (2025-09-15)
+
+#### Features
+
+* Allow configuring the backoff for TCP connection more easily
+
 ### 3.5.0 (2025-09-13)
 
 #### Features

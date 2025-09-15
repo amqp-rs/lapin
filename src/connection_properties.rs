@@ -12,7 +12,7 @@ pub struct ConnectionProperties {
     pub(crate) client_properties: FieldTable,
     pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
     pub(crate) recovery_config: Option<RecoveryConfig>,
-    pub(crate) backoff: Option<ExponentialBuilder>,
+    pub(crate) backoff: ExponentialBuilder,
 }
 
 impl Default for ConnectionProperties {
@@ -22,7 +22,7 @@ impl Default for ConnectionProperties {
             client_properties: FieldTable::default(),
             auth_provider: None,
             recovery_config: None,
-            backoff: None,
+            backoff: ExponentialBuilder::default().with_max_times(0 /* no retry by default */),
         }
     }
 }
@@ -61,13 +61,13 @@ impl ConnectionProperties {
 
     #[must_use]
     pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
-        self.backoff = Some(backoff);
+        self.backoff = backoff;
         self
     }
 
-    pub(crate) fn backoff(&self) -> ExponentialBuilder {
-        self.backoff.unwrap_or_else(|| {
-            ExponentialBuilder::default().with_max_times(0 /* no retry by default */)
-        })
+    #[must_use]
+    pub fn configure_backoff(mut self, conf: impl Fn(&mut ExponentialBuilder)) -> Self {
+        conf(&mut self.backoff);
+        self
     }
 }

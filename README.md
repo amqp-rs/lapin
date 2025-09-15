@@ -67,7 +67,9 @@ To enable this, you need to enable the `unstable` feature for lapin, and add it 
 
 ```rust
 let recovery_config = RecoveryConfig::full();
-let properties = ConnectionProperties::default().with_recovery_config(recovery_config);
+let properties = ConnectionProperties::default().with_recovery_config(recovery_config).config_backoff(|backoff| {
+    backoff.with_max_times(3); // It is recommended to configure at least this when enabling recovery to also retry the TCP connection when it fails.
+});
 // connect using properties.
 ```
 

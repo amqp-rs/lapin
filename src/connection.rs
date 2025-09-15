@@ -231,7 +231,7 @@ impl Connection {
             runtime,
             connect,
             uri.clone(),
-            options.backoff(),
+            options.backoff,
         );
 
         internal_rpc.start(channels);
