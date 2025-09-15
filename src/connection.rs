@@ -230,7 +230,7 @@ impl Connection {
             frames,
             socket_state,
             connect.into(),
-            options.backoff(),
+            options.backoff,
             uri.clone(),
             heartbeat,
         );

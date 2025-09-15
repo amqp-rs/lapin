@@ -15,7 +15,7 @@ pub struct ConnectionProperties {
     pub executor: Option<Arc<dyn FullExecutor + Send + Sync>>,
     pub reactor: Option<Arc<dyn FullReactor + Send + Sync>>,
     pub recovery_config: Option<RecoveryConfig>,
-    pub backoff: Option<ExponentialBuilder>,
+    pub backoff: ExponentialBuilder,
 }
 
 impl Default for ConnectionProperties {
@@ -26,7 +26,7 @@ impl Default for ConnectionProperties {
             executor: None,
             reactor: None,
             recovery_config: None,
-            backoff: None,
+            backoff: ExponentialBuilder::default().with_max_times(0 /* no retry by default */),
         }
     }
 }
@@ -62,7 +62,13 @@ impl ConnectionProperties {
 
     #[must_use]
     pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
-        self.backoff = Some(backoff);
+        self.backoff = backoff;
+        self
+    }
+
+    #[must_use]
+    pub fn configure_backoff(mut self, conf: impl Fn(&mut ExponentialBuilder)) -> Self {
+        conf(&mut self.backoff);
         self
     }
 
@@ -92,11 +98,5 @@ impl ConnectionProperties {
 
         #[allow(unreachable_code)]
         Err(ErrorKind::NoConfiguredReactor.into())
-    }
-
-    pub(crate) fn backoff(&self) -> ExponentialBuilder {
-        self.backoff.unwrap_or_else(|| {
-            ExponentialBuilder::default().with_max_times(0 /* no retry by default */)
-        })
     }
 }
