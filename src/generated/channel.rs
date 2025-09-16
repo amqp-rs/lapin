@@ -340,19 +340,17 @@ impl Channel {
         }
 
         let BasicQosOptions { global } = options;
+        let (promise, resolver) = Promise::new("basic.qos");
+        let reply = Reply::BasicQosOk(resolver.clone());
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
             prefetch_count,
             global,
         }));
 
-        let (promise, resolver) = Promise::new("basic.qos");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::BasicQosOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -383,8 +381,8 @@ impl Channel {
     }
     async fn do_basic_consume(
         &self,
-        queue: &str,
-        consumer_tag: &str,
+        queue: ShortString,
+        consumer_tag: ShortString,
         options: BasicConsumeOptions,
         arguments: FieldTable,
         original: Option<Consumer>,
@@ -400,10 +398,22 @@ impl Channel {
             exclusive,
             nowait,
         } = options;
+        let (promise, resolver) = Promise::new("basic.consume");
+        let reply = Reply::BasicConsumeOk(
+            resolver.clone(),
+            self.channel_closer.clone(),
+            queue.clone(),
+            options,
+            creation_arguments,
+            original,
+        );
+        let nowait_reply = nowait.then(|| protocol::basic::ConsumeOk {
+            consumer_tag: consumer_tag.clone(),
+        });
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Consume(
             protocol::basic::Consume {
-                queue: queue.into(),
-                consumer_tag: consumer_tag.into(),
+                queue,
+                consumer_tag,
                 no_local,
                 no_ack,
                 exclusive,
@@ -412,27 +422,14 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("basic.consume");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::BasicConsumeOk(
-                    resolver.clone(),
-                    self.channel_closer.clone(),
-                    queue.into(),
-                    options,
-                    creation_arguments,
-                    original,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_basic_consume_ok(protocol::basic::ConsumeOk {
-                consumer_tag: consumer_tag.into(),
-            })?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_basic_consume_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -472,36 +469,35 @@ impl Channel {
     }
     pub async fn basic_cancel(
         &self,
-        consumer_tag: &str,
+        consumer_tag: ShortString,
         options: BasicCancelOptions,
     ) -> Result<()> {
         if !self.status.connected() {
             return Err(self.status.state_error("basic.cancel"));
         }
 
-        self.before_basic_cancel(consumer_tag);
+        self.before_basic_cancel(consumer_tag.as_str());
         let BasicCancelOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("basic.cancel");
+        let reply = Reply::BasicCancelOk(resolver.clone());
+        let nowait_reply = nowait.then(|| protocol::basic::CancelOk {
+            consumer_tag: consumer_tag.clone(),
+        });
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Cancel(
             protocol::basic::Cancel {
-                consumer_tag: consumer_tag.into(),
+                consumer_tag,
                 nowait,
             },
         ));
 
-        let (promise, resolver) = Promise::new("basic.cancel");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::BasicCancelOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_basic_cancel_ok(protocol::basic::CancelOk {
-                consumer_tag: consumer_tag.into(),
-            })?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_basic_cancel_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -511,18 +507,16 @@ impl Channel {
         }
         self.on_basic_cancel_received(method)
     }
-    async fn basic_cancel_ok(&self, consumer_tag: &str) -> Result<()> {
+    async fn basic_cancel_ok(&self, consumer_tag: ShortString) -> Result<()> {
         if !self.status.connected() {
             return Err(self.status.state_error("basic.cancel-ok"));
         }
 
+        let (promise, resolver) = Promise::new("basic.cancel-ok");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(
-            protocol::basic::CancelOk {
-                consumer_tag: consumer_tag.into(),
-            },
+            protocol::basic::CancelOk { consumer_tag },
         ));
 
-        let (promise, resolver) = Promise::new("basic.cancel-ok");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
@@ -551,8 +545,8 @@ impl Channel {
     }
     pub async fn basic_publish(
         &self,
-        exchange: &str,
-        routing_key: &str,
+        exchange: ShortString,
+        routing_key: ShortString,
         options: BasicPublishOptions,
         payload: &[u8],
         properties: BasicProperties,
@@ -568,8 +562,8 @@ impl Channel {
         } = options;
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Publish(
             protocol::basic::Publish {
-                exchange: exchange.into(),
-                routing_key: routing_key.into(),
+                exchange,
+                routing_key,
                 mandatory,
                 immediate,
             },
@@ -598,7 +592,7 @@ impl Channel {
     }
     async fn do_basic_get(
         &self,
-        queue: &str,
+        queue: ShortString,
         options: BasicGetOptions,
         original: Option<PromiseResolver<Option<BasicGetMessage>>>,
     ) -> Result<Option<BasicGetMessage>> {
@@ -607,20 +601,18 @@ impl Channel {
         }
 
         let BasicGetOptions { no_ack } = options;
+        let (promise, resolver) = Promise::new("basic.get");
+        let reply = Reply::BasicGetOk(resolver.clone());
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Get(protocol::basic::Get {
-            queue: queue.into(),
+            queue,
             no_ack,
         }));
 
-        let (promise, resolver) = Promise::new("basic.get");
         let resolver = original.unwrap_or(resolver);
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::BasicGetOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -661,12 +653,12 @@ impl Channel {
         }
 
         let BasicAckOptions { multiple } = options;
+        let (promise, resolver) = Promise::new("basic.ack");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
             delivery_tag,
             multiple,
         }));
 
-        let (promise, resolver) = Promise::new("basic.ack");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_ack_sent(multiple, delivery_tag);
         promise.await
@@ -687,6 +679,7 @@ impl Channel {
         }
 
         let BasicRejectOptions { requeue } = options;
+        let (promise, resolver) = Promise::new("basic.reject");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
             protocol::basic::Reject {
                 delivery_tag,
@@ -694,7 +687,6 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("basic.reject");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
@@ -704,11 +696,11 @@ impl Channel {
         }
 
         let BasicRecoverAsyncOptions { requeue } = options;
+        let (promise, resolver) = Promise::new("basic.recover-async");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::RecoverAsync(
             protocol::basic::RecoverAsync { requeue },
         ));
 
-        let (promise, resolver) = Promise::new("basic.recover-async");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_recover_async_sent();
         promise.await
@@ -719,18 +711,16 @@ impl Channel {
         }
 
         let BasicRecoverOptions { requeue } = options;
+        let (promise, resolver) = Promise::new("basic.recover");
+        let reply = Reply::BasicRecoverOk(resolver.clone());
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Recover(
             protocol::basic::Recover { requeue },
         ));
 
-        let (promise, resolver) = Promise::new("basic.recover");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::BasicRecoverOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -768,13 +758,13 @@ impl Channel {
         }
 
         let BasicNackOptions { multiple, requeue } = options;
+        let (promise, resolver) = Promise::new("basic.nack");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
             delivery_tag,
             multiple,
             requeue,
         }));
 
-        let (promise, resolver) = Promise::new("basic.nack");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_basic_nack_sent(multiple, delivery_tag);
         promise.await
@@ -795,23 +785,23 @@ impl Channel {
     async fn connection_start_ok(
         &self,
         client_properties: FieldTable,
-        mechanism: &str,
-        response: &str,
-        locale: &str,
+        mechanism: ShortString,
+        response: LongString,
+        locale: ShortString,
         conn_resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.start-ok");
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::StartOk(
             protocol::connection::StartOk {
                 client_properties,
-                mechanism: mechanism.into(),
-                response: response.into(),
-                locale: locale.into(),
+                mechanism,
+                response,
+                locale,
             },
         ));
 
-        let (promise, resolver) = Promise::new("connection.start-ok");
         self.before_connection_start_ok(conn_resolver, connection, auth_provider);
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
@@ -825,18 +815,16 @@ impl Channel {
     }
     async fn connection_secure_ok(
         &self,
-        response: &str,
+        response: LongString,
         conn_resolver: PromiseResolver<Connection>,
         connection: Connection,
         auth_provider: Arc<dyn AuthProvider>,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.secure-ok");
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::SecureOk(
-            protocol::connection::SecureOk {
-                response: response.into(),
-            },
+            protocol::connection::SecureOk { response },
         ));
 
-        let (promise, resolver) = Promise::new("connection.secure-ok");
         self.before_connection_secure_ok(conn_resolver, connection, auth_provider);
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
@@ -854,6 +842,7 @@ impl Channel {
         frame_max: LongUInt,
         heartbeat: ShortUInt,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.tune-ok");
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::TuneOk(
             protocol::connection::TuneOk {
                 channel_max,
@@ -862,31 +851,26 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("connection.tune-ok");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
     pub(crate) async fn connection_open(
         &self,
-        virtual_host: &str,
+        virtual_host: ShortString,
         connection: Box<Connection>,
         conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.open");
+        let reply = Reply::ConnectionOpenOk(resolver.clone(), connection);
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
-            protocol::connection::Open {
-                virtual_host: virtual_host.into(),
-            },
+            protocol::connection::Open { virtual_host },
         ));
 
-        let (promise, resolver) = Promise::new("connection.open");
         self.before_connection_open(conn_resolver);
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ConnectionOpenOk(resolver.clone(), connection),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -918,27 +902,25 @@ impl Channel {
     pub(crate) async fn connection_close(
         &self,
         reply_code: ShortUInt,
-        reply_text: &str,
+        reply_text: ShortString,
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.close");
+        let reply = Reply::ConnectionCloseOk(resolver.clone());
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Close(
             protocol::connection::Close {
                 reply_code,
-                reply_text: reply_text.into(),
+                reply_text,
                 class_id,
                 method_id,
             },
         ));
 
-        let (promise, resolver) = Promise::new("connection.close");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ConnectionCloseOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -951,11 +933,11 @@ impl Channel {
         self.on_connection_close_received(method)
     }
     pub(crate) async fn connection_close_ok(&self, error: Error) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.close-ok");
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::CloseOk(
             protocol::connection::CloseOk {},
         ));
 
-        let (promise, resolver) = Promise::new("connection.close-ok");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_connection_close_ok_sent(error);
         promise.await
@@ -1000,24 +982,19 @@ impl Channel {
     }
     pub(crate) async fn connection_update_secret(
         &self,
-        new_secret: &str,
-        reason: &str,
+        new_secret: LongString,
+        reason: ShortString,
     ) -> Result<()> {
+        let (promise, resolver) = Promise::new("connection.update-secret");
+        let reply = Reply::ConnectionUpdateSecretOk(resolver.clone());
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::UpdateSecret(
-            protocol::connection::UpdateSecret {
-                new_secret: new_secret.into(),
-                reason: reason.into(),
-            },
+            protocol::connection::UpdateSecret { new_secret, reason },
         ));
 
-        let (promise, resolver) = Promise::new("connection.update-secret");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ConnectionUpdateSecretOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1048,18 +1025,16 @@ impl Channel {
             return Err(self.status.state_error("channel.open"));
         }
 
+        let (promise, resolver) = Promise::new("channel.open");
+        let reply = Reply::ChannelOpenOk(resolver.clone(), channel);
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::Open(
             protocol::channel::Open {},
         ));
 
-        let (promise, resolver) = Promise::new("channel.open");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ChannelOpenOk(resolver.clone(), channel),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1091,18 +1066,16 @@ impl Channel {
         }
 
         let ChannelFlowOptions { active } = options;
+        let (promise, resolver) = Promise::new("channel.flow");
+        let reply = Reply::ChannelFlowOk(resolver.clone());
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::Flow(
             protocol::channel::Flow { active },
         ));
 
-        let (promise, resolver) = Promise::new("channel.flow");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ChannelFlowOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1119,11 +1092,11 @@ impl Channel {
         }
 
         let ChannelFlowOkOptions { active } = options;
+        let (promise, resolver) = Promise::new("channel.flow-ok");
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::FlowOk(
             protocol::channel::FlowOk { active },
         ));
 
-        let (promise, resolver) = Promise::new("channel.flow-ok");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         promise.await
     }
@@ -1151,7 +1124,7 @@ impl Channel {
     async fn do_channel_close(
         &self,
         reply_code: ShortUInt,
-        reply_text: &str,
+        reply_text: ShortString,
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Result<()> {
@@ -1160,23 +1133,21 @@ impl Channel {
         }
 
         self.before_channel_close();
+        let (promise, resolver) = Promise::new("channel.close");
+        let reply = Reply::ChannelCloseOk(resolver.clone());
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::Close(
             protocol::channel::Close {
                 reply_code,
-                reply_text: reply_text.into(),
+                reply_text,
                 class_id,
                 method_id,
             },
         ));
 
-        let (promise, resolver) = Promise::new("channel.close");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ChannelCloseOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1192,11 +1163,11 @@ impl Channel {
             return Err(self.status.state_error("channel.close-ok"));
         }
 
+        let (promise, resolver) = Promise::new("channel.close-ok");
         let method = AMQPClass::Channel(protocol::channel::AMQPMethod::CloseOk(
             protocol::channel::CloseOk {},
         ));
 
-        let (promise, resolver) = Promise::new("channel.close-ok");
         self.send_method_frame(method, Box::new(resolver.clone()), None, Some(resolver));
         self.on_channel_close_ok_sent(error);
         promise.await
@@ -1222,7 +1193,11 @@ impl Channel {
             ),
         }
     }
-    pub async fn access_request(&self, realm: &str, options: AccessRequestOptions) -> Result<()> {
+    pub async fn access_request(
+        &self,
+        realm: ShortString,
+        options: AccessRequestOptions,
+    ) -> Result<()> {
         if !self.status.connected() {
             return Err(self.status.state_error("access.request"));
         }
@@ -1234,9 +1209,11 @@ impl Channel {
             write,
             read,
         } = options;
+        let (promise, resolver) = Promise::new("access.request");
+        let reply = Reply::AccessRequestOk(resolver.clone());
         let method = AMQPClass::Access(protocol::access::AMQPMethod::Request(
             protocol::access::Request {
-                realm: realm.into(),
+                realm,
                 exclusive,
                 passive,
                 active,
@@ -1245,14 +1222,10 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("access.request");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::AccessRequestOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1282,8 +1255,8 @@ impl Channel {
     }
     async fn do_exchange_declare(
         &self,
-        exchange: &str,
-        kind: &str,
+        exchange: ShortString,
+        kind: ShortString,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
         exchange_kind: ExchangeKind,
@@ -1300,10 +1273,19 @@ impl Channel {
             internal,
             nowait,
         } = options;
+        let (promise, resolver) = Promise::new("exchange.declare");
+        let reply = Reply::ExchangeDeclareOk(
+            resolver.clone(),
+            exchange.clone(),
+            exchange_kind,
+            options,
+            creation_arguments,
+        );
+        let nowait_reply = nowait.then_some(protocol::exchange::DeclareOk {});
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Declare(
             protocol::exchange::Declare {
-                exchange: exchange.into(),
-                kind: kind.into(),
+                exchange,
+                kind,
                 passive,
                 durable,
                 auto_delete,
@@ -1313,24 +1295,14 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("exchange.declare");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ExchangeDeclareOk(
-                    resolver.clone(),
-                    exchange.into(),
-                    exchange_kind,
-                    options,
-                    creation_arguments,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_exchange_declare_ok(protocol::exchange::DeclareOk {})?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_exchange_declare_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1368,7 +1340,7 @@ impl Channel {
     /// Delete an exchange
     pub async fn exchange_delete(
         &self,
-        exchange: &str,
+        exchange: ShortString,
         options: ExchangeDeleteOptions,
     ) -> Result<()> {
         if !self.status.connected() {
@@ -1376,26 +1348,25 @@ impl Channel {
         }
 
         let ExchangeDeleteOptions { if_unused, nowait } = options;
+        let (promise, resolver) = Promise::new("exchange.delete");
+        let reply = Reply::ExchangeDeleteOk(resolver.clone(), exchange.clone());
+        let nowait_reply = nowait.then_some(protocol::exchange::DeleteOk {});
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Delete(
             protocol::exchange::Delete {
-                exchange: exchange.into(),
+                exchange,
                 if_unused,
                 nowait,
             },
         ));
 
-        let (promise, resolver) = Promise::new("exchange.delete");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ExchangeDeleteOk(resolver.clone(), exchange.into()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_exchange_delete_ok(protocol::exchange::DeleteOk {})?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_exchange_delete_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1424,9 +1395,9 @@ impl Channel {
     }
     pub async fn exchange_bind(
         &self,
-        destination: &str,
-        source: &str,
-        routing_key: &str,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
         options: ExchangeBindOptions,
         arguments: FieldTable,
     ) -> Result<()> {
@@ -1436,34 +1407,33 @@ impl Channel {
 
         let creation_arguments = arguments.clone();
         let ExchangeBindOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("exchange.bind");
+        let reply = Reply::ExchangeBindOk(
+            resolver.clone(),
+            destination.clone(),
+            source.clone(),
+            routing_key.clone(),
+            creation_arguments,
+        );
+        let nowait_reply = nowait.then_some(protocol::exchange::BindOk {});
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Bind(
             protocol::exchange::Bind {
-                destination: destination.into(),
-                source: source.into(),
-                routing_key: routing_key.into(),
+                destination,
+                source,
+                routing_key,
                 nowait,
                 arguments,
             },
         ));
 
-        let (promise, resolver) = Promise::new("exchange.bind");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ExchangeBindOk(
-                    resolver.clone(),
-                    destination.into(),
-                    source.into(),
-                    routing_key.into(),
-                    creation_arguments,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_exchange_bind_ok(protocol::exchange::BindOk {})?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_exchange_bind_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1503,9 +1473,9 @@ impl Channel {
     }
     pub async fn exchange_unbind(
         &self,
-        destination: &str,
-        source: &str,
-        routing_key: &str,
+        destination: ShortString,
+        source: ShortString,
+        routing_key: ShortString,
         options: ExchangeUnbindOptions,
         arguments: FieldTable,
     ) -> Result<()> {
@@ -1515,34 +1485,33 @@ impl Channel {
 
         let creation_arguments = arguments.clone();
         let ExchangeUnbindOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("exchange.unbind");
+        let reply = Reply::ExchangeUnbindOk(
+            resolver.clone(),
+            destination.clone(),
+            source.clone(),
+            routing_key.clone(),
+            creation_arguments,
+        );
+        let nowait_reply = nowait.then_some(protocol::exchange::UnbindOk {});
         let method = AMQPClass::Exchange(protocol::exchange::AMQPMethod::Unbind(
             protocol::exchange::Unbind {
-                destination: destination.into(),
-                source: source.into(),
-                routing_key: routing_key.into(),
+                destination,
+                source,
+                routing_key,
                 nowait,
                 arguments,
             },
         ));
 
-        let (promise, resolver) = Promise::new("exchange.unbind");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ExchangeUnbindOk(
-                    resolver.clone(),
-                    destination.into(),
-                    source.into(),
-                    routing_key.into(),
-                    creation_arguments,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_exchange_unbind_ok(protocol::exchange::UnbindOk {})?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_exchange_unbind_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1582,7 +1551,7 @@ impl Channel {
     }
     pub async fn queue_declare(
         &self,
-        queue: &str,
+        queue: ShortString,
         options: QueueDeclareOptions,
         arguments: FieldTable,
     ) -> Result<Queue> {
@@ -1598,9 +1567,15 @@ impl Channel {
             auto_delete,
             nowait,
         } = options;
+        let (promise, resolver) = Promise::new("queue.declare");
+        let reply = Reply::QueueDeclareOk(resolver.clone(), options, creation_arguments);
+        let nowait_reply = nowait.then(|| protocol::queue::DeclareOk {
+            queue: queue.clone(),
+            ..Default::default()
+        });
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Declare(
             protocol::queue::Declare {
-                queue: queue.into(),
+                queue,
                 passive,
                 durable,
                 exclusive,
@@ -1610,21 +1585,14 @@ impl Channel {
             },
         ));
 
-        let (promise, resolver) = Promise::new("queue.declare");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::QueueDeclareOk(resolver.clone(), options, creation_arguments),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_queue_declare_ok(protocol::queue::DeclareOk {
-                queue: queue.into(),
-                ..Default::default()
-            })?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_queue_declare_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1651,9 +1619,9 @@ impl Channel {
     }
     pub async fn queue_bind(
         &self,
-        queue: &str,
-        exchange: &str,
-        routing_key: &str,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
         options: QueueBindOptions,
         arguments: FieldTable,
     ) -> Result<()> {
@@ -1663,32 +1631,31 @@ impl Channel {
 
         let creation_arguments = arguments.clone();
         let QueueBindOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("queue.bind");
+        let reply = Reply::QueueBindOk(
+            resolver.clone(),
+            queue.clone(),
+            exchange.clone(),
+            routing_key.clone(),
+            creation_arguments,
+        );
+        let nowait_reply = nowait.then_some(protocol::queue::BindOk {});
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Bind(protocol::queue::Bind {
-            queue: queue.into(),
-            exchange: exchange.into(),
-            routing_key: routing_key.into(),
+            queue,
+            exchange,
+            routing_key,
             nowait,
             arguments,
         }));
 
-        let (promise, resolver) = Promise::new("queue.bind");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::QueueBindOk(
-                    resolver.clone(),
-                    queue.into(),
-                    exchange.into(),
-                    routing_key.into(),
-                    creation_arguments,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_queue_bind_ok(protocol::queue::BindOk {})?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_queue_bind_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1729,7 +1696,7 @@ impl Channel {
     }
     pub async fn queue_purge(
         &self,
-        queue: &str,
+        queue: ShortString,
         options: QueuePurgeOptions,
     ) -> Result<MessageCount> {
         if !self.status.connected() {
@@ -1737,19 +1704,17 @@ impl Channel {
         }
 
         let QueuePurgeOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("queue.purge");
+        let reply = Reply::QueuePurgeOk(resolver.clone());
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Purge(protocol::queue::Purge {
-            queue: queue.into(),
+            queue,
             nowait,
         }));
 
-        let (promise, resolver) = Promise::new("queue.purge");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::QueuePurgeOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1778,7 +1743,7 @@ impl Channel {
     }
     pub async fn queue_delete(
         &self,
-        queue: &str,
+        queue: ShortString,
         options: QueueDeleteOptions,
     ) -> Result<MessageCount> {
         if !self.status.connected() {
@@ -1790,29 +1755,28 @@ impl Channel {
             if_empty,
             nowait,
         } = options;
+        let (promise, resolver) = Promise::new("queue.delete");
+        let reply = Reply::QueueDeleteOk(resolver.clone(), queue.clone());
+        let nowait_reply = nowait.then_some(protocol::queue::DeleteOk {
+            ..Default::default()
+        });
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Delete(
             protocol::queue::Delete {
-                queue: queue.into(),
+                queue,
                 if_unused,
                 if_empty,
                 nowait,
             },
         ));
 
-        let (promise, resolver) = Promise::new("queue.delete");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::QueueDeleteOk(resolver.clone(), queue.into()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        if nowait {
-            self.receive_queue_delete_ok(protocol::queue::DeleteOk {
-                ..Default::default()
-            })?;
+        if let Some(nowait_reply) = nowait_reply {
+            self.receive_queue_delete_ok(nowait_reply)?;
         }
         promise.await
     }
@@ -1839,9 +1803,9 @@ impl Channel {
     }
     pub async fn queue_unbind(
         &self,
-        queue: &str,
-        exchange: &str,
-        routing_key: &str,
+        queue: ShortString,
+        exchange: ShortString,
+        routing_key: ShortString,
         arguments: FieldTable,
     ) -> Result<()> {
         if !self.status.connected() {
@@ -1849,29 +1813,27 @@ impl Channel {
         }
 
         let creation_arguments = arguments.clone();
+        let (promise, resolver) = Promise::new("queue.unbind");
+        let reply = Reply::QueueUnbindOk(
+            resolver.clone(),
+            queue.clone(),
+            exchange.clone(),
+            routing_key.clone(),
+            creation_arguments,
+        );
         let method = AMQPClass::Queue(protocol::queue::AMQPMethod::Unbind(
             protocol::queue::Unbind {
-                queue: queue.into(),
-                exchange: exchange.into(),
-                routing_key: routing_key.into(),
+                queue,
+                exchange,
+                routing_key,
                 arguments,
             },
         ));
 
-        let (promise, resolver) = Promise::new("queue.unbind");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::QueueUnbindOk(
-                    resolver.clone(),
-                    queue.into(),
-                    exchange.into(),
-                    routing_key.into(),
-                    creation_arguments,
-                ),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1915,16 +1877,14 @@ impl Channel {
             return Err(self.status.state_error("tx.select"));
         }
 
+        let (promise, resolver) = Promise::new("tx.select");
+        let reply = Reply::TxSelectOk(resolver.clone());
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Select(protocol::tx::Select {}));
 
-        let (promise, resolver) = Promise::new("tx.select");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::TxSelectOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -1958,16 +1918,14 @@ impl Channel {
             return Err(self.status.state_error("tx.commit"));
         }
 
+        let (promise, resolver) = Promise::new("tx.commit");
+        let reply = Reply::TxCommitOk(resolver.clone());
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Commit(protocol::tx::Commit {}));
 
-        let (promise, resolver) = Promise::new("tx.commit");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::TxCommitOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -2001,18 +1959,16 @@ impl Channel {
             return Err(self.status.state_error("tx.rollback"));
         }
 
+        let (promise, resolver) = Promise::new("tx.rollback");
+        let reply = Reply::TxRollbackOk(resolver.clone());
         let method = AMQPClass::Tx(protocol::tx::AMQPMethod::Rollback(
             protocol::tx::Rollback {},
         ));
 
-        let (promise, resolver) = Promise::new("tx.rollback");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::TxRollbackOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await
@@ -2047,18 +2003,16 @@ impl Channel {
         }
 
         let ConfirmSelectOptions { nowait } = options;
+        let (promise, resolver) = Promise::new("confirm.select");
+        let reply = Reply::ConfirmSelectOk(resolver.clone());
         let method = AMQPClass::Confirm(protocol::confirm::AMQPMethod::Select(
             protocol::confirm::Select { nowait },
         ));
 
-        let (promise, resolver) = Promise::new("confirm.select");
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(
-                Reply::ConfirmSelectOk(resolver.clone()),
-                Box::new(resolver),
-            )),
+            Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
         promise.await

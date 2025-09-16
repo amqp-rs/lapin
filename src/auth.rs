@@ -1,4 +1,4 @@
-use crate::types::LongString;
+use crate::types::{LongString, ShortString};
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
     sync::{Mutex, MutexGuard},
@@ -8,17 +8,17 @@ use std::{
 /// A trait used to integrate custom authentication process during connection
 pub trait AuthProvider: Send + Sync + 'static {
     /// The String representation of the auth mechanism as understood by the RabbitMQ server
-    fn mechanism(&self) -> String {
-        SASLMechanism::External.name().to_string()
+    fn mechanism(&self) -> ShortString {
+        SASLMechanism::External.name().into()
     }
 
     /// The initial data to provide to the RabbitMQ server for authentication
-    fn auth_starter(&self) -> Result<String, String> {
-        Ok(String::new())
+    fn auth_starter(&self) -> Result<LongString, String> {
+        Ok("".into())
     }
 
     /// The answer to the received challenge to forward to the RabbitMQ server (Connection.SecureOk)
-    fn continue_auth(&self, challenge: LongString) -> Result<String, String> {
+    fn continue_auth(&self, challenge: LongString) -> Result<LongString, String> {
         Err(format!(
             "Received Connection.Secure with challenge '{challenge}' but we don't know how to handle it for {0}.",
             self.mechanism(),
@@ -62,15 +62,15 @@ impl DefaultAuthProvider {
 }
 
 impl AuthProvider for DefaultAuthProvider {
-    fn mechanism(&self) -> String {
-        self.mechanism.name().to_string()
+    fn mechanism(&self) -> ShortString {
+        self.mechanism.name().into()
     }
 
-    fn auth_starter(&self) -> Result<String, String> {
+    fn auth_starter(&self) -> Result<LongString, String> {
         Ok(self.credentials.sasl_auth_string(self.mechanism))
     }
 
-    fn continue_auth(&self, challenge: LongString) -> Result<String, String> {
+    fn continue_auth(&self, challenge: LongString) -> Result<LongString, String> {
         if self.mechanism != SASLMechanism::RabbitCrDemo {
             return Err(format!(
                 "Received invalid Connection.Secure with challenge '{challenge}' for SASL mechanism {0} with default provider.",
@@ -114,11 +114,11 @@ impl<TP: TokenProvider> From<TP> for TokenAuthProvider<TP> {
 }
 
 impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
-    fn mechanism(&self) -> String {
-        self.mechanism.name().to_string()
+    fn mechanism(&self) -> ShortString {
+        self.mechanism.name().into()
     }
 
-    fn auth_starter(&self) -> Result<String, String> {
+    fn auth_starter(&self) -> Result<LongString, String> {
         Ok(
             Credentials::new(String::new(), self.token_provider.create_token()?)
                 .sasl_auth_string(self.mechanism),

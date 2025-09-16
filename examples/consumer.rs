@@ -24,7 +24,7 @@ async fn main() {
 
     let queue = channel
         .queue_declare(
-            "hello",
+            "hello".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -36,8 +36,8 @@ async fn main() {
     info!("will consume");
     let mut consumer = channel
         .basic_consume(
-            "hello",
-            "my_consumer",
+            "hello".into(),
+            "my_consumer".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )

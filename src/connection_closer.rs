@@ -31,7 +31,7 @@ impl Drop for ConnectionCloser {
         if self.status.auto_close() {
             self.internal_rpc.close_connection(
                 protocol::constants::REPLY_SUCCESS,
-                "OK".to_string(),
+                "OK".into(),
                 0,
                 0,
             );

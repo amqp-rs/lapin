@@ -31,7 +31,7 @@ async fn tokio_main() {
     //create the hello queue
     let queue = channel_a
         .queue_declare(
-            "hello",
+            "hello".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -50,8 +50,8 @@ async fn tokio_main() {
     info!("will consume");
     channel_b
         .basic_consume(
-            "hello",
-            "my_consumer",
+            "hello".into(),
+            "my_consumer".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -72,8 +72,8 @@ async fn tokio_main() {
     let payload = b"Hello world!";
     let confirm = channel_a
         .basic_publish(
-            "",
-            "hello",
+            "".into(),
+            "hello".into(),
             BasicPublishOptions::default(),
             payload,
             BasicProperties::default(),
@@ -89,8 +89,8 @@ async fn tokio_main() {
     for _ in 1..=2 {
         channel_a
             .basic_publish(
-                "",
-                "hello",
+                "".into(),
+                "hello".into(),
                 BasicPublishOptions::default(),
                 payload,
                 BasicProperties::default(),
@@ -108,8 +108,8 @@ async fn tokio_main() {
 
     let confirm = channel_a
         .basic_publish(
-            "",
-            "unroutable-routing-key-for-tests",
+            "".into(),
+            "unroutable-routing-key-for-tests".into(),
             BasicPublishOptions {
                 mandatory: true,
                 ..BasicPublishOptions::default()

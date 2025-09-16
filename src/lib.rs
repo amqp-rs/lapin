@@ -53,7 +53,7 @@
 //!
 //!         let queue = channel_a
 //!             .queue_declare(
-//!                 "hello",
+//!                 "hello".into(),
 //!                 QueueDeclareOptions::default(),
 //!                 FieldTable::default(),
 //!             )
@@ -63,8 +63,8 @@
 //!
 //!         let mut consumer = channel_b
 //!             .basic_consume(
-//!                 "hello",
-//!                 "my_consumer",
+//!                 "hello".into(),
+//!                 "my_consumer".into(),
 //!                 BasicConsumeOptions::default(),
 //!                 FieldTable::default(),
 //!             )
@@ -85,8 +85,8 @@
 //!         loop {
 //!             let confirm = channel_a
 //!                 .basic_publish(
-//!                     "",
-//!                     "hello",
+//!                     "".into(),
+//!                     "hello".into(),
 //!                     BasicPublishOptions::default(),
 //!                     payload,
 //!                     BasicProperties::default(),

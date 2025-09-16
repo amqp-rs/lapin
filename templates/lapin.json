@@ -194,17 +194,17 @@
           {
             "name": "queue",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "exchange",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "routing_key",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "creation_arguments",
@@ -243,7 +243,7 @@
           }
         ],
         "nowait_hook": {
-          "fields": ["queue: queue.into()"],
+          "fields": ["queue"],
           "nonexhaustive_args": true
         }
       }
@@ -254,7 +254,7 @@
           {
             "name": "queue",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           }
         ],
         "confirmation": {
@@ -284,17 +284,17 @@
           {
             "name": "queue",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "exchange",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "routing_key",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "creation_arguments",
@@ -324,17 +324,17 @@
           {
             "name": "destination",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "source",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "routing_key",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "creation_arguments",
@@ -373,7 +373,7 @@
           {
             "name": "exchange",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "exchange_kind",
@@ -404,7 +404,7 @@
           {
             "name": "exchange",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           }
         ],
         "nowait_hook": true
@@ -429,17 +429,17 @@
           {
             "name": "destination",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "source",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "routing_key",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "creation_arguments",
@@ -482,7 +482,7 @@
           {
             "name": "queue",
             "type": "ShortString",
-            "use_str_ref": true
+            "clone": true
           },
           {
             "name": "options",
@@ -501,17 +501,17 @@
           "type": "Consumer"
         },
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"]
+          "fields": ["consumer_tag"]
         }
       }
     },
     "cancel": {
       "metadata": {
         "start_hook": {
-          "params": ["consumer_tag"]
+          "params": ["consumer_tag.as_str()"]
         },
         "nowait_hook": {
-          "fields": ["consumer_tag: consumer_tag.into()"]
+          "fields": ["consumer_tag"]
         }
       }
     },

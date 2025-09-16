@@ -56,7 +56,7 @@ async fn main() {
     //create the hello queue
     let queue = channel_a
         .queue_declare(
-            "hello",
+            "hello".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -68,8 +68,8 @@ async fn main() {
     info!("will consume");
     channel_b
         .basic_consume(
-            "hello",
-            "my_consumer",
+            "hello".into(),
+            "my_consumer".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -90,8 +90,8 @@ async fn main() {
     let payload = b"Hello world!";
     let confirm = channel_a
         .basic_publish(
-            "",
-            "hello",
+            "".into(),
+            "hello".into(),
             BasicPublishOptions::default(),
             payload,
             BasicProperties::default(),

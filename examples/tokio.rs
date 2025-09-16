@@ -28,7 +28,7 @@ async fn tokio_main(forever: bool) {
 
     let _queue = channel
         .queue_declare(
-            "queue_test",
+            "queue_test".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -37,8 +37,8 @@ async fn tokio_main(forever: bool) {
 
     let consumer = channel
         .basic_consume(
-            "queue_test",
-            "tag_foo",
+            "queue_test".into(),
+            "tag_foo".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -68,8 +68,8 @@ async fn tokio_main(forever: bool) {
 
     channel
         .basic_publish(
-            "",
-            "queue_test",
+            "".into(),
+            "queue_test".into(),
             BasicPublishOptions::default(),
             b"Hello world!",
             BasicProperties::default(),
@@ -83,10 +83,10 @@ async fn tokio_main(forever: bool) {
         std::future::pending::<()>().await;
     } else {
         channel
-            .basic_cancel("tag_foo", BasicCancelOptions::default())
+            .basic_cancel("tag_foo".into(), BasicCancelOptions::default())
             .await
             .unwrap();
-        connection.close(200, "OK".to_string()).await.unwrap();
+        connection.close(200, "OK".into()).await.unwrap();
     }
 }
 

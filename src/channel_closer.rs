@@ -36,7 +36,7 @@ impl Drop for ChannelCloser {
             self.internal_rpc.close_channel(
                 self.id,
                 protocol::constants::REPLY_SUCCESS,
-                "OK".to_string(),
+                "OK".into(),
             );
         }
     }

@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
 
     let queue = channel_a
         .queue_declare(
-            "hello",
+            "hello".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -41,8 +41,8 @@ async fn main() -> Result<()> {
 
     let mut consumer = channel_b
         .basic_consume(
-            "hello",
-            "my_consumer",
+            "hello".into(),
+            "my_consumer".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -61,8 +61,8 @@ async fn main() -> Result<()> {
     for _ in 0..1500000 {
         let confirm = channel_a
             .basic_publish(
-                "",
-                "hello",
+                "".into(),
+                "hello".into(),
                 BasicPublishOptions::default(),
                 payload,
                 BasicProperties::default(),
@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
 
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     channel_b
-        .basic_cancel("my_consumer", BasicCancelOptions::default())
+        .basic_cancel("my_consumer".into(), BasicCancelOptions::default())
         .await?;
     cons.await
 }

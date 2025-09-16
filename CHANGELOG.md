@@ -1,19 +1,23 @@
 ### 4.0.0 (2025-??-??)
 
+#### Breaking changes
+
+* Make more use of protocol types in public api (mostly ShortString and LongString)
+
 #### Features
 
-- New feature flags to control default runtime (`tokio`, `smol`)
-- Removed deprecated `on_error` callback setup. Use `Connection::events_listener` instead.
-- Runtime is now configured in the `Connection::connect_with_runtime` method
-- `Connection::block` and `Connection:unblock` have been removed (they were actually a protocol violation)
-- Replaced `Acker::mock` with `Delivery::mock`
-- Changed `Connection::collector` callback to an async fn
-- Added an AuthProvider mechanism configurable through `ConnectionProperties` (to support e.g. automatic oauth2 token refresh)
+* New feature flags to control default runtime (`tokio`, `smol`)
+* Removed deprecated `on_error` callback setup. Use `Connection::events_listener` instead.
+* Runtime is now configured in the `Connection::connect_with_runtime` method
+* `Connection::block` and `Connection:unblock` have been removed (they were actually a protocol violation)
+* Replaced `Acker::mock` with `Delivery::mock`
+* Changed `Connection::collector` callback to an async fn
+* Added an AuthProvider mechanism configurable through `ConnectionProperties` (to support e.g. automatic oauth2 token refresh)
 
 #### Misc
 
-- Switched our async runtimes integration from `executor-trait` and `reactor-trait` to `async-rs`
-- Update amq-protocol to 10.0
+* Switched our async runtimes integration from `executor-trait` and `reactor-trait` to `async-rs`
+* Update amq-protocol to 10.0
 
 ### 3.6.0 (2025-09-15)
 

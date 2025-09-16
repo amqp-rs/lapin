@@ -10,7 +10,7 @@ use crate::{
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     socket_state::SocketStateHandle,
-    types::{ChannelId, DeliveryTag, Identifier, ReplyCode, ShortString},
+    types::{ChannelId, DeliveryTag, Identifier, LongString, ReplyCode, ShortString},
 };
 use amq_protocol::frame::AMQPFrame;
 use async_rs::{Runtime, traits::*};
@@ -88,7 +88,7 @@ impl InternalRPCHandle {
     pub(crate) fn cancel_consumer(
         &self,
         channel_id: ChannelId,
-        consumer_tag: String,
+        consumer_tag: ShortString,
         consumer_status: ConsumerStatus,
     ) {
         self.send(InternalCommand::CancelConsumer(
@@ -102,7 +102,7 @@ impl InternalRPCHandle {
         &self,
         channel_id: ChannelId,
         reply_code: ReplyCode,
-        reply_text: String,
+        reply_text: ShortString,
     ) {
         self.send(InternalCommand::CloseChannel(
             channel_id, reply_code, reply_text,
@@ -112,7 +112,7 @@ impl InternalRPCHandle {
     pub(crate) fn close_connection(
         &self,
         reply_code: ReplyCode,
-        reply_text: String,
+        reply_text: ShortString,
         class_id: Identifier,
         method_id: Identifier,
     ) {
@@ -125,7 +125,7 @@ impl InternalRPCHandle {
     pub(crate) async fn close_connection_checked(
         &self,
         reply_code: ReplyCode,
-        reply_text: String,
+        reply_text: ShortString,
         class_id: Identifier,
         method_id: Identifier,
     ) -> Result<()> {
@@ -224,7 +224,11 @@ impl InternalRPCHandle {
         self.send(InternalCommand::StartHeartbeat(heartbeat));
     }
 
-    pub(crate) async fn update_secret(&self, secret: String, reason: String) -> Result<()> {
+    pub(crate) async fn update_secret(
+        &self,
+        secret: LongString,
+        reason: ShortString,
+    ) -> Result<()> {
         let (promise, resolver) = Promise::new("connection.update-secret");
         self.send(InternalCommand::UpdateSecret(secret, reason, resolver));
         promise.await
@@ -276,11 +280,11 @@ enum InternalCommand {
         PromiseResolver<()>,
         Option<ErrorHolder>,
     ),
-    CancelConsumer(ChannelId, String, ConsumerStatus),
-    CloseChannel(ChannelId, ReplyCode, String),
+    CancelConsumer(ChannelId, ShortString, ConsumerStatus),
+    CloseChannel(ChannelId, ReplyCode, ShortString),
     CloseConnection(
         ReplyCode,
-        String,
+        ShortString,
         Identifier,
         Identifier,
         Option<PromiseResolver<()>>,
@@ -300,7 +304,7 @@ enum InternalCommand {
     Spawn(InternalFuture),
     StartChannelsRecovery,
     StartHeartbeat(Duration),
-    UpdateSecret(String, String, PromiseResolver<()>),
+    UpdateSecret(LongString, ShortString, PromiseResolver<()>),
 }
 
 impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
@@ -428,7 +432,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                         let channel = channel?;
                         if channel.status().connected() && consumer_status.state().is_active() {
                             channel
-                                .basic_cancel(&consumer_tag, BasicCancelOptions::default())
+                                .basic_cancel(consumer_tag, BasicCancelOptions::default())
                                 .await
                         } else {
                             Ok(())
@@ -441,14 +445,14 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     }
                     let channel = get_channel(channel_id);
                     self.register_internal_future(async move {
-                        channel?.close(reply_code, &reply_text).await
+                        channel?.close(reply_code, reply_text).await
                     })
                 }
                 CloseConnection(reply_code, reply_text, class_id, method_id, resolver) => {
                     let channel0 = channels.channel0();
                     let fut = async move {
                         channel0
-                            .connection_close(reply_code, &reply_text, class_id, method_id)
+                            .connection_close(reply_code, reply_text, class_id, method_id)
                             .await
                     };
                     if let Some(resolver) = resolver {
@@ -536,7 +540,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                         async move {
                             channels
                                 .channel0()
-                                .connection_update_secret(&secret, &reason)
+                                .connection_update_secret(secret, reason)
                                 .await
                         },
                         resolver,

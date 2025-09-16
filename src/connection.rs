@@ -13,7 +13,7 @@ use crate::{
     socket_state::SocketState,
     tcp::{AMQPUriTcpExt, OwnedTLSConfig},
     thread::ThreadHandle,
-    types::ReplyCode,
+    types::{LongString, ReplyCode, ShortString},
     uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
@@ -171,7 +171,7 @@ impl Connection {
     /// otherwise an [`InvalidConnectionState`] error is returned.
     ///
     /// [`InvalidConnectionState`]: ./enum.Error.html#variant.InvalidConnectionState
-    pub async fn close(&self, reply_code: ReplyCode, reply_text: String) -> Result<()> {
+    pub async fn close(&self, reply_code: ReplyCode, reply_text: ShortString) -> Result<()> {
         self.status.ensure_connected()?;
         self.internal_rpc
             .close_connection_checked(reply_code, reply_text, 0, 0)
@@ -179,7 +179,7 @@ impl Connection {
     }
 
     /// Update the secret used by some authentication module such as OAuth2
-    pub async fn update_secret(&self, new_secret: String, reason: String) -> Result<()> {
+    pub async fn update_secret(&self, new_secret: LongString, reason: ShortString) -> Result<()> {
         self.status.ensure_connected()?;
         self.internal_rpc.update_secret(new_secret, reason).await
     }

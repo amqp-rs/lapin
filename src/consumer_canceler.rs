@@ -1,12 +1,12 @@
 use crate::{
     consumer_status::{ConsumerState, ConsumerStatus},
     internal_rpc::InternalRPCHandle,
-    types::ChannelId,
+    types::{ChannelId, ShortString},
 };
 
 pub(crate) struct ConsumerCanceler {
     channel_id: ChannelId,
-    consumer_tag: String,
+    consumer_tag: ShortString,
     status: ConsumerStatus,
     internal_rpc: InternalRPCHandle,
 }
@@ -14,7 +14,7 @@ pub(crate) struct ConsumerCanceler {
 impl ConsumerCanceler {
     pub(crate) fn new(
         channel_id: ChannelId,
-        consumer_tag: String,
+        consumer_tag: ShortString,
         status: ConsumerStatus,
         internal_rpc: InternalRPCHandle,
     ) -> Self {

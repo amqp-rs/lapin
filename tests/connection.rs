@@ -70,7 +70,7 @@ async fn tokio_main() {
     //create the hello queue
     let queue = channel_a
         .queue_declare(
-            "hello-async",
+            "hello-async".into(),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -81,7 +81,7 @@ async fn tokio_main() {
 
     //purge the hello queue in case it already exists with contents in it
     let queue = channel_a
-        .queue_purge("hello-async", QueuePurgeOptions::default())
+        .queue_purge("hello-async".into(), QueuePurgeOptions::default())
         .await
         .expect("queue_purge");
     info!(state=?conn.status());
@@ -94,8 +94,8 @@ async fn tokio_main() {
     };
     let consumer = channel_b
         .basic_consume(
-            "hello-async",
-            "my_consumer",
+            "hello-async".into(),
+            "my_consumer".into(),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -106,8 +106,8 @@ async fn tokio_main() {
     let payload = b"Hello world!";
     let confirm = channel_a
         .basic_publish(
-            "",
-            "hello-async",
+            "".into(),
+            "hello-async".into(),
             BasicPublishOptions::default(),
             payload,
             BasicProperties::default(),
@@ -124,8 +124,8 @@ async fn tokio_main() {
     info!("will publish");
     let confirm = channel_a
         .basic_publish(
-            "",
-            "hello-async",
+            "".into(),
+            "hello-async".into(),
             BasicPublishOptions::default(),
             payload,
             BasicProperties::default(),

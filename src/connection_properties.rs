@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ConnectionProperties {
-    pub(crate) locale: String,
+    pub(crate) locale: ShortString,
     pub(crate) client_properties: FieldTable,
     pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
     pub(crate) recovery_config: Option<RecoveryConfig>,
@@ -29,7 +29,7 @@ impl Default for ConnectionProperties {
 
 impl ConnectionProperties {
     #[must_use]
-    pub fn with_locale(mut self, locale: String) -> Self {
+    pub fn with_locale(mut self, locale: ShortString) -> Self {
         self.locale = locale;
         self
     }

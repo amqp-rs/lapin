@@ -109,8 +109,8 @@ impl<
 ///         let channel = conn.create_channel().await?;
 ///         let mut consumer = channel
 ///             .basic_consume(
-///                 "hello",
-///                 "my_consumer",
+///                 "hello".into(),
+///                 "my_consumer".into(),
 ///                 BasicConsumeOptions::default(),
 ///                 FieldTable::default(),
 ///             )
@@ -187,7 +187,7 @@ impl Consumer {
         let mut consumer = self.clone();
         consumer.consumer_canceler = Some(Arc::new(ConsumerCanceler::new(
             channel_id,
-            self.consumer_tag.to_string(),
+            self.consumer_tag.clone(),
             self.status.clone(),
             self.internal_rpc.clone(),
         )));

@@ -61,7 +61,7 @@ impl Channel {
   {{#each class.methods as |method| ~}}
   {{#unless method.metadata.skip ~}}
   {{#if method.c2s ~}}
-{{include_more class.name method.name}}{{#unless method.metadata.require_wrapper ~}}{{#if method.is_reply ~}}{{#if method.metadata.internal ~}}pub(crate) {{/if ~}}{{else}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/if ~}}async fn {{else}}async fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{#if (use_str_ref argument.type) ~}}&str{{else}}{{argument.type}}{{/if ~}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#if method.metadata.extra_args ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}{{/if ~}}) -> Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
+{{include_more class.name method.name}}{{#unless method.metadata.require_wrapper ~}}{{#if method.is_reply ~}}{{#if method.metadata.internal ~}}pub(crate) {{/if ~}}{{else}}pub {{#if method.metadata.internal ~}}(crate) {{/if ~}}{{/if ~}}async fn {{else}}async fn do_{{/unless ~}}{{snake class.name false}}_{{snake method.name false}}(&self{{#unless method.ignore_args ~}}{{#each_argument method.arguments as |argument| ~}}{{#if @argument_is_value ~}}{{#unless argument.force_default ~}}, {{snake argument.name}}: {{argument.type}}{{/unless ~}}{{else}}{{#unless argument.ignore_flags ~}}, options: {{camel class.name}}{{camel method.name}}Options{{/unless ~}}{{/if ~}}{{/each_argument ~}}{{/unless ~}}{{#if method.metadata.extra_args ~}}{{#each method.metadata.extra_args as |arg| ~}}, {{arg.name}}: {{arg.type}}{{/each ~}}{{/if ~}}) -> Result<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}> {
     {{#unless class.metadata.channel0_only ~}}
     {{#if method.metadata.channel_init ~}}
     if !self.status.initializing() {
@@ -102,12 +102,20 @@ impl Channel {
     {{/unless ~}}
     {{/each_argument ~}}
     {{/unless ~}}
-
+    {{#unless method.metadata.carry_headers ~}}
+    let (promise, resolver) = Promise::new("{{class.name}}.{{method.name}}");
+    {{/unless ~}}
+    {{#if method.synchronous ~}}
+    let reply = Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.clone ~}}.clone(){{/if ~}}{{/if ~}}{{/each ~}}{{/if ~}});
+    {{#if method.metadata.nowait_hook ~}}
+    let nowait_reply = {{#if method.metadata.nowait_hook.fields ~}}nowait.then(|| {{else}}nowait.then_some({{/if ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#if method.metadata.nowait_hook.fields ~}}{{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}: {{field}}.clone(), {{/each ~}}{{/if ~}}{{#if method.metadata.nowait_hook.nonexhaustive_args ~}}..Default::default(){{/if ~}} });
+    {{/if ~}}
+    {{/if ~}}
     let method = AMQPClass::{{camel class.name}}(protocol::{{snake class.name}}::AMQPMethod::{{camel method.name}} (protocol::{{snake class.name}}::{{camel method.name}} {
       {{#each_argument method.arguments as |argument| ~}}
       {{#if @argument_is_value ~}}
       {{#unless argument.force_default ~}}
-      {{snake argument.name}}{{#if (use_str_ref argument.type) ~}}: {{snake argument.name}}.into(){{/if ~}},
+      {{snake argument.name}},
       {{/unless ~}}
       {{else}}
       {{#unless argument.ignore_flags ~}}
@@ -124,20 +132,19 @@ impl Channel {
     {{#if method.metadata.carry_headers ~}}
     self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties, start_hook_res).await
     {{else}}
-    let (promise, resolver) = Promise::new("{{class.name}}.{{method.name}}");
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     {{#if method.metadata.send_hook ~}}
     self.before_{{snake class.name false}}_{{snake method.name false}}({{#if method.metadata.send_hook.params ~}}{{#each method.metadata.send_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
-    self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.synchronous ~}}Some(ExpectedReply(Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.use_str_ref ~}}.into(){{/if ~}}{{/if ~}}{{/each ~}}{{/if ~}}), Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
+    self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.synchronous ~}}Some(ExpectedReply(reply, Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
     {{#if method.metadata.end_hook ~}}
     self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#if method.metadata.end_hook.params ~}}{{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
 
     {{#if method.synchronous ~}}
     {{#if method.metadata.nowait_hook ~}}
-    if nowait {
-      self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#if method.metadata.nowait_hook.fields ~}}{{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}, {{/each ~}}{{/if ~}}{{#if method.metadata.nowait_hook.nonexhaustive_args ~}}..Default::default(){{/if ~}} })?;
+    if let Some(nowait_reply) = nowait_reply {
+      self.receive_{{snake class.name false}}_{{snake method.name false}}_ok(nowait_reply)?;
     }
     {{/if ~}}
     {{/if ~}}

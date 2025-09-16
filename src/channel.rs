@@ -209,7 +209,7 @@ impl Channel {
             );
             self.internal_rpc.close_connection(
                 error.get_id(),
-                error.get_message().to_string(),
+                error.get_message().clone(),
                 class_id,
                 method_id,
             );
@@ -217,14 +217,14 @@ impl Channel {
         }
     }
 
-    pub async fn close(&self, reply_code: ReplyCode, reply_text: &str) -> Result<()> {
+    pub async fn close(&self, reply_code: ReplyCode, reply_text: ShortString) -> Result<()> {
         self.do_channel_close(reply_code, reply_text, 0, 0).await
     }
 
     pub async fn basic_consume(
         &self,
-        queue: &str,
-        consumer_tag: &str,
+        queue: ShortString,
+        consumer_tag: ShortString,
         options: BasicConsumeOptions,
         arguments: FieldTable,
     ) -> Result<Consumer> {
@@ -236,7 +236,7 @@ impl Channel {
 
     pub async fn basic_get(
         &self,
-        queue: &str,
+        queue: ShortString,
         options: BasicGetOptions,
     ) -> Result<Option<BasicGetMessage>> {
         self.do_basic_get(queue, options, None).await
@@ -244,13 +244,19 @@ impl Channel {
 
     pub async fn exchange_declare(
         &self,
-        exchange: &str,
+        exchange: ShortString,
         kind: ExchangeKind,
         options: ExchangeDeclareOptions,
         arguments: FieldTable,
     ) -> Result<()> {
-        self.do_exchange_declare(exchange, kind.kind(), options, arguments, kind.clone())
-            .await
+        self.do_exchange_declare(
+            exchange,
+            kind.kind().into(),
+            options,
+            arguments,
+            kind.clone(),
+        )
+        .await
     }
 
     pub async fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>> {
@@ -338,7 +344,7 @@ impl Channel {
         for ex in &topology.exchanges {
             if ex.is_declared {
                 self.exchange_declare(
-                    ex.name.as_str(),
+                    ex.name.clone(),
                     ex.kind.clone().unwrap_or_default(),
                     ex.options.unwrap_or_default(),
                     ex.arguments.clone().unwrap_or_default(),
@@ -351,9 +357,9 @@ impl Channel {
         for ex in &topology.exchanges {
             for binding in &ex.bindings {
                 self.exchange_bind(
-                    ex.name.as_str(),
-                    binding.source.as_str(),
-                    binding.routing_key.as_str(),
+                    ex.name.clone(),
+                    binding.source.clone(),
+                    binding.routing_key.clone(),
                     ExchangeBindOptions::default(),
                     binding.arguments.clone(),
                 )
@@ -365,7 +371,7 @@ impl Channel {
         for queue in &topology.queues {
             if queue.is_declared {
                 self.queue_declare(
-                    queue.name.as_str(),
+                    queue.name.clone(),
                     queue.options.unwrap_or_default(),
                     queue.arguments.clone().unwrap_or_default(),
                 )
@@ -377,9 +383,9 @@ impl Channel {
         for queue in &topology.queues {
             for binding in &queue.bindings {
                 self.queue_bind(
-                    queue.name.as_str(),
-                    binding.source.as_str(),
-                    binding.routing_key.as_str(),
+                    queue.name.clone(),
+                    binding.source.clone(),
+                    binding.routing_key.clone(),
                     QueueBindOptions::default(),
                     binding.arguments.clone(),
                 )
@@ -391,8 +397,8 @@ impl Channel {
         for consumer in topology.consumers.iter().cloned() {
             consumer.reset();
             self.do_basic_consume(
-                consumer.queue().as_str(),
-                consumer.tag().as_str(),
+                consumer.queue().clone(),
+                consumer.tag().clone(),
                 consumer.options(),
                 consumer.arguments(),
                 Some(consumer),
@@ -475,7 +481,7 @@ impl Channel {
         error!(%error);
         self.internal_rpc.close_connection(
             error.get_id(),
-            error.get_message().to_string(),
+            error.get_message().clone(),
             class_id,
             method_id,
         );
@@ -585,7 +591,7 @@ impl Channel {
             channel
                 .do_channel_close(
                     error.get_id(),
-                    error.get_message().as_str(),
+                    error.get_message().clone(),
                     class_id,
                     method_id,
                 )
@@ -774,7 +780,7 @@ impl Channel {
                     .locales
                     .to_string()
                     .split_whitespace()
-                    .any(|l| l == locale)
+                    .any(|l| l == locale.as_str())
                 {
                     error!(%locale, "unsupported locale");
                 }
@@ -824,9 +830,9 @@ impl Channel {
                     channel
                         .connection_start_ok(
                             options.client_properties,
-                            &auth_mechanism,
-                            &auth_starter,
-                            &locale,
+                            auth_mechanism,
+                            auth_starter,
+                            locale,
                             resolver,
                             connection,
                             auth_provider,
@@ -860,7 +866,7 @@ impl Channel {
                     .map_err(ErrorKind::AuthProviderError)?;
                 self.internal_rpc.spawn(async move {
                     channel
-                        .connection_secure_ok(&response, resolver, connection, auth_provider)
+                        .connection_secure_ok(response, resolver, connection, auth_provider)
                         .await
                 });
                 Ok(())
@@ -902,7 +908,7 @@ impl Channel {
                         )
                         .await?;
                     channel
-                        .connection_open(&vhost, Box::new(connection), resolver)
+                        .connection_open(vhost, Box::new(connection), resolver)
                         .await
                 });
                 Ok(())
@@ -1262,7 +1268,7 @@ impl Channel {
         if !method.nowait {
             let channel = self.clone();
             self.internal_rpc
-                .spawn(async move { channel.basic_cancel_ok(method.consumer_tag.as_str()).await });
+                .spawn(async move { channel.basic_cancel_ok(method.consumer_tag).await });
         }
         Ok(())
     }

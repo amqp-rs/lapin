@@ -1,6 +1,6 @@
 use crate::{
     Connection, ConnectionProperties, Error, ErrorKind, PromiseResolver, Result,
-    auth::AuthProvider, uri::AMQPUri,
+    auth::AuthProvider, types::ShortString, uri::AMQPUri,
 };
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
@@ -58,7 +58,7 @@ impl ConnectionStatus {
         resolver.map(|(resolver, _connection)| resolver)
     }
 
-    pub fn vhost(&self) -> String {
+    pub fn vhost(&self) -> ShortString {
         self.read().vhost.clone()
     }
 
@@ -208,7 +208,7 @@ impl fmt::Debug for ConnectionStatus {
 struct Inner {
     connection_step: Option<ConnectionStep>,
     state: ConnectionState,
-    vhost: String,
+    vhost: ShortString,
     username: String,
     blocked: bool,
     poison: Option<Error>,
