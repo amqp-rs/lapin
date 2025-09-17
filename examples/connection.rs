@@ -46,7 +46,7 @@ fn main() {
             //create the hello queue
             let queue = channel_a
                 .queue_declare(
-                    "hello",
+                    "hello".into(),
                     QueueDeclareOptions::default(),
                     FieldTable::default(),
                 )
@@ -59,8 +59,8 @@ fn main() {
             let channel = channel_b.clone();
             channel_b
                 .basic_consume(
-                    "hello",
-                    "my_consumer",
+                    "hello".into(),
+                    "my_consumer".into(),
                     BasicConsumeOptions::default(),
                     FieldTable::default(),
                 )
@@ -76,7 +76,7 @@ fn main() {
                                 .await
                                 .expect("basic_ack");
                             channel
-                                .basic_cancel("my_consumer", BasicCancelOptions::default())
+                                .basic_cancel("my_consumer".into(), BasicCancelOptions::default())
                                 .await
                                 .expect("basic_cancel");
                         }
@@ -88,8 +88,8 @@ fn main() {
             let payload = b"Hello world!";
             let confirm = channel_a
                 .basic_publish(
-                    "",
-                    "hello",
+                    "".into(),
+                    "hello".into(),
                     BasicPublishOptions::default(),
                     payload,
                     BasicProperties::default(),
