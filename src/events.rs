@@ -1,10 +1,10 @@
 use crate::Error;
-use flume::{self, Receiver, Sender};
+use flume::{Receiver, Sender};
 use futures_core::Stream;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
-// Wrap in an arc not to temper with receiver count
+// Wrap in an arc not to tamper with receiver count
 pub(crate) struct Events(Arc<Inner>);
 
 #[derive(Debug)]
