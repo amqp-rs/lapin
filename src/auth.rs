@@ -31,7 +31,7 @@ pub trait AuthProvider: Send + Sync + 'static {
     }
 
     /// Refresh the current session token (Connection.UpdateSecret)
-    fn refresh(&self) -> Result<String, String> {
+    fn refresh(&self) -> Result<LongString, String> {
         Err("Refresh not supported on current auth provider".to_string())
     }
 }
@@ -44,7 +44,7 @@ pub trait TokenProvider: Send + Sync + 'static {
     }
 
     /// Create a new token
-    fn create_token(&self) -> Result<String, String>;
+    fn create_token(&self) -> Result<LongString, String>;
 }
 
 pub(crate) struct DefaultAuthProvider {
@@ -120,7 +120,7 @@ impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
 
     fn auth_starter(&self) -> Result<LongString, String> {
         Ok(
-            Credentials::new(String::new(), self.token_provider.create_token()?)
+            Credentials::new(LongString::default(), self.token_provider.create_token()?)
                 .sasl_auth_string(self.mechanism),
         )
     }
@@ -129,7 +129,7 @@ impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
         self.token_provider.valid_for()
     }
 
-    fn refresh(&self) -> Result<String, String> {
+    fn refresh(&self) -> Result<LongString, String> {
         self.token_provider.create_token()
     }
 }
@@ -143,20 +143,20 @@ impl<TP: TokenProvider> AuthProvider for TokenAuthProvider<TP> {
 ///
 /// let auth_provider: TokenAuthProvider<_> = DefaultTokenProvider::new(
 ///     |_token| None /* never expire */,
-///     || Ok("my new valid token".to_string()),
+///     || Ok("my new valid token".into()),
 /// ).into();
 /// ```
 pub struct DefaultTokenProvider {
     #[allow(clippy::type_complexity)]
-    valid_for: Box<dyn Fn(&str) -> Option<Duration> + Send + Sync + 'static>,
-    create_token: Box<dyn Fn() -> Result<String, String> + Send + Sync + 'static>,
-    token: Mutex<String>,
+    valid_for: Box<dyn Fn(&LongString) -> Option<Duration> + Send + Sync + 'static>,
+    create_token: Box<dyn Fn() -> Result<LongString, String> + Send + Sync + 'static>,
+    token: Mutex<LongString>,
 }
 
 impl DefaultTokenProvider {
     pub fn new<
-        VF: Fn(&str) -> Option<Duration> + Send + Sync + 'static,
-        CT: Fn() -> Result<String, String> + Send + Sync + 'static,
+        VF: Fn(&LongString) -> Option<Duration> + Send + Sync + 'static,
+        CT: Fn() -> Result<LongString, String> + Send + Sync + 'static,
     >(
         valid_for: VF,
         create_token: CT,
@@ -164,11 +164,11 @@ impl DefaultTokenProvider {
         Self {
             valid_for: Box::new(valid_for),
             create_token: Box::new(create_token),
-            token: Mutex::new(String::new()),
+            token: Mutex::new(LongString::default()),
         }
     }
 
-    fn lock_token(&self) -> MutexGuard<'_, String> {
+    fn lock_token(&self) -> MutexGuard<'_, LongString> {
         self.token.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
@@ -178,7 +178,7 @@ impl TokenProvider for DefaultTokenProvider {
         (self.valid_for)(&self.lock_token())
     }
 
-    fn create_token(&self) -> Result<String, String> {
+    fn create_token(&self) -> Result<LongString, String> {
         let token = (self.create_token)()?;
         *self.lock_token() = token.clone();
         Ok(token)
