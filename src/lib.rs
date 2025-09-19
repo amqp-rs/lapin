@@ -166,6 +166,7 @@ mod queue;
 mod recovery_config;
 mod registry;
 mod returned_messages;
+mod secret_update;
 mod socket_state;
 mod thread;
 mod topology;

@@ -9,6 +9,7 @@ use crate::{
     heartbeat::Heartbeat,
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
+    secret_update::SecretUpdate,
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, LongString, ReplyCode, ShortString},
 };
@@ -24,6 +25,7 @@ pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
     channels_status: HashMap<ChannelId, KillSwitch>,
     frames: Frames,
     heartbeat: Heartbeat<RK>,
+    secret_update: SecretUpdate<RK>,
     runtime: Runtime<RK>,
 }
 
@@ -311,6 +313,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
     pub(crate) fn new(
         runtime: Runtime<RK>,
         heartbeat: Heartbeat<RK>,
+        secret_update: SecretUpdate<RK>,
         frames: Frames,
         waker: SocketStateHandle,
     ) -> Self {
@@ -322,6 +325,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
             channels_status: Default::default(),
             frames,
             heartbeat,
+            secret_update,
             runtime,
         }
     }
@@ -476,6 +480,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 FinishConnectionShutdown => channels.finish_connection_shutdown(),
                 InitConnectionRecovery(error) => {
                     self.heartbeat.reset();
+                    self.secret_update.reset();
                     channels.init_connection_recovery(error);
                 }
                 InitConnectionShutdown(error, connection_resolver) => {
@@ -510,6 +515,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 }
                 SetConnectionClosing => {
                     self.heartbeat.cancel();
+                    self.secret_update.cancel();
                     channels.set_connection_closing();
                 }
                 SetConnectionClosed(error) => {
@@ -533,6 +539,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 StartHeartbeat(heartbeat) => {
                     self.heartbeat.set_timeout(heartbeat);
                     self.heartbeat.start(self.handle());
+                    self.secret_update.start(self.handle());
                 }
                 UpdateSecret(secret, reason, resolver) => {
                     let channels = channels.clone();

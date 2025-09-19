@@ -459,8 +459,9 @@ mod test {
     use super::*;
 
     use crate::{
-        ConnectionStatus, ErrorKind, frames::Frames, heartbeat::Heartbeat,
-        internal_rpc::InternalRPC, runtime, socket_state::SocketState, uri::AMQPUri,
+        ConnectionStatus, ErrorKind, auth::DefaultAuthProvider, frames::Frames,
+        heartbeat::Heartbeat, internal_rpc::InternalRPC, runtime, secret_update::SecretUpdate,
+        socket_state::SocketState, uri::AMQPUri,
     };
 
     use std::{
@@ -486,9 +487,19 @@ mod test {
         let status = ConnectionStatus::new(&uri);
         let runtime = runtime::default_runtime().unwrap();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
+        let auth_provider = Arc::new(DefaultAuthProvider::new(
+            uri.authority.userinfo.into(),
+            uri.query.auth_mechanism.unwrap_or_default(),
+        ));
+        let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
         let socket_state = SocketState::default();
-        let internal_rpc =
-            InternalRPC::new(runtime, heartbeat, Frames::default(), socket_state.handle());
+        let internal_rpc = InternalRPC::new(
+            runtime,
+            heartbeat,
+            secret_update,
+            Frames::default(),
+            socket_state.handle(),
+        );
         Consumer::new(
             ShortString::from(tag),
             internal_rpc.handle(),

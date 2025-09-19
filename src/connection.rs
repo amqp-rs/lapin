@@ -11,6 +11,7 @@ use crate::{
     internal_rpc::{InternalRPC, InternalRPCHandle},
     io_loop::IoLoop,
     runtime,
+    secret_update::SecretUpdate,
     socket_state::SocketState,
     tcp::{AMQPUriTcpExt, OwnedTLSConfig},
     thread::ThreadHandle,
@@ -203,14 +204,16 @@ impl Connection {
                 uri.query.auth_mechanism.unwrap_or_default(),
             ))
         });
-        let configuration = Configuration::new(&uri, auth_provider);
+        let configuration = Configuration::new(&uri, auth_provider.clone());
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
+        let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
         let internal_rpc = InternalRPC::new(
             runtime.clone(),
             heartbeat.clone(),
+            secret_update,
             frames.clone(),
             socket_state.handle(),
         );
@@ -347,12 +350,17 @@ impl Connect for &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel_receiver_state::{ChannelReceiverState, DeliveryCause};
-    use crate::options::BasicConsumeOptions;
-    use crate::types::{ChannelId, FieldTable, ShortString};
-    use crate::{BasicProperties, ChannelState, ConnectionState, ErrorKind};
-    use amq_protocol::frame::AMQPContentHeader;
-    use amq_protocol::protocol::{AMQPClass, basic};
+    use crate::{
+        BasicProperties, ChannelState, ConnectionState, ErrorKind,
+        channel_receiver_state::{ChannelReceiverState, DeliveryCause},
+        options::BasicConsumeOptions,
+        secret_update::SecretUpdate,
+        types::{ChannelId, FieldTable, ShortString},
+    };
+    use amq_protocol::{
+        frame::AMQPContentHeader,
+        protocol::{AMQPClass, basic},
+    };
 
     fn create_connection() -> (Connection, Channels, InternalRPCHandle) {
         let uri = AMQPUri::default();
@@ -361,13 +369,19 @@ mod tests {
             uri.authority.userinfo.clone().into(),
             uri.query.auth_mechanism.unwrap_or_default(),
         ));
-        let configuration = Configuration::new(&uri, auth_provider);
+        let configuration = Configuration::new(&uri, auth_provider.clone());
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let internal_rpc =
-            InternalRPC::new(runtime, heartbeat, frames.clone(), socket_state.handle());
+        let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
+        let internal_rpc = InternalRPC::new(
+            runtime,
+            heartbeat,
+            secret_update,
+            frames.clone(),
+            socket_state.handle(),
+        );
         let events = Events::new();
         let channels = Channels::new(
             configuration.clone(),
