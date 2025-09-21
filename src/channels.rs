@@ -44,7 +44,7 @@ impl Channels {
         options: ConnectionProperties,
         events: Events,
     ) -> Self {
-        let recovery_config = options.recovery_config.clone().unwrap_or_default();
+        let recovery_config = configuration.recovery_config.clone();
         let mut inner = Inner::new(configuration.clone(), waker, recovery_config.clone());
         let channel0 = inner.create_channel(
             0,

@@ -1,6 +1,7 @@
 use crate::{
     auth::AuthProvider,
     protocol,
+    recovery_config::RecoveryConfig,
     types::{ChannelId, FrameSize, Heartbeat},
     uri::AMQPUri,
 };
@@ -11,13 +12,19 @@ use std::{
 
 pub struct Configuration {
     pub(crate) auth_provider: Arc<dyn AuthProvider>,
+    pub(crate) recovery_config: RecoveryConfig,
     inner: Arc<RwLock<Inner>>,
 }
 
 impl Configuration {
-    pub(crate) fn new(uri: &AMQPUri, auth_provider: Arc<dyn AuthProvider>) -> Self {
+    pub(crate) fn new(
+        uri: &AMQPUri,
+        auth_provider: Arc<dyn AuthProvider>,
+        recovery_config: RecoveryConfig,
+    ) -> Self {
         Self {
             auth_provider,
+            recovery_config,
             inner: Arc::new(RwLock::new(Inner::new(uri))),
         }
     }
@@ -60,6 +67,7 @@ impl Clone for Configuration {
     fn clone(&self) -> Self {
         Self {
             auth_provider: self.auth_provider.clone(),
+            recovery_config: self.recovery_config.clone(),
             inner: self.inner.clone(),
         }
     }

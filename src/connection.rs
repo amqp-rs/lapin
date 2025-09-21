@@ -204,7 +204,11 @@ impl Connection {
                 uri.query.auth_mechanism.unwrap_or_default(),
             ))
         });
-        let configuration = Configuration::new(&uri, auth_provider.clone());
+        let configuration = Configuration::new(
+            &uri,
+            auth_provider.clone(),
+            options.recovery_config.clone().unwrap_or_default(),
+        );
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
@@ -354,6 +358,7 @@ mod tests {
         BasicProperties, ChannelState, ConnectionState, ErrorKind,
         channel_receiver_state::{ChannelReceiverState, DeliveryCause},
         options::BasicConsumeOptions,
+        recovery_config::RecoveryConfig,
         secret_update::SecretUpdate,
         types::{ChannelId, FieldTable, ShortString},
     };
@@ -369,7 +374,8 @@ mod tests {
             uri.authority.userinfo.clone().into(),
             uri.query.auth_mechanism.unwrap_or_default(),
         ));
-        let configuration = Configuration::new(&uri, auth_provider.clone());
+        let configuration =
+            Configuration::new(&uri, auth_provider.clone(), RecoveryConfig::default());
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
