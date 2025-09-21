@@ -487,10 +487,7 @@ mod test {
         let status = ConnectionStatus::new(&uri);
         let runtime = runtime::default_runtime().unwrap();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let auth_provider = Arc::new(DefaultAuthProvider::new(
-            uri.authority.userinfo.into(),
-            uri.query.auth_mechanism.unwrap_or_default(),
-        ));
+        let auth_provider = Arc::new(DefaultAuthProvider::new(&uri));
         let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
         let socket_state = SocketState::default();
         let internal_rpc = InternalRPC::new(

@@ -1,5 +1,6 @@
 use crate::{
-    auth::AuthProvider,
+    ConnectionProperties,
+    auth::{AuthProvider, DefaultAuthProvider},
     protocol,
     recovery_config::RecoveryConfig,
     types::{ChannelId, FrameSize, Heartbeat},
@@ -17,14 +18,18 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub(crate) fn new(
-        uri: &AMQPUri,
-        auth_provider: Arc<dyn AuthProvider>,
-        recovery_config: RecoveryConfig,
-    ) -> Self {
-        Self {
+    pub(crate) fn new(uri: &AMQPUri, options: ConnectionProperties) -> Self {
+        let ConnectionProperties {
+            locale,
+            client_properties,
             auth_provider,
             recovery_config,
+            backoff,
+        } = options;
+        Self {
+            auth_provider: auth_provider
+                .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(&uri))),
+            recovery_config: recovery_config.unwrap_or_default(),
             inner: Arc::new(RwLock::new(Inner::new(uri))),
         }
     }

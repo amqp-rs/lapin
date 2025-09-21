@@ -198,17 +198,11 @@ impl Connection {
         + 'static,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let auth_provider = options.auth_provider.clone().unwrap_or_else(|| {
-            Arc::new(DefaultAuthProvider::new(
-                uri.authority.userinfo.clone().into(),
-                uri.query.auth_mechanism.unwrap_or_default(),
-            ))
-        });
-        let configuration = Configuration::new(
-            &uri,
-            auth_provider.clone(),
-            options.recovery_config.clone().unwrap_or_default(),
-        );
+        let auth_provider = options
+            .auth_provider
+            .clone()
+            .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(&uri)));
+        let configuration = Configuration::new(&uri, options.clone());
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
@@ -355,10 +349,9 @@ impl Connect for &str {
 mod tests {
     use super::*;
     use crate::{
-        BasicProperties, ChannelState, ConnectionState, ErrorKind,
+        BasicProperties, ChannelState, ConnectionProperties, ConnectionState, ErrorKind,
         channel_receiver_state::{ChannelReceiverState, DeliveryCause},
         options::BasicConsumeOptions,
-        recovery_config::RecoveryConfig,
         secret_update::SecretUpdate,
         types::{ChannelId, FieldTable, ShortString},
     };
@@ -370,17 +363,16 @@ mod tests {
     fn create_connection() -> (Connection, Channels, InternalRPCHandle) {
         let uri = AMQPUri::default();
         let runtime = runtime::default_runtime().unwrap();
-        let auth_provider = Arc::new(DefaultAuthProvider::new(
-            uri.authority.userinfo.clone().into(),
-            uri.query.auth_mechanism.unwrap_or_default(),
-        ));
-        let configuration =
-            Configuration::new(&uri, auth_provider.clone(), RecoveryConfig::default());
+        let configuration = Configuration::new(&uri, ConnectionProperties::default());
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
+        let secret_update = SecretUpdate::new(
+            status.clone(),
+            runtime.clone(),
+            configuration.auth_provider.clone(),
+        );
         let internal_rpc = InternalRPC::new(
             runtime,
             heartbeat,

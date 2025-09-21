@@ -1,4 +1,7 @@
-use crate::types::{LongString, ShortString};
+use crate::{
+    types::{LongString, ShortString},
+    uri::AMQPUri,
+};
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
     sync::{Mutex, MutexGuard},
@@ -53,10 +56,10 @@ pub(crate) struct DefaultAuthProvider {
 }
 
 impl DefaultAuthProvider {
-    pub(crate) fn new(credentials: Credentials, mechanism: SASLMechanism) -> Self {
+    pub(crate) fn new(uri: &AMQPUri) -> Self {
         Self {
-            credentials,
-            mechanism,
+            credentials: uri.authority.userinfo.clone().into(),
+            mechanism: uri.query.auth_mechanism.unwrap_or_default(),
         }
     }
 }
