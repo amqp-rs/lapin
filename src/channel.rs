@@ -758,11 +758,11 @@ impl Channel {
         };
 
         match step {
-            ConnectionStep::ProtocolHeader(resolver, connection, mut options) => {
-                let configuration = connection.configuration();
+            ConnectionStep::ProtocolHeader(resolver, mut connection) => {
+                let configuration = connection.configuration_mut();
                 let auth_provider = configuration.auth_provider.clone();
                 let mechanism = auth_provider.mechanism();
-                let locale = options.locale.clone();
+                let locale = configuration.amqp_locale.clone();
 
                 if !method
                     .mechanisms
@@ -781,21 +781,21 @@ impl Channel {
                     error!(%locale, "unsupported locale");
                 }
 
-                if !options.client_properties.contains_key("product")
-                    || !options.client_properties.contains_key("version")
+                if !configuration.amqp_client_properties.contains_key("product")
+                    || !configuration.amqp_client_properties.contains_key("version")
                 {
-                    options.client_properties.insert(
+                    configuration.amqp_client_properties.insert(
                         "product".into(),
                         AMQPValue::LongString(env!("CARGO_PKG_NAME").into()),
                     );
-                    options.client_properties.insert(
+                    configuration.amqp_client_properties.insert(
                         "version".into(),
                         AMQPValue::LongString(env!("CARGO_PKG_VERSION").into()),
                     );
                 }
 
-                options
-                    .client_properties
+                configuration
+                    .amqp_client_properties
                     .insert("platform".into(), AMQPValue::LongString("rust".into()));
 
                 let mut capabilities = FieldTable::default();
@@ -809,18 +809,19 @@ impl Channel {
                 capabilities.insert("per_consumer_qos".into(), true.into());
                 capabilities.insert("direct_reply_to".into(), true.into());
 
-                options
-                    .client_properties
+                configuration
+                    .amqp_client_properties
                     .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
                 let auth_starter = auth_provider
                     .auth_starter()
                     .map_err(ErrorKind::AuthProviderError)?;
                 let channel = self.clone();
+                let client_properties = configuration.amqp_client_properties.clone();
                 self.internal_rpc.spawn(async move {
                     channel
                         .connection_start_ok(
-                            options.client_properties,
+                            client_properties,
                             mechanism,
                             auth_starter,
                             locale,

@@ -3,18 +3,22 @@ use crate::{
     auth::{AuthProvider, DefaultAuthProvider},
     protocol,
     recovery_config::RecoveryConfig,
-    types::{ChannelId, FrameSize, Heartbeat},
+    types::{ChannelId, FieldTable, FrameSize, Heartbeat, ShortString},
     uri::AMQPUri,
 };
+use backon::ExponentialBuilder;
 use std::{
     fmt,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 pub struct Configuration {
+    pub(crate) amqp_client_properties: FieldTable,
+    pub(crate) amqp_locale: ShortString,
     pub(crate) auth_provider: Arc<dyn AuthProvider>,
+    pub(crate) backoff: ExponentialBuilder,
     pub(crate) recovery_config: RecoveryConfig,
-    inner: Arc<RwLock<Inner>>,
+    inner: Arc<RwLock<NegociatedConfig>>,
 }
 
 impl Configuration {
@@ -27,10 +31,12 @@ impl Configuration {
             backoff,
         } = options;
         Self {
-            auth_provider: auth_provider
-                .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(&uri))),
+            amqp_client_properties: client_properties,
+            amqp_locale: locale,
+            auth_provider: auth_provider.unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(uri))),
+            backoff,
             recovery_config: recovery_config.unwrap_or_default(),
-            inner: Arc::new(RwLock::new(Inner::new(uri))),
+            inner: Arc::new(RwLock::new(NegociatedConfig::new(uri))),
         }
     }
 
@@ -59,11 +65,11 @@ impl Configuration {
         self.write_inner().heartbeat = heartbeat;
     }
 
-    fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {
+    fn read_inner(&self) -> RwLockReadGuard<'_, NegociatedConfig> {
         self.inner.read().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn write_inner(&self) -> RwLockWriteGuard<'_, Inner> {
+    fn write_inner(&self) -> RwLockWriteGuard<'_, NegociatedConfig> {
         self.inner.write().unwrap_or_else(|e| e.into_inner())
     }
 }
@@ -71,20 +77,23 @@ impl Configuration {
 impl Clone for Configuration {
     fn clone(&self) -> Self {
         Self {
+            amqp_client_properties: self.amqp_client_properties.clone(),
+            amqp_locale: self.amqp_locale.clone(),
             auth_provider: self.auth_provider.clone(),
+            backoff: self.backoff,
             recovery_config: self.recovery_config.clone(),
             inner: self.inner.clone(),
         }
     }
 }
 
-struct Inner {
+struct NegociatedConfig {
     channel_max: ChannelId,
     frame_max: FrameSize,
     heartbeat: Heartbeat,
 }
 
-impl Inner {
+impl NegociatedConfig {
     fn new(uri: &AMQPUri) -> Self {
         Self {
             frame_max: uri.query.frame_max.unwrap_or_default(),

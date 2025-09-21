@@ -6,7 +6,6 @@ use crate::{
 use backon::ExponentialBuilder;
 use std::sync::Arc;
 
-#[derive(Clone)]
 pub struct ConnectionProperties {
     pub(crate) locale: ShortString,
     pub(crate) client_properties: FieldTable,

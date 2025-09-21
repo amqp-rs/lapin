@@ -1,6 +1,6 @@
 use crate::{
-    Connection, ConnectionProperties, Error, ErrorKind, PromiseResolver, Result,
-    auth::AuthProvider, types::ShortString, uri::AMQPUri,
+    Connection, Error, ErrorKind, PromiseResolver, Result, auth::AuthProvider, types::ShortString,
+    uri::AMQPUri,
 };
 use std::{
     fmt,
@@ -31,9 +31,8 @@ impl ConnectionStatus {
         &self,
         resolver: PromiseResolver<Connection>,
         conn: Connection,
-        options: ConnectionProperties,
     ) -> Result<()> {
-        self.write().set_connecting(resolver, conn, options)
+        self.write().set_connecting(resolver, conn)
     }
 
     pub(crate) fn set_reconnecting(&self) {
@@ -131,11 +130,7 @@ impl ConnectionStatus {
 }
 
 pub(crate) enum ConnectionStep {
-    ProtocolHeader(
-        PromiseResolver<Connection>,
-        Connection,
-        ConnectionProperties,
-    ),
+    ProtocolHeader(PromiseResolver<Connection>, Connection),
     StartOk(
         PromiseResolver<Connection>,
         Connection,
@@ -226,10 +221,9 @@ impl Inner {
         &mut self,
         resolver: PromiseResolver<Connection>,
         conn: Connection,
-        options: ConnectionProperties,
     ) -> Result<()> {
         self.state = ConnectionState::Connecting;
-        self.connection_step = Some(ConnectionStep::ProtocolHeader(resolver, conn, options));
+        self.connection_step = Some(ConnectionStep::ProtocolHeader(resolver, conn));
         self.poison.take().map(Err).unwrap_or(Ok(()))
     }
 

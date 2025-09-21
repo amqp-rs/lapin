@@ -1,6 +1,5 @@
 use crate::{
     AsyncTcpStream, ConnectionProperties, ConnectionStatus, Event, Promise, Result,
-    auth::DefaultAuthProvider,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -163,6 +162,10 @@ impl Connection {
         &self.configuration
     }
 
+    pub(crate) fn configuration_mut(&mut self) -> &mut Configuration {
+        &mut self.configuration
+    }
+
     pub fn status(&self) -> &ConnectionStatus {
         &self.status
     }
@@ -198,16 +201,16 @@ impl Connection {
         + 'static,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let auth_provider = options
-            .auth_provider
-            .clone()
-            .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(&uri)));
-        let configuration = Configuration::new(&uri, options.clone());
+        let configuration = Configuration::new(&uri, options);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
-        let secret_update = SecretUpdate::new(status.clone(), runtime.clone(), auth_provider);
+        let secret_update = SecretUpdate::new(
+            status.clone(),
+            runtime.clone(),
+            configuration.auth_provider.clone(),
+        );
         let internal_rpc = InternalRPC::new(
             runtime.clone(),
             heartbeat.clone(),
@@ -222,7 +225,6 @@ impl Connection {
             socket_state.handle(),
             internal_rpc.handle(),
             frames.clone(),
-            options.clone(),
             events.clone(),
         );
         let channel0 = channels.channel0();
@@ -238,25 +240,19 @@ impl Connection {
             runtime,
             connect,
             uri,
-            options.backoff,
+            conn.configuration().backoff,
         );
 
         internal_rpc.start(channels);
         conn.io_loop.register(io_loop.start()?);
-        conn.start(channel0, options).await
+        conn.start(channel0).await
     }
 
-    pub(crate) async fn start(
-        self,
-        channel0: Channel,
-        options: ConnectionProperties,
-    ) -> Result<Self> {
+    pub(crate) async fn start(self, channel0: Channel) -> Result<Self> {
         let (promise, resolver) = Promise::new("ProtocolHeader");
 
         trace!("Set connection as connecting");
-        self.status
-            .clone()
-            .set_connecting(resolver.clone(), self, options)?;
+        self.status.clone().set_connecting(resolver.clone(), self)?;
 
         trace!("Sending protocol header to server");
         channel0.send_frame(
@@ -387,7 +383,6 @@ mod tests {
             socket_state.handle(),
             internal_rpc.handle(),
             frames.clone(),
-            ConnectionProperties::default(),
             events.clone(),
         );
         let conn = Connection::new(configuration, status, internal_rpc.handle(), events);

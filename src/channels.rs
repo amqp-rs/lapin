@@ -1,6 +1,6 @@
 use crate::{
-    BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionProperties,
-    ConnectionState, ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
+    BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionState,
+    ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
     connection_closer::ConnectionCloser,
     events::{Events, EventsSender},
     frames::Frames,
@@ -30,7 +30,6 @@ pub(crate) struct Channels {
     frames: Frames,
     connection_killswitch: KillSwitch,
     events: Events,
-    options: ConnectionProperties,
     recovery_config: RecoveryConfig,
 }
 
@@ -41,7 +40,6 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        options: ConnectionProperties,
         events: Events,
     ) -> Self {
         let recovery_config = configuration.recovery_config.clone();
@@ -65,7 +63,6 @@ impl Channels {
             frames,
             connection_killswitch: KillSwitch::default(),
             events,
-            options,
             recovery_config,
         }
     }
@@ -266,7 +263,7 @@ impl Channels {
             self.internal_rpc.clone(),
             self.events.clone(),
         )
-        .start(self.channel0(), self.options.clone())
+        .start(self.channel0())
         .await?;
 
         trace!("Connection recovered, now recovering channels");
