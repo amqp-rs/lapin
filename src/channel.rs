@@ -1,11 +1,12 @@
 use crate::{
-    BasicProperties, ChannelState, ChannelStatus, Configuration, Connection, ConnectionState,
-    ConnectionStatus, Error, ErrorKind, ExchangeKind, Promise, PromiseResolver, Result,
+    BasicProperties, ChannelState, ChannelStatus, Connection, ConnectionState, ConnectionStatus,
+    Error, ErrorKind, ExchangeKind, Promise, PromiseResolver, Result,
     acknowledgement::Acknowledgements,
     auth::AuthProvider,
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
+    configuration::NegociatedConfig,
     connection_closer::ConnectionCloser,
     connection_status::ConnectionStep,
     consumer::Consumer,
@@ -41,7 +42,7 @@ use tracing::{error, info, trace};
 #[derive(Clone)]
 pub struct Channel {
     id: ChannelId,
-    configuration: Configuration,
+    configuration: NegociatedConfig,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
     local_registry: Registry,
@@ -84,7 +85,7 @@ impl Channel {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: ChannelId,
-        configuration: Configuration,
+        configuration: NegociatedConfig,
         connection_status: ConnectionStatus,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,

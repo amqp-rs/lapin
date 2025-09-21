@@ -1,7 +1,8 @@
 use crate::{
-    AsyncTcpStream, Configuration, ConnectionState, ConnectionStatus, Error, ErrorKind, Result,
+    AsyncTcpStream, ConnectionState, ConnectionStatus, Error, ErrorKind, Result,
     buffer::Buffer,
     channels::Channels,
+    configuration::NegociatedConfig,
     frames::{FrameSending, Frames},
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
@@ -44,7 +45,7 @@ pub struct IoLoop<
         + 'static,
 > {
     connection_status: ConnectionStatus,
-    configuration: Configuration,
+    configuration: NegociatedConfig,
     channels: Channels,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
@@ -72,7 +73,7 @@ impl<
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
-        configuration: Configuration,
+        configuration: NegociatedConfig,
         channels: Channels,
         internal_rpc: InternalRPCHandle,
         frames: Frames,

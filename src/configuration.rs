@@ -17,8 +17,8 @@ pub struct Configuration {
     pub(crate) amqp_locale: ShortString,
     pub(crate) auth_provider: Arc<dyn AuthProvider>,
     pub(crate) backoff: ExponentialBuilder,
+    pub(crate) negociated_config: NegociatedConfig,
     pub(crate) recovery_config: RecoveryConfig,
-    inner: Arc<RwLock<NegociatedConfig>>,
 }
 
 impl Configuration {
@@ -35,42 +35,21 @@ impl Configuration {
             amqp_locale: locale,
             auth_provider: auth_provider.unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(uri))),
             backoff,
+            negociated_config: NegociatedConfig::new(uri),
             recovery_config: recovery_config.unwrap_or_default(),
-            inner: Arc::new(RwLock::new(NegociatedConfig::new(uri))),
         }
     }
 
     pub fn channel_max(&self) -> ChannelId {
-        self.read_inner().channel_max
-    }
-
-    pub(crate) fn set_channel_max(&self, channel_max: ChannelId) {
-        self.write_inner().channel_max = channel_max;
+        self.negociated_config.channel_max()
     }
 
     pub fn frame_max(&self) -> FrameSize {
-        self.read_inner().frame_max
-    }
-
-    pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
-        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE);
-        self.write_inner().frame_max = frame_max;
+        self.negociated_config.frame_max()
     }
 
     pub fn heartbeat(&self) -> Heartbeat {
-        self.read_inner().heartbeat
-    }
-
-    pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
-        self.write_inner().heartbeat = heartbeat;
-    }
-
-    fn read_inner(&self) -> RwLockReadGuard<'_, NegociatedConfig> {
-        self.inner.read().unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn write_inner(&self) -> RwLockWriteGuard<'_, NegociatedConfig> {
-        self.inner.write().unwrap_or_else(|e| e.into_inner())
+        self.negociated_config.heartbeat()
     }
 }
 
@@ -81,13 +60,24 @@ impl Clone for Configuration {
             amqp_locale: self.amqp_locale.clone(),
             auth_provider: self.auth_provider.clone(),
             backoff: self.backoff,
+            negociated_config: self.negociated_config.clone(),
             recovery_config: self.recovery_config.clone(),
-            inner: self.inner.clone(),
         }
     }
 }
 
-struct NegociatedConfig {
+impl fmt::Debug for Configuration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.negociated_config, f)
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NegociatedConfig {
+    inner: Arc<RwLock<Inner>>,
+}
+
+struct Inner {
     channel_max: ChannelId,
     frame_max: FrameSize,
     heartbeat: Heartbeat,
@@ -96,14 +86,49 @@ struct NegociatedConfig {
 impl NegociatedConfig {
     fn new(uri: &AMQPUri) -> Self {
         Self {
-            frame_max: uri.query.frame_max.unwrap_or_default(),
-            channel_max: uri.query.channel_max.unwrap_or_default(),
-            heartbeat: uri.query.heartbeat.unwrap_or_default(),
+            inner: Arc::new(RwLock::new(Inner {
+                frame_max: uri.query.frame_max.unwrap_or_default(),
+                channel_max: uri.query.channel_max.unwrap_or_default(),
+                heartbeat: uri.query.heartbeat.unwrap_or_default(),
+            })),
         }
+    }
+
+    pub(crate) fn channel_max(&self) -> ChannelId {
+        self.read_inner().channel_max
+    }
+
+    pub(crate) fn set_channel_max(&self, channel_max: ChannelId) {
+        self.write_inner().channel_max = channel_max;
+    }
+
+    pub(crate) fn frame_max(&self) -> FrameSize {
+        self.read_inner().frame_max
+    }
+
+    pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
+        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE);
+        self.write_inner().frame_max = frame_max;
+    }
+
+    pub(crate) fn heartbeat(&self) -> Heartbeat {
+        self.read_inner().heartbeat
+    }
+
+    pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
+        self.write_inner().heartbeat = heartbeat;
+    }
+
+    fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {
+        self.inner.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write_inner(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.inner.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
-impl fmt::Debug for Configuration {
+impl fmt::Debug for NegociatedConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let inner = self.read_inner();
         f.debug_struct("Configuration")

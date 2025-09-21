@@ -1,6 +1,7 @@
 use crate::{
     BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionState,
     ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
+    configuration::NegociatedConfig,
     connection_closer::ConnectionCloser,
     events::{Events, EventsSender},
     frames::Frames,
@@ -43,7 +44,11 @@ impl Channels {
         events: Events,
     ) -> Self {
         let recovery_config = configuration.recovery_config.clone();
-        let mut inner = Inner::new(configuration.clone(), waker, recovery_config.clone());
+        let mut inner = Inner::new(
+            configuration.negociated_config.clone(),
+            waker,
+            recovery_config.clone(),
+        );
         let channel0 = inner.create_channel(
             0,
             connection_status.clone(),
@@ -319,14 +324,14 @@ impl fmt::Debug for Channels {
 struct Inner {
     channels: HashMap<ChannelId, Channel>,
     channel_id: IdSequence<ChannelId>,
-    configuration: Configuration,
+    configuration: NegociatedConfig,
     waker: SocketStateHandle,
     recovery_config: RecoveryConfig,
 }
 
 impl Inner {
     fn new(
-        configuration: Configuration,
+        configuration: NegociatedConfig,
         waker: SocketStateHandle,
         recovery_config: RecoveryConfig,
     ) -> Self {
