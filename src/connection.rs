@@ -1,5 +1,6 @@
 use crate::{
     AsyncTcpStream, ConnectionProperties, ConnectionStatus, Event, Promise, Result,
+    auth::DefaultAuthProvider,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -196,7 +197,13 @@ impl Connection {
         + 'static,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let configuration = Configuration::new(&uri);
+        let auth_provider = options.auth_provider.clone().unwrap_or_else(|| {
+            Arc::new(DefaultAuthProvider::new(
+                uri.authority.userinfo.clone().into(),
+                uri.query.auth_mechanism.unwrap_or_default(),
+            ))
+        });
+        let configuration = Configuration::new(&uri, auth_provider);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
@@ -214,7 +221,6 @@ impl Connection {
             socket_state.handle(),
             internal_rpc.handle(),
             frames.clone(),
-            uri.clone(),
             options.clone(),
             events.clone(),
         );
@@ -230,31 +236,26 @@ impl Connection {
             heartbeat,
             runtime,
             connect,
-            uri.clone(),
+            uri,
             options.backoff,
         );
 
         internal_rpc.start(channels);
         conn.io_loop.register(io_loop.start()?);
-        conn.start(channel0, uri, options).await
+        conn.start(channel0, options).await
     }
 
     pub(crate) async fn start(
         self,
         channel0: Channel,
-        uri: AMQPUri,
         options: ConnectionProperties,
     ) -> Result<Self> {
         let (promise, resolver) = Promise::new("ProtocolHeader");
 
         trace!("Set connection as connecting");
-        self.status.clone().set_connecting(
-            resolver.clone(),
-            self,
-            uri.authority.userinfo.into(),
-            uri.query.auth_mechanism.unwrap_or_default(),
-            options,
-        )?;
+        self.status
+            .clone()
+            .set_connecting(resolver.clone(), self, options)?;
 
         trace!("Sending protocol header to server");
         channel0.send_frame(
@@ -356,7 +357,11 @@ mod tests {
     fn create_connection() -> (Connection, Channels, InternalRPCHandle) {
         let uri = AMQPUri::default();
         let runtime = runtime::default_runtime().unwrap();
-        let configuration = Configuration::new(&uri);
+        let auth_provider = Arc::new(DefaultAuthProvider::new(
+            uri.authority.userinfo.clone().into(),
+            uri.query.auth_mechanism.unwrap_or_default(),
+        ));
+        let configuration = Configuration::new(&uri, auth_provider);
         let status = ConnectionStatus::new(&uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
@@ -370,7 +375,6 @@ mod tests {
             socket_state.handle(),
             internal_rpc.handle(),
             frames.clone(),
-            uri.clone(),
             ConnectionProperties::default(),
             events.clone(),
         );

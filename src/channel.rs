@@ -2,7 +2,7 @@ use crate::{
     BasicProperties, ChannelState, ChannelStatus, Configuration, Connection, ConnectionState,
     ConnectionStatus, Error, ErrorKind, ExchangeKind, Promise, PromiseResolver, Result,
     acknowledgement::Acknowledgements,
-    auth::{AuthProvider, DefaultAuthProvider},
+    auth::AuthProvider,
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
@@ -758,21 +758,17 @@ impl Channel {
         };
 
         match step {
-            ConnectionStep::ProtocolHeader(
-                resolver,
-                connection,
-                credentials,
-                mechanism,
-                mut options,
-            ) => {
-                let mechanism_str = mechanism.to_string();
+            ConnectionStep::ProtocolHeader(resolver, connection, mut options) => {
+                let configuration = connection.configuration();
+                let auth_provider = configuration.auth_provider.clone();
+                let mechanism = auth_provider.mechanism();
                 let locale = options.locale.clone();
 
                 if !method
                     .mechanisms
                     .to_string()
                     .split_whitespace()
-                    .any(|m| m == mechanism_str)
+                    .any(|m| m == mechanism.as_str())
                 {
                     error!(%mechanism, "unsupported mechanism");
                 }
@@ -817,11 +813,6 @@ impl Channel {
                     .client_properties
                     .insert("capabilities".into(), AMQPValue::FieldTable(capabilities));
 
-                let auth_provider = options
-                    .auth_provider
-                    .clone()
-                    .unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(credentials, mechanism)));
-                let auth_mechanism = auth_provider.mechanism();
                 let auth_starter = auth_provider
                     .auth_starter()
                     .map_err(ErrorKind::AuthProviderError)?;
@@ -830,7 +821,7 @@ impl Channel {
                     channel
                         .connection_start_ok(
                             options.client_properties,
-                            auth_mechanism,
+                            mechanism,
                             auth_starter,
                             locale,
                             resolver,

@@ -11,7 +11,6 @@ use crate::{
     recovery_config::RecoveryConfig,
     socket_state::SocketStateHandle,
     types::{ChannelId, Identifier, PayloadSize},
-    uri::AMQPUri,
 };
 use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use std::{
@@ -31,7 +30,6 @@ pub(crate) struct Channels {
     frames: Frames,
     connection_killswitch: KillSwitch,
     events: Events,
-    uri: AMQPUri,
     options: ConnectionProperties,
     recovery_config: RecoveryConfig,
 }
@@ -43,7 +41,6 @@ impl Channels {
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
-        uri: AMQPUri,
         options: ConnectionProperties,
         events: Events,
     ) -> Self {
@@ -68,7 +65,6 @@ impl Channels {
             frames,
             connection_killswitch: KillSwitch::default(),
             events,
-            uri,
             options,
             recovery_config,
         }
@@ -270,7 +266,7 @@ impl Channels {
             self.internal_rpc.clone(),
             self.events.clone(),
         )
-        .start(self.channel0(), self.uri.clone(), self.options.clone())
+        .start(self.channel0(), self.options.clone())
         .await?;
 
         trace!("Connection recovered, now recovering channels");

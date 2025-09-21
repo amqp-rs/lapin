@@ -1,4 +1,5 @@
 use crate::{
+    auth::AuthProvider,
     protocol,
     types::{ChannelId, FrameSize, Heartbeat},
     uri::AMQPUri,
@@ -8,16 +9,17 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-#[derive(Clone, Default)]
 pub struct Configuration {
+    pub(crate) auth_provider: Arc<dyn AuthProvider>,
     inner: Arc<RwLock<Inner>>,
 }
 
 impl Configuration {
-    pub(crate) fn new(uri: &AMQPUri) -> Self {
-        let conf = Self::default();
-        conf.init(uri);
-        conf
+    pub(crate) fn new(uri: &AMQPUri, auth_provider: Arc<dyn AuthProvider>) -> Self {
+        Self {
+            auth_provider,
+            inner: Arc::new(RwLock::new(Inner::new(uri))),
+        }
     }
 
     pub fn channel_max(&self) -> ChannelId {
@@ -45,18 +47,6 @@ impl Configuration {
         self.write_inner().heartbeat = heartbeat;
     }
 
-    fn init(&self, uri: &AMQPUri) {
-        if let Some(frame_max) = uri.query.frame_max {
-            self.set_frame_max(frame_max);
-        }
-        if let Some(channel_max) = uri.query.channel_max {
-            self.set_channel_max(channel_max);
-        }
-        if let Some(heartbeat) = uri.query.heartbeat {
-            self.set_heartbeat(heartbeat);
-        }
-    }
-
     fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {
         self.inner.read().unwrap_or_else(|e| e.into_inner())
     }
@@ -66,11 +56,29 @@ impl Configuration {
     }
 }
 
-#[derive(Default)]
+impl Clone for Configuration {
+    fn clone(&self) -> Self {
+        Self {
+            auth_provider: self.auth_provider.clone(),
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 struct Inner {
     channel_max: ChannelId,
     frame_max: FrameSize,
     heartbeat: Heartbeat,
+}
+
+impl Inner {
+    fn new(uri: &AMQPUri) -> Self {
+        Self {
+            frame_max: uri.query.frame_max.unwrap_or_default(),
+            channel_max: uri.query.channel_max.unwrap_or_default(),
+            heartbeat: uri.query.heartbeat.unwrap_or_default(),
+        }
+    }
 }
 
 impl fmt::Debug for Configuration {

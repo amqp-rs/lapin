@@ -2,7 +2,6 @@ use crate::{
     Connection, ConnectionProperties, Error, ErrorKind, PromiseResolver, Result,
     auth::AuthProvider, types::ShortString, uri::AMQPUri,
 };
-use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
     fmt,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -32,12 +31,9 @@ impl ConnectionStatus {
         &self,
         resolver: PromiseResolver<Connection>,
         conn: Connection,
-        creds: Credentials,
-        mechanism: SASLMechanism,
         options: ConnectionProperties,
     ) -> Result<()> {
-        self.write()
-            .set_connecting(resolver, conn, creds, mechanism, options)
+        self.write().set_connecting(resolver, conn, options)
     }
 
     pub(crate) fn set_reconnecting(&self) {
@@ -138,8 +134,6 @@ pub(crate) enum ConnectionStep {
     ProtocolHeader(
         PromiseResolver<Connection>,
         Connection,
-        Credentials,
-        SASLMechanism,
         ConnectionProperties,
     ),
     StartOk(
@@ -232,14 +226,10 @@ impl Inner {
         &mut self,
         resolver: PromiseResolver<Connection>,
         conn: Connection,
-        creds: Credentials,
-        mechanism: SASLMechanism,
         options: ConnectionProperties,
     ) -> Result<()> {
         self.state = ConnectionState::Connecting;
-        self.connection_step = Some(ConnectionStep::ProtocolHeader(
-            resolver, conn, creds, mechanism, options,
-        ));
+        self.connection_step = Some(ConnectionStep::ProtocolHeader(resolver, conn, options));
         self.poison.take().map(Err).unwrap_or(Ok(()))
     }
 
