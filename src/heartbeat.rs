@@ -45,20 +45,22 @@ impl Heartbeat {
 
     pub(crate) fn start(&self, channels: Channels) {
         let heartbeat = self.clone();
+        let poison = self.lock_inner().poison.clone();
         self.executor.spawn(Box::pin(async move {
-            while let Some(dur) = heartbeat.poll_timeout(&channels) {
+            while let Some(dur) = heartbeat.poll_timeout(&channels, &poison) {
                 heartbeat.reactor.sleep(dur).await;
             }
         }));
     }
 
-    fn poll_timeout(&self, channels: &Channels) -> Option<Duration> {
+    fn poll_timeout(&self, channels: &Channels, poison: &KillSwitch) -> Option<Duration> {
         if !self.connection_status.connected() {
             self.cancel();
             return None;
         }
 
-        self.lock_inner().poll_timeout(channels, &self.killswitch)
+        self.lock_inner()
+            .poll_timeout(channels, &self.killswitch, poison)
     }
 
     pub(crate) fn update_last_write(&self) {
@@ -70,7 +72,7 @@ impl Heartbeat {
     }
 
     pub(crate) fn cancel(&self) {
-        self.lock_inner().timeout = None;
+        self.lock_inner().cancel();
     }
 
     pub(crate) fn reset(&self) {
@@ -93,6 +95,7 @@ struct Inner {
     last_read: Instant,
     last_write: Instant,
     timeout: Option<Duration>,
+    poison: KillSwitch,
 }
 
 impl Default for Inner {
@@ -101,13 +104,22 @@ impl Default for Inner {
             last_read: Instant::now(),
             last_write: Instant::now(),
             timeout: None,
+            poison: KillSwitch::default(),
         }
     }
 }
 
 impl Inner {
-    fn poll_timeout(&mut self, channels: &Channels, killswitch: &KillSwitch) -> Option<Duration> {
+    fn poll_timeout(
+        &mut self,
+        channels: &Channels,
+        killswitch: &KillSwitch,
+        poison: &KillSwitch,
+    ) -> Option<Duration> {
         let timeout = self.timeout?;
+        if poison.killed() {
+            return None;
+        }
 
         // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
         // The specs tells us to close the connection after twice the configured interval has passed.
@@ -140,9 +152,15 @@ impl Inner {
         self.last_read = Instant::now();
     }
 
+    fn cancel(&mut self) {
+        self.timeout = None;
+        self.poison.kill();
+    }
+
     fn reset(&mut self) {
+        self.cancel();
         self.update_last_read();
         self.update_last_write();
-        self.timeout = None;
+        self.poison = KillSwitch::default();
     }
 }
