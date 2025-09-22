@@ -40,8 +40,9 @@ impl<RK: RuntimeKit + Clone + Send + 'static> SecretUpdate<RK> {
 
     pub(crate) fn start(&self, internal_rpc: InternalRPCHandle) {
         let secret_update = self.clone();
+        let killswitch = self.killswitch.clone();
         self.runtime.spawn(async move {
-            while let Some(dur) = secret_update.poll_timeout() {
+            while let Some(dur) = secret_update.poll_timeout(&killswitch) {
                 secret_update.runtime.sleep(dur).await;
                 match secret_update
                     .provider
@@ -66,12 +67,13 @@ impl<RK: RuntimeKit + Clone + Send + 'static> SecretUpdate<RK> {
         self.killswitch.kill();
     }
 
-    pub(crate) fn reset(&self) {
-        self.killswitch.reset();
+    pub(crate) fn reset(&mut self) {
+        self.cancel();
+        self.killswitch = KillSwitch::default();
     }
 
-    fn poll_timeout(&self) -> Option<Duration> {
-        if !self.connection_status.connected() || self.killswitch.killed() {
+    fn poll_timeout(&self, killswitch: &KillSwitch) -> Option<Duration> {
+        if killswitch.killed() || !self.connection_status.connected() {
             return None;
         }
 
