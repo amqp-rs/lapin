@@ -54,13 +54,16 @@ impl Heartbeat {
     }
 
     fn poll_timeout(&self, channels: &Channels, poison: &KillSwitch) -> Option<Duration> {
+        if poison.killed() {
+            return None;
+        }
+
         if !self.connection_status.connected() {
             self.cancel();
             return None;
         }
 
-        self.lock_inner()
-            .poll_timeout(channels, &self.killswitch, poison)
+        self.lock_inner().poll_timeout(channels, &self.killswitch)
     }
 
     pub(crate) fn update_last_write(&self) {
@@ -110,16 +113,8 @@ impl Default for Inner {
 }
 
 impl Inner {
-    fn poll_timeout(
-        &mut self,
-        channels: &Channels,
-        killswitch: &KillSwitch,
-        poison: &KillSwitch,
-    ) -> Option<Duration> {
+    fn poll_timeout(&mut self, channels: &Channels, killswitch: &KillSwitch) -> Option<Duration> {
         let timeout = self.timeout?;
-        if poison.killed() {
-            return None;
-        }
 
         // The value stored in timeout is half the configured heartbeat value as the spec recommends to send heartbeats at twice the configured pace.
         // The specs tells us to close the connection after twice the configured interval has passed.
