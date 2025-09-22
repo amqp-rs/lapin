@@ -37,14 +37,23 @@ impl<RK: RuntimeKit + Clone + Send + 'static> Heartbeat<RK> {
 
     pub(crate) fn start(&self, internal_rpc: InternalRPCHandle) {
         let heartbeat = self.clone();
+        let poison = self.lock_inner().poison.clone();
         self.runtime.spawn(async move {
-            while let Some(dur) = heartbeat.poll_timeout(&internal_rpc) {
+            while let Some(dur) = heartbeat.poll_timeout(&internal_rpc, &poison) {
                 heartbeat.runtime.sleep(dur).await;
             }
         });
     }
 
-    fn poll_timeout(&self, internal_rpc: &InternalRPCHandle) -> Option<Duration> {
+    fn poll_timeout(
+        &self,
+        internal_rpc: &InternalRPCHandle,
+        poison: &KillSwitch,
+    ) -> Option<Duration> {
+        if poison.killed() {
+            return None;
+        }
+
         if !self.connection_status.connected() {
             self.cancel();
             return None;
@@ -63,7 +72,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> Heartbeat<RK> {
     }
 
     pub(crate) fn cancel(&self) {
-        self.lock_inner().timeout = None;
+        self.lock_inner().cancel();
     }
 
     pub(crate) fn reset(&self) {
@@ -86,6 +95,7 @@ struct Inner {
     last_read: Instant,
     last_write: Instant,
     timeout: Option<Duration>,
+    poison: KillSwitch,
 }
 
 impl Default for Inner {
@@ -94,6 +104,7 @@ impl Default for Inner {
             last_read: Instant::now(),
             last_write: Instant::now(),
             timeout: None,
+            poison: KillSwitch::default(),
         }
     }
 }
@@ -137,9 +148,15 @@ impl Inner {
         self.last_read = Instant::now();
     }
 
+    fn cancel(&mut self) {
+        self.timeout = None;
+        self.poison.kill();
+    }
+
     fn reset(&mut self) {
+        self.cancel();
         self.update_last_read();
         self.update_last_write();
-        self.timeout = None;
+        self.poison = KillSwitch::default();
     }
 }

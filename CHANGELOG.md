@@ -19,6 +19,12 @@
 * Switched our async runtimes integration from `executor-trait` and `reactor-trait` to `async-rs`
 * Update amq-protocol to 10.0
 
+### 3.7.0 (2025-09-22)
+
+#### Bug Fixes
+
+* Make sure we don't run the heartbeat loop multiple times after reconnection
+
 ### 3.6.0 (2025-09-15)
 
 #### Features
