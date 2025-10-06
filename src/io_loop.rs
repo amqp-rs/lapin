@@ -23,7 +23,7 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-use tracing::{error, trace};
+use tracing::{error, trace, Level};
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -159,12 +159,13 @@ impl IoLoop {
     pub fn start(mut self) -> Result<()> {
         let waker = self.socket_state.handle();
         let handle = self.connection_io_loop_handle.clone();
-        let current_span = tracing::Span::current();
+        let connect_span = tracing::Span::current();
         handle.register(
             ThreadBuilder::new()
                 .name("lapin-io-loop".to_owned())
                 .spawn(move || {
-                    let _enter = current_span.enter();
+                    let loop_span = io_loop_span(connect_span);
+                    let _enter = loop_span.enter();
                     let readable_waker = self.readable_waker();
                     let mut readable_context = Context::from_waker(&readable_waker);
                     let writable_waker = self.writable_waker();
@@ -456,4 +457,27 @@ impl IoLoop {
             }
         }
     }
+}
+
+/// Create a new span for the io_loop thread that follows from the connect span, and has the same level.
+///
+/// Importantly, we drop the `connect_span` so it closes properly.
+fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
+    let span_level = connect_span.metadata().unwrap().level();
+    let span = if *span_level == Level::ERROR {
+        tracing::span!(Level::ERROR, "io_loop")
+    } else if *span_level == Level::WARN {
+        tracing::span!(Level::WARN, "io_loop")
+    } else if *span_level == Level::INFO {
+        tracing::span!(Level::INFO, "io_loop")
+    } else if *span_level == Level::DEBUG {
+        tracing::span!(Level::DEBUG, "io_loop")
+    } else {
+        tracing::span!(Level::TRACE, "io_loop")
+    };
+
+    // This span doesn't contribute to the duration of the connect span, but it is caused by the
+    // connect operation, so we set it as a follows_from relationship.
+    span.follows_from(&connect_span);
+    span
 }
