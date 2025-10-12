@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "3.7.0"
+version = "3.7.1"
 edition = "2024"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"

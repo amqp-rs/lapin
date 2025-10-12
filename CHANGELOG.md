@@ -1,3 +1,9 @@
+### 3.7.1 (2025-10-12)
+
+#### Bug Fixes
+
+* Fix `io_loop` tracing span
+
 ### 3.7.0 (2025-09-22)
 
 #### Bug Fixes
@@ -105,6 +111,12 @@
 * Drop parking-lot dependency
 * Drop pinky-swear dependency
 * Edition 2024
+
+### 2.5.5 (2025-10-12)
+
+#### Bug Fixes
+
+* Fix `io_loop` tracing span
 
 ### 2.5.4 (2025-07-22)
 
