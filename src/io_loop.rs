@@ -26,7 +26,7 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-use tracing::{error, trace};
+use tracing::{Level, error, trace};
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -186,11 +186,12 @@ impl<
 
     pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let waker = self.socket_state.handle();
-        let current_span = tracing::Span::current();
+        let connect_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
             .name("lapin-io-loop".to_owned())
             .spawn(move || {
-                let _enter = current_span.enter();
+                let loop_span = io_loop_span(connect_span);
+                let _enter = loop_span.enter();
                 let connection_killswitch = self.channels.connection_killswitch();
                 let readable_waker = self.socket_state.readable_waker();
                 let mut readable_context = Context::from_waker(&readable_waker);
@@ -582,4 +583,23 @@ impl<
             }
         }
     }
+}
+
+/// Create a new span for the io_loop thread that follows from the connect span, and has the same level.
+///
+/// Importantly, we drop the `connect_span` so it closes properly.
+fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
+    let span_level = connect_span.metadata().map_or(Level::ERROR, |m| *m.level());
+    let span = match span_level {
+        Level::TRACE => tracing::span!(Level::TRACE, "io_loop"),
+        Level::DEBUG => tracing::span!(Level::DEBUG, "io_loop"),
+        Level::INFO => tracing::span!(Level::INFO, "io_loop"),
+        Level::WARN => tracing::span!(Level::WARN, "io_loop"),
+        Level::ERROR => tracing::span!(Level::ERROR, "io_loop"),
+    };
+
+    // This span doesn't contribute to the duration of the connect span, but it is caused by the
+    // connect operation, so we set it as a follows_from relationship.
+    span.follows_from(&connect_span);
+    span
 }
