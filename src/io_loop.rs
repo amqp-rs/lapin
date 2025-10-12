@@ -463,17 +463,13 @@ impl IoLoop {
 ///
 /// Importantly, we drop the `connect_span` so it closes properly.
 fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
-    let span_level = connect_span.metadata().unwrap().level();
-    let span = if *span_level == Level::ERROR {
-        tracing::span!(Level::ERROR, "io_loop")
-    } else if *span_level == Level::WARN {
-        tracing::span!(Level::WARN, "io_loop")
-    } else if *span_level == Level::INFO {
-        tracing::span!(Level::INFO, "io_loop")
-    } else if *span_level == Level::DEBUG {
-        tracing::span!(Level::DEBUG, "io_loop")
-    } else {
-        tracing::span!(Level::TRACE, "io_loop")
+    let span_level = connect_span.metadata().map_or(Level::ERROR, |m| *m.level());
+    let span = match span_level {
+        Level::TRACE => tracing::span!(Level::TRACE, "io_loop"),
+        Level::DEBUG => tracing::span!(Level::DEBUG, "io_loop"),
+        Level::INFO => tracing::span!(Level::INFO, "io_loop"),
+        Level::WARN => tracing::span!(Level::WARN, "io_loop"),
+        Level::ERROR => tracing::span!(Level::ERROR, "io_loop"),
     };
 
     // This span doesn't contribute to the duration of the connect span, but it is caused by the
