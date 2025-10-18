@@ -61,7 +61,7 @@ version = "^0.8"
 default-features = false
 
 [dependencies.backon]
-version = "^1.5"
+version = "^1.6"
 default-features = false
 features = ["std"]
 

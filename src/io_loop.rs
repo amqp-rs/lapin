@@ -199,15 +199,8 @@ impl<
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
                     let connect = || (self.connect)(self.uri.clone(), self.runtime.clone());
-                    let connect = connect.retry(self.backoff).sleep({
-                        let runtime = self.runtime.clone();
-                        move |dur| {
-                            let runtime = runtime.clone();
-                            async move {
-                                runtime.sleep(dur).await;
-                            }
-                        }
-                    });
+                    let runtime = self.runtime.clone();
+                    let connect = connect.retry(self.backoff).sleep(move |dur| runtime.sleep(dur));
                     let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
