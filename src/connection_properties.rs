@@ -1,6 +1,5 @@
 use crate::{
     auth::AuthProvider,
-    recovery_config::RecoveryConfig,
     types::{AMQPValue, FieldTable, LongString, ShortString},
 };
 use backon::ExponentialBuilder;
@@ -10,8 +9,8 @@ pub struct ConnectionProperties {
     pub(crate) locale: ShortString,
     pub(crate) client_properties: FieldTable,
     pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
-    pub(crate) recovery_config: Option<RecoveryConfig>,
     pub(crate) backoff: ExponentialBuilder,
+    pub(crate) auto_recover: bool,
 }
 
 impl Default for ConnectionProperties {
@@ -20,8 +19,8 @@ impl Default for ConnectionProperties {
             locale: "en_US".into(),
             client_properties: FieldTable::default(),
             auth_provider: None,
-            recovery_config: None,
             backoff: ExponentialBuilder::default().with_max_times(0 /* no retry by default */),
+            auto_recover: false,
         }
     }
 }
@@ -52,13 +51,6 @@ impl ConnectionProperties {
     }
 
     #[must_use]
-    #[cfg(feature = "unstable")]
-    pub fn with_recovery_config(mut self, config: RecoveryConfig) -> Self {
-        self.recovery_config = Some(config);
-        self
-    }
-
-    #[must_use]
     pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
         self.backoff = backoff;
         self
@@ -67,6 +59,12 @@ impl ConnectionProperties {
     #[must_use]
     pub fn configure_backoff(mut self, conf: impl Fn(&mut ExponentialBuilder)) -> Self {
         conf(&mut self.backoff);
+        self
+    }
+
+    #[must_use]
+    pub fn enable_auto_recover(mut self) -> Self {
+        self.auto_recover = true;
         self
     }
 }

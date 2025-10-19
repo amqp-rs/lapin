@@ -21,7 +21,6 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 ## Features
 
 - hickory-dns: use hickory-dns for domain name resolution to avoid spurious network hangs
-- unstable: enable access to the experimental reconnection features
 - codegen: force code generation (default to pregenerated sources)
 - vendored-openssl: use a vendored openssl version instead of the system one (when using openssl backend)
 - verbose-errors: enable more verbose errors in the AMQP parser
@@ -57,17 +56,12 @@ Lapin can use any runtime of your choice by passing an `async_rs::Runtime` when 
 
 There are implementations for tokio, smol and others in [async-rs](https://docs.rs/async-rs)
 
-## Experimental automatic reconnection
+## Automatic connection recovery (on e.g. network failure)
 
-WARNING: use at your own risk, this feature is not considered stable yet. Expect some bugs and please help by reporting them.
-
-There is experimental support for recovering connection after errors.
-
-To enable this, you need to enable the `unstable` feature for lapin, and add it to the `ConnectionProperties`:
+There is support for recovering connection after errors. To enable this, you need to enable it in the `ConnectionProperties`:
 
 ```rust
-let recovery_config = RecoveryConfig::full();
-let properties = ConnectionProperties::default().with_recovery_config(recovery_config).config_backoff(|backoff| {
+let properties = ConnectionProperties::default().enable_auto_recover().configure_backoff(|backoff| {
     backoff.with_max_times(3); // It is recommended to configure at least this when enabling recovery to also retry the TCP connection when it fails.
 });
 // connect using properties.

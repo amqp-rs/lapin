@@ -372,7 +372,6 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         use InternalCommand::*;
 
         let rpc = self.rpc.clone();
-        let recovery_config = channels.recovery_config();
         let get_channel = |id| {
             channels
                 .get(id)
@@ -523,7 +522,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     channels.set_connection_closed(error);
                 }
                 SetConnectionError(error) => {
-                    if recovery_config.can_recover_connection(&error) {
+                    if channels.can_recover(&error) {
                         if channels.should_init_connection_recovery() {
                             self.handle.init_connection_recovery(error);
                         }

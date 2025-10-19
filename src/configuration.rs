@@ -1,8 +1,7 @@
 use crate::{
-    ConnectionProperties,
+    ConnectionProperties, Error,
     auth::{AuthProvider, DefaultAuthProvider},
     protocol,
-    recovery_config::RecoveryConfig,
     types::{ChannelId, FieldTable, FrameSize, Heartbeat, ShortString},
     uri::AMQPUri,
 };
@@ -17,8 +16,8 @@ pub struct Configuration {
     pub(crate) amqp_locale: ShortString,
     pub(crate) auth_provider: Arc<dyn AuthProvider>,
     pub(crate) backoff: ExponentialBuilder,
-    pub(crate) negociated_config: NegociatedConfig,
-    pub(crate) recovery_config: RecoveryConfig,
+    pub(crate) negotiated_config: NegotiatedConfig,
+    pub(crate) auto_recover: bool,
 }
 
 impl Configuration {
@@ -27,29 +26,33 @@ impl Configuration {
             locale,
             client_properties,
             auth_provider,
-            recovery_config,
             backoff,
+            auto_recover,
         } = options;
         Self {
             amqp_client_properties: client_properties,
             amqp_locale: locale,
             auth_provider: auth_provider.unwrap_or_else(|| Arc::new(DefaultAuthProvider::new(uri))),
             backoff,
-            negociated_config: NegociatedConfig::new(uri),
-            recovery_config: recovery_config.unwrap_or_default(),
+            negotiated_config: NegotiatedConfig::new(uri),
+            auto_recover,
         }
     }
 
     pub fn channel_max(&self) -> ChannelId {
-        self.negociated_config.channel_max()
+        self.negotiated_config.channel_max()
     }
 
     pub fn frame_max(&self) -> FrameSize {
-        self.negociated_config.frame_max()
+        self.negotiated_config.frame_max()
     }
 
     pub fn heartbeat(&self) -> Heartbeat {
-        self.negociated_config.heartbeat()
+        self.negotiated_config.heartbeat()
+    }
+
+    pub(crate) fn recovery_config(&self) -> RecoveryConfig {
+        RecoveryConfig(self.auto_recover)
     }
 }
 
@@ -60,22 +63,25 @@ impl Clone for Configuration {
             amqp_locale: self.amqp_locale.clone(),
             auth_provider: self.auth_provider.clone(),
             backoff: self.backoff,
-            negociated_config: self.negociated_config.clone(),
-            recovery_config: self.recovery_config.clone(),
+            negotiated_config: self.negotiated_config.clone(),
+            auto_recover: self.auto_recover,
         }
     }
 }
 
 impl fmt::Debug for Configuration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.negociated_config, f)
+        fmt::Debug::fmt(&self.negotiated_config, f)
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct NegociatedConfig {
+pub(crate) struct NegotiatedConfig {
     inner: Arc<RwLock<Inner>>,
 }
+
+#[derive(Default, Clone, Copy)]
+pub(crate) struct RecoveryConfig(pub(crate) bool);
 
 struct Inner {
     channel_max: ChannelId,
@@ -83,7 +89,7 @@ struct Inner {
     heartbeat: Heartbeat,
 }
 
-impl NegociatedConfig {
+impl NegotiatedConfig {
     fn new(uri: &AMQPUri) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Inner {
@@ -128,7 +134,7 @@ impl NegociatedConfig {
     }
 }
 
-impl fmt::Debug for NegociatedConfig {
+impl fmt::Debug for NegotiatedConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let inner = self.read_inner();
         f.debug_struct("Configuration")
@@ -136,5 +142,11 @@ impl fmt::Debug for NegociatedConfig {
             .field("frame_max", &inner.frame_max)
             .field("heartbeat", &inner.heartbeat)
             .finish()
+    }
+}
+
+impl RecoveryConfig {
+    pub(crate) fn can_recover(&self, error: &Error) -> bool {
+        self.0 && error.can_be_recovered()
     }
 }

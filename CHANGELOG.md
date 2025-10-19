@@ -3,6 +3,9 @@
 #### Breaking changes
 
 * Make more use of protocol types in public api (mostly ShortString and LongString)
+* Automatic connection recovery is now done through `ConnectionProperties::enable_auto_recover()`
+* Automatic connection recovery is no longer feature-gated by the unstable feature (which has been removed)
+* Automatic channel recovery is gone. Channels will still be recovered during connection recovery, but not outside of this scenario.
 
 #### Features
 

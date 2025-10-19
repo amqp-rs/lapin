@@ -16,7 +16,6 @@ rust-version = "1.85.0"
 [features]
 default                   = ["rustls", "default-runtime"]
 default-runtime           = ["tokio"]
-unstable                  = []
 
 async-global-executor     = ["amq-protocol/async-global-executor", "async-rs/async-global-executor", "async-rs/async-io"]
 hickory-dns               = ["amq-protocol/hickory-dns", "async-rs/hickory-dns"]

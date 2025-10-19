@@ -231,7 +231,7 @@ impl Connection {
         let conn = Connection::new(configuration, status, internal_rpc.handle(), events);
         let io_loop = IoLoop::new(
             conn.status.clone(),
-            conn.configuration.negociated_config.clone(),
+            conn.configuration.negotiated_config.clone(),
             channels.clone(),
             internal_rpc.handle(),
             frames,
@@ -397,7 +397,7 @@ mod tests {
         // Bootstrap connection state to a consuming state
         let (conn, channels, _) = create_connection();
         conn.configuration
-            .negociated_config
+            .negotiated_config
             .set_channel_max(ChannelId::MAX);
         for _ in 1..=ChannelId::MAX {
             channels.create(conn.closer.clone()).unwrap();
@@ -417,7 +417,7 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let (conn, channels, internal_rpc) = create_connection();
-        conn.configuration.negociated_config.set_channel_max(2047);
+        conn.configuration.negotiated_config.set_channel_max(2047);
         let channel = channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");
@@ -483,7 +483,7 @@ mod tests {
 
         // Bootstrap connection state to a consuming state
         let (conn, channels, internal_rpc) = create_connection();
-        conn.configuration.negociated_config.set_channel_max(2047);
+        conn.configuration.negotiated_config.set_channel_max(2047);
         let channel = channels.create(conn.closer.clone()).unwrap();
         channel.set_state(ChannelState::Connected);
         let queue_name = ShortString::from("consumed");

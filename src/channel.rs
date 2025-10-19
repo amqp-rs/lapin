@@ -6,7 +6,7 @@ use crate::{
     basic_get_delivery::BasicGetDelivery,
     channel_closer::ChannelCloser,
     channel_receiver_state::DeliveryCause,
-    configuration::NegociatedConfig,
+    configuration::{NegotiatedConfig, RecoveryConfig},
     connection_closer::ConnectionCloser,
     connection_status::ConnectionStep,
     consumer::Consumer,
@@ -19,7 +19,6 @@ use crate::{
     protocol::{self, AMQPClass, AMQPError, AMQPHardError},
     publisher_confirm::PublisherConfirm,
     queue::Queue,
-    recovery_config::RecoveryConfig,
     registry::Registry,
     returned_messages::ReturnedMessages,
     socket_state::SocketStateHandle,
@@ -42,7 +41,7 @@ use tracing::{error, info, trace};
 #[derive(Clone)]
 pub struct Channel {
     id: ChannelId,
-    configuration: NegociatedConfig,
+    configuration: NegotiatedConfig,
     status: ChannelStatus,
     connection_status: ConnectionStatus,
     local_registry: Registry,
@@ -85,7 +84,7 @@ impl Channel {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         channel_id: ChannelId,
-        configuration: NegociatedConfig,
+        configuration: NegotiatedConfig,
         connection_status: ConnectionStatus,
         waker: SocketStateHandle,
         internal_rpc: InternalRPCHandle,
@@ -289,28 +288,10 @@ impl Channel {
         self.status.finalize_connection();
     }
 
-    fn init_recovery_or_shutdown(&self, error: Option<Error>) -> Option<Error> {
-        match error {
-            Some(err) if self.recovery_config.can_recover_channel(&err) => {
-                Some(self.init_recovery_poison(err, false))
-            }
-            err => {
-                self.set_closing(err.clone());
-                err
-            }
-        }
-    }
-
     pub(crate) fn init_recovery(&self, error: Error) -> Error {
-        self.init_recovery_poison(error, true)
-    }
-
-    fn init_recovery_poison(&self, error: Error, poison: bool) -> Error {
         let err = self.status.set_reconnecting(error, self.topology());
         self.frames.drop_frames_for_channel(self.id, err.clone());
-        if poison {
-            self.poison(err.clone());
-        }
+        self.poison(err.clone());
         err
     }
 
@@ -632,7 +613,7 @@ impl Channel {
 
     fn on_connection_close_ok_sent(&self, error: Error) {
         self.internal_rpc.finish_connection_shutdown();
-        if !self.recovery_config.can_recover_connection(&error) {
+        if !self.recovery_config.can_recover(&error) {
             if let ErrorKind::ProtocolError(_) = error.kind() {
                 self.internal_rpc.set_connection_error(error);
             } else {
@@ -657,19 +638,13 @@ impl Channel {
     }
 
     fn on_channel_close_ok_sent(&self, error: Option<Error>) {
-        let recover = error
-            .as_ref()
-            .is_some_and(|err| self.recovery_config.can_recover_channel(err));
         let err = error.clone().unwrap_or_else(|| {
             ErrorKind::InvalidChannelState(ChannelState::Closing, "channel.close-ok sent").into()
         });
-
         self.poison(err.clone());
-        if !recover {
-            self.set_closed(err);
-            if let Some(error) = error {
-                self.events_sender.error(error.clone());
-            }
+        self.set_closed(err);
+        if let Some(error) = error {
+            self.events_sender.error(error.clone());
         }
     }
 
@@ -952,7 +927,7 @@ impl Channel {
                 info!(channel=%self.id, ?method, "Connection closed");
                 ErrorKind::InvalidConnectionState(ConnectionState::Closed).into()
             });
-        if self.recovery_config.can_recover_connection(&error) {
+        if self.recovery_config.can_recover(&error) {
             self.internal_rpc.init_connection_recovery(error.clone());
         } else {
             let connection_resolver = self.connection_status.connection_resolver();
@@ -1024,24 +999,17 @@ impl Channel {
     }
 
     fn on_channel_close_received(&self, method: protocol::channel::Close) -> Result<()> {
-        let error = self.init_recovery_or_shutdown(AMQPError::try_from(method.clone()).map(|error| {
+        let error = AMQPError::try_from(method.clone()).map(|error| {
                 error!(
                     channel=%self.id, ?method, ?error,
                     "Channel closed"
                 );
                 Error::from(ErrorKind::ProtocolError(error))
-            }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok());
-        let recover = error
-            .as_ref()
-            .is_some_and(|err| self.recovery_config.can_recover_channel(err));
+            }).map_err(|error| info!(channel=%self.id, ?method, code_to_error=%error, "Channel closed with a non-error code")).ok();
+        self.set_closing(error.clone());
         let channel = self.clone();
-        self.internal_rpc.spawn(async move {
-            channel.channel_close_ok(error).await?;
-            if recover {
-                channel.start_recovery().await?;
-            }
-            Ok(())
-        });
+        self.internal_rpc
+            .spawn(async move { channel.channel_close_ok(error).await });
         Ok(())
     }
 

@@ -2,7 +2,7 @@ use crate::{
     AsyncTcpStream, ConnectionState, ConnectionStatus, Error, ErrorKind, Result,
     buffer::Buffer,
     channels::Channels,
-    configuration::NegociatedConfig,
+    configuration::NegotiatedConfig,
     frames::{FrameSending, Frames},
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
@@ -45,7 +45,7 @@ pub struct IoLoop<
         + 'static,
 > {
     connection_status: ConnectionStatus,
-    configuration: NegociatedConfig,
+    configuration: NegotiatedConfig,
     channels: Channels,
     internal_rpc: InternalRPCHandle,
     frames: Frames,
@@ -73,7 +73,7 @@ impl<
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         connection_status: ConnectionStatus,
-        configuration: NegociatedConfig,
+        configuration: NegotiatedConfig,
         channels: Channels,
         internal_rpc: InternalRPCHandle,
         frames: Frames,
@@ -305,11 +305,7 @@ impl<
         if error.is_io_error() {
             connection_killswitch.kill();
         }
-        if self
-            .channels
-            .recovery_config()
-            .can_recover_connection(&error)
-        {
+        if self.channels.can_recover(&error) {
             self.internal_rpc.init_connection_recovery(error);
             return Ok(());
         }

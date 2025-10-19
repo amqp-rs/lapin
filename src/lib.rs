@@ -120,7 +120,6 @@ pub use events::Event;
 pub use exchange::ExchangeKind;
 pub use publisher_confirm::Confirmation;
 pub use queue::Queue;
-pub use recovery_config::RecoveryConfig;
 
 pub mod auth;
 pub mod message;
@@ -163,7 +162,6 @@ mod parsing;
 mod promise;
 mod publisher_confirm;
 mod queue;
-mod recovery_config;
 mod registry;
 mod returned_messages;
 mod secret_update;

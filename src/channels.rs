@@ -1,7 +1,7 @@
 use crate::{
     BasicProperties, Channel, ChannelState, Configuration, Connection, ConnectionState,
     ConnectionStatus, Error, ErrorKind, PromiseResolver, Result,
-    configuration::NegociatedConfig,
+    configuration::{NegotiatedConfig, RecoveryConfig},
     connection_closer::ConnectionCloser,
     events::{Events, EventsSender},
     frames::Frames,
@@ -9,7 +9,6 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{AMQPClass, AMQPError, AMQPHardError},
-    recovery_config::RecoveryConfig,
     socket_state::SocketStateHandle,
     types::{ChannelId, Identifier, PayloadSize},
 };
@@ -31,7 +30,6 @@ pub(crate) struct Channels {
     frames: Frames,
     connection_killswitch: KillSwitch,
     events: Events,
-    recovery_config: RecoveryConfig,
 }
 
 impl Channels {
@@ -43,11 +41,10 @@ impl Channels {
         frames: Frames,
         events: Events,
     ) -> Self {
-        let recovery_config = configuration.recovery_config.clone();
         let mut inner = Inner::new(
-            configuration.negociated_config.clone(),
+            configuration.negotiated_config.clone(),
+            configuration.recovery_config(),
             waker,
-            recovery_config.clone(),
         );
         let channel0 = inner.create_channel(
             0,
@@ -68,7 +65,6 @@ impl Channels {
             frames,
             connection_killswitch: KillSwitch::default(),
             events,
-            recovery_config,
         }
     }
 
@@ -86,8 +82,8 @@ impl Channels {
         self.channel0.clone()
     }
 
-    pub(crate) fn recovery_config(&self) -> RecoveryConfig {
-        self.recovery_config.clone()
+    pub(crate) fn can_recover(&self, error: &Error) -> bool {
+        self.configuration.recovery_config().can_recover(error)
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {
@@ -324,23 +320,23 @@ impl fmt::Debug for Channels {
 struct Inner {
     channels: HashMap<ChannelId, Channel>,
     channel_id: IdSequence<ChannelId>,
-    configuration: NegociatedConfig,
-    waker: SocketStateHandle,
+    configuration: NegotiatedConfig,
     recovery_config: RecoveryConfig,
+    waker: SocketStateHandle,
 }
 
 impl Inner {
     fn new(
-        configuration: NegociatedConfig,
-        waker: SocketStateHandle,
+        configuration: NegotiatedConfig,
         recovery_config: RecoveryConfig,
+        waker: SocketStateHandle,
     ) -> Self {
         Self {
             channels: HashMap::default(),
             channel_id: IdSequence::new(false),
             configuration,
-            waker,
             recovery_config,
+            waker,
         }
     }
 
@@ -362,7 +358,7 @@ impl Inner {
             internal_rpc,
             frames,
             connection_closer,
-            self.recovery_config.clone(),
+            self.recovery_config,
             events_sender,
         )
     }
