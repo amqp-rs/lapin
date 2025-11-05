@@ -22,6 +22,12 @@
 * Switched our async runtimes integration from `executor-trait` and `reactor-trait` to `async-rs`
 * Update amq-protocol to 10.0
 
+### 3.7.2 (2025-11-05)
+
+#### Bug Fixes
+
+* Fix defunct `io_loop` threads being kept in a deadlock on (very) early connection failure
+
 ### 3.7.1 (2025-10-12)
 
 #### Bug Fixes
