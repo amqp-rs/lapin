@@ -8,7 +8,6 @@ pub enum ExchangeKind {
     Topic,
 }
 
-
 impl ExchangeKind {
     pub(crate) fn kind(&self) -> &str {
         match self {

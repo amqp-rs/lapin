@@ -58,7 +58,6 @@ impl ConsumerState {
     }
 }
 
-
 #[derive(Default)]
 pub(crate) struct ConsumerStatusInner {
     state: ConsumerState,
