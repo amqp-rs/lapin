@@ -112,7 +112,8 @@ impl ConnectionStatus {
     }
 
     pub(crate) fn poison(&self, err: Error) {
-        if let Some((resolver, _connection)) = self.lock_inner().poison(err.clone()) {
+        let resolver = self.lock_inner().poison(err.clone());
+        if let Some((resolver, _connection)) = resolver {
             // We perform the reject here to drop the lock() above before dropping the Connection
             resolver.reject(err);
         }
