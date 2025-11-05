@@ -40,8 +40,9 @@ impl fmt::Debug for ConsumerStatus {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ConsumerState {
+    #[default]
     Active,
     ActiveWithDelegate,
     Canceling,
@@ -57,11 +58,6 @@ impl ConsumerState {
     }
 }
 
-impl Default for ConsumerState {
-    fn default() -> Self {
-        Self::Active
-    }
-}
 
 #[derive(Default)]
 pub(crate) struct ConsumerStatusInner {
