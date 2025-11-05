@@ -111,8 +111,19 @@ impl ConnectionStatus {
         self.lock_inner().state == ConnectionState::Error
     }
 
-    pub(crate) fn poison(&self, err: Error) {
-        self.lock_inner().poison(err);
+    pub(crate) fn poison(&mut self, err: Error) {
+        let mut lock = self.lock_inner();
+        let connection_resolver = lock.connection_resolver();
+        lock.poison = Some(err.clone());
+
+        if let Some((resolver, connection)) = connection_resolver {
+            resolver.reject(err.clone());
+
+            // We need to drop the lock before dropping connection because the connection drop will
+            // drop the closer which will try to acquire the lock
+            std::mem::drop(lock);
+            std::mem::drop(connection);
+        }
     }
 
     pub(crate) fn auto_close(&self) -> bool {
@@ -260,12 +271,5 @@ impl Inner {
         self.connection_step
             .take()
             .map(ConnectionStep::into_connection_resolver)
-    }
-
-    fn poison(&mut self, err: Error) {
-        if let Some((resolver, _connection)) = self.connection_resolver() {
-            resolver.reject(err.clone());
-        }
-        self.poison = Some(err);
     }
 }
