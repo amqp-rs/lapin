@@ -112,7 +112,11 @@ impl ConnectionStatus {
     }
 
     pub(crate) fn poison(&self, err: Error) {
-        self.lock_inner().poison(err);
+        let resolver = self.lock_inner().poison(err.clone());
+        if let Some((resolver, _connection)) = resolver {
+            // We perform the reject here to drop the lock() above before dropping the Connection
+            resolver.reject(err);
+        }
     }
 
     pub(crate) fn auto_close(&self) -> bool {
@@ -262,10 +266,9 @@ impl Inner {
             .map(ConnectionStep::into_connection_resolver)
     }
 
-    fn poison(&mut self, err: Error) {
-        if let Some((resolver, _connection)) = self.connection_resolver() {
-            resolver.reject(err.clone());
-        }
+    fn poison(&mut self, err: Error) -> Option<(ConnectionResolver, Option<Connection>)> {
         self.poison = Some(err);
+
+        self.connection_resolver()
     }
 }
