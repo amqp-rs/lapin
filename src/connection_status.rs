@@ -111,18 +111,10 @@ impl ConnectionStatus {
         self.lock_inner().state == ConnectionState::Error
     }
 
-    pub(crate) fn poison(&mut self, err: Error) {
-        let mut lock = self.lock_inner();
-        let connection_resolver = lock.connection_resolver();
-        lock.poison = Some(err.clone());
-
-        if let Some((resolver, connection)) = connection_resolver {
-            resolver.reject(err.clone());
-
-            // We need to drop the lock before dropping connection because the connection drop will
-            // drop the closer which will try to acquire the lock
-            std::mem::drop(lock);
-            std::mem::drop(connection);
+    pub(crate) fn poison(&self, err: Error) {
+        if let Some((resolver, _connection)) = self.lock_inner().poison(err.clone()) {
+            // We perform the reject here to drop the lock() above before dropping the Connection
+            resolver.reject(err);
         }
     }
 
@@ -271,5 +263,11 @@ impl Inner {
         self.connection_step
             .take()
             .map(ConnectionStep::into_connection_resolver)
+    }
+
+    fn poison(&mut self, err: Error) -> Option<(ConnectionResolver, Option<Connection>)> {
+        self.poison = Some(err);
+
+        self.connection_resolver()
     }
 }
