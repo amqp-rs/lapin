@@ -312,33 +312,31 @@ impl Inner {
         {
             return Some(frame);
         }
-        if flow {
-            if let Some(frame) = self.low_prio_frames.pop_front() {
-                // If the next frame is a header, that means we're a basic.publish
-                // Header frame needs to follow directly the basic.publish frame, and Body frames
-                // need to be sent just after those or the AMQP server will close the connection.
-                // Push the header into publish_frames which is there to handle just that.
-                if self
-                    .low_prio_frames
-                    .front()
-                    .map(|frame| frame.is_header())
-                    .unwrap_or(false)
-                {
-                    while let Some(next_frame) = self.low_prio_frames.pop_front() {
-                        match *next_frame {
-                            AMQPFrame::Header(..) | AMQPFrame::Body(..) => {
-                                self.publish_frames.push_back(next_frame);
-                            }
-                            _ => {
-                                // We've exhausted Body frames for this publish, push back the next one and exit
-                                self.low_prio_frames.push_front(next_frame);
-                                break;
-                            }
+        if flow && let Some(frame) = self.low_prio_frames.pop_front() {
+            // If the next frame is a header, that means we're a basic.publish
+            // Header frame needs to follow directly the basic.publish frame, and Body frames
+            // need to be sent just after those or the AMQP server will close the connection.
+            // Push the header into publish_frames which is there to handle just that.
+            if self
+                .low_prio_frames
+                .front()
+                .map(|frame| frame.is_header())
+                .unwrap_or(false)
+            {
+                while let Some(next_frame) = self.low_prio_frames.pop_front() {
+                    match *next_frame {
+                        AMQPFrame::Header(..) | AMQPFrame::Body(..) => {
+                            self.publish_frames.push_back(next_frame);
+                        }
+                        _ => {
+                            // We've exhausted Body frames for this publish, push back the next one and exit
+                            self.low_prio_frames.push_front(next_frame);
+                            break;
                         }
                     }
                 }
-                return Some(frame);
             }
+            return Some(frame);
         }
         None
     }

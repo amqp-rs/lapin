@@ -85,19 +85,19 @@ impl Error {
     }
 
     pub fn is_amqp_soft_error(&self) -> bool {
-        if let ErrorKind::ProtocolError(e) = self.kind() {
-            if let AMQPErrorKind::Soft(_) = e.kind() {
-                return true;
-            }
+        if let ErrorKind::ProtocolError(e) = self.kind()
+            && let AMQPErrorKind::Soft(_) = e.kind()
+        {
+            return true;
         }
         false
     }
 
     pub fn is_amqp_hard_error(&self) -> bool {
-        if let ErrorKind::ProtocolError(e) = self.kind() {
-            if let AMQPErrorKind::Hard(_) = e.kind() {
-                return true;
-            }
+        if let ErrorKind::ProtocolError(e) = self.kind()
+            && let AMQPErrorKind::Hard(_) = e.kind()
+        {
+            return true;
         }
         false
     }

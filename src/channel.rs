@@ -129,11 +129,11 @@ impl Channel {
     }
 
     pub async fn wait_for_recovery(&self, error: Error) -> Result<()> {
-        if self.recovery_config.can_recover(&error) {
-            if let Some(notifier) = error.notifier() {
-                notifier.await;
-                return Ok(());
-            }
+        if self.recovery_config.can_recover(&error)
+            && let Some(notifier) = error.notifier()
+        {
+            notifier.await;
+            return Ok(());
         }
         Err(error)
     }

@@ -231,14 +231,13 @@ impl<
 
                 trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
                 self.internal_rpc.stop();
-                if self.heartbeat.killswitch().killed() {
-                    if let Err(err) = self.runtime.block_on(std::future::poll_fn(move |cx| {
+                if self.heartbeat.killswitch().killed()
+                    && let Err(err) = self.runtime.block_on(std::future::poll_fn(move |cx| {
                         Pin::new(&mut stream)
                             .poll_close(cx)
                     })) {
                         error!(?err, "Failed to close IO stream");
                     }
-                }
                 res
             })?;
         waker.wake();

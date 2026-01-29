@@ -28,14 +28,14 @@ impl ThreadHandle {
     }
 
     pub(crate) fn wait(&self, context: &'static str) -> Result<()> {
-        if let Some(handle) = self.take() {
-            if handle.thread().id() != thread::current().id() {
-                match handle.join() {
-                    Ok(res) => return res,
-                    Err(e) => {
-                        error!(%context, "Failed waiting for thread");
-                        panic::resume_unwind(e);
-                    }
+        if let Some(handle) = self.take()
+            && handle.thread().id() != thread::current().id()
+        {
+            match handle.join() {
+                Ok(res) => return res,
+                Err(e) => {
+                    error!(%context, "Failed waiting for thread");
+                    panic::resume_unwind(e);
                 }
             }
         }
