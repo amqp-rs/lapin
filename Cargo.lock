@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.0.0-rc.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e87c7e3993e20c8c302777797004f1a3f09c82e4efd54d25bddad30d63dac8ac"
+checksum = "8ee97af9a24cdc2c69f98d2464788a266cf6a1dcea8608abc65509b56c081861"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.0.0-rc.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4bc600c04e3abd46192202270285fb83b6904941f1954dc6936406074294f57"
+checksum = "60b57b4361248998e46be6a70cd11b06ee1558a530b2742480a7ebd36613949c"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.0.0-rc.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6af7083a6189af9b6d36be36bd3cf813a055d4075f6357851f245363de0c1b3c"
+checksum = "c354caa094fe66a9ece3ed1e0360610cc02f10d34756e921cdd6a67ca6a1a9ea"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.0.0-rc.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c876a6eea364db388db1400c08954a285389f53f03afa615ea4d81ae4e540a25"
+checksum = "0f447aeb3add041a565fd18d111c3ab3633b1a5c88fb7aaf5d47e6f32f1d41a8"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.0.0-rc.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91b541b90ecc29a7b0cedb42f0e2d1577593b3902120262495861189b2db005c"
+checksum = "addb88dcc95c68ee67cac58552a7203f7b7845a30d28fcde485c2f8be834953b"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -1864,15 +1864,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls-pemfile"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
-dependencies = [
- "rustls-pki-types",
-]
-
-[[package]]
 name = "rustls-pki-types"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2176,9 +2167,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.34.0"
+version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1845ea23c5b8a645f0ecf6c32e2ae6b3e4da066b2caf0b23144428255c5a26cf"
+checksum = "232266a1fa32dc0e183eb5337962701be17495e98401a0ce10f1a6951d8f8963"
 dependencies = [
  "async-native-tls",
  "async-openssl",
@@ -2189,7 +2180,7 @@ dependencies = [
  "openssl",
  "p12-keystore",
  "rustls-connector",
- "rustls-pemfile",
+ "rustls-pki-types",
 ]
 
 [[package]]
