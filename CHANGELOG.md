@@ -1,3 +1,13 @@
+### 4.0.1 (2026-02-19)
+
+#### Features
+
+* New `ConnectionBuilder` (and `DefaultConnectionBuilder`) types to centralize everything related to connecting.
+
+#### Bug Fixes
+
+* `ConnectionProperties` reimplements `Clone`
+
 ### 4.0.0 (2026-02-08)
 
 #### Breaking changes
