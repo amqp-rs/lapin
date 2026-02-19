@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ee97af9a24cdc2c69f98d2464788a266cf6a1dcea8608abc65509b56c081861"
+checksum = "8032525e9bb1bb8aa556476de729106e972b9fb811e5db21ce462a4f0f057d03"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60b57b4361248998e46be6a70cd11b06ee1558a530b2742480a7ebd36613949c"
+checksum = "a533ce2a748e23083bc1c9995b1bced0c25498f2c8dcc05527215a42c78c560b"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c354caa094fe66a9ece3ed1e0360610cc02f10d34756e921cdd6a67ca6a1a9ea"
+checksum = "22f50ebc589843a42a1428b3e1b149164645bfe8c22a7ed0f128ad0af4aaad84"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f447aeb3add041a565fd18d111c3ab3633b1a5c88fb7aaf5d47e6f32f1d41a8"
+checksum = "12ffea0c942eb17ea55262e4cc57b223d8d6f896269b1313153f9215784dc2b8"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "addb88dcc95c68ee67cac58552a7203f7b7845a30d28fcde485c2f8be834953b"
+checksum = "baa9f65c896cb658503e5547e262132ac356c26bc477afedfd8d3f324f4c5006"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -2167,9 +2167,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.34.1"
+version = "0.34.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "232266a1fa32dc0e183eb5337962701be17495e98401a0ce10f1a6951d8f8963"
+checksum = "228ee8f41fd20e97f2af4afdd54901b1711aef9d49136d8d6c53f10f4416a4cb"
 dependencies = [
  "async-native-tls",
  "async-openssl",
