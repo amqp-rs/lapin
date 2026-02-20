@@ -6,6 +6,7 @@ use crate::{
 use async_rs::{Runtime, traits::*};
 use std::io;
 
+#[derive(Debug)]
 pub struct ConnectionBuilder<RK: RuntimeKit + Send + Sync + Clone + 'static> {
     runtime: Runtime<RK>,
     uri: UriBuilder,
@@ -14,7 +15,7 @@ pub struct ConnectionBuilder<RK: RuntimeKit + Send + Sync + Clone + 'static> {
 }
 pub type DefaultConnectionBuilder = ConnectionBuilder<runtime::DefaultRuntimeKit>;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 enum UriBuilder {
     Str(String),
     Uri(AMQPUri),

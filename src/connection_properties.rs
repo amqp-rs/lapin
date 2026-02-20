@@ -3,6 +3,7 @@ use crate::{
     types::{AMQPValue, FieldTable, LongString, ShortString},
 };
 use backon::ExponentialBuilder;
+use std::fmt;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -67,5 +68,16 @@ impl ConnectionProperties {
     pub fn enable_auto_recover(mut self) -> Self {
         self.auto_recover = true;
         self
+    }
+}
+
+impl fmt::Debug for ConnectionProperties {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConnectionProperties")
+            .field("locale", &self.locale)
+            .field("client_properties", &self.client_properties)
+            .field("backoff", &self.backoff)
+            .field("auto_recover", &self.auto_recover)
+            .finish()
     }
 }
