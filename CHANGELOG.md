@@ -1,3 +1,9 @@
+### 4.0.2 (2026-02-20)
+
+#### Features
+
+* `ConnectionBuilder` (and `ConnectionProperties`) now implement `Debug`
+
 ### 4.0.1 (2026-02-19)
 
 #### Features
