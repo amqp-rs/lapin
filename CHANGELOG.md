@@ -1,3 +1,9 @@
+### 4.0.3 (2026-02-21)
+
+#### Bug Fixes
+
+* `PublisherConfirms` is now public
+
 ### 4.0.2 (2026-02-20)
 
 #### Features
