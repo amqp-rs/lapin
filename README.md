@@ -61,9 +61,7 @@ There are implementations for tokio, smol and others in [async-rs](https://docs.
 There is support for recovering connection after errors. To enable this, you need to enable it in the `ConnectionProperties`:
 
 ```rust
-let properties = ConnectionProperties::default().enable_auto_recover().configure_backoff(|backoff| {
-    backoff.with_max_times(3) // It is recommended to configure at least this when enabling recovery to also retry the TCP connection when it fails.
-});
+let properties = ConnectionProperties::default().enable_auto_recover(); // you might also want to configure the backoff for the TCP connection itself
 // connect using properties.
 ```
 

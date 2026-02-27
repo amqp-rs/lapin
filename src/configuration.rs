@@ -28,6 +28,7 @@ impl Configuration {
             auth_provider,
             backoff,
             auto_recover,
+            ..
         } = options;
         Self {
             amqp_client_properties: client_properties,

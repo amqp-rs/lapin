@@ -13,6 +13,7 @@ pub struct ConnectionProperties {
     pub(crate) auth_provider: Option<Arc<dyn AuthProvider>>,
     pub(crate) backoff: ExponentialBuilder,
     pub(crate) auto_recover: bool,
+    backoff_configured: bool,
 }
 
 impl Default for ConnectionProperties {
@@ -23,6 +24,7 @@ impl Default for ConnectionProperties {
             auth_provider: None,
             backoff: ExponentialBuilder::default().with_max_times(0 /* no retry by default */),
             auto_recover: false,
+            backoff_configured: false,
         }
     }
 }
@@ -55,18 +57,26 @@ impl ConnectionProperties {
     #[must_use]
     pub fn with_backoff(mut self, backoff: ExponentialBuilder) -> Self {
         self.backoff = backoff;
+        self.backoff_configured = true;
         self
     }
 
     #[must_use]
     pub fn configure_backoff(mut self, conf: impl Fn(ExponentialBuilder) -> ExponentialBuilder) -> Self {
         self.backoff = conf(self.backoff);
+        self.backoff_configured = true;
         self
     }
 
     #[must_use]
     pub fn enable_auto_recover(mut self) -> Self {
         self.auto_recover = true;
+        if !self.backoff_configured {
+            // Arbitrary value to make sure we retry the TCP connection itself a few times
+            // Don't touch anything if the user already explicitely configured the backoff
+            self.backoff = self.backoff.with_max_times(16);
+            self.backoff_configured = true;
+        }
         self
     }
 }
