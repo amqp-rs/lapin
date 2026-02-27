@@ -62,7 +62,7 @@ There is support for recovering connection after errors. To enable this, you nee
 
 ```rust
 let properties = ConnectionProperties::default().enable_auto_recover().configure_backoff(|backoff| {
-    backoff.with_max_times(3); // It is recommended to configure at least this when enabling recovery to also retry the TCP connection when it fails.
+    backoff.with_max_times(3) // It is recommended to configure at least this when enabling recovery to also retry the TCP connection when it fails.
 });
 // connect using properties.
 ```

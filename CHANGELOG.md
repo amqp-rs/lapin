@@ -1,3 +1,13 @@
+### 4.1.0 (2026-02-??)
+
+#### Breaking changes
+
+* The closure passed to `ConnectionProperties::configure_backoff` now needs to return the `ExponentialBuilder`
+
+#### Bug Fixes
+
+* `ConnectionProperties::configure_backoff` now works properly. It was previously broken due to implicit Copy behaviour.
+
 ### 4.0.3 (2026-02-21)
 
 #### Bug Fixes
