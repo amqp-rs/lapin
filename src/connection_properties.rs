@@ -62,7 +62,10 @@ impl ConnectionProperties {
     }
 
     #[must_use]
-    pub fn configure_backoff(mut self, conf: impl Fn(ExponentialBuilder) -> ExponentialBuilder) -> Self {
+    pub fn configure_backoff(
+        mut self,
+        conf: impl Fn(ExponentialBuilder) -> ExponentialBuilder,
+    ) -> Self {
         self.backoff = conf(self.backoff);
         self.backoff_configured = true;
         self
