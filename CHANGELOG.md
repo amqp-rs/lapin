@@ -1,4 +1,4 @@
-### 4.1.0 (2026-02-??)
+### 4.1.0 (2026-02-27)
 
 #### Breaking changes
 
@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 * `ConnectionProperties::configure_backoff` now works properly. It was previously broken due to implicit Copy behaviour.
+* We now retry several times (16 as of now) the TCP connection itself by default when recovery is enabled.
 
 ### 4.0.3 (2026-02-21)
 
