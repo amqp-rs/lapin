@@ -345,7 +345,11 @@ impl<
         result: Result<()>,
     ) -> Result<()> {
         if let Err(e) = self.socket_state.handle_io_result(result) {
-            error!(error=?e, "error doing IO");
+            if e.is_runtime_shutdown_error() {
+                trace!(error=?e, "runtime shutdown error doing IO");
+            } else {
+                error!(error=?e, "error doing IO");
+            }
             self.critical_error(connection_killswitch, e)?;
         }
         Ok(())

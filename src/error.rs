@@ -5,6 +5,7 @@ use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
     protocol::AMQPErrorKind,
 };
+use cfg_if::cfg_if;
 use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
@@ -102,6 +103,13 @@ impl Error {
         false
     }
 
+    pub fn is_runtime_shutdown_error(&self) -> bool {
+        if let ErrorKind::IOError(e) = self.kind() {
+            return io_error_is_runtime_shutdown(e);
+        }
+        false
+    }
+
     pub fn can_be_recovered(&self) -> bool {
         match self.kind() {
             ErrorKind::ChannelsLimitReached => false,
@@ -111,13 +119,25 @@ impl Error {
             ErrorKind::InvalidChannelState(..) => true,
             ErrorKind::InvalidConnectionState(_) => true,
 
-            ErrorKind::IOError(_) => true,
+            ErrorKind::IOError(e) => !io_error_is_runtime_shutdown(e),
             ErrorKind::ParsingError(_) => false,
             ErrorKind::ProtocolError(_) => true,
             ErrorKind::SerialisationError(_) => false,
             ErrorKind::AuthProviderError(_) => false,
 
             ErrorKind::MissingHeartbeatError => true,
+        }
+    }
+}
+
+cfg_if! {
+    if #[cfg(feature = "tokio")] {
+        fn io_error_is_runtime_shutdown(err: &io::Error) -> bool {
+            tokio::runtime::is_rt_shutdown_err(err)
+        }
+    } else {
+        fn io_error_is_runtime_shutdown(_: &io::Error) -> bool {
+            false
         }
     }
 }
