@@ -1,3 +1,9 @@
+### 4.1.1 (2026-03-05)
+
+#### Bug Fixes
+
+* Properly handle errors emitted by tokio when reactor is shutting down
+
 ### 4.1.0 (2026-02-27)
 
 #### Breaking changes
