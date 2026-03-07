@@ -509,7 +509,7 @@ impl<
         }
     }
 
-    fn report_connection_aborted(&self) -> Result<()> {
+    fn report_connection_aborted(&mut self) -> Result<()> {
         self.socket_state
             .handle_io_result(Err(io::Error::from(io::ErrorKind::ConnectionAborted).into()))?;
         Ok(())

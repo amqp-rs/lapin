@@ -87,13 +87,17 @@ impl SocketState {
         }
     }
 
-    pub(crate) fn handle_io_result(&self, result: Result<()>) -> Result<()> {
+    pub(crate) fn handle_io_result(&mut self, result: Result<()>) -> Result<()> {
         if let Err(err) = result {
             if err.interrupted() {
                 self.handle.wake();
             } else if err.wouldblock() {
                 // ignore, let the reactor handle that
             } else {
+                if err.is_io_error() {
+                    self.readable = false;
+                    self.writable = false;
+                }
                 return Err(err);
             }
         }
