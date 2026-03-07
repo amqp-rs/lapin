@@ -1,3 +1,9 @@
+### 4.2.0 (2026-03-07)
+
+#### Bug Fixes
+
+* Fixes an issue preventing us from preoperly reconnecting during a rabbitmq server restart
+
 ### 4.1.1 (2026-03-05)
 
 #### Bug Fixes
