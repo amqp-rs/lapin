@@ -173,7 +173,7 @@ impl<
         trace!(status=?self.status, connection_status=?self.connection_status.state(), internal_rpc_empty=%self.internal_rpc.is_empty(), frames_pending=%self.frames.has_pending(), conn_killed=%connection_killswitch.killed(), ser_frames_empty=%self.serialized_frames.is_empty(), "Should continue?");
 
         match self.status {
-            Status::Initial => true,
+            Status::Initial => !self.half_closed,
             Status::Stop => false,
             Status::Connected => {
                 self.connection_status.connected()
