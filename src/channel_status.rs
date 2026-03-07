@@ -232,10 +232,15 @@ impl Inner {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
         self.receiver_state.reset();
-        let ctx = ChannelRecoveryContext::new(error, topology);
-        let error = ctx.cause();
-        self.recovery_context = Some(ctx);
-        error
+        match self.recovery_context.as_ref() {
+            Some(ctx) => ctx.cause(),
+            None => {
+                let ctx = ChannelRecoveryContext::new(error, topology);
+                let error = ctx.cause();
+                self.recovery_context = Some(ctx);
+                error
+            }
+        }
     }
 
     pub(crate) fn finalize_connection(&mut self) {
