@@ -26,7 +26,7 @@ use std::{
     thread::Builder as ThreadBuilder,
     time::Duration,
 };
-use tracing::{Level, error, trace};
+use tracing::{Level, debug, error, trace};
 
 const FRAMES_STORAGE: usize = 32;
 
@@ -230,6 +230,11 @@ impl<
                     if !reconnect {
                         break (stream, res);
                     }
+
+                    // FIXME: make this configurable and/or smarter?
+                    let throttle = 1000;
+                    debug!("Throttling {}ms before reconnection to avoid flooding", throttle);
+                    std::thread::sleep(std::time::Duration::from_millis(throttle));
 
                     self.reset();
                     self.socket_state.reset();
