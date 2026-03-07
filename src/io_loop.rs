@@ -312,8 +312,8 @@ impl<
             connection_killswitch.kill();
         }
         if self.channels.can_recover(&error) {
-            self.internal_rpc.init_connection_recovery(error);
-            return Ok(());
+            self.internal_rpc.init_connection_recovery(error.clone());
+            return Err(error);
         }
 
         if let Some(resolver) = self.connection_status.connection_resolver() {
