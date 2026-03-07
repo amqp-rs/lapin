@@ -162,7 +162,8 @@ impl<
     }
 
     fn reconnecting(&self) -> bool {
-        self.connection_status.reconnecting()
+        // FIXME: maybe use another state than initial here?
+        self.connection_status.reconnecting() || self.status == Status::Initial
     }
 
     fn should_continue(&self, connection_killswitch: &KillSwitch) -> bool {
