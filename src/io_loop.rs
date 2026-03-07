@@ -214,6 +214,9 @@ impl<
                     while self.should_continue(&connection_killswitch) {
                         if let Err(err) = self.run(Pin::new(&mut stream), &mut readable_context, &mut writable_context, &connection_killswitch) {
                             res = self.critical_error(&connection_killswitch, err);
+                            if self.reconnecting() {
+                                break;
+                            }
                         }
                     }
 
