@@ -60,6 +60,7 @@ pub struct IoLoop<
     receive_buffer: Buffer,
     send_buffer: Buffer,
     serialized_frames: VecDeque<(FrameSize, FrameSending)>,
+    half_closed: bool,
 }
 
 impl<
@@ -106,6 +107,7 @@ impl<
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             serialized_frames: VecDeque::default(),
+            half_closed: false,
         }
     }
 
@@ -205,6 +207,7 @@ impl<
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
                     })?;
+                    self.half_closed = false;
                     let mut res = Ok(());
 
                     while self.should_continue(&connection_killswitch) {
@@ -474,10 +477,17 @@ impl<
 
                         trace!("read {} bytes", sz);
                         self.receive_buffer.fill(sz);
+                    } else if self.half_closed {
+                        if self.reconnecting() || self.channels.connection_killswitch().killed() {
+                            return Ok(true);
+                        } else {
+                            self.report_connection_aborted()?;
+                        }
                     } else {
                         error!(
                             "Socket was readable but we read 0. This usually means that the connection is half closed, thus report it as broken."
                         );
+                        self.half_closed = true;
                         // Give a chance to parse and use frames we already read from socket before overriding the error with a custom one.
                         if !self.handle_frames(connection_killswitch)?
                             && self.internal_rpc.is_empty()
@@ -489,16 +499,19 @@ impl<
                                 );
                                 return Ok(true);
                             }
-                            self.socket_state.handle_io_result(Err(io::Error::from(
-                                io::ErrorKind::ConnectionAborted,
-                            )
-                            .into()))?;
+                            self.report_connection_aborted()?;
                         }
                     }
                 }
                 Ok(false)
             }
         }
+    }
+
+    fn report_connection_aborted(&self) -> Result<()> {
+        self.socket_state
+            .handle_io_result(Err(io::Error::from(io::ErrorKind::ConnectionAborted).into()))?;
+        Ok(())
     }
 
     fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
