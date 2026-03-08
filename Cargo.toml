@@ -97,8 +97,12 @@ name = "connection"
 required-features = ["async-global-executor"]
 
 [[example]]
-name = "reconnect"
+name = "reconnect_manual"
 required-features = ["async-global-executor"]
+
+[[example]]
+name = "reconnect_semi_automatic"
+required-features = ["tokio"]
 
 [[example]]
 name = "smol"
