@@ -62,6 +62,7 @@ pub struct IoLoop<
     send_buffer: Buffer,
     serialized_frames: VecDeque<(FrameSize, FrameSending)>,
     half_closed: bool,
+    first_connection: bool,
 }
 
 impl<
@@ -111,6 +112,7 @@ impl<
             send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
             serialized_frames: VecDeque::default(),
             half_closed: false,
+            first_connection: true,
         }
     }
 
@@ -118,6 +120,7 @@ impl<
         self.status = Status::Initial;
         self.receive_buffer.reset();
         self.send_buffer.reset();
+        self.socket_state.reset();
     }
 
     fn finish_setup(&mut self) -> Result<bool> {
@@ -135,6 +138,7 @@ impl<
             }
             self.status = Status::Connected;
             self.global_backoff = self.backoff.build();
+            self.first_connection = false;
         }
         Ok(true)
     }
@@ -165,9 +169,12 @@ impl<
         self.receive_buffer.available_data() > 0
     }
 
+    fn connecting(&self) -> bool {
+        self.status == Status::Initial
+    }
+
     fn reconnecting(&self) -> bool {
-        // FIXME: maybe use another state than initial here?
-        self.connection_status.reconnecting() || self.status == Status::Initial
+        self.connection_status.reconnecting()
     }
 
     fn should_continue(&self, connection_killswitch: &KillSwitch) -> bool {
@@ -217,21 +224,23 @@ impl<
 
                     while self.should_continue(&connection_killswitch) {
                         if let Err(err) = self.run(Pin::new(&mut stream), &mut readable_context, &mut writable_context, &connection_killswitch) {
+                            let io_err = err.is_io_error();
                             res = self.critical_error(&connection_killswitch, err);
-                            if self.reconnecting() {
+                            if self.connecting() && io_err {
                                 break;
                             }
                         }
                     }
 
+                    let connecting = self.connecting();
                     let reconnect = self.reconnecting();
 
-                    trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else { "shutdown" });
+                    trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop exiting for {}", if reconnect { "reconnection" } else if connecting { "connection" } else { "shutdown" });
                     self.clear_serialized_frames(self.frames.poison().or_else(|| res.clone().err()).unwrap_or(
                         ErrorKind::InvalidConnectionState(ConnectionState::Closed).into(),
                     ));
 
-                    if !reconnect {
+                    if !connecting && !reconnect {
                         break (stream, res);
                     }
 
@@ -246,8 +255,9 @@ impl<
                     std::thread::sleep(throttle);
 
                     self.reset();
-                    self.socket_state.reset();
-                    self.internal_rpc.start_channels_recovery();
+                    if !self.first_connection {
+                        self.internal_rpc.start_channels_recovery();
+                    }
                 };
 
                 trace!(status=?self.status, connection_status=?self.connection_status.state(), "io_loop entering exit/cleanup phase");
@@ -496,11 +506,7 @@ impl<
                         trace!("read {} bytes", sz);
                         self.receive_buffer.fill(sz);
                     } else if self.half_closed {
-                        if self.reconnecting() || self.channels.connection_killswitch().killed() {
-                            return Ok(true);
-                        } else {
-                            self.report_connection_aborted()?;
-                        }
+                        return self.handle_half_closed_connection(false);
                     } else {
                         error!(
                             "Socket was readable but we read 0. This usually means that the connection is half closed, thus report it as broken."
@@ -510,14 +516,7 @@ impl<
                         if !self.handle_frames(connection_killswitch)?
                             && self.internal_rpc.is_empty()
                         {
-                            if self.reconnecting() || self.channels.connection_killswitch().killed()
-                            {
-                                trace!(
-                                    "We're in the process of recovering connection, quit reading socket to enter recovery"
-                                );
-                                return Ok(true);
-                            }
-                            self.report_connection_aborted()?;
+                            return self.handle_half_closed_connection(true);
                         }
                     }
                 }
@@ -526,10 +525,21 @@ impl<
         }
     }
 
-    fn report_connection_aborted(&mut self) -> Result<()> {
+    fn handle_half_closed_connection(&mut self, first_event: bool) -> Result<bool> {
+        if self.reconnecting()
+            || self.connecting()
+            || self.channels.connection_killswitch().killed()
+        {
+            if first_event {
+                trace!(
+                    "We're in the process of recovering connection, quit reading socket to enter recovery"
+                );
+            }
+            return Ok(true);
+        }
         self.socket_state
             .handle_io_result(Err(io::Error::from(io::ErrorKind::ConnectionAborted).into()))?;
-        Ok(())
+        Ok(false)
     }
 
     fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
