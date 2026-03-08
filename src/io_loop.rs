@@ -15,7 +15,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use async_rs::{Runtime, traits::*};
-use backon::{Backoff, BackoffBuilder, ExponentialBuilder, Retryable};
+use backon::{BackoffBuilder, ExponentialBackoff, ExponentialBuilder, Retryable};
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
@@ -55,7 +55,7 @@ pub struct IoLoop<
     connect: C,
     uri: AMQPUri,
     backoff: ExponentialBuilder,
-    global_backoff: Box<dyn Backoff>, /* FIXME: unbox once struct is exported */
+    global_backoff: ExponentialBackoff,
     status: Status,
     frame_size: FrameSize,
     receive_buffer: Buffer,
@@ -90,7 +90,7 @@ impl<
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
         );
-        let global_backoff = Box::new(backoff.build());
+        let global_backoff = backoff.build();
 
         Self {
             connection_status,
@@ -134,7 +134,7 @@ impl<
                 self.internal_rpc.start_heartbeat(heartbeat);
             }
             self.status = Status::Connected;
-            self.global_backoff = Box::new(self.backoff.build());
+            self.global_backoff = self.backoff.build();
         }
         Ok(true)
     }
