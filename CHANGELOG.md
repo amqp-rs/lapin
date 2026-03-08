@@ -1,3 +1,13 @@
+### 4.2.1 (2026-03-08)
+
+#### Features
+
+* We now use exponential backoff for retries of AMQP connection too once the TCP connection is established
+
+#### Misc
+
+* Added an example of semi automatic reconnection handling
+
 ### 4.2.0 (2026-03-07)
 
 #### Bug Fixes
