@@ -15,7 +15,7 @@ use crate::{
 };
 use amq_protocol::frame::{AMQPFrame, GenError, gen_frame, parse_frame};
 use async_rs::{Runtime, traits::*};
-use backon::{ExponentialBuilder, Retryable};
+use backon::{Backoff, BackoffBuilder, ExponentialBuilder, Retryable};
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
@@ -55,6 +55,7 @@ pub struct IoLoop<
     connect: C,
     uri: AMQPUri,
     backoff: ExponentialBuilder,
+    global_backoff: Box<dyn Backoff>, /* FIXME: unbox once struct is exported */
     status: Status,
     frame_size: FrameSize,
     receive_buffer: Buffer,
@@ -89,6 +90,7 @@ impl<
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
         );
+        let global_backoff = Box::new(backoff.build());
 
         Self {
             connection_status,
@@ -102,6 +104,7 @@ impl<
             connect,
             uri,
             backoff,
+            global_backoff,
             status: Status::Initial,
             frame_size,
             receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
@@ -131,6 +134,7 @@ impl<
                 self.internal_rpc.start_heartbeat(heartbeat);
             }
             self.status = Status::Connected;
+            self.global_backoff = Box::new(self.backoff.build());
         }
         Ok(true)
     }
@@ -231,10 +235,15 @@ impl<
                         break (stream, res);
                     }
 
-                    // FIXME: make this configurable and/or smarter?
-                    let throttle = 1000;
-                    debug!("Throttling {}ms before reconnection to avoid flooding", throttle);
-                    std::thread::sleep(std::time::Duration::from_millis(throttle));
+                    let throttle = match self.global_backoff.next() {
+                        Some(throttle) => throttle,
+                        None => {
+                            error!("Exponential backoff attempts exhausted, aborting recovery");
+                            break (stream, res);
+                        }
+                    };
+                    debug!("Throttling {:?} before reconnection to avoid flooding", throttle);
+                    std::thread::sleep(throttle);
 
                     self.reset();
                     self.socket_state.reset();
