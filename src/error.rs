@@ -5,7 +5,7 @@ use amq_protocol::{
     frame::{GenError, ParserError, ProtocolVersion},
     protocol::AMQPErrorKind,
 };
-use cfg_if::cfg_if;
+use async_rs::{Runtime, traits::*};
 use std::{error, fmt, io, sync::Arc};
 
 /// A std Result with a lapin::Error error type
@@ -47,8 +47,8 @@ impl Error {
         io::Error::other(error).into()
     }
 
-    pub(crate) fn io(error: io::Error) -> Self {
-        if io_error_is_runtime_shutdown(&error) {
+    pub(crate) fn io<RK: RuntimeKit>(error: io::Error, rt: &Runtime<RK>) -> Self {
+        if rt.is_runtime_shutdown_error(&error) {
             ErrorKind::RuntimeShutdownError(Arc::new(error)).into()
         } else {
             error.into()
@@ -140,18 +140,6 @@ impl Error {
             ErrorKind::AuthProviderError(_) => false,
 
             ErrorKind::MissingHeartbeatError => true,
-        }
-    }
-}
-
-cfg_if! {
-    if #[cfg(feature = "tokio")] {
-        fn io_error_is_runtime_shutdown(err: &io::Error) -> bool {
-            tokio::runtime::is_rt_shutdown_err(err)
-        }
-    } else {
-        fn io_error_is_runtime_shutdown(_: &io::Error) -> bool {
-            false
         }
     }
 }

@@ -199,6 +199,7 @@ impl<
     }
 
     pub(crate) fn start(mut self) -> Result<JoinHandle> {
+        let runtime = self.runtime.clone();
         let waker = self.socket_state.handle();
         let connect_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
@@ -270,7 +271,7 @@ impl<
                         error!(?err, "Failed to close IO stream");
                     }
                 res
-            }).map_err(Error::io)?;
+            }).map_err(|err| Error::io(err, &runtime))?;
         waker.wake();
         Ok(handle)
     }
@@ -391,7 +392,9 @@ impl<
         stream: Pin<&mut T>,
         writable_context: &mut Context<'_>,
     ) -> Result<()> {
-        let res = stream.poll_flush(writable_context).map_err(Error::io)?;
+        let res = stream
+            .poll_flush(writable_context)
+            .map_err(|err| Error::io(err, &self.runtime))?;
         self.socket_state.handle_write_poll(res);
         Ok(())
     }
@@ -440,7 +443,7 @@ impl<
         let res = self
             .send_buffer
             .poll_write_to(writable_context, stream.as_mut())
-            .map_err(Error::io)?;
+            .map_err(|err| Error::io(err, &self.runtime))?;
 
         if let Some(sz) = self.socket_state.handle_write_poll(res) {
             if sz > 0 {
@@ -499,7 +502,7 @@ impl<
                 let res = self
                     .receive_buffer
                     .poll_read_from(readable_context, stream)
-                    .map_err(Error::io)?;
+                    .map_err(|err| Error::io(err, &self.runtime))?;
 
                 if let Some(sz) = self.socket_state.handle_read_poll(res) {
                     if sz > 0 {
@@ -540,7 +543,7 @@ impl<
             return Ok(true);
         }
         self.socket_state
-            .handle_io_result(Err(Error::io(io::ErrorKind::ConnectionAborted.into())))?;
+            .handle_io_result(Err(io::Error::from(io::ErrorKind::ConnectionAborted).into()))?;
         Ok(false)
     }
 

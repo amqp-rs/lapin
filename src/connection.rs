@@ -317,7 +317,7 @@ impl Connect for AMQPUri {
             async move |uri, runtime| {
                 AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
                     .await
-                    .map_err(Error::io)
+                    .map_err(|err| Error::io(err, &runtime))
             },
             options,
         )

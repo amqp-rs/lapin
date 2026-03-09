@@ -20,7 +20,7 @@ default-runtime           = ["tokio"]
 async-global-executor     = ["amq-protocol/async-global-executor", "async-rs/async-global-executor", "async-rs/async-io"]
 hickory-dns               = ["amq-protocol/hickory-dns", "async-rs/hickory-dns"]
 smol                      = ["amq-protocol/smol", "async-rs/smol"]
-tokio                     = ["amq-protocol/tokio", "async-rs/tokio", "dep:tokio"]
+tokio                     = ["amq-protocol/tokio", "async-rs/tokio"]
 
 codegen                   = ["codegen-internal", "amq-protocol/codegen"]
 codegen-internal          = ["dep:amq-protocol-codegen", "dep:serde_json"]
@@ -56,7 +56,7 @@ version = "^10.0.1"
 default-features = false
 
 [dependencies.async-rs]
-version = "^0.8"
+version = "^0.8.1"
 default-features = false
 
 [dependencies.backon]
@@ -68,12 +68,6 @@ features = ["std"]
 version = "^0.12"
 default-features = false
 features = ["async"]
-
-[dependencies.tokio]
-version = "^1.50"
-default-features = false
-features = ["rt"]
-optional = true
 
 [dependencies.tracing]
 version = "^0.1"
