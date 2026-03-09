@@ -33,6 +33,7 @@ pub enum ErrorKind {
     InvalidConnectionState(ConnectionState),
 
     IOError(Arc<io::Error>),
+    RuntimeShutdownError(Arc<io::Error>),
     ParsingError(ParserError),
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
@@ -43,7 +44,15 @@ pub enum ErrorKind {
 
 impl Error {
     pub(crate) fn other<E: Into<Box<dyn error::Error + Send + Sync>>>(error: E) -> Self {
-        ErrorKind::IOError(Arc::new(io::Error::other(error))).into()
+        io::Error::other(error).into()
+    }
+
+    pub(crate) fn io(error: io::Error) -> Self {
+        if io_error_is_runtime_shutdown(&error) {
+            ErrorKind::RuntimeShutdownError(Arc::new(error)).into()
+        } else {
+            error.into()
+        }
     }
 
     pub fn kind(&self) -> &ErrorKind {
@@ -79,6 +88,13 @@ impl Error {
         if let ErrorKind::IOError(_) = self.kind() {
             return true;
         }
+        self.is_runtime_shutdown_error()
+    }
+
+    pub fn is_runtime_shutdown_error(&self) -> bool {
+        if let ErrorKind::RuntimeShutdownError(_) = self.kind() {
+            return true;
+        }
         false
     }
 
@@ -107,13 +123,6 @@ impl Error {
         false
     }
 
-    pub fn is_runtime_shutdown_error(&self) -> bool {
-        if let ErrorKind::IOError(e) = self.kind() {
-            return io_error_is_runtime_shutdown(e);
-        }
-        false
-    }
-
     pub fn can_be_recovered(&self) -> bool {
         match self.kind() {
             ErrorKind::ChannelsLimitReached => false,
@@ -123,7 +132,8 @@ impl Error {
             ErrorKind::InvalidChannelState(..) => true,
             ErrorKind::InvalidConnectionState(_) => true,
 
-            ErrorKind::IOError(e) => !io_error_is_runtime_shutdown(e),
+            ErrorKind::IOError(_) => true,
+            ErrorKind::RuntimeShutdownError(_) => false,
             ErrorKind::ParsingError(_) => false,
             ErrorKind::ProtocolError(_) => true,
             ErrorKind::SerialisationError(_) => false,
@@ -166,6 +176,7 @@ impl fmt::Display for Error {
             }
 
             ErrorKind::IOError(e) => write!(f, "IO error: {e}"),
+            ErrorKind::RuntimeShutdownError(e) => write!(f, "runtime shutdown error: {e}"),
             ErrorKind::ParsingError(e) => write!(f, "failed to parse: {e}"),
             ErrorKind::ProtocolError(e) => write!(f, "protocol error: {e}"),
             ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {e}"),
@@ -182,6 +193,7 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self.kind() {
             ErrorKind::IOError(e) => Some(&**e),
+            ErrorKind::RuntimeShutdownError(e) => Some(&**e),
             ErrorKind::ParsingError(e) => Some(e),
             ErrorKind::ProtocolError(e) => Some(e),
             ErrorKind::SerialisationError(e) => Some(&**e),
@@ -227,6 +239,10 @@ impl PartialEq for Error {
 
             (IOError(_), IOError(_)) => {
                 error!("Unable to compare lapin::ErrorKind::IOError");
+                false
+            }
+            (RuntimeShutdownError(_), RuntimeShutdownError(_)) => {
+                error!("Unable to compare lapin::ErrorKind::RuntimeShutdownError");
                 false
             }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,

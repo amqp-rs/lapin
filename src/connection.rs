@@ -21,7 +21,7 @@ use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_rs::{Runtime, traits::*};
 use async_trait::async_trait;
 use futures_core::Stream;
-use std::{fmt, io, sync::Arc};
+use std::{fmt, sync::Arc};
 use tracing::trace;
 
 /// A TCP connection to the AMQP server.
@@ -315,10 +315,9 @@ impl Connect for AMQPUri {
             self,
             runtime,
             async move |uri, runtime| {
-                Ok(
-                    AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
-                        .await?,
-                )
+                AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
+                    .await
+                    .map_err(Error::io)
             },
             options,
         )

@@ -4,7 +4,6 @@ use crate::{
 };
 
 use async_rs::{Runtime, traits::*};
-use std::io;
 
 #[derive(Debug)]
 pub struct ConnectionBuilder<RK: RuntimeKit + Send + Sync + Clone + 'static> {

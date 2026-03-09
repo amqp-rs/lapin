@@ -270,7 +270,7 @@ impl<
                         error!(?err, "Failed to close IO stream");
                     }
                 res
-            })?;
+            }).map_err(Error::io)?;
         waker.wake();
         Ok(handle)
     }
@@ -391,7 +391,7 @@ impl<
         stream: Pin<&mut T>,
         writable_context: &mut Context<'_>,
     ) -> Result<()> {
-        let res = stream.poll_flush(writable_context)?;
+        let res = stream.poll_flush(writable_context).map_err(Error::io)?;
         self.socket_state.handle_write_poll(res);
         Ok(())
     }
@@ -439,7 +439,8 @@ impl<
 
         let res = self
             .send_buffer
-            .poll_write_to(writable_context, stream.as_mut())?;
+            .poll_write_to(writable_context, stream.as_mut())
+            .map_err(Error::io)?;
 
         if let Some(sz) = self.socket_state.handle_write_poll(res) {
             if sz > 0 {
@@ -497,7 +498,8 @@ impl<
             _ => {
                 let res = self
                     .receive_buffer
-                    .poll_read_from(readable_context, stream)?;
+                    .poll_read_from(readable_context, stream)
+                    .map_err(Error::io)?;
 
                 if let Some(sz) = self.socket_state.handle_read_poll(res) {
                     if sz > 0 {
@@ -538,7 +540,7 @@ impl<
             return Ok(true);
         }
         self.socket_state
-            .handle_io_result(Err(io::Error::from(io::ErrorKind::ConnectionAborted).into()))?;
+            .handle_io_result(Err(Error::io(io::ErrorKind::ConnectionAborted.into())))?;
         Ok(false)
     }
 
