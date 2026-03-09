@@ -1,6 +1,6 @@
 use crate::{
-    Connection, ConnectionProperties, Result, connection::Connect, runtime, tcp::OwnedTLSConfig,
-    uri::AMQPUri,
+    Connection, ConnectionProperties, Error, Result, connection::Connect, runtime,
+    tcp::OwnedTLSConfig, uri::AMQPUri,
 };
 
 use async_rs::{Runtime, traits::*};
@@ -73,9 +73,7 @@ impl<RK: RuntimeKit + Send + Sync + Clone + 'static> ConnectionBuilder<RK> {
                 uri.connect_with_config(properties, tls_config, runtime)
                     .await
             }
-            UriBuilder::Unset => {
-                Err(io::Error::other("No AMQPUri given to ConnectionBuilder").into())
-            }
+            UriBuilder::Unset => Err(Error::other("No AMQPUri given to ConnectionBuilder")),
         }
     }
 }

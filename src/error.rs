@@ -42,6 +42,10 @@ pub enum ErrorKind {
 }
 
 impl Error {
+    pub(crate) fn other<E: Into<Box<dyn error::Error + Send + Sync>>>(error: E) -> Self {
+        ErrorKind::IOError(Arc::new(io::Error::other(error))).into()
+    }
+
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }

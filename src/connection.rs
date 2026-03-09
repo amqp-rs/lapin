@@ -1,5 +1,5 @@
 use crate::{
-    AsyncTcpStream, ConnectionProperties, ConnectionStatus, Event, Promise, Result,
+    AsyncTcpStream, ConnectionProperties, ConnectionStatus, Error, Event, Promise, Result,
     channel::Channel,
     channels::Channels,
     configuration::Configuration,
@@ -336,7 +336,7 @@ impl Connect for &str {
     ) -> Result<Connection> {
         match self.parse::<AMQPUri>() {
             Ok(uri) => uri.connect_with_config(options, config, runtime).await,
-            Err(err) => Err(io::Error::other(err).into()),
+            Err(err) => Err(Error::other(err)),
         }
     }
 }
