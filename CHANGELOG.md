@@ -1,3 +1,9 @@
+### 4.3.0 (2026-03-10)
+
+#### Misc
+
+* Added `ErrorKind::RuntimeShutdownError` and reworked internal detection and handling
+
 ### 4.2.1 (2026-03-08)
 
 #### Features
