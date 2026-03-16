@@ -1,8 +1,6 @@
 use async_rs::Runtime;
 use lapin::{
-    BasicProperties, Confirmation, Connection, ConnectionProperties,
-    options::*,
-    types::FieldTable,
+    BasicProperties, Confirmation, Connection, ConnectionProperties, options::*, types::FieldTable,
 };
 
 /// Connections created via `connect_with_runtime` must outlive the runtime they
@@ -12,8 +10,7 @@ use lapin::{
 fn connection_survives_caller_runtime_shutdown() {
     let _ = tracing_subscriber::fmt::try_init();
 
-    let addr =
-        std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+    let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
 
     let static_rt = tokio::runtime::Runtime::new().unwrap();
     let lapin_runtime = Runtime::tokio_with_handle(static_rt.handle().clone());
