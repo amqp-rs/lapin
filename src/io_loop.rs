@@ -5,7 +5,7 @@ use crate::{
     configuration::NegotiatedConfig,
     frames::{FrameSending, Frames},
     heartbeat::Heartbeat,
-    internal_rpc::InternalRPCHandle,
+    internal_rpc::{InternalRPC, InternalRPCHandle},
     killswitch::KillSwitch,
     protocol::{self, AMQPError, AMQPHardError},
     socket_state::SocketState,
@@ -198,13 +198,14 @@ impl<
         }
     }
 
-    pub(crate) fn start(mut self) -> Result<JoinHandle> {
+    pub(crate) fn start(mut self, internal_rpc: InternalRPC<RK>) -> Result<JoinHandle> {
         let runtime = self.runtime.clone();
         let waker = self.socket_state.handle();
         let connect_span = tracing::Span::current();
         let handle = ThreadBuilder::new()
             .name("lapin-io-loop".to_owned())
             .spawn(move || {
+                internal_rpc.start(self.channels.clone());
                 let loop_span = io_loop_span(connect_span);
                 let _enter = loop_span.enter();
                 let connection_killswitch = self.channels.connection_killswitch();

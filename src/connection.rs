@@ -232,7 +232,7 @@ impl Connection {
         let io_loop = IoLoop::new(
             conn.status.clone(),
             conn.configuration.negotiated_config.clone(),
-            channels.clone(),
+            channels,
             internal_rpc.handle(),
             frames,
             socket_state,
@@ -243,8 +243,7 @@ impl Connection {
             conn.configuration().backoff,
         );
 
-        internal_rpc.start(channels);
-        conn.io_loop.register(io_loop.start()?);
+        conn.io_loop.register(io_loop.start(internal_rpc)?);
         conn.start(channel0).await
     }
 

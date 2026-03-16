@@ -114,5 +114,9 @@ required-features = ["smol"]
 name = "tokio"
 required-features = ["tokio"]
 
+[[test]]
+name = "runtime_isolation"
+required-features = ["tokio"]
+
 [badges]
 maintenance = { status = "actively-developed" }
