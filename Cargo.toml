@@ -56,7 +56,7 @@ version = "^10.0.1"
 default-features = false
 
 [dependencies.async-rs]
-version = "^0.8.1"
+version = "^0.8.2"
 default-features = false
 
 [dependencies.backon]
@@ -107,15 +107,15 @@ name = "tokio"
 required-features = ["tokio"]
 
 [[test]]
+name = "runtime_isolation"
+required-features = ["tokio"]
+
+[[test]]
 name = "smol"
 required-features = ["smol"]
 
 [[test]]
 name = "tokio"
-required-features = ["tokio"]
-
-[[test]]
-name = "runtime_isolation"
 required-features = ["tokio"]
 
 [badges]
