@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.0.1"
+version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8032525e9bb1bb8aa556476de729106e972b9fb811e5db21ce462a4f0f057d03"
+checksum = "95442d3faf08b9bed7491ceda36b0e0268126cb20d44e6e7573cf930d9aa5073"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.0.1"
+version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a533ce2a748e23083bc1c9995b1bced0c25498f2c8dcc05527215a42c78c560b"
+checksum = "cc0c216a53abc8e65bc014fe2f16c56ca61acbb8e350ee66962b4146abddd8a1"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.0.1"
+version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f50ebc589843a42a1428b3e1b149164645bfe8c22a7ed0f128ad0af4aaad84"
+checksum = "cc754c77e62e58ea7323c3f257a97f747ac57f0ff3f7a91185f484dc1cb25bd2"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.0.1"
+version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12ffea0c942eb17ea55262e4cc57b223d8d6f896269b1313153f9215784dc2b8"
+checksum = "7d8cb8fa210da5ec52799abf7ce45e2275b5a3f82ec4efafcd3e8161b7dbc9a8"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.0.1"
+version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baa9f65c896cb658503e5547e262132ac356c26bc477afedfd8d3f324f4c5006"
+checksum = "a0bc3e8b145641e20b57777a17b3bd7ba6bbdbb2b2ae2f26f6224be35e42c330"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -1373,7 +1373,7 @@ dependencies = [
 
 [[package]]
 name = "lapin"
-version = "4.4.0"
+version = "4.5.0"
 dependencies = [
  "amq-protocol",
  "amq-protocol-codegen",
@@ -2022,6 +2022,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs",
  "rustls-pki-types",
+ "rustls-platform-verifier",
  "rustls-webpki",
  "webpki-root-certs",
 ]
@@ -2046,6 +2047,33 @@ checksum = "be040f8b0a225e40375822a563fa9524378b9d63112f53e19ffff34df5d33fdd"
 dependencies = [
  "zeroize",
 ]
+
+[[package]]
+name = "rustls-platform-verifier"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26d1e2536ce4f35f4846aa13bff16bd0ff40157cdb14cc056c7b14ba41233ba0"
+dependencies = [
+ "core-foundation 0.10.1",
+ "core-foundation-sys",
+ "jni",
+ "log",
+ "once_cell",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-platform-verifier-android",
+ "rustls-webpki",
+ "security-framework",
+ "security-framework-sys",
+ "webpki-root-certs",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "rustls-platform-verifier-android"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"

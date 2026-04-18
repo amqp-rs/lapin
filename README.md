@@ -39,7 +39,8 @@ This project follows the [AMQP 0.9.1 specifications](https://www.rabbitmq.com/re
 
 ## Rustls certificates store
 
-- rustls-native-certs (default)
+- rustls-platform-verifier (default)
+- rustls-native-certs
 - rustls-webpki-roots-certs
 
 ## Warning about crypto backends for rustls

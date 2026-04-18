@@ -13,9 +13,10 @@
 //! * `codegen`: generate code instead of using pregenerated one
 //! * `native-tls`: enable amqps support through native-tls (preferred over rustls when set)
 //! * `openssl`: enable amqps support through openssl (preferred over rustls when set)
-//! * `rustls` (*default*): enable amqps support through rustls (uses rustls-native-certs by default)
-//! * `rustls-native-certs`: same as rustls, be ensure we'll still use rustls-native-certs even if the default for rustls changes
-//! * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-native-certs
+//! * `rustls` (*default*): enable amqps support through rustls (uses rustls-platform-verifier by default)
+//! * `rustls-platform-verifier`: same as rustls, but ensure we'll still use rustls-platform-verifier even if the default for rustls changes
+//! * `rustls-native-certs`: same as rustls but using rustls-native-certs instead of rustls-platform-verifier
+//! * `rustls-webpki-roots-certs`: same as rustls but using webkit-roots instead of rustls-platform-verifier
 //!
 //! ## Example
 //!

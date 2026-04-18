@@ -1,3 +1,9 @@
+### 4.5.0 (2026-04-18)
+
+#### Features
+
+* New rustls-platform-verifier feature (new default)
+
 ### 4.4.0 (2026-03-29)
 
 #### Misc

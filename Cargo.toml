@@ -1,6 +1,6 @@
 [package]
 name = "lapin"
-version = "4.4.0"
+version = "4.5.0"
 edition = "2024"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
@@ -28,6 +28,7 @@ codegen-internal          = ["dep:amq-protocol-codegen", "dep:serde_json"]
 native-tls                = ["amq-protocol/native-tls"]
 openssl                   = ["amq-protocol/openssl"]
 rustls                    = ["amq-protocol/rustls"]
+rustls-platform-verifier  = ["amq-protocol/rustls-platform-verifier"]
 rustls-native-certs       = ["amq-protocol/rustls-native-certs"]
 rustls-webpki-roots-certs = ["amq-protocol/rustls-webpki-roots-certs"]
 vendored-openssl          = ["amq-protocol/vendored-openssl"]
@@ -38,7 +39,7 @@ rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but do
 rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
 
 [build-dependencies.amq-protocol-codegen]
-version = "^10.0.1"
+version = "^10.2"
 optional = true
 
 [build-dependencies.serde_json]
@@ -52,7 +53,7 @@ futures-core = "^0.3"
 futures-io = "^0.3"
 
 [dependencies.amq-protocol]
-version = "^10.0.1"
+version = "^10.2"
 default-features = false
 
 [dependencies.async-rs]
