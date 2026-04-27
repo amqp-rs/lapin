@@ -1,3 +1,10 @@
+### 4.6.0 (2026-04-27)
+
+#### Features
+
+* Add `durable`/`exclusive` constructors on `QueueDeclareOptions` for better defaults.
+* Add `auto_delete`/`passive` helpers on `QueueDeclareOptions` to facilitate using these features.
+
 ### 4.5.0 (2026-04-18)
 
 #### Features
