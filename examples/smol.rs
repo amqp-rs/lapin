@@ -26,7 +26,7 @@ async fn smol_main(forever: bool) {
     let _queue = channel
         .queue_declare(
             "queue_test".into(),
-            QueueDeclareOptions::default(),
+            QueueDeclareOptions::durable(),
             FieldTable::default(),
         )
         .await

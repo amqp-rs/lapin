@@ -71,7 +71,7 @@ async fn tokio_main() {
     let queue = channel_a
         .queue_declare(
             "hello-async".into(),
-            QueueDeclareOptions::default(),
+            QueueDeclareOptions::durable(),
             FieldTable::default(),
         )
         .await

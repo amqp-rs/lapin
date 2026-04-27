@@ -25,7 +25,7 @@ async fn main() {
     let queue = channel
         .queue_declare(
             "hello".into(),
-            QueueDeclareOptions::default(),
+            QueueDeclareOptions::durable(),
             FieldTable::default(),
         )
         .await

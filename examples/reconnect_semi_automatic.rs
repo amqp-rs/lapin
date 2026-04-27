@@ -22,7 +22,7 @@ async fn rabbit_stuff(addr: String, runtime: TokioRuntime) -> Result<()> {
     let queue = channel_a
         .queue_declare(
             "hello".into(),
-            QueueDeclareOptions::default(),
+            QueueDeclareOptions::durable(),
             FieldTable::default(),
         )
         .await?;
