@@ -1,16 +1,17 @@
 use crate::{Error, Result};
+use atomic_waker::AtomicWaker;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard},
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 use tracing::{Level, level_enabled, trace};
 
 #[must_use = "Promise should be used or you can miss errors"]
 pub(crate) struct Promise<T> {
-    shared: Arc<Mutex<Shared<T>>>,
+    shared: Arc<Shared<T>>,
 }
 
 impl<T> fmt::Debug for Promise<T> {
@@ -22,7 +23,7 @@ impl<T> fmt::Debug for Promise<T> {
 impl<T> Drop for Promise<T> {
     fn drop(&mut self) {
         trace!(
-            promise = %self.shared().marker(),
+            promise = %self.shared.marker(),
             "Dropping promise.",
         );
     }
@@ -44,7 +45,7 @@ impl<T> Promise<T> {
     }
 
     pub(crate) fn try_wait(&self) -> Option<Result<T>> {
-        self.shared().take()
+        self.shared.take()
     }
 
     fn resolver(&self) -> PromiseResolver<T> {
@@ -52,29 +53,28 @@ impl<T> Promise<T> {
             shared: self.shared.clone(),
         }
     }
-
-    fn shared(&self) -> MutexGuard<'_, Shared<T>> {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner())
-    }
 }
 
 impl<T> Future for Promise<T> {
     type Output = Result<T>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut shared = self.shared();
-        match shared.take() {
+        // Fast path: already resolved.
+        if let Some(data) = self.shared.take() {
+            return Poll::Ready(data);
+        }
+        // Register the waker before the second check so we don't miss a
+        // wakeup that arrives between the two take() calls.
+        self.shared.waker.register(cx.waker());
+        match self.shared.take() {
             Some(data) => Poll::Ready(data),
-            None => {
-                shared.register(cx.waker());
-                Poll::Pending
-            }
+            None => Poll::Pending,
         }
     }
 }
 
 pub(crate) struct PromiseResolver<T> {
-    shared: Arc<Mutex<Shared<T>>>,
+    shared: Arc<Shared<T>>,
 }
 
 impl<T> fmt::Debug for PromiseResolver<T> {
@@ -101,16 +101,11 @@ impl<T> PromiseResolver<T> {
     }
 
     pub(crate) fn complete(&self, res: Result<T>) {
-        let mut shared = self.shared();
         trace!(
-            promise = %shared.marker(),
+            promise = %self.shared.marker(),
             "Resolving promise.",
         );
-        shared.set(res)
-    }
-
-    fn shared(&self) -> MutexGuard<'_, Shared<T>> {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner())
+        self.shared.set(res);
     }
 }
 
@@ -125,44 +120,41 @@ impl<T> Cancelable for PromiseResolver<T> {
 }
 
 struct Shared<T> {
-    data: Option<Result<T>>,
+    data: Mutex<Option<Result<T>>>,
+    waker: AtomicWaker,
     marker: Option<String>,
-    wakers: Vec<Waker>,
 }
 
 impl<T> Shared<T> {
-    fn new(data: Option<Result<T>>, marker: &str) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self {
-            data,
+    fn new(data: Option<Result<T>>, marker: &str) -> Arc<Self> {
+        Arc::new(Self {
+            data: Mutex::new(data),
+            waker: AtomicWaker::new(),
             marker: if level_enabled!(Level::TRACE) {
                 Some(marker.into())
             } else {
                 None
             },
-            wakers: Vec::new(),
-        }))
+        })
     }
 
-    fn set(&mut self, data: Result<T>) {
-        if self.data.is_none() {
-            self.data = Some(data);
-            for w in self.wakers.drain(..) {
-                w.wake();
-            }
+    fn set(&self, data: Result<T>) {
+        let mut lock = self.lock_data();
+        if lock.is_none() {
+            *lock = Some(data);
+            // Release the lock before waking to avoid the woken task
+            // immediately blocking on it.
+            drop(lock);
+            self.waker.wake();
         }
     }
 
-    fn take(&mut self) -> Option<Result<T>> {
-        self.data.take()
+    fn take(&self) -> Option<Result<T>> {
+        self.lock_data().take()
     }
 
-    fn register(&mut self, waker: &Waker) {
-        for w in self.wakers.iter() {
-            if w.will_wake(waker) {
-                return;
-            }
-        }
-        self.wakers.push(waker.clone());
+    fn lock_data(&self) -> MutexGuard<'_, Option<Result<T>>> {
+        self.data.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     fn marker(&self) -> String {
