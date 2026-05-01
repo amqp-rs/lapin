@@ -68,7 +68,7 @@ impl fmt::Debug for ReturnedMessages {
 }
 
 #[derive(Default)]
-pub struct Inner {
+struct Inner {
     current_message: Option<BasicReturnMessage>,
     non_confirm_messages: Vec<BasicReturnMessage>,
     waiting_messages: VecDeque<BasicReturnMessage>,
