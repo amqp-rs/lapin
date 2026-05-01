@@ -6,7 +6,7 @@ use amq_protocol::{
     protocol::AMQPErrorKind,
 };
 use async_rs::{Runtime, traits::*};
-use std::{error, fmt, io, sync::Arc};
+use std::{error, fmt, io, panic::{RefUnwindSafe, UnwindSafe}, sync::Arc};
 
 /// A std Result with a lapin::Error error type
 pub type Result<T> = std::result::Result<T, Error>;
@@ -145,6 +145,13 @@ impl Error {
         }
     }
 }
+
+// io::Error can contain Box<dyn Error + Send + Sync>, which opts out of RefUnwindSafe
+// even though the data is behind Arc (immutable shared reference). Error values carry
+// no interior mutability of their own; a panic through code holding an Error cannot
+// corrupt any invariant.
+impl UnwindSafe for Error {}
+impl RefUnwindSafe for Error {}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
