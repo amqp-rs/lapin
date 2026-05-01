@@ -211,7 +211,6 @@ impl From<io::Error> for Error {
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         use ErrorKind::*;
-        use tracing::error;
 
         match (self.kind(), other.kind()) {
             (ChannelsLimitReached, ChannelsLimitReached) => true,
@@ -228,20 +227,11 @@ impl PartialEq for Error {
                 left_inner == right_inner
             }
 
-            (IOError(_), IOError(_)) => {
-                error!("Unable to compare lapin::ErrorKind::IOError");
-                false
-            }
-            (RuntimeShutdownError(_), RuntimeShutdownError(_)) => {
-                error!("Unable to compare lapin::ErrorKind::RuntimeShutdownError");
-                false
-            }
+            (IOError(_), IOError(_)) => false,
+            (RuntimeShutdownError(_), RuntimeShutdownError(_)) => false,
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
-            (SerialisationError(_), SerialisationError(_)) => {
-                error!("Unable to compare lapin::ErrorKind::SerialisationError");
-                false
-            }
+            (SerialisationError(_), SerialisationError(_)) => false,
             (FutureCompleted, FutureCompleted) => true,
 
             _ => false,
