@@ -287,7 +287,9 @@ impl Consumer {
 
     pub(crate) fn set_error(&self, error: Error) {
         trace!(consumer_tag=%self.consumer_tag, "set_error");
-        self.error.set(error.clone());
+        if let Err(cascading) = self.error.set(error.clone()) {
+            error!(%cascading, consumer_tag=%self.consumer_tag, "consumer already has an error");
+        }
         self.send_error(error);
         self.cancel();
     }
