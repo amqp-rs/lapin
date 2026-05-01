@@ -3,6 +3,7 @@ use atomic_waker::AtomicWaker;
 use std::{
     fmt,
     future::Future,
+    panic::RefUnwindSafe,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard},
     task::{Context, Poll},
@@ -124,6 +125,12 @@ struct Shared<T> {
     waker: AtomicWaker,
     marker: Option<String>,
 }
+
+// AtomicWaker uses UnsafeCell internally, which opts out of RefUnwindSafe by
+// default. The only panic vector inside AtomicWaker is Waker::clone(); if that
+// panics, the waker's atomic state machine gets stuck. This is not a broke
+// invariant that could cause further unsoundness in code that catches the unwind.
+impl<T> RefUnwindSafe for Shared<T> where Result<T>: RefUnwindSafe {}
 
 impl<T> Shared<T> {
     fn new(data: Option<Result<T>>, marker: &str) -> Arc<Self> {
