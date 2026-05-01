@@ -1,4 +1,6 @@
-use crate::{Promise, Result, message::BasicReturnMessage, returned_messages::ReturnedMessages};
+use crate::{
+    ErrorKind, Promise, Result, message::BasicReturnMessage, returned_messages::ReturnedMessages,
+};
 use std::{
     fmt,
     future::Future,
@@ -67,13 +69,10 @@ impl Future for PublisherConfirm {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut();
-        let res = Pin::new(
-            &mut this
-                .inner
-                .as_mut()
-                .expect("PublisherConfirm polled after completion"),
-        )
-        .poll(cx);
+        let Some(inner) = this.inner.as_mut() else {
+            return Poll::Ready(Err(ErrorKind::FutureCompleted.into()));
+        };
+        let res = Pin::new(inner).poll(cx);
         if res.is_ready() {
             this.inner.take();
         }

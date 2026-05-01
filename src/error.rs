@@ -38,6 +38,7 @@ pub enum ErrorKind {
     ProtocolError(AMQPError),
     SerialisationError(Arc<GenError>),
     AuthProviderError(String),
+    FutureCompleted,
 
     MissingHeartbeatError,
 }
@@ -138,6 +139,7 @@ impl Error {
             ErrorKind::ProtocolError(_) => true,
             ErrorKind::SerialisationError(_) => false,
             ErrorKind::AuthProviderError(_) => false,
+            ErrorKind::FutureCompleted => false,
 
             ErrorKind::MissingHeartbeatError => true,
         }
@@ -169,6 +171,7 @@ impl fmt::Display for Error {
             ErrorKind::ProtocolError(e) => write!(f, "protocol error: {e}"),
             ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {e}"),
             ErrorKind::AuthProviderError(e) => write!(f, "failure during authentication: {e}"),
+            ErrorKind::FutureCompleted => write!(f, "future polled after completion"),
 
             ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")
@@ -239,6 +242,7 @@ impl PartialEq for Error {
                 error!("Unable to compare lapin::ErrorKind::SerialisationError");
                 false
             }
+            (FutureCompleted, FutureCompleted) => true,
 
             _ => false,
         }
