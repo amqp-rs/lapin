@@ -39,7 +39,7 @@ fn connection_survives_caller_runtime_shutdown() {
         channel
             .queue_declare(
                 "runtime-isolation-test".into(),
-                QueueDeclareOptions::exclusive().auto_delete(),
+                QueueDeclareOptions::durable(),
                 FieldTable::default(),
             )
             .await
