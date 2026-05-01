@@ -5,14 +5,15 @@ use std::{
 };
 
 #[derive(Clone, Default)]
-pub struct ConnectionStatus(Arc<RwLock<Inner>>);
+pub struct ConnectionStatus(Arc<Inner>);
 
 impl ConnectionStatus {
     pub(crate) fn new(uri: &AMQPUri) -> Self {
-        let status = Self::default();
-        status.set_vhost(&uri.vhost);
-        status.set_username(&uri.authority.userinfo.username);
-        status
+        Self(Arc::new(Inner {
+            vhost: uri.vhost.as_str().into(),
+            username: uri.authority.userinfo.username.clone(),
+            state: RwLock::new(StateInner::default()),
+        }))
     }
 
     pub(crate) fn state(&self) -> ConnectionState {
@@ -33,19 +34,11 @@ impl ConnectionStatus {
     }
 
     pub fn vhost(&self) -> ShortString {
-        self.read().vhost.clone()
-    }
-
-    pub(crate) fn set_vhost(&self, vhost: &str) {
-        self.write().vhost = vhost.into();
+        self.0.vhost.clone()
     }
 
     pub fn username(&self) -> String {
-        self.read().username.clone()
-    }
-
-    pub(crate) fn set_username(&self, username: &str) {
-        self.write().username = username.into();
+        self.0.username.clone()
     }
 
     pub(crate) fn block(&self) {
@@ -99,12 +92,12 @@ impl ConnectionStatus {
         [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.state())
     }
 
-    fn read(&self) -> RwLockReadGuard<'_, Inner> {
-        self.0.read().unwrap_or_else(|e| e.into_inner())
+    fn read(&self) -> RwLockReadGuard<'_, StateInner> {
+        self.0.state.read().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn write(&self) -> RwLockWriteGuard<'_, Inner> {
-        self.0.write().unwrap_or_else(|e| e.into_inner())
+    fn write(&self) -> RwLockWriteGuard<'_, StateInner> {
+        self.0.state.write().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -123,11 +116,12 @@ pub enum ConnectionState {
 impl fmt::Debug for ConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("ConnectionStatus");
-        if let Ok(inner) = self.0.try_read() {
+        debug
+            .field("vhost", &self.0.vhost)
+            .field("username", &self.0.username);
+        if let Ok(inner) = self.0.state.try_read() {
             debug
                 .field("state", &inner.state)
-                .field("vhost", &inner.vhost)
-                .field("username", &inner.username)
                 .field("blocked", &inner.blocked);
         }
         debug.finish()
@@ -135,26 +129,29 @@ impl fmt::Debug for ConnectionStatus {
 }
 
 struct Inner {
-    state: ConnectionState,
     vhost: ShortString,
     username: String,
-    blocked: bool,
-    poison: Option<Error>,
+    state: RwLock<StateInner>,
 }
 
 impl Default for Inner {
     fn default() -> Self {
         Self {
-            state: ConnectionState::default(),
             vhost: "/".into(),
             username: "guest".into(),
-            blocked: false,
-            poison: None,
+            state: RwLock::new(StateInner::default()),
         }
     }
 }
 
-impl Inner {
+#[derive(Default)]
+struct StateInner {
+    state: ConnectionState,
+    blocked: bool,
+    poison: Option<Error>,
+}
+
+impl StateInner {
     fn set_connecting(&mut self) -> Result<()> {
         self.state = ConnectionState::Connecting;
         self.poison.take().map(Err).unwrap_or(Ok(()))
