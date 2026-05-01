@@ -374,6 +374,9 @@ impl Inner {
     ) -> Result<Channel> {
         debug!("create channel");
         self.channel_id.set_max(self.configuration.channel_max());
+        if self.channels.len() >= self.configuration.channel_max() as usize {
+            return Err(ErrorKind::ChannelsLimitReached.into());
+        }
         let first_id = self.channel_id.next();
         let mut id = first_id;
         let mut met_first_id = false;
