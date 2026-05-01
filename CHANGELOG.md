@@ -1,3 +1,10 @@
+### 4.7.0 (2026-05-01)
+
+#### Misc
+
+* Added `ErrorKind::FutureCompleted`
+* Some internal cleanups
+
 ### 4.6.0 (2026-04-27)
 
 #### Features
