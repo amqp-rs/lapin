@@ -6,7 +6,11 @@ use amq_protocol::{
     protocol::AMQPErrorKind,
 };
 use async_rs::{Runtime, traits::*};
-use std::{error, fmt, io, panic::{RefUnwindSafe, UnwindSafe}, sync::Arc};
+use std::{
+    error, fmt, io,
+    panic::{RefUnwindSafe, UnwindSafe},
+    sync::Arc,
+};
 
 /// A std Result with a lapin::Error error type
 pub type Result<T> = std::result::Result<T, Error>;
