@@ -7,7 +7,7 @@ use crate::{
     types::DeliveryTag,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -166,7 +166,7 @@ impl Inner {
             .keys()
             .filter(|tag| **tag <= delivery_tag)
             .cloned()
-            .collect::<HashSet<DeliveryTag>>()
+            .collect::<Vec<DeliveryTag>>()
         {
             if let Err(err) = self.drop_pending(tag, success) {
                 res = Err(err);
