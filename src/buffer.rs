@@ -81,24 +81,16 @@ impl Buffer {
             let (old, new) = self.memory.split_at_mut(old_capacity);
             if self.end < growth {
                 // There is enough room in the new end for this whole "tail".
-                new[..].copy_from_slice(&old[..self.end]);
+                new.copy_from_slice(&old[..self.end]);
                 self.end += old_capacity;
             } else {
                 // Fill the new end with as much data as we can.
-                // We also update the end pointer to the future right location.
-                // We still have [growth..old_end] to move into [..new_end]
-                new[..].copy_from_slice(&old[..growth]);
+                new.copy_from_slice(&old[..growth]);
+                // We still have [growth..old_end] to move into [0..new_end]
+                // copy_within handles the overlap correctly, if any.
+                self.memory.copy_within(growth..self.end, 0);
+                // We also update the end pointer to the right location.
                 self.end -= growth;
-                if self.end < growth {
-                    // Less than half the data is yet to be moved, we can split + copy.
-                    let (start, data) = self.memory.split_at_mut(growth);
-                    start[..].copy_from_slice(&data[..self.end])
-                } else {
-                    // Not enough room to split + copy, we copy each byte one at a time.
-                    for i in 0..=self.end {
-                        self.memory[i] = self.memory[i + growth];
-                    }
-                }
             }
         }
 
