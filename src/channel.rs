@@ -312,7 +312,9 @@ impl Channel {
     }
 
     pub(crate) async fn start_recovery(&self) -> Result<()> {
-        let topology = self.update_recovery().expect("No topology during recovery");
+        let topology = self
+            .update_recovery()
+            .ok_or_else(|| self.status.state_error("start_recovery"))?;
 
         // First, reopen the channel
         self.channel_open(self.clone()).await?;
