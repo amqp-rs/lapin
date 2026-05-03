@@ -24,6 +24,7 @@ jobs:
             rust: 1.88.0
     steps:
       - uses: actions/checkout@v6
+      - uses: amqp-rs/actions/windows-setup-tls-env@main
       - uses: amqp-rs/actions/build@main
         with:
           rust: ${{ matrix.rust }}
