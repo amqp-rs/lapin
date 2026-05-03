@@ -34,7 +34,7 @@ impl ChannelReceiverStates {
         class_id: Identifier,
         length: PayloadSize,
         handler: Handler,
-        invalid_class_hanlder: OnInvalidClass,
+        invalid_class_handler: OnInvalidClass,
         error_handler: OnError,
         confirm_mode: bool,
     ) -> Result<()> {
@@ -51,7 +51,7 @@ impl ChannelReceiverStates {
                 }
                 Ok(())
             } else {
-                invalid_class_hanlder(format!(
+                invalid_class_handler(format!(
                     "content header frame with class id {class_id} instead of {expected_class_id} received on channel {channel_id}"
                 ))
             }
