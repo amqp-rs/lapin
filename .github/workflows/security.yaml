@@ -3,12 +3,14 @@ name: Security audit
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 12 * * 1"
 
 jobs:
   security_audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: rustsec/audit-check@v2
         with:

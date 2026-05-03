@@ -7,8 +7,44 @@ on:
     - cron: "0 12 * * 1"
 
 jobs:
-  build_and_test:
+  check:
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.rust == 'nightly' }}
+    env:
+      RUSTFLAGS: -D warnings
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable]
+        include:
+          - os: ubuntu-latest
+            rust: nightly
+          - os: ubuntu-latest
+            rust: beta
+          - os: ubuntu-latest
+            rust: 1.88.0
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo check
+        run: cargo check --all --bins --examples --tests --all-features
+
+      - name: Run cargo check (without dev-dependencies to catch missing feature flags)
+        if: matrix.rust == 'nightly'
+        run: cargo check -Z features=dev_dep
+
+  test:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.rust == 'nightly' }}
+    env:
+      RUSTFLAGS: -D warnings
     services:
       rabbitmq:
         image: rabbitmq:latest
@@ -17,33 +53,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #os: [ubuntu-latest, windows-latest, macos-latest]
-        os: [ubuntu-latest]
         rust: [nightly, beta, stable, 1.88.0]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install latest ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-            toolchain: ${{ matrix.rust }}
-            profile: minimal
-            override: true
+          toolchain: ${{ matrix.rust }}
 
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all --bins --examples --tests --all-features
-
-      - name: Run cargo check (without dev-dependencies to catch missing feature flags)
-        if: startsWith(matrix.rust, 'nightly')
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: -Z features=dev_dep
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+        run: cargo test
