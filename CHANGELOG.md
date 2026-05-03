@@ -1,3 +1,9 @@
+### 4.7.1 (2026-05-03)
+
+#### Bug Fixes
+
+* Properly clear dropped PublisherConfirms on channel error
+
 ### 4.7.0 (2026-05-01)
 
 #### Misc
