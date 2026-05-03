@@ -23,7 +23,7 @@ jobs:
           - os: ubuntu-latest
             rust: msrv
     steps:
-      - uses: actions/checkout@v6
+      - uses: amqp-rs/actions/checkout@main
       - uses: amqp-rs/actions/windows-setup-tls-env@main
       - uses: amqp-rs/actions/build@main
         with:
@@ -43,7 +43,7 @@ jobs:
       matrix:
         rust: [nightly, beta, stable, msrv]
     steps:
-      - uses: actions/checkout@v6
+      - uses: amqp-rs/actions/checkout@main
       - uses: amqp-rs/actions/build@main
         with:
           rust: ${{ matrix.rust }}

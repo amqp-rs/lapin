@@ -10,5 +10,5 @@ jobs:
   security_audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: amqp-rs/actions/checkout@main
       - uses: amqp-rs/actions/security@main
