@@ -163,8 +163,7 @@ impl Buffer {
     }
 
     pub(crate) fn offset(&self, buf: ParsingContext<'_>) -> usize {
-        let data = &self.memory[self.position..self.position];
-        let dataptr = data.as_ptr() as usize;
+        let dataptr = self.memory[self.position..].as_ptr() as usize;
         let bufptr = buf.as_ptr() as usize;
 
         if dataptr < bufptr {
