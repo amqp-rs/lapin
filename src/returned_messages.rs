@@ -49,6 +49,10 @@ impl ReturnedMessages {
         self.lock_inner().waiting_messages.pop_front()
     }
 
+    pub(crate) fn clear_dropped_confirms(&self) {
+        self.lock_inner().dropped_confirms.clear();
+    }
+
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
