@@ -629,6 +629,9 @@ impl<
 /// Importantly, we drop the `connect_span` so it closes properly.
 fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
     let span_level = connect_span.metadata().map_or(Level::INFO, |m| *m.level());
+    // tracing::span! requires a const level, so we must match exhaustively instead of
+    // forwarding the level dynamically. The wildcard is intentionally absent so a future
+    // tracing Level addition produces a compile error rather than a silent wrong level.
     let span = match span_level {
         Level::TRACE => tracing::span!(Level::TRACE, "io_loop"),
         Level::DEBUG => tracing::span!(Level::DEBUG, "io_loop"),

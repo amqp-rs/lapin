@@ -43,6 +43,8 @@ impl<T: Default + Copy + AddAssign<T> + Sub<Output = T> + PartialEq<T> + Partial
         self.max = if max == self.zero { None } else { Some(max) };
     }
 
+    // When max is None the sequence increments without wrapping; callers that need
+    // bounded cycling (e.g. channel IDs) must call set_max() before the first next().
     pub(crate) fn next(&mut self) -> T {
         if !self.allow_zero && self.id == self.zero {
             self.id += self.one;

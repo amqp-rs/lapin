@@ -160,6 +160,10 @@ impl Inner {
     }
 
     fn complete_pending_before(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {
+        // Tags are collected from self.pending, so drop_pending should never fail here.
+        // Multiple errors are unlikely, and if they occur they are likely identical; callers
+        // also handle the underlying acknowledgement state independently, so returning the
+        // last error is sufficient.
         let mut res = Ok(());
         for tag in self
             .pending
