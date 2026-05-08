@@ -1,3 +1,9 @@
+### 4.7.2 (2026-05-08)
+
+#### Bug Fixes
+
+* Various build fixes with some feature combinations
+
 ### 4.7.1 (2026-05-03)
 
 #### Bug Fixes
