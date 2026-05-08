@@ -2,6 +2,10 @@ name: actionlint
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - "**"
   pull_request:
 
 jobs:

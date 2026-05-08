@@ -2,6 +2,10 @@ name: Semver compliance check
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - "**"
   pull_request:
 
 jobs:
