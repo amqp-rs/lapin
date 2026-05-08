@@ -43,6 +43,7 @@ pub enum ErrorKind {
     SerialisationError(Arc<GenError>),
     AuthProviderError(String),
     FutureCompleted,
+    NoDefaultRuntime,
 
     MissingHeartbeatError,
 }
@@ -144,6 +145,7 @@ impl Error {
             ErrorKind::SerialisationError(_) => false,
             ErrorKind::AuthProviderError(_) => false,
             ErrorKind::FutureCompleted => false,
+            ErrorKind::NoDefaultRuntime => false,
 
             ErrorKind::MissingHeartbeatError => true,
         }
@@ -183,6 +185,7 @@ impl fmt::Display for Error {
             ErrorKind::SerialisationError(e) => write!(f, "failed to serialise: {e}"),
             ErrorKind::AuthProviderError(e) => write!(f, "failure during authentication: {e}"),
             ErrorKind::FutureCompleted => write!(f, "future polled after completion"),
+            ErrorKind::NoDefaultRuntime => write!(f, "no default configured runtime"),
 
             ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")
@@ -244,6 +247,7 @@ impl PartialEq for Error {
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
             (SerialisationError(_), SerialisationError(_)) => false,
             (FutureCompleted, FutureCompleted) => true,
+            (NoDefaultRuntime, NoDefaultRuntime) => true,
 
             _ => false,
         }
