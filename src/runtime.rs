@@ -17,7 +17,7 @@ cfg_if! {
         }
     } else if #[cfg(feature = "async-global-executor")] {
         type DefaultRuntime = async_rs::AGERuntime;
-        pub(crate) type DefaultRuntimeKit = async_rs::AGE;
+        pub(crate) type DefaultRuntimeKit = async_rs::util::RuntimeParts<async_rs::AsyncGlobalExecutor, async_rs::AsyncIO>;
 
         pub fn default_runtime() -> Result<DefaultRuntime> {
             Ok(async_rs::Runtime::async_global_executor())
