@@ -16,7 +16,7 @@ use tracing::trace;
 #[derive(Clone)]
 pub(crate) struct Acknowledgements(Arc<Mutex<Inner>>);
 
-type AMQPResult = std::result::Result<(), AMQPError>;
+type AMQPResult = Result<(), AMQPError>;
 
 impl Acknowledgements {
     pub(crate) fn new(channel_id: u16, returned_messages: ReturnedMessages) -> Self {

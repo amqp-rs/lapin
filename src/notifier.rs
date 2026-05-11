@@ -12,7 +12,7 @@ use std::{
 };
 
 #[derive(Default, Clone)]
-pub struct Notifier {
+pub(crate) struct Notifier {
     done: Arc<AtomicBool>,
     wakers: Wakers,
 }

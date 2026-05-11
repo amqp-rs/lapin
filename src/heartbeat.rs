@@ -8,7 +8,7 @@ use std::{
 use tracing::error;
 
 #[derive(Clone)]
-pub struct Heartbeat<RK: RuntimeKit + Clone + Send + 'static> {
+pub(crate) struct Heartbeat<RK: RuntimeKit + Clone + Send + 'static> {
     connection_status: ConnectionStatus,
     killswitch: KillSwitch,
     runtime: Runtime<RK>,

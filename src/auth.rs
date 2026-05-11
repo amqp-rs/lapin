@@ -4,6 +4,7 @@ use crate::{
 };
 use amq_protocol::auth::{Credentials, SASLMechanism};
 use std::{
+    fmt,
     sync::{Mutex, MutexGuard},
     time::Duration,
 };
@@ -95,6 +96,7 @@ impl AuthProvider for DefaultAuthProvider {
 }
 
 /// OAuth2 token auth handler with expiry and refresh support
+#[derive(Debug)]
 pub struct TokenAuthProvider<TP: TokenProvider> {
     token_provider: TP,
     mechanism: SASLMechanism,
@@ -154,6 +156,12 @@ pub struct DefaultTokenProvider {
     valid_for: Box<dyn Fn(&LongString) -> Option<Duration> + Send + Sync + 'static>,
     create_token: Box<dyn Fn() -> Result<LongString, String> + Send + Sync + 'static>,
     token: Mutex<LongString>,
+}
+
+impl fmt::Debug for DefaultTokenProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DefaultTokenProvider").finish_non_exhaustive()
+    }
 }
 
 impl DefaultTokenProvider {

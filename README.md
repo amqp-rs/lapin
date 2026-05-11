@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/crates/d/lapin.svg)](https://crates.io/crates/lapin)
 [![Coverage Status](https://coveralls.io/repos/github/amqp-rs/lapin/badge.svg?branch=main)](https://coveralls.io/github/amqp-rs/lapin?branch=main)
 [![Dependency Status](https://deps.rs/repo/github/amqp-rs/lapin/status.svg)](https://deps.rs/repo/github/amqp-rs/lapin)
-[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![LICENSE](https://img.shields.io/crates/l/lapin)](LICENSE)
 
  <strong>
    A Rust AMQP client library.

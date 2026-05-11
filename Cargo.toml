@@ -1,14 +1,14 @@
 [package]
 name = "lapin"
-version = "4.7.2"
+version = "4.7.3"
 edition = "2024"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Marc-Antoine Perennou <Marc-Antoine@Perennou.com>"]
 description = "AMQP client library"
 repository = "https://github.com/amqp-rs/lapin"
 readme = "README.md"
 documentation = "https://docs.rs/lapin"
-keywords = ["amqp", "rabbitmq", "mio", "futures"]
-categories = ["database"]
+keywords = ["amqp", "rabbitmq", "messaging", "async", "client"]
+categories = ["asynchronous", "network-programming"]
 license = "MIT"
 build = "build.rs"
 rust-version = "1.88.0"
@@ -124,5 +124,5 @@ required-features = ["smol"]
 name = "tokio"
 required-features = ["tokio"]
 
-[badges]
-maintenance = { status = "actively-developed" }
+[package.metadata.docs.rs]
+all-features = true

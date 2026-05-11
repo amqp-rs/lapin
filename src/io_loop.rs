@@ -37,7 +37,7 @@ enum Status {
     Stop,
 }
 
-pub struct IoLoop<
+pub(crate) struct IoLoop<
     RK: RuntimeKit + Clone + Send + 'static,
     C: AsyncFn(AMQPUri, Runtime<RK>) -> Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>
         + Send

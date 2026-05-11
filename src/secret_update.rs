@@ -6,7 +6,7 @@ use async_rs::{Runtime, traits::*};
 use std::{fmt, sync::Arc, time::Duration};
 use tracing::error;
 
-pub struct SecretUpdate<RK: RuntimeKit + Clone + Send + 'static> {
+pub(crate) struct SecretUpdate<RK: RuntimeKit + Clone + Send + 'static> {
     connection_status: ConnectionStatus,
     runtime: Runtime<RK>,
     provider: Arc<dyn AuthProvider>,

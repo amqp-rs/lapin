@@ -6,11 +6,11 @@ use std::{
 };
 use tracing::error;
 
-pub type JoinHandle = thread::JoinHandle<Result<()>>;
+pub(crate) type JoinHandle = thread::JoinHandle<Result<()>>;
 type Inner = Option<JoinHandle>;
 
 #[derive(Clone)]
-pub struct ThreadHandle(Arc<Mutex<Inner>>);
+pub(crate) struct ThreadHandle(Arc<Mutex<Inner>>);
 
 impl Default for ThreadHandle {
     fn default() -> Self {

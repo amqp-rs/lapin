@@ -110,7 +110,7 @@ impl<T> PromiseResolver<T> {
     }
 }
 
-pub trait Cancelable {
+pub(crate) trait Cancelable {
     fn cancel(&self, err: Error);
 }
 
