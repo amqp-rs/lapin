@@ -1,3 +1,9 @@
+### 4.7.3 (2026-05-12)
+
+#### Misc
+
+* Misc project metadata cleanup
+
 ### 4.7.2 (2026-05-08)
 
 #### Bug Fixes
