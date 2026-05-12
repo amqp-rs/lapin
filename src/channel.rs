@@ -124,6 +124,7 @@ impl Channel {
         }
     }
 
+    #[must_use]
     pub fn status(&self) -> &ChannelStatus {
         &self.status
     }
@@ -180,6 +181,7 @@ impl Channel {
         self.status.set_state(state);
     }
 
+    #[must_use]
     pub fn id(&self) -> ChannelId {
         self.id
     }

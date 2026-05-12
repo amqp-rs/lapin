@@ -40,14 +40,17 @@ impl Configuration {
         }
     }
 
+    #[must_use]
     pub fn channel_max(&self) -> ChannelId {
         self.negotiated_config.channel_max()
     }
 
+    #[must_use]
     pub fn frame_max(&self) -> FrameSize {
         self.negotiated_config.frame_max()
     }
 
+    #[must_use]
     pub fn heartbeat(&self) -> Heartbeat {
         self.negotiated_config.heartbeat()
     }

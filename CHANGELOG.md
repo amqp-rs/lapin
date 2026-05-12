@@ -1,3 +1,9 @@
+### 4.7.4 (2026-05-12)
+
+#### Misc
+
+* Add some `must_use` annotations
+
 ### 4.7.3 (2026-05-12)
 
 #### Misc

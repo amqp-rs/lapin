@@ -202,11 +202,13 @@ impl Consumer {
     ///
     /// If no consumer tag was specified when obtaining the consumer from the channel,
     /// this contains the server generated consumer tag.
+    #[must_use]
     pub fn tag(&self) -> ShortString {
         self.consumer_tag.clone()
     }
 
     /// Get the name of the queue we're consuming
+    #[must_use]
     pub fn queue(&self) -> ShortString {
         self.queue.clone()
     }

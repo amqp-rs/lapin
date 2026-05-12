@@ -61,6 +61,7 @@ impl Error {
         }
     }
 
+    #[must_use]
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
@@ -74,6 +75,7 @@ impl Error {
         self
     }
 
+    #[must_use]
     pub fn wouldblock(&self) -> bool {
         if let ErrorKind::IOError(e) = self.kind() {
             e.kind() == io::ErrorKind::WouldBlock
@@ -82,6 +84,7 @@ impl Error {
         }
     }
 
+    #[must_use]
     pub fn interrupted(&self) -> bool {
         if let ErrorKind::IOError(e) = self.kind() {
             e.kind() == io::ErrorKind::Interrupted
@@ -90,6 +93,7 @@ impl Error {
         }
     }
 
+    #[must_use]
     pub fn is_io_error(&self) -> bool {
         if let ErrorKind::IOError(_) = self.kind() {
             return true;
@@ -97,6 +101,7 @@ impl Error {
         self.is_runtime_shutdown_error()
     }
 
+    #[must_use]
     pub fn is_runtime_shutdown_error(&self) -> bool {
         if let ErrorKind::RuntimeShutdownError(_) = self.kind() {
             return true;
@@ -104,6 +109,7 @@ impl Error {
         false
     }
 
+    #[must_use]
     pub fn is_amqp_error(&self) -> bool {
         if let ErrorKind::ProtocolError(_) = self.kind() {
             return true;
@@ -111,6 +117,7 @@ impl Error {
         false
     }
 
+    #[must_use]
     pub fn is_amqp_soft_error(&self) -> bool {
         if let ErrorKind::ProtocolError(e) = self.kind()
             && let AMQPErrorKind::Soft(_) = e.kind()
@@ -120,6 +127,7 @@ impl Error {
         false
     }
 
+    #[must_use]
     pub fn is_amqp_hard_error(&self) -> bool {
         if let ErrorKind::ProtocolError(e) = self.kind()
             && let AMQPErrorKind::Hard(_) = e.kind()
@@ -129,6 +137,7 @@ impl Error {
         false
     }
 
+    #[must_use]
     pub fn can_be_recovered(&self) -> bool {
         match self.kind() {
             ErrorKind::ChannelsLimitReached => false,

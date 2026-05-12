@@ -33,10 +33,12 @@ impl ConnectionStatus {
         self.write().set_reconnecting();
     }
 
+    #[must_use]
     pub fn vhost(&self) -> ShortString {
         self.0.vhost.clone()
     }
 
+    #[must_use]
     pub fn username(&self) -> String {
         self.0.username.clone()
     }
@@ -49,10 +51,12 @@ impl ConnectionStatus {
         self.write().blocked = false;
     }
 
+    #[must_use]
     pub fn blocked(&self) -> bool {
         self.read().blocked
     }
 
+    #[must_use]
     pub fn connected(&self) -> bool {
         self.state() == ConnectionState::Connected
     }
@@ -64,22 +68,27 @@ impl ConnectionStatus {
         Ok(())
     }
 
+    #[must_use]
     pub fn connecting(&self) -> bool {
         self.state() == ConnectionState::Connecting
     }
 
+    #[must_use]
     pub fn reconnecting(&self) -> bool {
         self.state() == ConnectionState::Reconnecting
     }
 
+    #[must_use]
     pub fn closing(&self) -> bool {
         self.state() == ConnectionState::Closing
     }
 
+    #[must_use]
     pub fn closed(&self) -> bool {
         self.state() == ConnectionState::Closed
     }
 
+    #[must_use]
     pub fn errored(&self) -> bool {
         self.state() == ConnectionState::Error
     }

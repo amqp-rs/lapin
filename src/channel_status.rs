@@ -22,18 +22,22 @@ impl ChannelStatus {
         Self(Arc::new(RwLock::new(Inner::new(id, internal_rpc))))
     }
 
+    #[must_use]
     pub fn initializing(&self) -> bool {
         [ChannelState::Initial, ChannelState::Reconnecting].contains(&self.read().state)
     }
 
+    #[must_use]
     pub fn closing(&self) -> bool {
         [ChannelState::Closing, ChannelState::Reconnecting].contains(&self.read().state)
     }
 
+    #[must_use]
     pub fn connected(&self) -> bool {
         self.read().state == ChannelState::Connected
     }
 
+    #[must_use]
     pub fn reconnecting(&self) -> bool {
         self.read().state == ChannelState::Reconnecting
     }
@@ -62,6 +66,7 @@ impl ChannelStatus {
         .contains(&self.read().state)
     }
 
+    #[must_use]
     pub fn confirm(&self) -> bool {
         self.read().confirm
     }

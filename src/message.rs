@@ -56,6 +56,7 @@ pub struct Delivery {
 
 impl Delivery {
     /// Craft a new Delivery for mocking in integration testing
+    #[must_use]
     pub fn mock(
         delivery_tag: DeliveryTag,
         exchange: ShortString,
@@ -183,6 +184,7 @@ impl BasicReturnMessage {
         }
     }
 
+    #[must_use]
     pub fn error(&self) -> Option<AMQPError> {
         AMQPError::from_id(self.reply_code, self.reply_text.clone())
     }

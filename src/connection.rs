@@ -159,6 +159,7 @@ impl Connection {
         io_loop.wait("io loop")
     }
 
+    #[must_use]
     pub fn configuration(&self) -> &Configuration {
         &self.configuration
     }
@@ -167,6 +168,7 @@ impl Connection {
         &mut self.configuration
     }
 
+    #[must_use]
     pub fn status(&self) -> &ConnectionStatus {
         &self.status
     }

@@ -1374,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "lapin"
-version = "4.7.3"
+version = "4.7.4"
 dependencies = [
  "amq-protocol",
  "amq-protocol-codegen",
@@ -2400,9 +2400,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.34.9"
+version = "0.34.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85dbcac5a12fc3d135eb889ae2fbc3308920ca2789acd40ed620ba94effdf5f3"
+checksum = "e8da40490cac3733b85c67b831f64e2132fdaa0929f42a6d4cf458d339777473"
 dependencies = [
  "async-native-tls",
  "async-openssl",
@@ -3080,9 +3080,9 @@ dependencies = [
 
 [[package]]
 name = "zerofrom"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69faa1f2a1ea75661980b013019ed6687ed0e83d069bc1114e2cc74c6c04c4df"
+checksum = "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
 dependencies = [
  "zerofrom-derive",
 ]
