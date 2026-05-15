@@ -58,7 +58,7 @@ version = "^10.2"
 default-features = false
 
 [dependencies.async-rs]
-version = "^0.8.2"
+version = "^0.8.7"
 default-features = false
 
 [dependencies.backon]

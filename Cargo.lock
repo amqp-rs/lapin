@@ -269,9 +269,9 @@ dependencies = [
 
 [[package]]
 name = "async-rs"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f1cd61fd1b13805da591787d1af1b78e1650b2677f6365a72f00e55bebf0976"
+checksum = "53bf71bee8a75907b6e3c81c5476efa7fcbb34df6e12d30b706888abded72091"
 dependencies = [
  "async-compat",
  "async-global-executor",
