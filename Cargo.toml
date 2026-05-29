@@ -54,7 +54,7 @@ futures-core = "^0.3"
 futures-io = "^0.3"
 
 [dependencies.amq-protocol]
-version = "^10.5"
+version = "^10.6"
 default-features = false
 
 [dependencies.async-rs]
