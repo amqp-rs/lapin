@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.6.1"
+version = "10.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81833d7f9d250dda1ca55020d6dad20f5a242ad917dd6edd7c21f626424653a5"
+checksum = "2eab68e8836c5812a01b34c5364d28db50bf686b442e902d9d93e4472318d86e"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.6.1"
+version = "10.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1fea29bf60c10cfa03e3120ab21ab1ccb492cfabc0f6ed4db672d0b1d6ac6c7"
+checksum = "bb6d5242625a2af8c704f2ce2420001beb10174a0f33ffcb91154843f99c70f3"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.6.1"
+version = "10.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "889012b5e973bffd57bd668a9b184c2713754024ff1719164788e61ecb4450b5"
+checksum = "8689f976dbd9864922f4f53e01ad2b43700ed3eb1bb5667b260522f291434dae"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.6.1"
+version = "10.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "356da5abbf8f1ad806d6eb77161ad2c878d892d74f756021c5002973303abb05"
+checksum = "27894e9e57d07f701251aeee3d2ab3d7d114bc830bf722d6626027eb55f3b222"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.6.1"
+version = "10.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6c4982c5c729761a6e9c1464c2da53094c07e9cf45aa3daceb2620e17b1fce9"
+checksum = "64fd5ca63f1b8cba2309aaec8595483c36f3a671225d5ab9fe8265adb9213514"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -2516,9 +2516,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.3"
+version = "1.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
+checksum = "d988bcd52dbe076d3d46903332f58c912b87a2c49b1428419a5845154762ffee"
 dependencies = [
  "bytes",
  "libc",
