@@ -982,7 +982,7 @@ impl Channel {
             Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConnectionStep(ConnectionStep::StartOk(
-                    conn_resolver,
+                    conn_resolver.clone(),
                     connection,
                     auth_provider,
                 )),
@@ -990,7 +990,7 @@ impl Channel {
             )),
             None,
         );
-        promise.await
+        promise.forward_errors_to(conn_resolver).await
     }
     fn receive_connection_secure(&self, method: protocol::connection::Secure) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
@@ -1021,7 +1021,7 @@ impl Channel {
             Box::new(resolver.clone()),
             Some(ExpectedReply(
                 Reply::ConnectionStep(ConnectionStep::SecureOk(
-                    conn_resolver,
+                    conn_resolver.clone(),
                     connection,
                     auth_provider,
                 )),
@@ -1029,7 +1029,7 @@ impl Channel {
             )),
             None,
         );
-        promise.await
+        promise.forward_errors_to(conn_resolver).await
     }
     fn receive_connection_tune(&self, method: protocol::connection::Tune) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;
@@ -1069,7 +1069,7 @@ impl Channel {
         conn_resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
         let (promise, resolver) = Promise::new("connection.open");
-        let reply = Reply::ConnectionOpenOk(resolver.clone(), connection, conn_resolver);
+        let reply = Reply::ConnectionOpenOk(resolver.clone(), connection, conn_resolver.clone());
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
             protocol::connection::Open { virtual_host },
         ));
@@ -1080,7 +1080,7 @@ impl Channel {
             Some(ExpectedReply(reply, Box::new(resolver))),
             None,
         );
-        promise.await
+        promise.forward_errors_to(conn_resolver).await
     }
     fn receive_connection_open_ok(&self, method: protocol::connection::OpenOk) -> Result<()> {
         self.assert_channel0(method.get_amqp_class_id(), method.get_amqp_method_id())?;

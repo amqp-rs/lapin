@@ -56,6 +56,14 @@ impl<T> Promise<T> {
             shared: self.shared.clone(),
         }
     }
+
+    pub(crate) async fn forward_errors_to<O>(self, other: PromiseResolver<O>) -> Result<T> {
+        let resolved = self.await;
+        if let Err(e) = &resolved {
+            other.reject(e.clone())
+        }
+        resolved
+    }
 }
 
 impl<T> Future for Promise<T> {
@@ -82,7 +90,7 @@ pub(crate) struct PromiseResolver<T> {
 
 impl<T> fmt::Debug for PromiseResolver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PromiseResolver")
+        write!(f, "PromiseResolver {:?}", self.shared.marker)
     }
 }
 
@@ -112,7 +120,7 @@ impl<T> PromiseResolver<T> {
     }
 }
 
-pub(crate) trait Cancelable {
+pub(crate) trait Cancelable: fmt::Debug {
     fn cancel(&self, err: Error);
 }
 
