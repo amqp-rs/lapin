@@ -10,6 +10,7 @@
     },
     "start-ok": {
       "metadata": {
+	"connection_step": true,
         "extra_args": [
           {
             "name": "conn_resolver",
@@ -23,8 +24,7 @@
             "name": "auth_provider",
             "type": "Arc<dyn AuthProvider>"
           }
-        ],
-	"connection_step": "StartOk(conn_resolver, connection, auth_provider)"
+        ]
       }
     },
     "secure": {
@@ -34,6 +34,7 @@
     },
     "secure-ok": {
       "metadata": {
+        "connection_step": true,
         "extra_args": [
           {
             "name": "conn_resolver",
@@ -47,8 +48,7 @@
             "name": "auth_provider",
             "type": "Arc<dyn AuthProvider>"
           }
-        ],
-	"connection_step": "SecureOk(conn_resolver, connection, auth_provider)"
+        ]
       }
     },
     "tune": {
@@ -59,10 +59,11 @@
     "open": {
       "metadata": {
         "internal": true,
+        "connection_step": true,
         "state": [
           {
             "name": "connection",
-            "type": "Box<Connection>"
+            "type": "Connection"
           },
           {
             "name": "conn_resolver",
@@ -71,14 +72,19 @@
         ],
         "extra_args": [
           {
-            "name": "connection",
-            "type": "Box<Connection>"
-          },
-          {
             "name": "conn_resolver",
             "type": "PromiseResolver<Connection>"
+          },
+          {
+            "name": "connection",
+            "type": "Connection"
           }
         ]
+      }
+    },
+    "open-ok": {
+      "metadata": {
+	"connection_step": "Open(conn_resolver, connection)"
       }
     },
     "close": {

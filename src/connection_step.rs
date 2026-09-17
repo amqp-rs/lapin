@@ -13,6 +13,7 @@ pub(crate) enum ConnectionStep {
         Connection,
         Arc<dyn AuthProvider>,
     ),
+    Open(PromiseResolver<Connection>, Connection),
 }
 
 impl ConnectionStep {
@@ -21,6 +22,7 @@ impl ConnectionStep {
             ConnectionStep::ProtocolHeader(..) => "ProtocolHeader",
             ConnectionStep::StartOk(..) => "StartOk",
             ConnectionStep::SecureOk(..) => "SecureOk",
+            ConnectionStep::Open(..) => "Open",
         }
     }
 
@@ -33,6 +35,7 @@ impl ConnectionStep {
             }
             ConnectionStep::StartOk(resolver, connection, ..) => (resolver, Some(connection)),
             ConnectionStep::SecureOk(resolver, connection, ..) => (resolver, Some(connection)),
+            ConnectionStep::Open(resolver, connection, ..) => (resolver, Some(connection)),
         }
     }
 }

@@ -35,7 +35,9 @@ pub(crate) enum Reply {
   {{#each class.methods as |method| ~}}
   {{#if method.c2s ~}}
   {{#if method.synchronous ~}}
+  {{#unless method.metadata.connection_step ~}}
   {{camel class.name}}{{camel method.name}}Ok(PromiseResolver<{{#if method.metadata.confirmation.type ~}}{{method.metadata.confirmation.type}}{{else}}(){{/if ~}}>{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.type}}{{/each ~}}{{/if ~}}),
+  {{/unless ~}}
   {{/if ~}}
   {{/if ~}}
   {{/each ~}}
@@ -106,7 +108,11 @@ impl Channel {
     let (promise, resolver) = Promise::new("{{class.name}}.{{method.name}}");
     {{/unless ~}}
     {{#if method.synchronous ~}}
+    {{#if method.metadata.connection_step ~}}
+    let reply = Reply::ConnectionStep(ConnectionStep::{{camel method.name}}({{#each method.metadata.extra_args as |arg| ~}}{{#unless @first ~}}, {{/unless ~}}{{arg.name}}{{/each ~}}));
+    {{else}}
     let reply = Reply::{{camel class.name}}{{camel method.name}}Ok(resolver.clone(){{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{#if state.provider}}{{state.provider}}{{else}}{{state.name}}{{#if state.clone ~}}.clone(){{/if ~}}{{/if ~}}{{/each ~}}{{/if ~}});
+    {{/if ~}}
     {{#if method.metadata.nowait_hook ~}}
     let nowait_reply = {{#if method.metadata.nowait_hook.fields ~}}nowait.then(|| {{else}}nowait.then_some({{/if ~}}protocol::{{snake class.name}}::{{camel method.name}}Ok { {{#if method.metadata.nowait_hook.fields ~}}{{#each method.metadata.nowait_hook.fields as |field| ~}}{{field}}: {{field}}.clone(), {{/each ~}}{{/if ~}}{{#if method.metadata.nowait_hook.nonexhaustive_args ~}}..Default::default(){{/if ~}} });
     {{/if ~}}
@@ -133,7 +139,7 @@ impl Channel {
     self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties, start_hook_res).await
     {{else}}
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
-    self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.synchronous ~}}Some(ExpectedReply(reply, Box::new(resolver))), None{{else if method.metadata.connection_step ~}}Some(ExpectedReply(Reply::ConnectionStep(ConnectionStep::{{method.metadata.connection_step}}), Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
+    self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.synchronous ~}}Some(ExpectedReply(reply, Box::new(resolver))), None{{else if method.metadata.connection_step ~}}Some(ExpectedReply(Reply::ConnectionStep(ConnectionStep::{{camel method.name}}({{#each method.metadata.extra_args as |arg| ~}}{{#unless @first ~}}, {{/unless ~}}{{arg.name}}{{/each ~}})), Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
     {{#if method.metadata.end_hook ~}}
     self.on_{{snake class.name false}}_{{snake method.name false}}_sent({{#if method.metadata.end_hook.params ~}}{{#each method.metadata.end_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
@@ -167,8 +173,12 @@ impl Channel {
       return Err(self.status.state_error("{{class.name}}.{{method.name}}"));
     }
 
-    match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
+    match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else if method.metadata.connection_step ~}}self.frames.find_connection_step(self.id){{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
+      {{#if method.metadata.connection_step ~}}
+      Some(ConnectionStep::{{method.metadata.connection_step}}) => {
+      {{else}}
       Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}})) => {
+      {{/if ~}}
         {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
         {{#if method.arguments ~}}
         self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, resolver{{/if ~}}{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}})

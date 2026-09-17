@@ -229,11 +229,6 @@ pub(crate) enum Reply {
     BasicCancelOk(PromiseResolver<()>),
     BasicGetOk(PromiseResolver<Option<BasicGetMessage>>),
     BasicRecoverOk(PromiseResolver<()>),
-    ConnectionOpenOk(
-        PromiseResolver<()>,
-        Box<Connection>,
-        PromiseResolver<Connection>,
-    ),
     ConnectionCloseOk(PromiseResolver<()>),
     ConnectionUpdateSecretOk(PromiseResolver<()>),
     ChannelOpenOk(PromiseResolver<Channel>, Channel),
@@ -1065,11 +1060,11 @@ impl Channel {
     pub(crate) async fn connection_open(
         &self,
         virtual_host: ShortString,
-        connection: Box<Connection>,
         conn_resolver: PromiseResolver<Connection>,
+        connection: Connection,
     ) -> Result<()> {
         let (promise, resolver) = Promise::new("connection.open");
-        let reply = Reply::ConnectionOpenOk(resolver.clone(), connection, conn_resolver);
+        let reply = Reply::ConnectionStep(ConnectionStep::Open(conn_resolver, connection));
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Open(
             protocol::connection::Open { virtual_host },
         ));
@@ -1088,10 +1083,8 @@ impl Channel {
             return Err(self.status.state_error("connection.open-ok"));
         }
 
-        match self.frames.find_expected_reply(self.id, |reply| {
-            matches!(&reply.0, Reply::ConnectionOpenOk(..))
-        }) {
-            Some(Reply::ConnectionOpenOk(resolver, connection, conn_resolver)) => {
+        match self.frames.find_connection_step(self.id) {
+            Some(ConnectionStep::Open(conn_resolver, connection)) => {
                 let res = self.on_connection_open_ok_received(method, connection, conn_resolver);
                 resolver.complete(res.clone());
                 res
@@ -1228,7 +1221,7 @@ impl Channel {
 
         match self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))){
       Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
-        let res =        Ok(())
+let res =        Ok(())
 ;
         resolver.complete(res.clone());
         res
