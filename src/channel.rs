@@ -915,9 +915,7 @@ impl Channel {
                             configuration.heartbeat(),
                         )
                         .await?;
-                    channel
-                        .connection_open(vhost, Box::new(connection), resolver)
-                        .await
+                    channel.connection_open(vhost, resolver, connection).await
                 });
                 Ok(())
             }
@@ -929,7 +927,7 @@ impl Channel {
     fn on_connection_open_ok_received(
         &self,
         _: protocol::connection::OpenOk,
-        connection: Box<Connection>,
+        connection: Connection,
         resolver: PromiseResolver<Connection>,
     ) -> Result<()> {
         let state = self.connection_status.state();
@@ -938,7 +936,7 @@ impl Channel {
         }
 
         self.connection_status.set_state(ConnectionState::Connected);
-        resolver.resolve(*connection);
+        resolver.resolve(connection);
         self.events_sender.connected();
         Ok(())
     }
