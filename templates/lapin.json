@@ -10,7 +10,7 @@
     },
     "start-ok": {
       "metadata": {
-	"connection_step": true,
+        "connection_step": true,
         "extra_args": [
           {
             "name": "conn_resolver",
@@ -84,7 +84,7 @@
     },
     "open-ok": {
       "metadata": {
-	"connection_step": "Open(conn_resolver, connection)"
+        "connection_step": "Open(conn_resolver, connection)"
       }
     },
     "close": {
@@ -550,7 +550,7 @@
           "type": "PublisherConfirm"
         },
         "start_hook": {
-            "returns": true
+          "returns": true
         }
       }
     },
