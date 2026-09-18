@@ -1,3 +1,9 @@
+### 4.12.0 (2026-09-18)
+
+#### Bug Fixes
+
+* Fix a hang when the server replies with close to connection.open
+
 ### 4.11.0 (2026-09-08)
 
 #### Bug Fixes
