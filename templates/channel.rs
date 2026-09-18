@@ -174,23 +174,8 @@ impl Channel {
     }
 
     match {{#if method.metadata.expected_reply_getter ~}}{{method.metadata.expected_reply_getter}}{{else if method.metadata.connection_step ~}}self.frames.find_connection_step(self.id){{else}}self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::{{camel class.name}}{{camel method.name}}(..))){{/if ~}} {
-      {{#if method.metadata.connection_step ~}}
-      Some(ConnectionStep::{{method.metadata.connection_step}}) => {
-      {{else}}
-      Some(Reply::{{camel class.name}}{{camel method.name}}(resolver{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}})) => {
-      {{/if ~}}
-        {{#unless method.metadata.confirmation.type ~}}let res ={{/unless ~}}
-        {{#if method.arguments ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, resolver{{/if ~}}{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}})
-        {{else if method.metadata.received_hook ~}}
-        self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#if method.metadata.received_hook.params ~}}{{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}})
-        {{else}}
-        Ok(())
-        {{/if ~}}
-        {{#unless method.metadata.confirmation.type ~}};
-        resolver.complete(res.clone());
-        res
-        {{/unless ~}}
+      Some({{#if method.metadata.connection_step ~}}ConnectionStep::{{method.metadata.connection_step}}{{else}}Reply::{{camel class.name}}{{camel method.name}}(resolver{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}}){{/if ~}}) => {
+        fwd_res({{#if method.arguments ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_received(method{{#if method.metadata.confirmation.type ~}}, resolver{{/if ~}}{{#if method.metadata.state ~}}{{#each method.metadata.state as |state| ~}}, {{state.name}}{{/each ~}}{{/if ~}}){{else if method.metadata.received_hook ~}}self.on_{{snake class.name false}}_{{snake method.name false}}_received({{#if method.metadata.received_hook.params ~}}{{#each method.metadata.received_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}}){{else}}Ok(()){{/if ~}}, {{#if method.metadata.confirmation.type ~}}None{{else if method.metadata.connection_step}}None{{else}}Some(resolver){{/if ~}})
       },
       unexpected => {
         self.handle_invalid_contents(format!("unexpected {{class.name}} {{method.name}} received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
@@ -226,4 +211,11 @@ impl Channel {
   {{/unless ~}}
   {{/each ~}}
   {{/each ~}}
+}
+
+fn fwd_res(res: Result<()>, resolver: Option<PromiseResolver<()>>) -> Result<()> {
+    if let Some(resolver) = resolver {
+        resolver.complete(res.clone());
+    }
+    res
 }

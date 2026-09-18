@@ -442,11 +442,7 @@ impl Channel {
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicQosOk(..)))
         {
-            Some(Reply::BasicQosOk(resolver)) => {
-                let res = Ok(());
-                resolver.complete(res.clone());
-                res
-            }
+            Some(Reply::BasicQosOk(resolver)) => fwd_res(Ok(()), Some(resolver)),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected basic qos-ok received on channel {}, was awaiting for {:?}",
@@ -532,14 +528,17 @@ impl Channel {
                 options,
                 creation_arguments,
                 original,
-            )) => self.on_basic_consume_ok_received(
-                method,
-                resolver,
-                channel_closer,
-                queue,
-                options,
-                creation_arguments,
-                original,
+            )) => fwd_res(
+                self.on_basic_consume_ok_received(
+                    method,
+                    resolver,
+                    channel_closer,
+                    queue,
+                    options,
+                    creation_arguments,
+                    original,
+                ),
+                None,
             ),
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -623,9 +622,7 @@ impl Channel {
             matches!(&reply.0, Reply::BasicCancelOk(..))
         }) {
             Some(Reply::BasicCancelOk(resolver)) => {
-                let res = self.on_basic_cancel_ok_received(method);
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_basic_cancel_ok_received(method), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -743,7 +740,9 @@ impl Channel {
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicGetOk(..)))
         {
-            Some(Reply::BasicGetOk(resolver)) => self.on_basic_get_ok_received(method, resolver),
+            Some(Reply::BasicGetOk(resolver)) => {
+                fwd_res(self.on_basic_get_ok_received(method, resolver), None)
+            }
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected basic get-ok received on channel {}, was awaiting for {:?}",
@@ -889,9 +888,7 @@ impl Channel {
             matches!(&reply.0, Reply::BasicRecoverOk(..))
         }) {
             Some(Reply::BasicRecoverOk(resolver)) => {
-                let res = self.on_basic_recover_ok_received();
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_basic_recover_ok_received(), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1084,11 +1081,10 @@ impl Channel {
         }
 
         match self.frames.find_connection_step(self.id) {
-            Some(ConnectionStep::Open(conn_resolver, connection)) => {
-                let res = self.on_connection_open_ok_received(method, connection, conn_resolver);
-                resolver.complete(res.clone());
-                res
-            }
+            Some(ConnectionStep::Open(conn_resolver, connection)) => fwd_res(
+                self.on_connection_open_ok_received(method, connection, conn_resolver),
+                None,
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected connection open-ok received on channel {}, was awaiting for {:?}",
@@ -1157,9 +1153,7 @@ impl Channel {
             matches!(&reply.0, Reply::ConnectionCloseOk(..))
         }) {
             Some(Reply::ConnectionCloseOk(resolver)) => {
-                let res = self.on_connection_close_ok_received();
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_connection_close_ok_received(), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1221,11 +1215,8 @@ impl Channel {
 
         match self.frames.find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::ConnectionUpdateSecretOk(..))){
       Some(Reply::ConnectionUpdateSecretOk(resolver)) => {
-let res =        Ok(())
-;
-        resolver.complete(res.clone());
-        res
-},
+        fwd_res(Ok(()), Some(resolver))
+      },
       unexpected => {
         self.handle_invalid_contents(format!("unexpected connection update-secret-ok received on channel {}, was awaiting for {:?}", self.id, unexpected), method.get_amqp_class_id(), method.get_amqp_method_id())
       },
@@ -1259,9 +1250,10 @@ let res =        Ok(())
         match self.frames.find_expected_reply(self.id, |reply| {
             matches!(&reply.0, Reply::ChannelOpenOk(..))
         }) {
-            Some(Reply::ChannelOpenOk(resolver, channel)) => {
-                self.on_channel_open_ok_received(method, resolver, channel)
-            }
+            Some(Reply::ChannelOpenOk(resolver, channel)) => fwd_res(
+                self.on_channel_open_ok_received(method, resolver, channel),
+                None,
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected channel open-ok received on channel {}, was awaiting for {:?}",
@@ -1332,7 +1324,7 @@ let res =        Ok(())
             matches!(&reply.0, Reply::ChannelFlowOk(..))
         }) {
             Some(Reply::ChannelFlowOk(resolver)) => {
-                self.on_channel_flow_ok_received(method, resolver)
+                fwd_res(self.on_channel_flow_ok_received(method, resolver), None)
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1409,9 +1401,7 @@ let res =        Ok(())
 
         match self.next_expected_close_ok_reply() {
             Some(Reply::ChannelCloseOk(resolver)) => {
-                let res = self.on_channel_close_ok_received();
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_channel_close_ok_received(), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1474,9 +1464,7 @@ let res =        Ok(())
             matches!(&reply.0, Reply::AccessRequestOk(..))
         }) {
             Some(Reply::AccessRequestOk(resolver)) => {
-                let res = self.on_access_request_ok_received(method);
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_access_request_ok_received(method), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1561,12 +1549,15 @@ let res =        Ok(())
                 exchange_kind,
                 options,
                 creation_arguments,
-            )) => self.on_exchange_declare_ok_received(
-                resolver,
-                exchange,
-                exchange_kind,
-                options,
-                creation_arguments,
+            )) => fwd_res(
+                self.on_exchange_declare_ok_received(
+                    resolver,
+                    exchange,
+                    exchange_kind,
+                    options,
+                    creation_arguments,
+                ),
+                None,
             ),
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -1619,11 +1610,10 @@ let res =        Ok(())
         match self.frames.find_expected_reply(self.id, |reply| {
             matches!(&reply.0, Reply::ExchangeDeleteOk(..))
         }) {
-            Some(Reply::ExchangeDeleteOk(resolver, exchange)) => {
-                let res = self.on_exchange_delete_ok_received(exchange);
-                resolver.complete(res.clone());
-                res
-            }
+            Some(Reply::ExchangeDeleteOk(resolver, exchange)) => fwd_res(
+                self.on_exchange_delete_ok_received(exchange),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected exchange delete-ok received on channel {}, was awaiting for {:?}",
@@ -1699,16 +1689,15 @@ let res =        Ok(())
                 source,
                 routing_key,
                 creation_arguments,
-            )) => {
-                let res = self.on_exchange_bind_ok_received(
+            )) => fwd_res(
+                self.on_exchange_bind_ok_received(
                     destination,
                     source,
                     routing_key,
                     creation_arguments,
-                );
-                resolver.complete(res.clone());
-                res
-            }
+                ),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected exchange bind-ok received on channel {}, was awaiting for {:?}",
@@ -1782,16 +1771,15 @@ let res =        Ok(())
                 source,
                 routing_key,
                 creation_arguments,
-            )) => {
-                let res = self.on_exchange_unbind_ok_received(
+            )) => fwd_res(
+                self.on_exchange_unbind_ok_received(
                     destination,
                     source,
                     routing_key,
                     creation_arguments,
-                );
-                resolver.complete(res.clone());
-                res
-            }
+                ),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected exchange unbind-ok received on channel {}, was awaiting for {:?}",
@@ -1869,9 +1857,10 @@ let res =        Ok(())
         match self.frames.find_expected_reply(self.id, |reply| {
             matches!(&reply.0, Reply::QueueDeclareOk(..))
         }) {
-            Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => {
-                self.on_queue_declare_ok_received(method, resolver, options, creation_arguments)
-            }
+            Some(Reply::QueueDeclareOk(resolver, options, creation_arguments)) => fwd_res(
+                self.on_queue_declare_ok_received(method, resolver, options, creation_arguments),
+                None,
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected queue declare-ok received on channel {}, was awaiting for {:?}",
@@ -1946,16 +1935,10 @@ let res =        Ok(())
                 exchange,
                 routing_key,
                 creation_arguments,
-            )) => {
-                let res = self.on_queue_bind_ok_received(
-                    queue,
-                    exchange,
-                    routing_key,
-                    creation_arguments,
-                );
-                resolver.complete(res.clone());
-                res
-            }
+            )) => fwd_res(
+                self.on_queue_bind_ok_received(queue, exchange, routing_key, creation_arguments),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected queue bind-ok received on channel {}, was awaiting for {:?}",
@@ -2005,7 +1988,7 @@ let res =        Ok(())
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::QueuePurgeOk(..)))
         {
             Some(Reply::QueuePurgeOk(resolver)) => {
-                self.on_queue_purge_ok_received(method, resolver)
+                fwd_res(self.on_queue_purge_ok_received(method, resolver), None)
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -2071,9 +2054,10 @@ let res =        Ok(())
         match self.frames.find_expected_reply(self.id, |reply| {
             matches!(&reply.0, Reply::QueueDeleteOk(..))
         }) {
-            Some(Reply::QueueDeleteOk(resolver, queue)) => {
-                self.on_queue_delete_ok_received(method, resolver, queue)
-            }
+            Some(Reply::QueueDeleteOk(resolver, queue)) => fwd_res(
+                self.on_queue_delete_ok_received(method, resolver, queue),
+                None,
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected queue delete-ok received on channel {}, was awaiting for {:?}",
@@ -2140,16 +2124,10 @@ let res =        Ok(())
                 exchange,
                 routing_key,
                 creation_arguments,
-            )) => {
-                let res = self.on_queue_unbind_ok_received(
-                    queue,
-                    exchange,
-                    routing_key,
-                    creation_arguments,
-                );
-                resolver.complete(res.clone());
-                res
-            }
+            )) => fwd_res(
+                self.on_queue_unbind_ok_received(queue, exchange, routing_key, creation_arguments),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected queue unbind-ok received on channel {}, was awaiting for {:?}",
@@ -2192,11 +2170,7 @@ let res =        Ok(())
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxSelectOk(..)))
         {
-            Some(Reply::TxSelectOk(resolver)) => {
-                let res = Ok(());
-                resolver.complete(res.clone());
-                res
-            }
+            Some(Reply::TxSelectOk(resolver)) => fwd_res(Ok(()), Some(resolver)),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected tx select-ok received on channel {}, was awaiting for {:?}",
@@ -2239,11 +2213,7 @@ let res =        Ok(())
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxCommitOk(..)))
         {
-            Some(Reply::TxCommitOk(resolver)) => {
-                let res = Ok(());
-                resolver.complete(res.clone());
-                res
-            }
+            Some(Reply::TxCommitOk(resolver)) => fwd_res(Ok(()), Some(resolver)),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected tx commit-ok received on channel {}, was awaiting for {:?}",
@@ -2288,11 +2258,7 @@ let res =        Ok(())
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::TxRollbackOk(..)))
         {
-            Some(Reply::TxRollbackOk(resolver)) => {
-                let res = Ok(());
-                resolver.complete(res.clone());
-                res
-            }
+            Some(Reply::TxRollbackOk(resolver)) => fwd_res(Ok(()), Some(resolver)),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected tx rollback-ok received on channel {}, was awaiting for {:?}",
@@ -2342,9 +2308,7 @@ let res =        Ok(())
             matches!(&reply.0, Reply::ConfirmSelectOk(..))
         }) {
             Some(Reply::ConfirmSelectOk(resolver)) => {
-                let res = self.on_confirm_select_ok_received();
-                resolver.complete(res.clone());
-                res
+                fwd_res(self.on_confirm_select_ok_received(), Some(resolver))
             }
             unexpected => self.handle_invalid_contents(
                 format!(
@@ -2356,4 +2320,11 @@ let res =        Ok(())
             ),
         }
     }
+}
+
+fn fwd_res(res: Result<()>, resolver: Option<PromiseResolver<()>>) -> Result<()> {
+    if let Some(resolver) = resolver {
+        resolver.complete(res.clone());
+    }
+    res
 }
