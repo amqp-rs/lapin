@@ -12,7 +12,22 @@ on:
 
 jobs:
   security_audit:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: amqp-rs/actions/checkout@main
+      - uses: amqp-rs/actions/security@main
+
+  scheduled_audit:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      issues: write
     steps:
       - uses: amqp-rs/actions/checkout@main
       - uses: amqp-rs/actions/security@main
