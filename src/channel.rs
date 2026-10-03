@@ -331,12 +331,17 @@ impl Channel {
     /// broker. Returns the list of messages that were returned (unroutable
     /// mandatory or immediate messages).
     ///
+    /// Fails if the channel fails while waiting. It also fails, once, when the
+    /// channel failed or was recovered while publishes made since the previous
+    /// call were still waiting for their confirmation: those publishes may not
+    /// have reached the broker.
+    ///
     /// Requires publisher confirms to be enabled via [`confirm_select`].
     ///
     /// [`basic_publish`]: Self::basic_publish
     /// [`confirm_select`]: Self::confirm_select
     pub async fn wait_for_confirms(&self) -> Result<Vec<BasicReturnMessage>> {
-        if let Some(last_pending) = self.acknowledgements.get_last_pending() {
+        if let Some(last_pending) = self.acknowledgements.wait_for_pending() {
             trace!("Waiting for pending confirms");
             last_pending.await?;
         } else {

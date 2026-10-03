@@ -69,6 +69,9 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 - `Promise<T>` holds its own `Listener` (cloned from `Shared` at construction, sharing the same `Arc<Event>`) for the arm/poll side.
 - `poll` uses the arm-then-recheck loop to close the lost-wakeup race window; the resolver drops the data lock before calling `notify()`.
 
+**Publisher confirms (`acknowledgement.rs`)**
+- `wait_for_confirms` waits for every publish confirmation pending when it is called; concurrent waiters do not consume each other. A channel failure or recovery reset that rejects confirms no waiter covered is kept and fails the next `wait_for_confirms` once.
+
 **Listener (`listener.rs`)**
 - `Listener` wraps `event_listener::{Event, EventListener}` and is used by `Promise`, `Consumer`'s stream impl, and `Notifier`.
 - Usage pattern: call `arm()` before checking the guarded condition, `disarm()` if it is met, otherwise `poll()` to register the waker; `notify()` wakes all clones sharing the same `Event`.

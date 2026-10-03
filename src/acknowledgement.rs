@@ -7,7 +7,7 @@ use crate::{
     shared::SharedMutex,
     types::DeliveryTag,
 };
-use std::{collections::HashMap, fmt, sync::MutexGuard};
+use std::{collections::BTreeMap, fmt, sync::MutexGuard};
 use tracing::trace;
 
 #[derive(Clone)]
@@ -24,8 +24,8 @@ impl Acknowledgements {
         self.lock_inner().register_pending()
     }
 
-    pub(crate) fn get_last_pending(&self) -> Option<Promise<()>> {
-        self.lock_inner().last.take()
+    pub(crate) fn wait_for_pending(&self) -> Option<Promise<()>> {
+        self.lock_inner().wait_for_pending()
     }
 
     pub(crate) fn ack(&self, delivery_tag: DeliveryTag) -> AMQPResult {
@@ -83,9 +83,16 @@ impl fmt::Debug for Acknowledgements {
 struct Inner {
     channel_id: u16,
     delivery_tag: IdSequence<DeliveryTag>,
-    last: Option<Promise<()>>,
-    pending: HashMap<DeliveryTag, (PromiseResolver<Confirmation>, PromiseResolver<()>)>,
+    pending: BTreeMap<DeliveryTag, PromiseResolver<Confirmation>>,
+    waiters: Vec<ConfirmWaiter>,
+    // A failure that rejected confirms no wait_for_confirms call covered yet.
+    unreported_error: Option<Error>,
     returned_messages: ReturnedMessages,
+}
+
+struct ConfirmWaiter {
+    through: DeliveryTag,
+    resolver: PromiseResolver<()>,
 }
 
 impl Inner {
@@ -93,8 +100,9 @@ impl Inner {
         Self {
             channel_id,
             delivery_tag: IdSequence::new(false),
-            last: None,
-            pending: HashMap::default(),
+            pending: BTreeMap::default(),
+            waiters: Vec::new(),
+            unreported_error: None,
             returned_messages,
         }
     }
@@ -103,39 +111,54 @@ impl Inner {
         let delivery_tag = self.delivery_tag.next();
         trace!("Publishing with delivery_tag {}", delivery_tag);
         let (promise, resolver) = Promise::new("acknowledgement");
-        let (err_promise, err_resolver) = Promise::new("acknowledgement-error");
         let promise = PublisherConfirm::new(promise, self.returned_messages.clone());
-        self.last = Some(err_promise);
-        self.pending.insert(delivery_tag, (resolver, err_resolver));
+        self.pending.insert(delivery_tag, resolver);
         promise
     }
 
-    fn complete_pending(
-        &mut self,
-        success: bool,
-        delivery_tag: DeliveryTag,
-        resolvers: (PromiseResolver<Confirmation>, PromiseResolver<()>),
-    ) {
+    fn wait_for_pending(&mut self) -> Option<Promise<()>> {
+        if let Some(error) = self.unreported_error.take() {
+            return Some(Promise::new_with_data(
+                "acknowledgement-barrier",
+                Err(error),
+            ));
+        }
+        let through = *self.pending.last_key_value()?.0;
+        let (promise, resolver) = Promise::new("acknowledgement-barrier");
+        self.waiters.push(ConfirmWaiter { through, resolver });
+        Some(promise)
+    }
+
+    fn complete_pending(&mut self, success: bool, resolver: PromiseResolver<Confirmation>) {
         let returned_message = self.returned_messages.get_waiting_message();
-        resolvers.0.resolve(if success {
+        resolver.resolve(if success {
             Confirmation::Ack(returned_message)
         } else {
             Confirmation::Nack(returned_message)
         });
-        if Some(delivery_tag) == self.delivery_tag.current() {
-            resolvers.1.resolve(());
-        }
+    }
+
+    fn finish_waiters(&mut self) {
+        self.waiters.retain(|waiter| {
+            if self.pending.range(..=waiter.through).next().is_some() {
+                return true;
+            }
+            waiter.resolver.resolve(());
+            false
+        });
     }
 
     fn drop_all(&mut self, success: bool) {
-        for (delivery_tag, resolvers) in std::mem::take(&mut self.pending) {
-            self.complete_pending(success, delivery_tag, resolvers);
+        for (_, resolver) in std::mem::take(&mut self.pending) {
+            self.complete_pending(success, resolver);
         }
+        self.finish_waiters();
     }
 
     fn drop_pending(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {
-        if let Some(resolvers) = self.pending.remove(&delivery_tag) {
-            self.complete_pending(success, delivery_tag, resolvers);
+        if let Some(resolver) = self.pending.remove(&delivery_tag) {
+            self.complete_pending(success, resolver);
+            self.finish_waiters();
             Ok(())
         } else {
             Err(AMQPError::new(
@@ -154,37 +177,126 @@ impl Inner {
     }
 
     fn complete_pending_before(&mut self, delivery_tag: DeliveryTag, success: bool) -> AMQPResult {
-        // Tags are collected from self.pending, so drop_pending should never fail here.
-        // Multiple errors are unlikely, and if they occur they are likely identical; callers
-        // also handle the underlying acknowledgement state independently, so returning the
-        // last error is sufficient.
-        let mut res = Ok(());
-        for tag in self
+        let tags = self
             .pending
             .keys()
             .filter(|tag| **tag <= delivery_tag)
             .cloned()
-            .collect::<Vec<DeliveryTag>>()
-        {
-            if let Err(err) = self.drop_pending(tag, success) {
-                res = Err(err);
+            .collect::<Vec<DeliveryTag>>();
+        for tag in tags {
+            if let Some(resolver) = self.pending.remove(&tag) {
+                self.complete_pending(success, resolver);
             }
         }
-        res
+        self.finish_waiters();
+        Ok(())
     }
 
     fn on_channel_error(&mut self, error: Error) {
-        for (delivery_tag, resolvers) in self.pending.drain() {
-            resolvers.0.reject(error.clone());
-            if Some(delivery_tag) == self.delivery_tag.current() {
-                resolvers.1.reject(error.clone());
-            }
+        // Waiters report the failure of the confirms they cover; the next
+        // wait_for_confirms call reports the failure of later ones.
+        let covered = self.waiters.iter().map(|waiter| waiter.through).max();
+        if let Some((&last, _)) = self.pending.last_key_value()
+            && covered.is_none_or(|covered| covered < last)
+        {
+            self.unreported_error = Some(error.clone());
+        }
+        for (_, resolver) in std::mem::take(&mut self.pending) {
+            resolver.reject(error.clone());
+        }
+        for waiter in self.waiters.drain(..) {
+            waiter.resolver.reject(error.clone());
         }
         self.returned_messages.clear_dropped_confirms();
     }
 
     fn reset(&mut self, error: Error) {
-        self.delivery_tag = IdSequence::new(false);
         self.on_channel_error(error);
+        self.delivery_tag = IdSequence::new(false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn waiters_cover_all_prior_tags_and_do_not_consume_each_other() {
+        let acknowledgements = Acknowledgements::new(1, ReturnedMessages::default());
+        let _first = acknowledgements.register_pending();
+        let _second = acknowledgements.register_pending();
+        let first_waiter = acknowledgements.wait_for_pending().unwrap();
+        let second_waiter = acknowledgements.wait_for_pending().unwrap();
+
+        acknowledgements.ack(2).unwrap();
+        assert!(first_waiter.try_wait().is_none());
+        assert!(second_waiter.try_wait().is_none());
+
+        acknowledgements.ack(1).unwrap();
+        assert_eq!(first_waiter.try_wait(), Some(Ok(())));
+        assert_eq!(second_waiter.try_wait(), Some(Ok(())));
+    }
+
+    #[test]
+    fn waiter_snapshot_excludes_later_publishes() {
+        let acknowledgements = Acknowledgements::new(1, ReturnedMessages::default());
+        let _first = acknowledgements.register_pending();
+        let waiter = acknowledgements.wait_for_pending().unwrap();
+        let _second = acknowledgements.register_pending();
+
+        acknowledgements.ack(1).unwrap();
+        assert_eq!(waiter.try_wait(), Some(Ok(())));
+    }
+
+    #[test]
+    fn recovery_rejects_all_affected_waiters() {
+        let acknowledgements = Acknowledgements::new(1, ReturnedMessages::default());
+        let _first = acknowledgements.register_pending();
+        let first_waiter = acknowledgements.wait_for_pending().unwrap();
+        acknowledgements.nack(1).unwrap();
+        assert_eq!(first_waiter.try_wait(), Some(Ok(())));
+
+        let _second = acknowledgements.register_pending();
+        let second_waiter = acknowledgements.wait_for_pending().unwrap();
+        let error = Error::other("disconnected");
+        acknowledgements.reset(error.clone());
+        assert_eq!(second_waiter.try_wait(), Some(Err(error)));
+    }
+
+    #[test]
+    fn failure_of_dropped_confirms_is_reported_by_the_next_wait() {
+        for recover in [false, true] {
+            let acknowledgements = Acknowledgements::new(1, ReturnedMessages::default());
+            drop(acknowledgements.register_pending());
+            let error = Error::other("channel closed by the broker");
+            if recover {
+                acknowledgements.reset(error.clone());
+            } else {
+                acknowledgements.on_channel_error(error.clone());
+            }
+            let waiter = acknowledgements.wait_for_pending().unwrap();
+            assert_eq!(waiter.try_wait(), Some(Err(error)));
+            // Reported once.
+            assert!(acknowledgements.wait_for_pending().is_none());
+        }
+    }
+
+    #[test]
+    fn failure_is_reported_again_only_for_confirms_no_waiter_covered() {
+        let acknowledgements = Acknowledgements::new(1, ReturnedMessages::default());
+        let _first = acknowledgements.register_pending();
+        let waiter = acknowledgements.wait_for_pending().unwrap();
+        let error = Error::other("channel closed by the broker");
+        acknowledgements.on_channel_error(error.clone());
+        assert_eq!(waiter.try_wait(), Some(Err(error.clone())));
+        assert!(acknowledgements.wait_for_pending().is_none());
+
+        let _second = acknowledgements.register_pending();
+        let waiter = acknowledgements.wait_for_pending().unwrap();
+        let _third = acknowledgements.register_pending();
+        acknowledgements.on_channel_error(error.clone());
+        assert_eq!(waiter.try_wait(), Some(Err(error.clone())));
+        let waiter = acknowledgements.wait_for_pending().unwrap();
+        assert_eq!(waiter.try_wait(), Some(Err(error)));
     }
 }
