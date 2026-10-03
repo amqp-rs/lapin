@@ -55,6 +55,7 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 **Internal RPC (`internal_rpc.rs`)**
 - `InternalRPCHandle` (cloneable `flume` sender) lets channels submit commands (Ack, Nack, Reject, CreateChannel, CloseChannel, …) to the IO loop without shared mutable state.
 - `InternalRPC` (receiver side) processes the command queue inside the IO loop.
+- Stopping the dispatcher detaches its shared sender, rejects later calls, and drains any send that already cloned the sender after the stop sentinel.
 
 **Frame handling (`frames.rs`, `parsing.rs`)**
 - `Frames` manages the outbound frame queue and tracks expected replies.

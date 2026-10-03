@@ -10,6 +10,7 @@ use crate::{
     killswitch::KillSwitch,
     options::{BasicAckOptions, BasicCancelOptions, BasicNackOptions, BasicRejectOptions},
     secret_update::SecretUpdate,
+    shared::SharedMutex,
     socket_state::SocketStateHandle,
     types::{ChannelId, DeliveryTag, Identifier, LongString, ReplyCode, ShortString},
 };
@@ -31,7 +32,7 @@ pub(crate) struct InternalRPC<RK: RuntimeKit + Clone + Send + 'static> {
 
 #[derive(Clone)]
 pub(crate) struct InternalRPCHandle {
-    sender: Sender<Option<InternalCommand>>,
+    sender: SharedMutex<Option<Sender<Option<InternalCommand>>>>,
     waker: SocketStateHandle,
 }
 
@@ -239,18 +240,35 @@ impl InternalRPCHandle {
 
     pub(crate) fn stop(&self) {
         trace!("Stopping internal RPC command");
-        let _ = self.sender.send(None);
+        // Detach the shared sender first so later calls are rejected. A send
+        // that already cloned it may still arrive after the sentinel; run()
+        // rejects those commands until the final sender is dropped.
+        let sender = self.sender.lock().take();
+        if let Some(sender) = sender {
+            let _ = sender.send(None);
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.sender.is_empty()
+        self.sender.lock().as_ref().is_none_or(Sender::is_empty)
     }
 
     fn send(&self, command: InternalCommand) {
         trace!("Queuing internal RPC command");
-        // The only scenario where this can fail if this is the IoLoop already exited
-        let _ = self.sender.send(Some(command));
-        self.waker.wake();
+        // Sending and sender destruction may wake the dispatcher. Neither
+        // may occur while holding the shared sender lock.
+        let sender = self.sender.lock().clone();
+        if let Some(sender) = sender {
+            match sender.send(Some(command)) {
+                Ok(()) => self.waker.wake(),
+                Err(flume::SendError(Some(command))) => {
+                    command.reject_pending(Error::other("internal RPC loop has stopped"));
+                }
+                Err(flume::SendError(None)) => {}
+            }
+        } else {
+            command.reject_pending(Error::other("internal RPC loop has stopped"));
+        }
     }
 }
 
@@ -349,6 +367,20 @@ async fn settle_delivery(
         .map_err(|error| poison.check().err().unwrap_or(error))
 }
 
+impl InternalCommand {
+    /// Rejects the promise this command carries. Ack, nack and reject commands are dropped
+    /// instead, so their `DeliveryResolver` reports the error that ended their channel.
+    fn reject_pending(self, error: Error) {
+        match self {
+            Self::CloseConnection(_, _, _, _, Some(resolver))
+            | Self::UpdateSecret(_, _, resolver) => resolver.reject(error),
+            Self::CreateChannel(_, resolver) => resolver.reject(error),
+            Self::InitConnectionShutdown(_, Some(resolver)) => resolver.reject(error),
+            _ => {}
+        }
+    }
+}
+
 impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
     pub(crate) fn new(
         runtime: Runtime<RK>,
@@ -358,7 +390,10 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         waker: SocketStateHandle,
     ) -> Self {
         let (sender, rpc) = flume::unbounded();
-        let handle = InternalRPCHandle { sender, waker };
+        let handle = InternalRPCHandle {
+            sender: SharedMutex::new(Some(sender)),
+            waker,
+        };
         Self {
             rpc,
             handle,
@@ -418,7 +453,16 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 .ok_or::<Error>(ErrorKind::InvalidChannel(id).into())
         };
 
-        while let Ok(Some(command)) = rpc.recv_async().await {
+        let mut stopping = false;
+        while let Ok(command) = rpc.recv_async().await {
+            let Some(command) = command else {
+                stopping = true;
+                continue;
+            };
+            if stopping {
+                command.reject_pending(Error::other("internal RPC loop has stopped"));
+                continue;
+            }
             trace!("Handling internal RPC command");
             match command {
                 BasicAck(channel_id, delivery_tag, options, resolver) => {
@@ -480,9 +524,18 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                     if !self.channel_ok(channel_id) {
                         continue;
                     }
-                    let channel = get_channel(channel_id);
+                    let Ok(channel) = get_channel(channel_id) else {
+                        continue;
+                    };
                     self.register_internal_future(async move {
-                        channel?.close(reply_code, reply_text).await
+                        match channel.close(reply_code, reply_text).await {
+                            Err(err)
+                                if matches!(err.kind(), ErrorKind::InvalidChannelState(..)) =>
+                            {
+                                Ok(())
+                            }
+                            result => result,
+                        }
                     })
                 }
                 CloseConnection(reply_code, reply_text, class_id, method_id, resolver) => {
@@ -598,7 +651,11 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ChannelState;
+    use crate::{
+        ChannelState, ConnectionProperties, ConnectionState, ConnectionStatus,
+        configuration::Configuration, events::Events, runtime, socket_state::SocketState,
+        uri::AMQPUri,
+    };
     use futures_lite::future::block_on;
 
     fn poisoned(kind: ErrorKind) -> ErrorHolder {
@@ -672,5 +729,147 @@ mod tests {
             result.unwrap_err().kind(),
             ErrorKind::InvalidChannel(1)
         ));
+    }
+
+    fn create_rpc() -> (InternalRPC<runtime::DefaultRuntimeKit>, Channels) {
+        let uri = AMQPUri::default();
+        let runtime = runtime::default_runtime().unwrap();
+        let configuration = Configuration::new(&uri, ConnectionProperties::default());
+        let status = ConnectionStatus::new(&uri);
+        status.set_state(ConnectionState::Connected);
+        let frames = Frames::default();
+        let socket_state = SocketState::default();
+        let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
+        let secret_update = SecretUpdate::new(
+            status.clone(),
+            runtime.clone(),
+            configuration.auth_provider.clone(),
+        );
+        let rpc = InternalRPC::new(
+            runtime,
+            heartbeat,
+            secret_update,
+            frames.clone(),
+            socket_state.handle(),
+        );
+        let channels = Channels::new(
+            configuration,
+            status.clone(),
+            socket_state.handle(),
+            rpc.handle(),
+            frames,
+            Events::new(status),
+        );
+        (rpc, channels)
+    }
+
+    #[test]
+    fn stop_rejects_commands_after_its_sentinel() {
+        let (rpc, channels) = create_rpc();
+        let handle = rpc.handle();
+        handle.stop();
+        let (promise, resolver) = Promise::new("late connection.update-secret");
+        handle.send(InternalCommand::UpdateSecret(
+            "secret".into(),
+            "reason".into(),
+            resolver,
+        ));
+
+        block_on(rpc.run(channels));
+
+        assert!(promise.try_wait().unwrap().is_err());
+    }
+
+    #[test]
+    fn stop_rejects_inflight_commands_after_its_sentinel() {
+        let (rpc, channels) = create_rpc();
+        let handle = rpc.handle();
+        // Simulate a sender preempted after cloning, before queueing its call.
+        let sender = handle.sender.lock().as_ref().unwrap().clone();
+        handle.stop();
+        let (promise, resolver) = Promise::new("inflight connection.update-secret");
+        sender
+            .send(Some(InternalCommand::UpdateSecret(
+                "secret".into(),
+                "reason".into(),
+                resolver,
+            )))
+            .unwrap();
+        drop(sender);
+
+        block_on(rpc.run(channels));
+
+        assert!(promise.try_wait().unwrap().is_err());
+    }
+
+    #[test]
+    fn receiver_is_woken_without_holding_sender_lock() {
+        use std::{
+            sync::atomic::{AtomicBool, Ordering},
+            task::{Context, Wake, Waker},
+        };
+
+        struct CheckSenderOnWake {
+            handle: InternalRPCHandle,
+            blocked: AtomicBool,
+            called: AtomicBool,
+        }
+
+        impl Wake for CheckSenderOnWake {
+            fn wake(self: Arc<Self>) {
+                if self.handle.sender.try_lock().is_none() {
+                    self.blocked.store(true, Ordering::SeqCst);
+                    return;
+                }
+                self.called.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let (sender, receiver) = flume::unbounded();
+        let handle = InternalRPCHandle {
+            sender: SharedMutex::new(Some(sender)),
+            waker: SocketState::default().handle(),
+        };
+        let wake = Arc::new(CheckSenderOnWake {
+            handle: handle.clone(),
+            blocked: AtomicBool::new(false),
+            called: AtomicBool::new(false),
+        });
+        let waker = Waker::from(wake.clone());
+        let mut cx = Context::from_waker(&waker);
+        let mut receiving = std::pin::pin!(receiver.recv_async());
+        assert!(receiving.as_mut().poll(&mut cx).is_pending());
+        let (_promise, resolver) = Promise::new("basic.ack");
+
+        handle.basic_ack(
+            1,
+            1,
+            BasicAckOptions::default(),
+            resolver,
+            ErrorHolder::default(),
+        );
+
+        handle.stop();
+        assert!(!wake.blocked.load(Ordering::SeqCst));
+        assert!(wake.called.load(Ordering::SeqCst));
+        assert!(handle.sender.lock().is_none());
+        assert!(receiving.as_mut().poll(&mut cx).is_ready());
+    }
+
+    #[test]
+    fn stopped_rpc_rejects_pending_command() {
+        let (sender, receiver) = flume::unbounded();
+        drop(receiver);
+        let handle = InternalRPCHandle {
+            sender: SharedMutex::new(Some(sender)),
+            waker: SocketState::default().handle(),
+        };
+        let (promise, resolver) = Promise::new("connection.update-secret");
+        handle.send(InternalCommand::UpdateSecret(
+            "secret".into(),
+            "reason".into(),
+            resolver,
+        ));
+        assert!(promise.try_wait().unwrap().is_err());
     }
 }
