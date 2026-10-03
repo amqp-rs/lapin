@@ -185,7 +185,7 @@ impl Channels {
     }
 
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
-        trace!(frame=?f, "will handle frame");
+        trace!("will handle frame");
         match f {
             AMQPFrame::ProtocolHeader(version) => {
                 error!(

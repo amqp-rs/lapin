@@ -306,7 +306,7 @@ impl Inner {
     ) {
         let sending = FrameSending::new(Some(canceler), resolver);
         if let Some(error) = self.check_poison(channel_id) {
-            trace!(channel=%channel_id, frame=?frame, "Discarding frame because of poisoning");
+            trace!(channel=%channel_id, "Discarding frame because of poisoning");
             if let Some(reply) = expected_reply {
                 Self::cancel_expected_reply(reply, error.clone());
             }
@@ -318,7 +318,6 @@ impl Inner {
         if let Some(reply) = expected_reply {
             trace!(
                 channel=%channel_id,
-                expected_reply=?reply,
                 "state is now waiting"
             );
             self.expected_replies
@@ -337,7 +336,7 @@ impl Inner {
         let last_frame = frames.pop();
 
         if let Some(error) = self.check_poison(channel_id) {
-            trace!(channel=%channel_id, frames=?frames, "Discarding frames because of poisoning");
+            trace!(channel=%channel_id, "Discarding frames because of poisoning");
             resolver.reject(error);
             return;
         }

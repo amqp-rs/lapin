@@ -783,7 +783,7 @@ impl Channel {
         method: protocol::connection::Start,
         step: ConnectionStep,
     ) -> Result<()> {
-        trace!(?method, "Server sent connection::Start");
+        trace!("Server sent connection::Start");
 
         let state = self.connection_status.state();
         if state != ConnectionState::Connecting {
@@ -875,7 +875,7 @@ impl Channel {
         method: protocol::connection::Secure,
         step: ConnectionStep,
     ) -> Result<()> {
-        trace!(?method, "Server sent connection::Secure");
+        trace!("Server sent connection::Secure");
 
         let state = self.connection_status.state();
         if state != ConnectionState::Connecting {

@@ -4,6 +4,7 @@ use crate::{
 };
 
 use async_rs::{Runtime, traits::*};
+use std::fmt;
 
 /// Builder for [`Connection`] that collects URI, properties, and TLS config
 /// before connecting.
@@ -22,7 +23,6 @@ use async_rs::{Runtime, traits::*};
 ///     .await?;
 /// # Ok(()) }
 /// ```
-#[derive(Debug)]
 pub struct ConnectionBuilder<RK: RuntimeKit + Send + Sync + Clone + 'static> {
     runtime: Runtime<RK>,
     uri: UriBuilder,
@@ -30,10 +30,20 @@ pub struct ConnectionBuilder<RK: RuntimeKit + Send + Sync + Clone + 'static> {
     tls_config: Option<OwnedTLSConfig>,
 }
 
+impl<RK: RuntimeKit + Send + Sync + Clone + 'static> fmt::Debug for ConnectionBuilder<RK> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConnectionBuilder")
+            .field("uri_configured", &!matches!(self.uri, UriBuilder::Unset))
+            .field("properties_configured", &self.properties.is_some())
+            .field("tls_configured", &self.tls_config.is_some())
+            .finish()
+    }
+}
+
 /// A [`ConnectionBuilder`] using the crate's default async runtime.
 pub type DefaultConnectionBuilder = ConnectionBuilder<runtime::DefaultRuntimeKit>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 enum UriBuilder {
     Str(String),
     Uri(AMQPUri),
@@ -102,5 +112,21 @@ impl<RK: RuntimeKit + Send + Sync + Clone + 'static> ConnectionBuilder<RK> {
             }
             UriBuilder::Unset => Err(Error::other("No AMQPUri given to ConnectionBuilder")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DefaultConnectionBuilder;
+
+    #[test]
+    fn debug_redacts_uri_credentials() {
+        let builder = DefaultConnectionBuilder::new()
+            .unwrap()
+            .with_uri_str("amqp://user:secret@localhost".into());
+        let output = format!("{builder:?}");
+        assert!(!output.contains("secret"));
+        assert!(!output.contains("user"));
+        assert!(output.contains("uri_configured: true"));
     }
 }

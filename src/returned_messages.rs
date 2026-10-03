@@ -111,7 +111,7 @@ impl Inner {
 
     fn new_delivery_complete(&mut self, confirm_mode: bool) {
         if let Some(message) = self.current_message.take() {
-            warn!(?message, "Server returned us a message");
+            warn!("Server returned us a message");
             if confirm_mode {
                 self.waiting_messages.push_back(message);
             } else {

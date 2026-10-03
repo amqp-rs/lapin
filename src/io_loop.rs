@@ -568,7 +568,7 @@ impl<
 
     fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
         while let Some(next_msg) = self.frames.pop(self.channels.flow()) {
-            trace!(%next_msg, "will write to buffer");
+            trace!("will write frame to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {

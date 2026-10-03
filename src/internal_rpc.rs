@@ -243,7 +243,7 @@ impl InternalRPCHandle {
     }
 
     fn send(&self, command: InternalCommand) {
-        trace!(?command, "Queuing internal RPC command");
+        trace!("Queuing internal RPC command");
         // The only scenario where this can fail if this is the IoLoop already exited
         let _ = self.sender.send(Some(command));
         self.waker.wake();
@@ -414,7 +414,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         };
 
         while let Ok(Some(command)) = rpc.recv_async().await {
-            trace!(?command, "Handling internal RPC command");
+            trace!("Handling internal RPC command");
             match command {
                 BasicAck(channel_id, delivery_tag, options, resolver) => {
                     if !self.channel_ok(channel_id) {
