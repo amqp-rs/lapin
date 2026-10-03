@@ -1,4 +1,6 @@
-use crate::{BasicProperties, PromiseResolver, message::BasicGetMessage, types::PayloadSize};
+use crate::{
+    BasicProperties, Error, PromiseResolver, message::BasicGetMessage, types::PayloadSize,
+};
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
@@ -27,6 +29,13 @@ impl BasicGetDelivery {
 
     pub(crate) fn handle_body_frame(&self, remaining_size: PayloadSize, payload: Vec<u8>) {
         self.lock_inner().handle_body_frame(remaining_size, payload);
+    }
+
+    pub(crate) fn cancel(&self, error: Error) {
+        let delivery = self.lock_inner().0.take();
+        if let Some(delivery) = delivery {
+            delivery.resolver.reject(error);
+        }
     }
 
     fn lock_inner(&self) -> MutexGuard<'_, Inner> {
@@ -80,4 +89,23 @@ impl Inner {
 struct InnerData {
     message: BasicGetMessage,
     resolver: PromiseResolver<Option<BasicGetMessage>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ErrorKind, Promise, message::Delivery};
+
+    #[test]
+    fn interrupted_get_rejects_its_waiter() {
+        let delivery = BasicGetDelivery::default();
+        let message = BasicGetMessage {
+            delivery: Delivery::mock(1, "".into(), "".into(), false, Vec::new()),
+            message_count: 0,
+        };
+        let (promise, resolver) = Promise::new("basic.get");
+        delivery.start_new_delivery(message, resolver);
+        delivery.cancel(ErrorKind::MissingHeartbeatError.into());
+        assert!(promise.try_wait().unwrap().is_err());
+    }
 }

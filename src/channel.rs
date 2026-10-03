@@ -167,6 +167,7 @@ impl Channel {
         }
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
+            self.basic_get_delivery.cancel(error.clone());
             self.error_publisher_confirms(error.clone());
             self.error_consumers(error); // ignore the returned error here, only happens with default executor if we cannot spawn a thread
         } else {
@@ -177,6 +178,7 @@ impl Channel {
     pub(crate) fn set_closed(&self, error: Error) {
         self.status.poison_ackers(error.clone());
         self.set_state(ChannelState::Closed);
+        self.basic_get_delivery.cancel(error.clone());
         self.error_publisher_confirms(error.clone());
         self.cancel_consumers();
         self.internal_rpc.remove_channel(self.id, error);
@@ -186,6 +188,7 @@ impl Channel {
     pub(crate) fn set_connection_error(&self, error: Error) {
         self.status.poison_ackers(error.clone());
         self.set_state(ChannelState::Error);
+        self.basic_get_delivery.cancel(error.clone());
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone());
         self.internal_rpc.remove_channel(self.id, error.clone());
@@ -357,6 +360,7 @@ impl Channel {
 
     pub(crate) fn init_recovery(&self, error: Error) -> Error {
         let err = self.status.set_reconnecting(error, self.topology());
+        self.basic_get_delivery.cancel(err.clone());
         self.frames.drop_frames_for_channel(self.id, err.clone());
         self.poison(err.clone());
         err
