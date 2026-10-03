@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{ConnectionStatus, Error};
 use flume::Sender;
 use futures_core::Stream;
 use std::{
@@ -11,11 +11,13 @@ use std::{
 #[derive(Clone, Debug)]
 pub(crate) struct Events {
     inner: Arc<Mutex<Inner>>,
+    status: ConnectionStatus,
 }
 
 #[derive(Debug, Default)]
 struct Inner {
     listeners: Vec<Arc<Sender<Event>>>,
+    connected: bool,
     /// Events not delivered yet, with the listeners registered when each
     /// was emitted.
     pending: VecDeque<(Event, Vec<Arc<Sender<Event>>>)>,
@@ -54,25 +56,30 @@ impl Drop for EventStream {
 }
 
 impl Events {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(status: ConnectionStatus) -> Self {
         Self {
             inner: Arc::default(),
+            status,
         }
     }
 
     pub(crate) fn sender(&self) -> EventsSender {
-        EventsSender(self.inner.clone())
+        EventsSender(self.inner.clone(), self.status.clone())
     }
 
     pub(crate) fn listener(&self) -> impl Stream<Item = Event> + Send + 'static {
         let (sender, receiver) = flume::unbounded();
+        let mut inner = self.lock_inner();
+        if inner.connected && self.status.connected() {
+            let _ = sender.send(Event::Connected);
+        }
         let sender = Arc::new(sender);
         let stream = EventStream {
             receiver: receiver.into_stream(),
             events: Arc::downgrade(&self.inner),
             sender: Arc::downgrade(&sender),
         };
-        self.lock_inner().listeners.push(sender);
+        inner.listeners.push(sender);
         stream
     }
 
@@ -82,7 +89,7 @@ impl Events {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct EventsSender(Arc<Mutex<Inner>>);
+pub(crate) struct EventsSender(Arc<Mutex<Inner>>, ConnectionStatus);
 
 impl EventsSender {
     /// Events are delivered outside the registry lock, in emission order:
@@ -92,6 +99,13 @@ impl EventsSender {
     fn send(&self, event: Event) {
         {
             let mut inner = self.lock();
+            match event {
+                Event::Connected => inner.connected = true,
+                // Channel errors are broadcast through the same stream but
+                // do not invalidate an established connection's snapshot.
+                Event::Error(_) if !self.1.connected() => inner.connected = false,
+                _ => {}
+            }
             let listeners = inner.listeners.clone();
             inner.pending.push_back((event, listeners));
             if std::mem::replace(&mut inner.draining, true) {
@@ -180,7 +194,7 @@ pub enum Event {
 #[cfg(test)]
 mod tests {
     use super::{Event, Events};
-
+    use crate::{ConnectionState, ConnectionStatus, Error};
     use futures_lite::{StreamExt, future::block_on};
     use std::{
         future::Future,
@@ -192,19 +206,53 @@ mod tests {
     };
 
     #[test]
-    fn events_reach_every_listener() {
-        let events = Events::new();
+    fn events_reach_every_listener_and_late_listeners_see_connection() {
+        let status = ConnectionStatus::default();
+        let events = Events::new(status.clone());
         let mut first = events.listener();
         let mut second = events.listener();
+        status.set_state(ConnectionState::Connected);
         events.sender().connected();
 
         assert!(matches!(block_on(first.next()), Some(Event::Connected)));
         assert!(matches!(block_on(second.next()), Some(Event::Connected)));
+
+        let mut late = events.listener();
+        assert!(matches!(block_on(late.next()), Some(Event::Connected)));
+
+        status.set_state(ConnectionState::Closed);
+        let mut closed = events.listener();
+        let mut next = std::pin::pin!(closed.next());
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(next.as_mut().poll(&mut cx).is_pending());
+    }
+
+    #[test]
+    fn channel_errors_preserve_connected_for_late_listeners() {
+        let status = ConnectionStatus::default();
+        let events = Events::new(status.clone());
+        status.set_state(ConnectionState::Connected);
+        events.sender().connected();
+        events.sender().error(Error::other("channel closed"));
+
+        let mut listener = events.listener();
+        let mut next = std::pin::pin!(listener.next());
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(matches!(
+            next.as_mut().poll(&mut cx),
+            std::task::Poll::Ready(Some(Event::Connected))
+        ));
+
+        status.set_state(ConnectionState::Error);
+        events.sender().error(Error::other("connection failed"));
+        let mut listener = events.listener();
+        let mut next = std::pin::pin!(listener.next());
+        assert!(next.as_mut().poll(&mut cx).is_pending());
     }
 
     #[test]
     fn dropped_listeners_are_pruned_immediately() {
-        let events = Events::new();
+        let events = Events::new(ConnectionStatus::default());
         for _ in 0..100 {
             drop(events.listener());
             assert!(events.lock_inner().listeners.is_empty());
@@ -213,7 +261,7 @@ mod tests {
 
     #[test]
     fn listeners_end_after_all_event_producers_are_dropped() {
-        let events = Events::new();
+        let events = Events::new(ConnectionStatus::default());
         let sender = events.sender();
         let mut listener = events.listener();
         sender.connected();
@@ -249,7 +297,7 @@ mod tests {
         // emission straight from the waker would never return.
         let (done, finished) = std::sync::mpsc::channel();
         let test = std::thread::spawn(move || {
-            let events = Events::new();
+            let events = Events::new(ConnectionStatus::default());
             let mut first = events.listener();
             let mut second = events.listener();
             let emit_on_wake = Arc::new(EmitOnWake {
@@ -305,7 +353,7 @@ mod tests {
         }
 
         for drop_listener in [false, true] {
-            let events = Events::new();
+            let events = Events::new(ConnectionStatus::default());
             let mut listener = events.listener();
             let register_on_wake = Arc::new(RegisterOnWake {
                 events: events.clone(),

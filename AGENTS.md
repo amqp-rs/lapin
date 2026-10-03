@@ -74,6 +74,7 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 
 **Events (`events.rs`)**
 - The connection-side registry owns event senders. Listener streams remove their registration on drop and end after all event producers are dropped.
+- A listener created while the connection is open first receives `Event::Connected`. Channel error events preserve that snapshot while the connection itself remains connected.
 - Event delivery and sender destruction happen outside the registry lock so listener wakers can register or drop other listeners. Every listener still sees events in emission order: an emitter that finds another one delivering leaves its event to it, which also lets a listener waker emit events.
 
 **Topology & recovery (`topology.rs`, `channel_recovery_context.rs`)**

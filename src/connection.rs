@@ -167,7 +167,8 @@ impl Connection {
     ///
     /// Events include connection establishment, broker-initiated flow control,
     /// and errors. Call this multiple times to fan out events to several
-    /// listeners.
+    /// listeners. A listener created after connection establishment
+    /// immediately receives `Event::Connected` while the connection is open.
     pub fn events_listener(&self) -> impl Stream<Item = Event> + Send + 'static {
         self.events.listener()
     }
@@ -257,7 +258,7 @@ impl Connection {
             frames.clone(),
             socket_state.handle(),
         );
-        let events = Events::new();
+        let events = Events::new(status.clone());
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
@@ -426,7 +427,7 @@ mod tests {
             frames.clone(),
             socket_state.handle(),
         );
-        let events = Events::new();
+        let events = Events::new(status.clone());
         let channels = Channels::new(
             configuration.clone(),
             status.clone(),
