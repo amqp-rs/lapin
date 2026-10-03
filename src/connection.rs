@@ -166,8 +166,8 @@ impl Connection {
     /// Return a [`Stream`] of connection-level [`Event`]s.
     ///
     /// Events include connection establishment, broker-initiated flow control,
-    /// and errors. Clone the stream or call this multiple times to fan-out to
-    /// several listeners.
+    /// and errors. Call this multiple times to fan out events to several
+    /// listeners.
     pub fn events_listener(&self) -> impl Stream<Item = Event> + Send + 'static {
         self.events.listener()
     }
