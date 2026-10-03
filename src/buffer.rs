@@ -81,7 +81,7 @@ impl Buffer {
             let (old, new) = self.memory.split_at_mut(old_capacity);
             if self.end < growth {
                 // There is enough room in the new end for this whole "tail".
-                new.copy_from_slice(&old[..self.end]);
+                new[..self.end].copy_from_slice(&old[..self.end]);
                 self.end += old_capacity;
             } else {
                 // Fill the new end with as much data as we can.
@@ -239,5 +239,25 @@ impl BackToTheBuffer for &mut Buffer {
                 s
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Buffer;
+
+    #[test]
+    fn grow_preserves_wrapped_data_when_tail_fits() {
+        let mut buffer = Buffer::with_capacity(8);
+        buffer.memory[6..8].copy_from_slice(&[1, 2]);
+        buffer.memory[..2].copy_from_slice(&[3, 4]);
+        buffer.position = 6;
+        buffer.end = 2;
+        buffer.available_data = 4;
+
+        assert!(buffer.grow(16));
+        assert_eq!(buffer.capacity, 16);
+        assert_eq!(buffer.available_data(), 4);
+        assert_eq!(&buffer.memory[buffer.position..buffer.end], &[1, 2, 3, 4]);
     }
 }
