@@ -252,15 +252,46 @@ impl PartialEq for Error {
                 left_inner == right_inner
             }
 
-            (IOError(_), IOError(_)) => false,
-            (RuntimeShutdownError(_), RuntimeShutdownError(_)) => false,
+            (IOError(left_inner), IOError(right_inner)) => Arc::ptr_eq(left_inner, right_inner),
+            (RuntimeShutdownError(left_inner), RuntimeShutdownError(right_inner)) => {
+                Arc::ptr_eq(left_inner, right_inner)
+            }
             (ParsingError(left_inner), ParsingError(right_inner)) => left_inner == right_inner,
             (ProtocolError(left_inner), ProtocolError(right_inner)) => left_inner == right_inner,
-            (SerialisationError(_), SerialisationError(_)) => false,
+            (SerialisationError(left_inner), SerialisationError(right_inner)) => {
+                Arc::ptr_eq(left_inner, right_inner)
+            }
+            (AuthProviderError(left_inner), AuthProviderError(right_inner)) => {
+                left_inner == right_inner
+            }
             (FutureCompleted, FutureCompleted) => true,
             (NoDefaultRuntime, NoDefaultRuntime) => true,
+            (MissingHeartbeatError, MissingHeartbeatError) => true,
 
             _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod equality_tests {
+    use super::*;
+
+    #[test]
+    fn every_error_kind_compares_equal_to_its_clone() {
+        let errors = [
+            Error::from(ErrorKind::AuthProviderError("failed".into())),
+            Error::from(ErrorKind::MissingHeartbeatError),
+            Error::from(io::Error::other("failed")),
+            Error::from(ErrorKind::RuntimeShutdownError(Arc::new(io::Error::other(
+                "failed",
+            )))),
+            Error::from(ErrorKind::SerialisationError(Arc::new(
+                GenError::BufferTooSmall(1),
+            ))),
+        ];
+        for error in errors {
+            assert_eq!(error, error.clone());
         }
     }
 }
