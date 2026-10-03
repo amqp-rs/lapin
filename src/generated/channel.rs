@@ -673,7 +673,6 @@ impl Channel {
             return Err(self.status.state_error("basic.publish"));
         }
 
-        let start_hook_res = self.before_basic_publish();
         let BasicPublishOptions {
             mandatory,
             immediate,
@@ -687,14 +686,8 @@ impl Channel {
             },
         ));
 
-        self.send_method_frame_with_body(
-            "basic.publish",
-            method,
-            payload,
-            properties,
-            start_hook_res,
-        )
-        .await
+        self.send_method_frame_with_body("basic.publish", method, payload, properties)
+            .await
     }
     fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
         if !self.status.can_receive_messages() {

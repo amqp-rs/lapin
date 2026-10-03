@@ -26,7 +26,11 @@ use crate::{
     types::*,
 };
 use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
-use std::{convert::TryFrom, fmt, sync::Arc};
+use std::{
+    convert::TryFrom,
+    fmt,
+    sync::{Arc, Mutex},
+};
 use tracing::{error, info, trace};
 
 /// Main entry point for most AMQP operations.
@@ -61,6 +65,7 @@ pub struct Channel {
     connection_status: ConnectionStatus,
     local_registry: Registry,
     acknowledgements: Acknowledgements,
+    publish_lock: Arc<Mutex<()>>,
     consumers: Consumers,
     basic_get_delivery: BasicGetDelivery,
     returned_messages: ReturnedMessages,
@@ -126,6 +131,7 @@ impl Channel {
             connection_status,
             local_registry: Registry::default(),
             acknowledgements: Acknowledgements::new(channel_id, returned_messages.clone()),
+            publish_lock: Arc::new(Mutex::new(())),
             consumers: Consumers::default(),
             basic_get_delivery: BasicGetDelivery::default(),
             returned_messages,
@@ -510,7 +516,6 @@ impl Channel {
         method: AMQPClass,
         payload: &[u8],
         properties: BasicProperties,
-        publisher_confirms_result: Option<PublisherConfirm>,
     ) -> Result<PublisherConfirm> {
         let class_id = method.get_amqp_class_id();
         let header = AMQPContentHeader {
@@ -533,7 +538,14 @@ impl Channel {
 
         trace!(channel=%self.id, "send_frames");
         let (promise, resolver) = Promise::new(ctx);
-        self.frames.push_frames(self.id, frames, resolver);
+        // The delivery tag must be assigned in the same order as the publish
+        // frames enter the queue, including when channel clones publish at once.
+        let publisher_confirms_result = {
+            let _guard = self.publish_lock.lock().unwrap_or_else(|e| e.into_inner());
+            let result = self.before_basic_publish();
+            self.frames.push_frames(self.id, frames, resolver);
+            result
+        };
         self.wake();
         promise.await?;
         Ok(publisher_confirms_result

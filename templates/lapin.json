@@ -577,9 +577,6 @@
         ],
         "confirmation": {
           "type": "PublisherConfirm"
-        },
-        "start_hook": {
-          "returns": true
         }
       }
     },

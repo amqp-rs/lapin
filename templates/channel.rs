@@ -136,7 +136,7 @@ impl Channel {
     }));
 
     {{#if method.metadata.carry_headers ~}}
-    self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties, start_hook_res).await
+    self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties).await
     {{else}}
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.metadata.connection_step ~}}Some(ExpectedReply({{#if method.synchronous ~}}reply{{else}}Reply::ConnectionStep(ConnectionStep::{{camel method.name}}({{#each method.metadata.extra_args as |arg| ~}}{{#unless @first ~}}, {{/unless ~}}{{arg.name}}{{/each ~}})){{/if ~}}, Box::new(resolver.clone()))), Some(resolver){{else if method.synchronous ~}}Some(ExpectedReply(reply, Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});
