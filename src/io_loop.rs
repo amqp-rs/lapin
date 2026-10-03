@@ -136,6 +136,7 @@ impl<
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
                 self.internal_rpc.start_heartbeat(heartbeat);
             }
+            self.internal_rpc.start_secret_update();
             self.status = Status::Connected;
             self.global_backoff = self.backoff.build();
             self.first_connection = false;

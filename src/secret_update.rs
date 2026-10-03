@@ -44,6 +44,9 @@ impl<RK: RuntimeKit + Clone + Send + 'static> SecretUpdate<RK> {
         self.runtime.spawn(async move {
             while let Some(dur) = secret_update.poll_timeout(&killswitch) {
                 secret_update.runtime.sleep(dur).await;
+                if killswitch.killed() || !secret_update.connection_status.connected() {
+                    break;
+                }
                 match secret_update
                     .provider
                     .refresh()

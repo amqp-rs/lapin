@@ -223,6 +223,10 @@ impl InternalRPCHandle {
         self.send(InternalCommand::StartHeartbeat(heartbeat));
     }
 
+    pub(crate) fn start_secret_update(&self) {
+        self.send(InternalCommand::StartSecretUpdate);
+    }
+
     pub(crate) async fn update_secret(
         &self,
         secret: LongString,
@@ -285,6 +289,7 @@ enum InternalCommand {
     Spawn(InternalFuture),
     StartChannelsRecovery,
     StartHeartbeat(Duration),
+    StartSecretUpdate,
     UpdateSecret(LongString, ShortString, PromiseResolver<()>),
 }
 
@@ -567,6 +572,8 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                 StartHeartbeat(heartbeat) => {
                     self.heartbeat.set_timeout(heartbeat);
                     self.heartbeat.start(self.handle());
+                }
+                StartSecretUpdate => {
                     self.secret_update.start(self.handle());
                 }
                 UpdateSecret(secret, reason, resolver) => {
