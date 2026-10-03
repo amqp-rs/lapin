@@ -3,6 +3,7 @@ fn main() {
     println!("cargo::rerun-if-env-changed=LAPIN_CODEGEN_FILE");
     println!("cargo::rerun-if-changed=templates/channel.rs");
     println!("cargo::rerun-if-changed=templates/lapin.json");
+    println!("cargo::rerun-if-changed=templates/includes");
 
     #[cfg(feature = "codegen-internal")]
     codegen::generate()
