@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 main() {
-    export LAPIN_CODEGEN_DIR="$(dirname "${0}" | xargs realpath)/src/generated"
+    local root
+    root="$(cd "$(dirname "${0}")" && pwd -P)"
+    export LAPIN_CODEGEN_DIR="${root}/src/generated"
 
-    cargo build --features=codegen-internal
+    cargo build --manifest-path "${root}/Cargo.toml" --features=codegen-internal
     rustfmt "${LAPIN_CODEGEN_DIR}"/*.rs --edition=2024
 }
 
