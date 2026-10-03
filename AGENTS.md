@@ -58,6 +58,7 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 
 **Frame handling (`frames.rs`, `parsing.rs`)**
 - `Frames` manages the outbound frame queue and tracks expected replies.
+- Paused publishes and subsequent methods are deferred per channel; `Channel.Flow` and `Channel.FlowOk` bypass that queue so flow-control handshakes can complete.
 - `ExpectedReply` associates an outgoing frame with a promise resolver so callers can `await` the server response.
 - Frame serialization/deserialization is done by the `amq-protocol` crate.
 

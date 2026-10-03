@@ -1023,7 +1023,9 @@ impl Channel {
 
     fn on_channel_flow_received(&self, method: protocol::channel::Flow) -> Result<()> {
         self.status.set_send_flow(method.active);
+        self.frames.set_flow(self.id, method.active);
         self.events_sender.send_flow(method.active);
+        self.wake();
         let channel = self.clone();
         self.internal_rpc.spawn(async move {
             channel

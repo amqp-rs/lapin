@@ -158,7 +158,9 @@ impl<
     }
 
     fn can_write(&mut self) -> bool {
-        self.socket_state.writable() && self.has_data() && !self.connection_status.blocked()
+        self.socket_state.writable()
+            && !self.connection_status.blocked()
+            && (self.send_buffer.available_data() > 0 || self.frames.has_ready())
     }
 
     fn can_read(&mut self) -> bool {
@@ -459,6 +461,10 @@ impl<
         self.flush(stream.as_mut(), writable_context)?;
         self.serialize(connection_killswitch)?;
 
+        if self.send_buffer.available_data() == 0 {
+            return Ok(());
+        }
+
         let res = self
             .send_buffer
             .poll_write_to(writable_context, stream.as_mut())
@@ -567,7 +573,7 @@ impl<
     }
 
     fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
-        while let Some(next_msg) = self.frames.pop(self.channels.flow()) {
+        while let Some(next_msg) = self.frames.pop() {
             trace!("will write frame to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());

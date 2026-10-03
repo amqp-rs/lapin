@@ -180,10 +180,6 @@ impl Channels {
         }
     }
 
-    pub(crate) fn flow(&self) -> bool {
-        self.read().channels.values().all(|c| c.status().flow())
-    }
-
     pub(crate) fn handle_frame(&self, f: AMQPFrame) -> Result<()> {
         trace!("will handle frame");
         match f {

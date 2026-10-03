@@ -11,7 +11,7 @@ use amq_protocol::{
     protocol::{AMQPClass, basic::AMQPMethod},
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     fmt,
     ops::Deref,
     sync::{Arc, Mutex, MutexGuard},
@@ -58,8 +58,16 @@ impl Frames {
         self.lock_inner().retry_frames.push_back(frame);
     }
 
-    pub(crate) fn pop(&self, flow: bool) -> Option<FrameEntry> {
-        self.lock_inner().pop(flow)
+    pub(crate) fn pop(&self) -> Option<FrameEntry> {
+        self.lock_inner().pop()
+    }
+
+    pub(crate) fn has_ready(&self) -> bool {
+        self.lock_inner().has_ready()
+    }
+
+    pub(crate) fn set_flow(&self, channel_id: ChannelId, active: bool) {
+        self.lock_inner().set_flow(channel_id, active);
     }
 
     pub(crate) fn find_connection_step(&self, channel_id: ChannelId) -> Option<ConnectionStep> {
@@ -229,6 +237,19 @@ impl FrameEntry {
         Self { frame, sending }
     }
 
+    fn is_channel_flow_control(&self) -> bool {
+        matches!(
+            &self.frame,
+            AMQPFrame::Method(
+                _,
+                AMQPClass::Channel(
+                    amq_protocol::protocol::channel::AMQPMethod::Flow(_)
+                        | amq_protocol::protocol::channel::AMQPMethod::FlowOk(_)
+                )
+            )
+        )
+    }
+
     fn reject(&self, error: Error) {
         self.sending.reject(error)
     }
@@ -279,7 +300,9 @@ struct Inner {
     publish_frames: VecDeque<FrameEntry>,
     retry_frames: VecDeque<FrameEntry>,
     frames: VecDeque<FrameEntry>,
-    low_prio_frames: VecDeque<FrameEntry>,
+    deferred_frames: HashMap<ChannelId, VecDeque<FrameEntry>>,
+    paused_channels: HashSet<ChannelId>,
+    blocked_channels: HashSet<ChannelId>,
     expected_replies: HashMap<ChannelId, VecDeque<ExpectedReply>>,
     poison: Option<Error>,
     channels_poison: HashMap<ChannelId, Error>,
@@ -314,7 +337,15 @@ impl Inner {
             return;
         }
 
-        self.frames.push_back(FrameEntry::new(frame, sending));
+        let entry = FrameEntry::new(frame, sending);
+        if self.blocked_channels.contains(&channel_id) && !entry.is_channel_flow_control() {
+            self.deferred_frames
+                .entry(channel_id)
+                .or_default()
+                .push_back(entry);
+        } else {
+            self.frames.push_back(entry);
+        }
         if let Some(reply) = expected_reply {
             trace!(
                 channel=%channel_id,
@@ -341,13 +372,20 @@ impl Inner {
             return;
         }
 
+        if self.paused_channels.contains(&channel_id) {
+            self.blocked_channels.insert(channel_id);
+        }
+        let queue = if self.blocked_channels.contains(&channel_id) {
+            self.deferred_frames.entry(channel_id).or_default()
+        } else {
+            &mut self.frames
+        };
         for frame in frames {
-            self.low_prio_frames.push_back(frame.into());
+            queue.push_back(frame.into());
         }
 
         if let Some(last_frame) = last_frame {
-            self.low_prio_frames
-                .push_back((last_frame, Some(resolver)).into());
+            queue.push_back((last_frame, Some(resolver)).into());
         } else {
             resolver.resolve(());
         }
@@ -360,56 +398,133 @@ impl Inner {
             .cloned()
     }
 
-    fn pop(&mut self, flow: bool) -> Option<FrameEntry> {
-        if let Some(frame) = self
-            .retry_frames
-            .pop_front()
-            .or_else(|| self.publish_frames.pop_front())
-            .or_else(|| self.frames.pop_front())
-        {
-            return Some(frame);
-        }
-        if flow && let Some(frame) = self.low_prio_frames.pop_front() {
-            // If the next frame is a header, that means we're a basic.publish
-            // Header frame needs to follow directly the basic.publish frame, and Body frames
-            // need to be sent just after those or the AMQP server will close the connection.
-            // Push the header into publish_frames which is there to handle just that.
-            if self
-                .low_prio_frames
-                .front()
-                .map(|frame| frame.is_header())
-                .unwrap_or(false)
+    fn pop(&mut self) -> Option<FrameEntry> {
+        while let Some(frame) = self.retry_frames.pop_front() {
+            let channel = frame.channel_id();
+            let is_publish = matches!(
+                &*frame,
+                AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Publish(_)))
+            );
+            if !frame.is_channel_flow_control()
+                && (self.blocked_channels.contains(&channel)
+                    || (is_publish && self.paused_channels.contains(&channel)))
             {
-                while let Some(next_frame) = self.low_prio_frames.pop_front() {
-                    match *next_frame {
-                        AMQPFrame::Header(..) | AMQPFrame::Body(..) => {
-                            self.publish_frames.push_back(next_frame);
-                        }
-                        _ => {
-                            // We've exhausted Body frames for this publish, push back the next one and exit
-                            self.low_prio_frames.push_front(next_frame);
-                            break;
-                        }
-                    }
-                }
+                self.defer_retry(frame, is_publish);
+                continue;
             }
             return Some(frame);
         }
+        if let Some(frame) = self.publish_frames.pop_front() {
+            return Some(frame);
+        }
+        loop {
+            let frame = self.frames.pop_front()?;
+            let channel = frame.channel_id();
+            let is_publish = matches!(
+                &*frame,
+                AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Publish(_)))
+            );
+            if !frame.is_channel_flow_control()
+                && (self.blocked_channels.contains(&channel)
+                    || (is_publish && self.paused_channels.contains(&channel)))
+            {
+                self.blocked_channels.insert(channel);
+                self.deferred_frames
+                    .entry(channel)
+                    .or_default()
+                    .push_back(frame);
+                continue;
+            }
+            if is_publish {
+                // Content frames must immediately follow their publish method.
+                while self.frames.front().is_some_and(|next| {
+                    matches!(&**next, AMQPFrame::Header(..) | AMQPFrame::Body(..))
+                }) {
+                    self.publish_frames.push_back(self.frames.pop_front()?);
+                }
+                return Some(frame);
+            }
+            return Some(frame);
+        }
+    }
+
+    fn defer_retry(&mut self, frame: FrameEntry, is_publish: bool) {
+        let channel = frame.channel_id();
+        self.blocked_channels.insert(channel);
+        let mut group = VecDeque::from([frame]);
+        if is_publish {
+            while self.publish_frames.front().is_some_and(|next| {
+                next.channel_id() == channel
+                    && matches!(&**next, AMQPFrame::Header(..) | AMQPFrame::Body(..))
+            }) {
+                group.push_back(self.publish_frames.pop_front().unwrap());
+            }
+        }
+        if let Some(existing) = self.deferred_frames.get_mut(&channel) {
+            group.append(existing);
+        }
+        self.deferred_frames.insert(channel, group);
+    }
+
+    fn set_flow(&mut self, channel: ChannelId, active: bool) {
+        if active {
+            self.paused_channels.remove(&channel);
+            if let Some(mut restored) = self.deferred_frames.remove(&channel) {
+                self.blocked_channels.remove(&channel);
+                restored.append(&mut self.frames);
+                self.frames = restored;
+            }
+        } else {
+            self.paused_channels.insert(channel);
+        }
+    }
+
+    fn next_ready_index(&self) -> Option<usize> {
+        let mut newly_blocked = HashSet::new();
+        for (index, frame) in self.frames.iter().enumerate() {
+            if frame.is_channel_flow_control() {
+                return Some(index);
+            }
+            let channel = frame.channel_id();
+            if self.blocked_channels.contains(&channel) || newly_blocked.contains(&channel) {
+                continue;
+            }
+            if matches!(
+                &**frame,
+                AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Publish(_)))
+            ) && self.paused_channels.contains(&channel)
+            {
+                newly_blocked.insert(channel);
+                continue;
+            }
+            return Some(index);
+        }
         None
+    }
+
+    fn has_ready(&self) -> bool {
+        !self.retry_frames.is_empty()
+            || !self.publish_frames.is_empty()
+            || self.next_ready_index().is_some()
     }
 
     fn has_pending(&self) -> bool {
         !(self.retry_frames.is_empty()
             && self.publish_frames.is_empty()
             && self.frames.is_empty()
-            && self.low_prio_frames.is_empty())
+            && self.deferred_frames.is_empty())
     }
 
     fn drop_pending(&mut self, error: Error, internal_rpc: &InternalRPCHandle) {
         Self::drop_pending_frames(&mut self.retry_frames, error.clone(), internal_rpc);
         Self::drop_pending_frames(&mut self.publish_frames, error.clone(), internal_rpc);
         Self::drop_pending_frames(&mut self.frames, error.clone(), internal_rpc);
-        Self::drop_pending_frames(&mut self.low_prio_frames, error.clone(), internal_rpc);
+        for frames in self.deferred_frames.values_mut() {
+            Self::drop_pending_frames(frames, error.clone(), internal_rpc);
+        }
+        self.deferred_frames.clear();
+        self.paused_channels.clear();
+        self.blocked_channels.clear();
         self.clear_all_expected_replies(error.clone());
         self.poison = Some(error);
     }
@@ -434,7 +549,11 @@ impl Inner {
         Self::drop_pending_frames_for_channel(channel_id, &mut self.retry_frames, error.clone());
         Self::drop_pending_frames_for_channel(channel_id, &mut self.publish_frames, error.clone());
         Self::drop_pending_frames_for_channel(channel_id, &mut self.frames, error.clone());
-        Self::drop_pending_frames_for_channel(channel_id, &mut self.low_prio_frames, error.clone());
+        self.blocked_channels.remove(&channel_id);
+        self.paused_channels.remove(&channel_id);
+        if let Some(mut deferred) = self.deferred_frames.remove(&channel_id) {
+            Self::drop_pending_frames_for_channel(channel_id, &mut deferred, error);
+        }
     }
 
     fn drop_pending_frames_for_channel(
@@ -486,5 +605,195 @@ impl Inner {
             Reply::BasicCancelOk(resolver) => resolver.resolve(()),
             _ => cancel.cancel(error.clone()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Promise, protocol::basic};
+
+    fn publish(channel: ChannelId) -> (ChannelId, AMQPFrame) {
+        (
+            channel,
+            AMQPFrame::Method(
+                channel,
+                AMQPClass::Basic(AMQPMethod::Publish(basic::Publish::default())),
+            ),
+        )
+    }
+
+    #[test]
+    fn later_method_does_not_overtake_queued_publish() {
+        let frames = Frames::default();
+        let (channel, frame) = publish(1);
+        let (_, resolver) = Promise::new("publish");
+        frames.push_frames(channel, vec![frame], resolver);
+        let (_, resolver) = Promise::<()>::new("method");
+        frames.push(
+            channel,
+            AMQPFrame::Method(
+                channel,
+                AMQPClass::Basic(AMQPMethod::Ack(basic::Ack::default())),
+            ),
+            Box::new(resolver),
+            None,
+            None,
+        );
+
+        assert!(matches!(
+            &*frames.pop().unwrap(),
+            AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Publish(_)))
+        ));
+        assert!(matches!(
+            &*frames.pop().unwrap(),
+            AMQPFrame::Method(_, AMQPClass::Basic(AMQPMethod::Ack(_)))
+        ));
+    }
+
+    #[test]
+    fn paused_channel_does_not_block_other_publishes() {
+        let frames = Frames::default();
+        for channel in [1, 2] {
+            let (_, resolver) = Promise::new("publish");
+            frames.push_frames(channel, vec![publish(channel).1], resolver);
+        }
+        frames.set_flow(1, false);
+        assert!(frames.has_ready());
+        assert_eq!(frames.pop().unwrap().channel_id(), 2);
+        assert!(!frames.has_ready());
+        frames.set_flow(1, true);
+        assert_eq!(frames.pop().unwrap().channel_id(), 1);
+    }
+
+    #[test]
+    fn paused_publish_blocks_later_transaction_commit_on_same_channel() {
+        let frames = Frames::default();
+        frames.set_flow(1, false);
+        let (_, resolver) = Promise::new("publish");
+        frames.push_frames(1, vec![publish(1).1], resolver);
+        let (_, resolver) = Promise::<()>::new("commit");
+        frames.push(
+            1,
+            AMQPFrame::Method(
+                1,
+                AMQPClass::Tx(amq_protocol::protocol::tx::AMQPMethod::Commit(
+                    amq_protocol::protocol::tx::Commit {},
+                )),
+            ),
+            Box::new(resolver),
+            None,
+            None,
+        );
+        let (_, resolver) = Promise::<()>::new("other channel");
+        frames.push(
+            2,
+            AMQPFrame::Method(2, AMQPClass::Basic(AMQPMethod::Ack(basic::Ack::default()))),
+            Box::new(resolver),
+            None,
+            None,
+        );
+
+        assert_eq!(frames.pop().unwrap().channel_id(), 2);
+        assert!(!frames.has_ready());
+        frames.set_flow(1, true);
+        assert!(matches!(
+            &*frames.pop().unwrap(),
+            AMQPFrame::Method(1, AMQPClass::Basic(AMQPMethod::Publish(_)))
+        ));
+        assert!(matches!(
+            &*frames.pop().unwrap(),
+            AMQPFrame::Method(
+                1,
+                AMQPClass::Tx(amq_protocol::protocol::tx::AMQPMethod::Commit(_))
+            )
+        ));
+    }
+
+    #[test]
+    fn paused_publishes_are_deferred_at_enqueue() {
+        let frames = Frames::default();
+        frames.set_flow(1, false);
+        for _ in 0..1000 {
+            let (_, resolver) = Promise::new("publish");
+            frames.push_frames(1, vec![publish(1).1], resolver);
+        }
+        assert!(!frames.has_ready());
+        let inner = frames.lock_inner();
+        assert!(inner.frames.is_empty());
+        assert_eq!(inner.deferred_frames[&1].len(), 1000);
+    }
+
+    #[test]
+    fn channel_flow_reply_passes_a_paused_publish() {
+        for pause_before_enqueue in [false, true] {
+            let frames = Frames::default();
+            if pause_before_enqueue {
+                frames.set_flow(1, false);
+            }
+            let (_, resolver) = Promise::new("publish");
+            frames.push_frames(1, vec![publish(1).1], resolver);
+            if !pause_before_enqueue {
+                frames.set_flow(1, false);
+            }
+            let (_, resolver) = Promise::new("flow-ok");
+            frames.push(
+                1,
+                AMQPFrame::Method(
+                    1,
+                    AMQPClass::Channel(amq_protocol::protocol::channel::AMQPMethod::FlowOk(
+                        amq_protocol::protocol::channel::FlowOk { active: false },
+                    )),
+                ),
+                Box::new(resolver.clone()),
+                None,
+                Some(resolver),
+            );
+
+            assert!(frames.has_ready());
+            let reply = frames.pop().unwrap();
+            assert!(matches!(
+                &*reply,
+                AMQPFrame::Method(
+                    1,
+                    AMQPClass::Channel(amq_protocol::protocol::channel::AMQPMethod::FlowOk(_))
+                )
+            ));
+            frames.retry(reply);
+            assert!(frames.pop().is_some());
+            assert!(!frames.has_ready());
+
+            frames.set_flow(1, true);
+            assert!(matches!(
+                &*frames.pop().unwrap(),
+                AMQPFrame::Method(1, AMQPClass::Basic(AMQPMethod::Publish(_)))
+            ));
+        }
+    }
+
+    #[test]
+    fn retried_publish_keeps_its_content_when_flow_pauses() {
+        let frames = Frames::default();
+        frames.retry(publish(1).1.into());
+        frames.lock_inner().publish_frames.push_back(
+            AMQPFrame::Header(
+                1,
+                amq_protocol::frame::AMQPContentHeader {
+                    class_id: 60,
+                    body_size: 0,
+                    properties: crate::BasicProperties::default(),
+                },
+            )
+            .into(),
+        );
+        frames.set_flow(1, false);
+        assert!(frames.pop().is_none());
+        assert!(!frames.has_ready());
+        frames.set_flow(1, true);
+        assert!(matches!(
+            &*frames.pop().unwrap(),
+            AMQPFrame::Method(1, AMQPClass::Basic(AMQPMethod::Publish(_)))
+        ));
+        assert!(matches!(&*frames.pop().unwrap(), AMQPFrame::Header(1, _)));
     }
 }

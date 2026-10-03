@@ -524,10 +524,10 @@ mod tests {
         assert!(frames.retry_connection_header());
         assert!(frames.retry_connection_header());
         assert!(matches!(
-            *frames.pop(true).unwrap(),
+            *frames.pop().unwrap(),
             AMQPFrame::ProtocolHeader(_)
         ));
-        assert!(frames.pop(true).is_none());
+        assert!(frames.pop().is_none());
         assert!(connecting.as_mut().poll(&mut cx).is_pending());
 
         frames.clear_connection_steps(&ErrorKind::MissingHeartbeatError.into());
@@ -562,7 +562,7 @@ mod tests {
         assert!(connecting.as_mut().poll(&mut cx).is_pending());
         // The header has left the outbound queue: only the expected reply can
         // reject the handshake now, not drop_frames_for_channel during recovery.
-        drop(frames.pop(true).unwrap());
+        drop(frames.pop().unwrap());
 
         let error: Error = ErrorKind::MissingHeartbeatError.into();
         channels.init_connection_recovery(error.clone());

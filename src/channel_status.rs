@@ -203,10 +203,6 @@ impl ChannelStatus {
         self.write().send_flow = flow;
     }
 
-    pub(crate) fn flow(&self) -> bool {
-        self.read().send_flow
-    }
-
     fn read(&self) -> RwLockReadGuard<'_, Inner> {
         self.0.read().unwrap_or_else(|e| e.into_inner())
     }
@@ -303,6 +299,7 @@ impl Inner {
 
     fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) -> Error {
         self.state = ChannelState::Reconnecting;
+        self.send_flow = true;
         std::mem::take(&mut self.killswitch).kill();
         self.receiver_state.reset();
         let cause = match self.recovery_context.as_ref() {
