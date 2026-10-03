@@ -80,12 +80,31 @@ impl<RK: RuntimeKit + Clone + Send + 'static> SecretUpdate<RK> {
             return None;
         }
 
-        self.provider.valid_for()
+        self.provider.valid_for().map(refresh_delay)
     }
+}
+
+fn refresh_delay(valid_for: Duration) -> Duration {
+    (valid_for / 2).max(Duration::from_millis(1))
 }
 
 impl<RK: RuntimeKit + Clone + Send + 'static> fmt::Debug for SecretUpdate<RK> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SecretUpdate").finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refresh_delay;
+    use std::time::Duration;
+
+    #[test]
+    fn refresh_is_scheduled_before_expiry() {
+        assert_eq!(
+            refresh_delay(Duration::from_secs(30)),
+            Duration::from_secs(15)
+        );
+        assert_eq!(refresh_delay(Duration::ZERO), Duration::from_millis(1));
     }
 }
