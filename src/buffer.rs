@@ -19,7 +19,7 @@ pub(crate) struct Buffer {
 
 pub(crate) struct Checkpoint {
     end: usize,
-    backwards: bool,
+    available_data: usize,
 }
 
 impl Buffer {
@@ -42,26 +42,13 @@ impl Buffer {
     pub(crate) fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             end: self.end,
-            backwards: true,
+            available_data: self.available_data,
         }
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: Checkpoint) {
-        if checkpoint.end == self.end {
-            return;
-        }
-        if checkpoint.backwards {
-            if self.end > checkpoint.end {
-                self.available_data -= self.end - checkpoint.end;
-            } else {
-                self.available_data -= self.end + (self.capacity - checkpoint.end);
-            }
-        } else if self.end > checkpoint.end {
-            self.available_data += (self.capacity - self.end) + checkpoint.end;
-        } else {
-            self.available_data += checkpoint.end - self.end;
-        }
         self.end = checkpoint.end;
+        self.available_data = checkpoint.available_data;
     }
 
     pub(crate) fn grow(&mut self, new_size: usize) -> bool {
@@ -230,8 +217,7 @@ impl BackToTheBuffer for &mut Buffer {
         let start = s.write.checkpoint();
         s.write.fill(reserved);
         generator(s).and_then(|(s, tmp)| {
-            let mut end = s.write.checkpoint();
-            end.backwards = false;
+            let end = s.write.checkpoint();
             s.write.rollback(start);
             #[allow(clippy::manual_inspect)]
             before(s, tmp).map(|s| {
@@ -259,5 +245,16 @@ mod tests {
         assert_eq!(buffer.capacity, 16);
         assert_eq!(buffer.available_data(), 4);
         assert_eq!(&buffer.memory[buffer.position..buffer.end], &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn rollback_restores_empty_state_after_a_full_wrap() {
+        let mut buffer = Buffer::with_capacity(8);
+        let checkpoint = buffer.checkpoint();
+        buffer.fill(8);
+        assert_eq!(buffer.end, checkpoint.end);
+        buffer.rollback(checkpoint);
+        assert_eq!(buffer.available_data(), 0);
+        assert_eq!(buffer.available_space(), 8);
     }
 }
