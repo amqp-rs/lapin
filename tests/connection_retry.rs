@@ -5,7 +5,11 @@ use amq_protocol::{
     protocol::{AMQPClass, connection},
 };
 use async_rs::Runtime;
-use lapin::{Connection, ConnectionProperties, ErrorKind};
+use lapin::{
+    Connection, ConnectionProperties, ErrorKind,
+    auth::AuthProvider,
+    types::{LongString, ShortString},
+};
 use std::{
     io::{Read, Write},
     net::{Shutdown, TcpListener, TcpStream},
@@ -75,6 +79,77 @@ fn properties(retries: usize) -> ConnectionProperties {
             .with_max_delay(Duration::from_millis(1))
             .with_max_times(retries)
     })
+}
+
+struct FailingAuth {
+    fail_starter: bool,
+}
+
+impl AuthProvider for FailingAuth {
+    fn mechanism(&self) -> ShortString {
+        "PLAIN".into()
+    }
+
+    fn auth_starter(&self) -> Result<LongString, String> {
+        if self.fail_starter {
+            Err("starter failed".into())
+        } else {
+            Ok("credentials".into())
+        }
+    }
+
+    fn continue_auth(&self, _: LongString) -> Result<LongString, String> {
+        Err("challenge failed".into())
+    }
+}
+
+#[tokio::test]
+async fn authentication_provider_errors_reject_connect() {
+    for fail_starter in [true, false] {
+        let listener = listener();
+        let uri = format!("amqp://{}", listener.local_addr().unwrap());
+        let server = thread::spawn(move || {
+            let mut stream = accept(&listener);
+            read_header(&mut stream);
+            send_method(
+                &mut stream,
+                connection::AMQPMethod::Start(connection::Start {
+                    version_major: 0,
+                    version_minor: 9,
+                    mechanisms: "PLAIN".into(),
+                    locales: "en_US".into(),
+                    ..Default::default()
+                }),
+            );
+            if !fail_starter {
+                assert!(matches!(
+                    read_method(&mut stream),
+                    connection::AMQPMethod::StartOk(_)
+                ));
+                send_method(
+                    &mut stream,
+                    connection::AMQPMethod::Secure(connection::Secure {
+                        challenge: "challenge".into(),
+                    }),
+                );
+            }
+            assert_eq!(stream.read(&mut [0]).unwrap(), 0);
+        });
+
+        let error = tokio::time::timeout(
+            TIMEOUT,
+            Connection::connect_with_runtime(
+                &uri,
+                properties(0).with_auth_provider(FailingAuth { fail_starter }),
+                Runtime::tokio_current(),
+            ),
+        )
+        .await
+        .expect("authentication error left connect pending")
+        .unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::AuthProviderError(_)));
+        server.join().unwrap();
+    }
 }
 
 #[tokio::test]

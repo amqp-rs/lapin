@@ -869,11 +869,13 @@ impl Channel {
 
                 let auth_starter = auth_provider
                     .auth_starter()
-                    .map_err(ErrorKind::AuthProviderError)?;
+                    .map_err(|message| Error::from(ErrorKind::AuthProviderError(message)))
+                    .inspect_err(|error| resolver.reject(error.clone()))?;
                 let channel = self.clone();
                 let client_properties = configuration.amqp_client_properties.clone();
+                let failure_resolver = resolver.clone();
                 self.internal_rpc.spawn(async move {
-                    channel
+                    let result = channel
                         .connection_start_ok(
                             client_properties,
                             mechanism,
@@ -883,7 +885,11 @@ impl Channel {
                             connection,
                             auth_provider,
                         )
-                        .await
+                        .await;
+                    if let Err(error) = &result {
+                        failure_resolver.reject(error.clone());
+                    }
+                    result
                 });
                 Ok(())
             }
@@ -909,11 +915,17 @@ impl Channel {
                 let channel = self.clone();
                 let response = auth_provider
                     .continue_auth(method.challenge)
-                    .map_err(ErrorKind::AuthProviderError)?;
+                    .map_err(|message| Error::from(ErrorKind::AuthProviderError(message)))
+                    .inspect_err(|error| resolver.reject(error.clone()))?;
+                let failure_resolver = resolver.clone();
                 self.internal_rpc.spawn(async move {
-                    channel
+                    let result = channel
                         .connection_secure_ok(response, resolver, connection, auth_provider)
-                        .await
+                        .await;
+                    if let Err(error) = &result {
+                        failure_resolver.reject(error.clone());
+                    }
+                    result
                 });
                 Ok(())
             }
@@ -945,15 +957,23 @@ impl Channel {
                 let channel = self.clone();
                 let configuration = self.configuration.clone();
                 let vhost = self.connection_status.vhost();
+                let failure_resolver = resolver.clone();
                 self.internal_rpc.spawn(async move {
-                    channel
-                        .connection_tune_ok(
-                            configuration.channel_max(),
-                            configuration.frame_max(),
-                            configuration.heartbeat(),
-                        )
-                        .await?;
-                    channel.connection_open(vhost, resolver, connection).await
+                    let result = async {
+                        channel
+                            .connection_tune_ok(
+                                configuration.channel_max(),
+                                configuration.frame_max(),
+                                configuration.heartbeat(),
+                            )
+                            .await?;
+                        channel.connection_open(vhost, resolver, connection).await
+                    }
+                    .await;
+                    if let Err(error) = &result {
+                        failure_resolver.reject(error.clone());
+                    }
+                    result
                 });
                 Ok(())
             }
