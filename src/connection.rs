@@ -41,6 +41,32 @@ pub struct Connection {
     closer: Arc<ConnectionCloser>,
 }
 
+struct PendingConnectGuard {
+    internal_rpc: InternalRPCHandle,
+    status: ConnectionStatus,
+    armed: bool,
+}
+
+impl Drop for PendingConnectGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        // Open-Ok may have resolved the connect future before it was polled
+        // again: the broker completed that connection, close it gracefully.
+        if self.status.connected() {
+            self.internal_rpc.close_dropped_connection();
+            return;
+        }
+        if !self.status.closed() && !self.status.closing() && !self.status.errored() {
+            let error = Error::other("connection attempt canceled");
+            self.internal_rpc
+                .init_connection_shutdown(error.clone(), None);
+            self.internal_rpc.set_connection_error(error);
+        }
+    }
+}
+
 impl Connection {
     fn new(
         configuration: Configuration,
@@ -294,6 +320,12 @@ impl Connection {
         trace!("Set connection as connecting");
         self.status.clone().set_connecting()?;
 
+        let mut guard = PendingConnectGuard {
+            internal_rpc: self.internal_rpc.clone(),
+            status: self.status.clone(),
+            armed: true,
+        };
+
         trace!("Sending protocol header to server");
         channel0.send_frame(
             AMQPFrame::ProtocolHeader(ProtocolVersion::amqp_0_9_1()),
@@ -308,6 +340,7 @@ impl Connection {
         trace!("Sent protocol header to server, waiting for connection flow");
         let result = promise.await;
         if let Ok(connection) = &result {
+            guard.armed = false;
             connection.closer.activate();
         }
         result

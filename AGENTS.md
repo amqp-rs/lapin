@@ -49,6 +49,8 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 **IO Loop (`io_loop.rs`)**
 - Spawned once per connection as a background thread via `runtime.rs`.
 - Owns the socket, read/write buffers, and the heartbeat timer.
+- Successfully processed OpenOk records the transport's completed handshake before checking the shared lifecycle again. An immediate public close keeps the IO loop alive while its close sender is still pending.
+- An EOF that does not fail the transport at once, during a handshake or a transport switch, stops reading: pending writes are waited for, EOF is not read again.
 - Implements automatic reconnection with exponential backoff (`backon` crate).
 - State machine: `Initial → Connected → Stop`.
 

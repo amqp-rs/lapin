@@ -123,7 +123,9 @@ impl<
         self.socket_state.reset();
     }
 
-    fn finish_setup(&mut self) -> Result<bool> {
+    fn finish_handshake(&mut self) {
+        // OpenOk can wake a caller that closes before this IO epilogue runs.
+        // The transport still completed its handshake and must service Close.
         if self.connection_status.connected() {
             let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
@@ -131,19 +133,23 @@ impl<
                 self.internal_rpc.start_heartbeat(heartbeat);
             }
             self.internal_rpc.start_secret_update();
-            self.status = Status::Connected;
-            self.handshake_done = true;
-            self.global_backoff = self.backoff.build();
-            self.first_connection = false;
         }
-        Ok(true)
+        self.status = Status::Connected;
+        self.handshake_done = true;
+        self.global_backoff = self.backoff.build();
+        self.first_connection = false;
     }
 
-    fn ensure_setup(&mut self) -> Result<bool> {
+    fn ensure_setup(&mut self) -> bool {
         match self.status {
-            Status::Initial => self.finish_setup(),
-            Status::Connected => Ok(true),
-            Status::Stop => Ok(false),
+            Status::Initial => {
+                if self.connection_status.connected() {
+                    self.finish_handshake();
+                }
+                true
+            }
+            Status::Connected => true,
+            Status::Stop => false,
         }
     }
 
@@ -193,7 +199,14 @@ impl<
         trace!(status=?self.status, connection_status=?self.connection_status.state(), internal_rpc_empty=%self.internal_rpc.is_empty(), frames_pending=%self.frames.has_pending(), conn_killed=%connection_killswitch.killed(), ser_frames_empty=%self.serialized_frames.is_empty(), "Should continue?");
 
         match self.status {
-            Status::Initial => !self.half_closed,
+            Status::Initial => {
+                (!self.half_closed
+                    && !self.connection_status.closing()
+                    && !self.connection_status.closed())
+                    || self.frames.has_pending()
+                    || self.send_buffer.available_data() > 0
+                    || !self.serialized_frames.is_empty()
+            }
             Status::Stop => false,
             Status::Connected => {
                 self.connection_status.connected()
@@ -411,7 +424,7 @@ impl<
     ) -> Result<()> {
         trace!("io_loop run");
         self.poll_socket_events();
-        if !self.ensure_setup()? {
+        if !self.ensure_setup() {
             return Ok(());
         }
         self.check_connection_state();
@@ -654,6 +667,8 @@ impl<
                     "We're in the process of recovering connection, quit reading socket to enter recovery"
                 );
             }
+            // EOF is final: wait for pending writes instead of reading it again.
+            self.socket_state.handle_eof();
             return Ok(true);
         }
         self.socket_state
@@ -726,9 +741,24 @@ impl<
         let mut did_something = false;
         while self.can_parse() {
             if let Some(frame) = self.parse(connection_killswitch)? {
+                let open_ok = matches!(
+                    &frame,
+                    AMQPFrame::Method(
+                        0,
+                        amq_protocol::protocol::AMQPClass::Connection(
+                            amq_protocol::protocol::connection::AMQPMethod::OpenOk(_)
+                        )
+                    )
+                );
                 self.channels
                     .handle_frame(frame)
                     .inspect_err(|err| self.internal_rpc.set_connection_error(err.clone()))?;
+                if open_ok && self.status == Status::Initial {
+                    // Successfully handling OpenOk on this stream validates it.
+                    // Record the milestone before checking shared Closing state,
+                    // including when its Close frame has not been enqueued yet.
+                    self.finish_handshake();
+                }
                 did_something = true;
             } else {
                 break;
@@ -819,7 +849,7 @@ fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
 mod tests {
     use super::*;
     use crate::{
-        ConnectionProperties, configuration::Configuration, events::Events,
+        ConnectionProperties, Promise, configuration::Configuration, events::Events,
         internal_rpc::InternalRPC, runtime, secret_update::SecretUpdate,
     };
 
@@ -935,7 +965,7 @@ mod tests {
         assert!(matches!(io_loop.end_after_throttle(&Ok(())), Some(Ok(()))));
         assert!(io_loop.connection_status.closed());
 
-        // A close requested during an attempt that its transport ended.
+        // A first connect dropped while retrying its protocol header.
         let (mut io_loop, _rpc, channels) = test_io_loop(
             AMQPUri::default(),
             ConnectionProperties::default().enable_auto_recover(),
@@ -948,5 +978,88 @@ mod tests {
             Some(Ok(()))
         ));
         assert!(io_loop.connection_status.closed());
+    }
+
+    struct EofTransport {
+        reads: usize,
+    }
+
+    impl AsyncRead for EofTransport {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            _: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            self.reads += 1;
+            Poll::Ready(Ok(0))
+        }
+    }
+
+    impl AsyncWrite for EofTransport {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            _: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            Poll::Pending
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_close(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[test]
+    fn handshake_eof_waits_for_a_pending_write_instead_of_reading_again() {
+        let (mut io_loop, _rpc, _channels) = test_io_loop(
+            AMQPUri::default(),
+            ConnectionProperties::default(),
+            ConnectionState::Connecting,
+        );
+        let handle = io_loop.socket_state.handle();
+        let readable_waker = io_loop.socket_state.readable_waker();
+        let writable_waker = io_loop.socket_state.writable_waker();
+        let (_sent, resolver) = Promise::new("handshake write");
+        io_loop
+            .frames
+            .push_frames(0, vec![AMQPFrame::Heartbeat], resolver);
+        let mut stream = EofTransport { reads: 0 };
+        let epoch = KillSwitch::default();
+        io_loop
+            .run(
+                Pin::new(&mut stream),
+                &mut Context::from_waker(&readable_waker),
+                &mut Context::from_waker(&writable_waker),
+                &epoch,
+            )
+            .unwrap();
+        assert!(io_loop.half_closed);
+        assert!(io_loop.should_continue(&epoch));
+        // Queued dispatcher commands defer the first EOF: it is read again.
+        assert_eq!(stream.reads, 2);
+
+        // Nothing can progress until the pending write does: the next run
+        // waits for a socket event.
+        let worker = std::thread::spawn(move || {
+            let result = io_loop.run(
+                Pin::new(&mut stream),
+                &mut Context::from_waker(&readable_waker),
+                &mut Context::from_waker(&writable_waker),
+                &epoch,
+            );
+            (result, stream)
+        });
+        // A wake sent before the run starts is drained by it: keep waking.
+        while !worker.is_finished() {
+            std::thread::sleep(Duration::from_millis(10));
+            handle.wake();
+        }
+        let (result, stream) = worker.join().unwrap();
+        result.unwrap();
+        assert_eq!(stream.reads, 2);
     }
 }

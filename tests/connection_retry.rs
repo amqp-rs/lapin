@@ -11,6 +11,7 @@ use lapin::{
     types::{LongString, ShortString},
 };
 use std::{
+    future::Future,
     io::{Read, Write},
     net::{Shutdown, TcpListener, TcpStream},
     thread,
@@ -18,6 +19,41 @@ use std::{
 };
 
 const TIMEOUT: Duration = Duration::from_secs(5);
+
+struct DialDrop(std::sync::mpsc::Sender<()>);
+
+impl Drop for DialDrop {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
+    }
+}
+
+#[tokio::test]
+async fn canceling_pending_connect_aborts_tcp_dial() {
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+    let dial = async move |_, _| {
+        let _guard = DialDrop(dropped_tx.clone());
+        let _ = started_tx.send(());
+        std::future::pending().await
+    };
+    let mut connection = Box::pin(Connection::connector(
+        "amqp://127.0.0.1".parse().unwrap(),
+        Runtime::tokio_current(),
+        dial,
+        ConnectionProperties::default(),
+    ));
+    let started = tokio::task::spawn_blocking(move || started_rx.recv_timeout(TIMEOUT));
+    tokio::select! {
+        result = &mut connection => panic!("dial unexpectedly completed: {result:?}"),
+        result = started => result.unwrap().unwrap(),
+    }
+    drop(connection);
+    tokio::task::spawn_blocking(move || dropped_rx.recv_timeout(TIMEOUT))
+        .await
+        .unwrap()
+        .expect("canceling connect did not drop the pending TCP dial");
+}
 
 fn accept(listener: &TcpListener) -> TcpStream {
     let deadline = Instant::now() + TIMEOUT;
@@ -380,6 +416,110 @@ async fn oversized_inbound_header_fails_before_payload_arrives() {
     .unwrap_err();
     assert!(matches!(error.kind(), ErrorKind::ProtocolError(_)));
     server.join().unwrap();
+}
+
+#[tokio::test]
+async fn canceling_pending_connect_closes_the_handshake_socket() {
+    let listener = listener();
+    let uri = format!("amqp://{}", listener.local_addr().unwrap());
+    let (header_seen, wait_header) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let mut stream = accept(&listener);
+        read_header(&mut stream);
+        header_seen.send(()).unwrap();
+        assert_eq!(stream.read(&mut [0]).unwrap(), 0);
+    });
+
+    // Cancel once the handshake is in progress, whatever the runner's load.
+    let mut connect = Box::pin(Connection::connect_with_runtime(
+        &uri,
+        properties(0),
+        Runtime::tokio_current(),
+    ));
+    let header = tokio::task::spawn_blocking(move || wait_header.recv_timeout(TIMEOUT));
+    tokio::select! {
+        _ = &mut connect => panic!("connect completed without a broker"),
+        seen = header => seen.unwrap().unwrap(),
+    }
+    drop(connect);
+    tokio::task::spawn_blocking(move || server.join().unwrap())
+        .await
+        .unwrap();
+}
+
+struct WakeSignal(std::sync::mpsc::Sender<()>);
+
+impl std::task::Wake for WakeSignal {
+    fn wake(self: std::sync::Arc<Self>) {
+        let _ = self.0.send(());
+    }
+}
+
+#[tokio::test]
+async fn dropping_a_connect_completed_by_open_ok_closes_gracefully() {
+    let listener = listener();
+    let uri = format!("amqp://{}", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let mut stream = accept(&listener);
+        read_header(&mut stream);
+        send_start(&mut stream);
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::StartOk(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::Tune(connection::Tune {
+                channel_max: 16,
+                frame_max: 4096,
+                heartbeat: 0,
+            }),
+        );
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::TuneOk(_)
+        ));
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::Open(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::OpenOk(connection::OpenOk {}),
+        );
+        // The broker completed this connection: it expects a Close.
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::Close(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::CloseOk(connection::CloseOk {}),
+        );
+    });
+
+    let mut connect = Box::pin(Connection::connect_with_runtime(
+        &uri,
+        properties(0),
+        Runtime::tokio_current(),
+    ));
+    let (woken, wait_woken) = std::sync::mpsc::channel();
+    let waker = std::task::Waker::from(std::sync::Arc::new(WakeSignal(woken)));
+    assert!(
+        connect
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(&waker))
+            .is_pending()
+    );
+    // Open-Ok resolved the connect, which is dropped before it is polled again.
+    tokio::task::spawn_blocking(move || wait_woken.recv_timeout(TIMEOUT))
+        .await
+        .unwrap()
+        .expect("the handshake did not complete");
+    drop(connect);
+    tokio::task::spawn_blocking(move || server.join().unwrap())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

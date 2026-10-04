@@ -77,6 +77,11 @@ impl SocketState {
         }
     }
 
+    /// The peer closed its side: nothing more will become readable.
+    pub(crate) fn handle_eof(&mut self) {
+        self.readable = false;
+    }
+
     pub(crate) fn handle_write_poll<T>(&mut self, poll: Poll<T>) -> Option<T> {
         match poll {
             Poll::Ready(sz) => Some(sz),
