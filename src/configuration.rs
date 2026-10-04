@@ -96,6 +96,9 @@ pub(crate) struct NegotiatedConfig {
 pub(crate) struct RecoveryConfig(pub(crate) bool);
 
 struct Inner {
+    requested_channel_max: ChannelId,
+    requested_frame_max: FrameSize,
+    requested_heartbeat: Heartbeat,
     channel_max: ChannelId,
     frame_max: FrameSize,
     heartbeat: Heartbeat,
@@ -105,6 +108,9 @@ impl NegotiatedConfig {
     fn new(uri: &AMQPUri) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Inner {
+                requested_channel_max: uri.query.channel_max.unwrap_or_default(),
+                requested_frame_max: uri.query.frame_max.unwrap_or_default(),
+                requested_heartbeat: uri.query.heartbeat.unwrap_or_default(),
                 frame_max: uri.query.frame_max.unwrap_or_default(),
                 channel_max: uri.query.channel_max.unwrap_or_default(),
                 heartbeat: uri.query.heartbeat.unwrap_or_default(),
@@ -116,6 +122,7 @@ impl NegotiatedConfig {
         self.read_inner().channel_max
     }
 
+    #[cfg(test)]
     pub(crate) fn set_channel_max(&self, channel_max: ChannelId) {
         self.write_inner().channel_max = channel_max;
     }
@@ -124,17 +131,35 @@ impl NegotiatedConfig {
         self.read_inner().frame_max
     }
 
-    pub(crate) fn set_frame_max(&self, frame_max: FrameSize) {
-        let frame_max = std::cmp::max(frame_max, protocol::constants::FRAME_MIN_SIZE);
-        self.write_inner().frame_max = frame_max;
-    }
-
     pub(crate) fn heartbeat(&self) -> Heartbeat {
         self.read_inner().heartbeat
     }
 
-    pub(crate) fn set_heartbeat(&self, heartbeat: Heartbeat) {
-        self.write_inner().heartbeat = heartbeat;
+    pub(crate) fn negotiate(
+        &self,
+        channel_max: ChannelId,
+        frame_max: FrameSize,
+        heartbeat: Heartbeat,
+    ) {
+        let mut inner = self.write_inner();
+        inner.channel_max = match (inner.requested_channel_max, channel_max) {
+            (0, 0) => ChannelId::MAX,
+            (0, server) => server,
+            (client, 0) => client,
+            (client, server) => client.min(server),
+        };
+        inner.frame_max = match (inner.requested_frame_max, frame_max) {
+            (0, 0) => FrameSize::MAX,
+            (0, server) => server,
+            (client, 0) => client,
+            (client, server) => client.min(server),
+        }
+        .max(protocol::constants::FRAME_MIN_SIZE);
+        inner.heartbeat = match (inner.requested_heartbeat, heartbeat) {
+            (0, server) => server,
+            (client, 0) => client,
+            (client, server) => client.min(server),
+        };
     }
 
     fn read_inner(&self) -> RwLockReadGuard<'_, Inner> {
@@ -160,5 +185,31 @@ impl fmt::Debug for NegotiatedConfig {
 impl RecoveryConfig {
     pub(crate) fn can_recover(&self, error: &Error) -> bool {
         self.0 && error.can_be_recovered()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recovery_negotiates_against_uri_limits_not_previous_broker() {
+        let default = NegotiatedConfig::new(&AMQPUri::default());
+        default.negotiate(1, 4096, 5);
+        default.negotiate(100, 65536, 20);
+        assert_eq!(default.channel_max(), 100);
+        assert_eq!(default.frame_max(), 65536);
+        assert_eq!(default.heartbeat(), 20);
+
+        let mut uri = AMQPUri::default();
+        uri.query.channel_max = Some(10);
+        uri.query.frame_max = Some(8192);
+        uri.query.heartbeat = Some(10);
+        let capped = NegotiatedConfig::new(&uri);
+        capped.negotiate(1, 4096, 5);
+        capped.negotiate(100, 65536, 20);
+        assert_eq!(capped.channel_max(), 10);
+        assert_eq!(capped.frame_max(), 8192);
+        assert_eq!(capped.heartbeat(), 10);
     }
 }

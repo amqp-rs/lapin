@@ -744,37 +744,8 @@ impl Channel {
         frame_max: FrameSize,
         heartbeat: Heartbeat,
     ) {
-        // If we disable the heartbeat (0) but the server don't, follow it and enable it too
-        // If both us and the server want heartbeat enabled, pick the lowest value.
-        if self.configuration.heartbeat() == 0
-            || (heartbeat != 0 && heartbeat < self.configuration.heartbeat())
-        {
-            self.configuration.set_heartbeat(heartbeat);
-        }
-
-        if channel_max != 0 {
-            // 0 means we want to take the server's value
-            // If both us and the server specified a channel_max, pick the lowest value.
-            if self.configuration.channel_max() == 0
-                || channel_max < self.configuration.channel_max()
-            {
-                self.configuration.set_channel_max(channel_max);
-            }
-        }
-        if self.configuration.channel_max() == 0 {
-            self.configuration.set_channel_max(ChannelId::MAX);
-        }
-
-        if frame_max != 0 {
-            // 0 means we want to take the server's value
-            // If both us and the server specified a frame_max, pick the lowest value.
-            if self.configuration.frame_max() == 0 || frame_max < self.configuration.frame_max() {
-                self.configuration.set_frame_max(frame_max);
-            }
-        }
-        if self.configuration.frame_max() == 0 {
-            self.configuration.set_frame_max(FrameSize::MAX);
-        }
+        self.configuration
+            .negotiate(channel_max, frame_max, heartbeat);
     }
 
     fn connection_process_error(
