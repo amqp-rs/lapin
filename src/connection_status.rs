@@ -112,7 +112,12 @@ impl ConnectionStatus {
     }
 
     pub(crate) fn auto_close(&self) -> bool {
-        [ConnectionState::Connecting, ConnectionState::Connected].contains(&self.state())
+        [
+            ConnectionState::Connecting,
+            ConnectionState::Connected,
+            ConnectionState::Reconnecting,
+        ]
+        .contains(&self.state())
     }
 
     fn read(&self) -> RwLockReadGuard<'_, StateInner> {
@@ -184,6 +189,12 @@ struct StateInner {
 
 impl StateInner {
     fn set_connecting(&mut self) -> Result<()> {
+        if matches!(
+            self.state,
+            ConnectionState::Closing | ConnectionState::Closed | ConnectionState::Error
+        ) {
+            return Err(ErrorKind::InvalidConnectionState(self.state).into());
+        }
         self.state = ConnectionState::Connecting;
         self.poison.take().map(Err).unwrap_or(Ok(()))
     }

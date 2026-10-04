@@ -82,8 +82,15 @@ impl Channels {
         self.channel0.clone()
     }
 
+    pub(crate) fn status(&self) -> &ConnectionStatus {
+        &self.connection_status
+    }
+
     pub(crate) fn can_recover(&self, error: &Error) -> bool {
-        self.configuration.recovery_config().can_recover(error)
+        !self.connection_status.closing()
+            && !self.connection_status.closed()
+            && !self.connection_status.errored()
+            && self.configuration.recovery_config().can_recover(error)
     }
 
     pub(crate) fn get(&self, id: ChannelId) -> Option<Channel> {

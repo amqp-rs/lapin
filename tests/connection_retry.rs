@@ -382,6 +382,165 @@ async fn oversized_inbound_header_fails_before_payload_arrives() {
     server.join().unwrap();
 }
 
+#[tokio::test]
+async fn explicit_close_does_not_reconnect_after_socket_failure() {
+    let listener = listener();
+    let uri = format!("amqp://{}", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let mut stream = accept(&listener);
+        read_header(&mut stream);
+        send_start(&mut stream);
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::StartOk(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::Tune(connection::Tune {
+                channel_max: 16,
+                frame_max: 4096,
+                heartbeat: 0,
+            }),
+        );
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::TuneOk(_)
+        ));
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::Open(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::OpenOk(connection::OpenOk {}),
+        );
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::Close(_)
+        ));
+        drop(stream);
+        thread::sleep(Duration::from_millis(100));
+        assert!(matches!(listener.accept(), Err(error)
+            if error.kind() == std::io::ErrorKind::WouldBlock));
+    });
+
+    let connection = Connection::connect_with_runtime(
+        &uri,
+        properties(3).enable_auto_recover(),
+        Runtime::tokio_current(),
+    )
+    .await
+    .unwrap();
+    let closed = tokio::time::timeout(TIMEOUT, connection.close(200, "done".into()))
+        .await
+        .expect("close did not settle");
+    // The socket died before Close-Ok: the close settles with that failure.
+    assert!(closed.is_err());
+    // Join off the runtime: lapin must keep running while the server checks
+    // that no reconnection arrives.
+    tokio::task::spawn_blocking(move || server.join().unwrap())
+        .await
+        .unwrap();
+    assert!(!connection.status().reconnecting());
+    assert!(!connection.status().connected());
+}
+
+#[tokio::test]
+async fn dropping_connection_while_reconnecting_stops_retry() {
+    let listener = listener();
+    let uri = format!("amqp://{}", listener.local_addr().unwrap());
+    let (disconnect, proceed) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let mut stream = accept(&listener);
+        read_header(&mut stream);
+        send_start(&mut stream);
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::StartOk(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::Tune(connection::Tune {
+                channel_max: 16,
+                frame_max: 4096,
+                heartbeat: 0,
+            }),
+        );
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::TuneOk(_)
+        ));
+        assert!(matches!(
+            read_method(&mut stream),
+            connection::AMQPMethod::Open(_)
+        ));
+        send_method(
+            &mut stream,
+            connection::AMQPMethod::OpenOk(connection::OpenOk {}),
+        );
+        proceed.recv_timeout(TIMEOUT).unwrap();
+        drop(stream);
+        thread::sleep(Duration::from_millis(400));
+        if let Ok((mut retry, _)) = listener.accept() {
+            retry
+                .set_read_timeout(Some(Duration::from_secs(1)))
+                .unwrap();
+            loop {
+                match retry.read(&mut [0; 1024]) {
+                    Ok(0) => break,
+                    Ok(_) => continue,
+                    Err(error) => panic!("reconnect socket survived handle drop: {error}"),
+                }
+            }
+        }
+        assert!(matches!(listener.accept(), Err(error)
+            if error.kind() == std::io::ErrorKind::WouldBlock));
+    });
+
+    let options = ConnectionProperties::default()
+        .enable_auto_recover()
+        .configure_backoff(|backoff| {
+            backoff
+                .with_min_delay(Duration::from_secs(2))
+                .with_max_delay(Duration::from_secs(2))
+                .with_max_times(3)
+        });
+    let connection = Connection::connect_with_runtime(&uri, options, Runtime::tokio_current())
+        .await
+        .unwrap();
+    let status = connection.status().clone();
+    disconnect.send(()).unwrap();
+    tokio::time::timeout(TIMEOUT, async {
+        while !status.reconnecting() {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("connection did not enter recovery");
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        tokio::task::spawn_blocking(move || connection.run()),
+    )
+    .await
+    .expect("IO thread stayed in reconnect backoff after handle drop")
+    .unwrap()
+    .ok();
+    tokio::time::timeout(Duration::from_millis(100), async {
+        while status.reconnecting() {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("dropping the connection did not end recovery");
+    tokio::task::spawn_blocking(move || server.join().unwrap())
+        .await
+        .unwrap();
+    assert!(
+        status.closed(),
+        "shutdown was overwritten by recovery failure"
+    );
+}
+
 fn listener() -> TcpListener {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();

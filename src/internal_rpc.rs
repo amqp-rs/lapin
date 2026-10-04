@@ -1,5 +1,5 @@
 use crate::{
-    Channel, Connection, Error, ErrorKind, Promise, PromiseResolver, Result,
+    Channel, Connection, ConnectionState, Error, ErrorKind, Promise, PromiseResolver, Result,
     channels::Channels,
     connection_closer::ConnectionCloser,
     consumer_status::ConsumerStatus,
@@ -120,6 +120,11 @@ impl InternalRPCHandle {
         self.send(InternalCommand::CloseConnection(
             reply_code, reply_text, class_id, method_id, None,
         ));
+    }
+
+    /// Close the connection whose last public handle was dropped.
+    pub(crate) fn close_dropped_connection(&self) {
+        self.send(InternalCommand::CloseDroppedConnection);
     }
 
     pub(crate) async fn close_connection_checked(
@@ -292,6 +297,7 @@ enum InternalCommand {
         Identifier,
         Option<PromiseResolver<()>>,
     ),
+    CloseDroppedConnection,
     CreateChannel(Arc<ConnectionCloser>, PromiseResolver<Channel>),
     DeregisterConsumer(ChannelId, ShortString),
     FinishConnectionShutdown,
@@ -551,6 +557,31 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                         self.register_internal_future(fut)
                     }
                 }
+                CloseDroppedConnection => {
+                    if channels.status().reconnecting() {
+                        // Recovery started after the last handle was dropped:
+                        // the connection cannot be closed gracefully anymore.
+                        let error: Error =
+                            ErrorKind::InvalidConnectionState(ConnectionState::Closed).into();
+                        self.frames.clear_all_expected_replies(error.clone());
+                        channels.set_connection_closed(error);
+                    } else if channels.status().auto_close() {
+                        self.heartbeat.cancel();
+                        self.secret_update.cancel();
+                        channels.set_connection_closing();
+                        let channel0 = channels.channel0();
+                        self.register_internal_future(async move {
+                            channel0
+                                .connection_close(
+                                    crate::protocol::constants::REPLY_SUCCESS,
+                                    "OK".into(),
+                                    0,
+                                    0,
+                                )
+                                .await
+                        });
+                    }
+                }
                 CreateChannel(closer, resolver) => match channels.create(closer) {
                     Ok(channel) => self.register_internal_future_with_resolver(
                         async move { channel.clone().channel_open(channel).await },
@@ -761,6 +792,26 @@ mod tests {
             Events::new(status),
         );
         (rpc, channels)
+    }
+
+    #[test]
+    fn dropping_the_last_handle_as_recovery_starts_closes_the_connection() {
+        use std::task::{Context, Waker};
+
+        let (rpc, channels) = create_rpc();
+        let handle = rpc.handle();
+        let closer = Arc::new(ConnectionCloser::new(
+            channels.status().clone(),
+            handle.clone(),
+        ));
+        closer.activate();
+        // The transport failed just before the last handle was dropped.
+        handle.init_connection_recovery(ErrorKind::MissingHeartbeatError.into());
+        drop(closer);
+        let mut dispatcher = std::pin::pin!(rpc.run(channels.clone()));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
+        assert!(channels.status().closed());
     }
 
     #[test]

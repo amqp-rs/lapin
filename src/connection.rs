@@ -306,7 +306,11 @@ impl Connection {
         );
 
         trace!("Sent protocol header to server, waiting for connection flow");
-        promise.await
+        let result = promise.await;
+        if let Ok(connection) = &result {
+            connection.closer.activate();
+        }
+        result
     }
 }
 

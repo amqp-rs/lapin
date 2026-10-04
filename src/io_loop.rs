@@ -8,6 +8,7 @@ use crate::{
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     protocol::{AMQPError, AMQPHardError},
+    runtime,
     socket_state::SocketState,
     thread::JoinHandle,
     types::FrameSize,
@@ -29,6 +30,8 @@ use std::{
 use tracing::{Level, debug, error, trace};
 
 const INITIAL_BUFFER_SIZE: usize = 64 * 1024;
+/// How often connecting and throttling check whether the connection is shutting down.
+const SHUTDOWN_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Debug, PartialEq)]
 enum Status {
@@ -218,14 +221,48 @@ impl<
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
+                    let connect_result = {
                     let connect = || (self.connect)(self.uri.clone(), self.runtime.clone());
                     let runtime = self.runtime.clone();
                     let connect = connect.retry(self.backoff).sleep(move |dur| runtime.sleep(dur));
-                    let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
-                        trace!("Poison connection attempt");
-                        self.connection_status.poison(err.clone());
-                        self.frames.clear_connection_steps(err);
-                    })?;
+                    let status = self.connection_status.clone();
+                    let cancel_runtime = self.runtime.clone();
+                    let cancellation = async move {
+                        loop {
+                            let state = status.state();
+                            if matches!(
+                                state,
+                                ConnectionState::Closing
+                                    | ConnectionState::Closed
+                                    | ConnectionState::Error
+                            ) {
+                                return Err(ErrorKind::InvalidConnectionState(state).into());
+                            }
+                            cancel_runtime.sleep(SHUTDOWN_POLL_INTERVAL).await;
+                        }
+                    };
+                    self.runtime.block_on(runtime::race(cancellation, connect))
+                    };
+                    let mut stream = match connect_result {
+                        Ok(stream) => stream,
+                        Err(err) => {
+                            trace!("Poison connection attempt");
+                            self.connection_status.poison(err.clone());
+                            self.frames.clear_connection_steps(&err);
+                            // A dial canceled by a close ends like a close
+                            // during the throttle.
+                            let result = if matches!(
+                                self.connection_status.state(),
+                                ConnectionState::Closing | ConnectionState::Closed
+                            ) {
+                                Ok(())
+                            } else {
+                                Err(err)
+                            };
+                            self.internal_rpc.stop();
+                            return result;
+                        }
+                    };
                     self.half_closed = false;
                     let mut res = Ok(());
 
@@ -264,6 +301,11 @@ impl<
                     if !connecting && !reconnect {
                         break (stream, res);
                     }
+                    if self.connection_status.closed() {
+                        // Closed during this attempt: whatever is left of the
+                        // backoff, the close was requested.
+                        break (stream, self.end_closed());
+                    }
 
                     let throttle = match self.global_backoff.next() {
                         Some(throttle) => throttle,
@@ -277,7 +319,20 @@ impl<
                         }
                     };
                     debug!("Throttling {:?} before reconnection to avoid flooding", throttle);
-                    std::thread::sleep(throttle);
+                    let started = std::time::Instant::now();
+                    while let Some(remaining) = throttle.checked_sub(started.elapsed()) {
+                        if self.connection_status.closing()
+                            || self.connection_status.closed()
+                            || self.connection_status.errored()
+                        {
+                            break;
+                        }
+                        std::thread::sleep(remaining.min(SHUTDOWN_POLL_INTERVAL));
+                    }
+
+                    if let Some(result) = self.end_after_throttle(&res) {
+                        break (stream, result);
+                    }
 
                     self.reset();
                     if !self.first_connection {
@@ -302,6 +357,39 @@ impl<
 
     fn stop(&mut self) {
         self.status = Status::Stop;
+    }
+
+    /// How the IO loop ends when the connection was closed or failed during
+    /// the reconnect throttle, if it was.
+    fn end_after_throttle(&mut self, res: &Result<()>) -> Option<Result<()>> {
+        let state = self.connection_status.state();
+        // A protocol violation starts a close before it fails the connection:
+        // until the dispatcher fails it, the attempt's error tells it apart
+        // from a requested close.
+        let failed = res.as_ref().is_err_and(|err| !err.is_io_error());
+        match state {
+            ConnectionState::Closed => Some(self.end_closed()),
+            ConnectionState::Closing if !failed => Some(self.end_closed()),
+            // A failed connection ends in Error, whichever of this thread and
+            // the dispatcher gets there first.
+            ConnectionState::Closing | ConnectionState::Error => {
+                let error = res
+                    .clone()
+                    .err()
+                    .unwrap_or_else(|| ErrorKind::InvalidConnectionState(state).into());
+                self.channels.set_connection_error(error.clone());
+                Some(Err(error))
+            }
+            _ => None,
+        }
+    }
+
+    /// End a connection whose close was requested while it was recovering.
+    fn end_closed(&mut self) -> Result<()> {
+        let error: Error = ErrorKind::InvalidConnectionState(ConnectionState::Closed).into();
+        self.frames.drop_pending(error.clone(), &self.internal_rpc);
+        self.channels.set_connection_closed(error);
+        Ok(())
     }
 
     fn poll_socket_events(&mut self) {
@@ -360,7 +448,7 @@ impl<
         if error.is_io_error() {
             connection_killswitch.kill();
         }
-        if self.channels.can_recover(&error) {
+        if !self.connection_status.closing() && self.channels.can_recover(&error) {
             self.internal_rpc.init_connection_recovery(error.clone());
             return Err(error);
         }
@@ -814,5 +902,51 @@ mod tests {
         io_loop.stop();
         assert!(!io_loop.handle_frames(&KillSwitch::default()).unwrap());
         assert_eq!(io_loop.receive_buffer.available_data(), 7);
+    }
+
+    #[test]
+    fn after_the_throttle_a_failure_ends_in_error_and_a_close_closed() {
+        let (mut io_loop, _rpc, channels) = test_io_loop(
+            AMQPUri::default(),
+            ConnectionProperties::default().enable_auto_recover(),
+            ConnectionState::Connecting,
+        );
+        io_loop.first_connection = false;
+        let violation: Error = ErrorKind::ProtocolError(AMQPError::new(
+            AMQPHardError::FRAMEERROR.into(),
+            "frame too large".into(),
+        ))
+        .into();
+        // The dispatcher started the violation's close but did not fail the
+        // connection yet when the throttle ended.
+        channels.set_connection_closing();
+        let result = io_loop.end_after_throttle(&Err(violation));
+        assert!(matches!(
+            result,
+            Some(Err(error)) if matches!(error.kind(), ErrorKind::ProtocolError(_))
+        ));
+        assert!(io_loop.connection_status.errored());
+
+        let (mut io_loop, _rpc, _channels) = test_io_loop(
+            AMQPUri::default(),
+            ConnectionProperties::default().enable_auto_recover(),
+            ConnectionState::Closed,
+        );
+        assert!(matches!(io_loop.end_after_throttle(&Ok(())), Some(Ok(()))));
+        assert!(io_loop.connection_status.closed());
+
+        // A close requested during an attempt that its transport ended.
+        let (mut io_loop, _rpc, channels) = test_io_loop(
+            AMQPUri::default(),
+            ConnectionProperties::default().enable_auto_recover(),
+            ConnectionState::Connecting,
+        );
+        channels.set_connection_closing();
+        let retry: Error = io::Error::from(io::ErrorKind::ConnectionAborted).into();
+        assert!(matches!(
+            io_loop.end_after_throttle(&Err(retry)),
+            Some(Ok(()))
+        ));
+        assert!(io_loop.connection_status.closed());
     }
 }
