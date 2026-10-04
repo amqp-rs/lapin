@@ -18,6 +18,10 @@ on top of an async I/O layer. It is runtime-agnostic: the same code works with
 
 For full API documentation see [docs.rs/lapin](https://docs.rs/lapin).
 
+When the URI does not set `frame_max`, Lapin negotiates at most a 16 MiB frame
+size. Set `frame_max` in the URI to request a larger limit. I/O buffers grow as
+needed up to the negotiated limit.
+
 ## Quick start
 
 ```rust,no_run

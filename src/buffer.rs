@@ -3,10 +3,16 @@ use amq_protocol::frame::{BackToTheBuffer, GenError, GenResult, WriteContext};
 use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     cmp,
+    collections::TryReserveError,
     io::{self, IoSlice, IoSliceMut},
     pin::Pin,
     task::{Context, Poll},
 };
+
+/// The type, channel and size that precede a frame's payload
+const FRAME_HEADER_LEN: usize = 7;
+/// The bytes a frame adds to its payload: its header and its end octet
+pub(crate) const FRAME_OVERHEAD: usize = FRAME_HEADER_LEN + 1;
 
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct Buffer {
@@ -51,14 +57,15 @@ impl Buffer {
         self.available_data = checkpoint.available_data;
     }
 
-    pub(crate) fn grow(&mut self, new_size: usize) -> bool {
+    pub(crate) fn grow(&mut self, new_size: usize) -> Result<bool, TryReserveError> {
         if self.capacity >= new_size {
-            return false;
+            return Ok(false);
         }
 
         let old_capacity = self.capacity;
         let growth = new_size - old_capacity;
 
+        self.memory.try_reserve_exact(new_size - old_capacity)?;
         self.memory.resize(new_size, 0);
         self.capacity = new_size;
 
@@ -81,11 +88,27 @@ impl Buffer {
             }
         }
 
-        true
+        Ok(true)
     }
 
     pub(crate) fn available_data(&self) -> usize {
         self.available_data
+    }
+
+    pub(crate) fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    pub(crate) fn frame_wire_len(&self) -> Option<u64> {
+        if self.available_data < FRAME_HEADER_LEN {
+            return None;
+        }
+        let byte = |offset: usize| self.memory[(self.position + offset) % self.capacity];
+        if [byte(0), byte(1), byte(2), byte(3)] == *b"AMQP" {
+            return None;
+        }
+        let size = u32::from_be_bytes([byte(3), byte(4), byte(5), byte(6)]) as u64;
+        Some(size + FRAME_OVERHEAD as u64)
     }
 
     pub(crate) fn available_space(&self) -> usize {
@@ -241,10 +264,36 @@ mod tests {
         buffer.end = 2;
         buffer.available_data = 4;
 
-        assert!(buffer.grow(16));
+        assert!(buffer.grow(16).unwrap());
         assert_eq!(buffer.capacity, 16);
         assert_eq!(buffer.available_data(), 4);
         assert_eq!(&buffer.memory[buffer.position..buffer.end], &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn grow_preserves_wrapped_data_when_tail_exceeds_growth() {
+        // A tail longer than the growth, then one exactly as long.
+        for tail in [3u8, 2] {
+            let mut buffer = Buffer::with_capacity(8);
+            buffer.memory[5..8].copy_from_slice(&[1, 2, 3]);
+            let tail_data = (10..10 + tail).collect::<Vec<_>>();
+            buffer.memory[..tail as usize].copy_from_slice(&tail_data);
+            buffer.position = 5;
+            buffer.end = tail as usize;
+            buffer.available_data = 3 + tail as usize;
+
+            assert!(buffer.grow(10).unwrap());
+            assert_eq!(buffer.capacity, 10);
+            assert_eq!(buffer.available_data(), 3 + tail as usize);
+            assert_eq!(
+                buffer.end,
+                (buffer.position + buffer.available_data()) % buffer.capacity
+            );
+            let data = (0..buffer.available_data())
+                .map(|offset| buffer.memory[(buffer.position + offset) % buffer.capacity])
+                .collect::<Vec<_>>();
+            assert_eq!(data, [&[1, 2, 3][..], &tail_data].concat());
+        }
     }
 
     #[test]
@@ -256,5 +305,27 @@ mod tests {
         buffer.rollback(checkpoint);
         assert_eq!(buffer.available_data(), 0);
         assert_eq!(buffer.available_space(), 8);
+    }
+
+    #[test]
+    fn frame_size_hint_reads_wrapped_header() {
+        let mut buffer = Buffer::with_capacity(10);
+        buffer.position = 7;
+        buffer.end = 4;
+        buffer.available_data = 7;
+        for (index, byte) in [1, 0, 0, 0, 0, 1, 0].iter().enumerate() {
+            buffer.memory[(7 + index) % 10] = *byte;
+        }
+        assert_eq!(buffer.frame_wire_len(), Some(264));
+    }
+
+    #[test]
+    fn frame_size_hint_does_not_overflow_on_32_bit_targets() {
+        let mut buffer = Buffer::with_capacity(7);
+        buffer
+            .memory
+            .copy_from_slice(&[1, 0, 0, 255, 255, 255, 255]);
+        buffer.fill(7);
+        assert_eq!(buffer.frame_wire_len(), Some(u32::MAX as u64 + 8));
     }
 }

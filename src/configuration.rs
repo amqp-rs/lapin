@@ -25,6 +25,10 @@ pub struct Configuration {
     pub(crate) auto_recover: bool,
 }
 
+// A zero URI frame_max means no requested cap. Keep that case bounded so a
+// broker's unlimited offer cannot make an untrusted frame allocate gigabytes.
+pub(crate) const DEFAULT_FRAME_MAX: FrameSize = 16 * 1024 * 1024;
+
 impl Configuration {
     pub(crate) fn new(uri: &AMQPUri, options: ConnectionProperties) -> Self {
         let ConnectionProperties {
@@ -131,6 +135,10 @@ impl NegotiatedConfig {
         self.read_inner().frame_max
     }
 
+    pub(crate) fn pre_tune_frame_max(&self) -> FrameSize {
+        self.read_inner().requested_frame_max.max(DEFAULT_FRAME_MAX)
+    }
+
     pub(crate) fn heartbeat(&self) -> Heartbeat {
         self.read_inner().heartbeat
     }
@@ -149,8 +157,8 @@ impl NegotiatedConfig {
             (client, server) => client.min(server),
         };
         inner.frame_max = match (inner.requested_frame_max, frame_max) {
-            (0, 0) => FrameSize::MAX,
-            (0, server) => server,
+            (0, 0) => DEFAULT_FRAME_MAX,
+            (0, server) => server.min(DEFAULT_FRAME_MAX),
             (client, 0) => client,
             (client, server) => client.min(server),
         }

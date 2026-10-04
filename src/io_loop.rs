@@ -1,13 +1,13 @@
 use crate::{
     AsyncTcpStream, ConnectionState, ConnectionStatus, Error, ErrorKind, Result,
-    buffer::Buffer,
+    buffer::{Buffer, FRAME_OVERHEAD},
     channels::Channels,
     configuration::NegotiatedConfig,
     frames::{FrameSending, Frames},
     heartbeat::Heartbeat,
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
-    protocol::{self, AMQPError, AMQPHardError},
+    protocol::{AMQPError, AMQPHardError},
     socket_state::SocketState,
     thread::JoinHandle,
     types::FrameSize,
@@ -28,7 +28,7 @@ use std::{
 };
 use tracing::{Level, debug, error, trace};
 
-const FRAMES_STORAGE: usize = 32;
+const INITIAL_BUFFER_SIZE: usize = 64 * 1024;
 
 #[derive(Debug, PartialEq)]
 enum Status {
@@ -57,12 +57,12 @@ pub(crate) struct IoLoop<
     backoff: ExponentialBuilder,
     global_backoff: ExponentialBackoff,
     status: Status,
-    frame_size: FrameSize,
     receive_buffer: Buffer,
     send_buffer: Buffer,
     serialized_frames: VecDeque<(FrameSize, FrameSending)>,
     half_closed: bool,
     first_connection: bool,
+    handshake_done: bool,
 }
 
 impl<
@@ -87,10 +87,6 @@ impl<
         uri: AMQPUri,
         backoff: ExponentialBuilder,
     ) -> Self {
-        let frame_size = std::cmp::max(
-            protocol::constants::FRAME_MIN_SIZE,
-            configuration.frame_max(),
-        );
         let global_backoff = backoff.build();
 
         Self {
@@ -107,17 +103,18 @@ impl<
             backoff,
             global_backoff,
             status: Status::Initial,
-            frame_size,
-            receive_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
-            send_buffer: Buffer::with_capacity(FRAMES_STORAGE * frame_size as usize),
+            receive_buffer: Buffer::with_capacity(INITIAL_BUFFER_SIZE),
+            send_buffer: Buffer::with_capacity(INITIAL_BUFFER_SIZE),
             serialized_frames: VecDeque::default(),
             half_closed: false,
             first_connection: true,
+            handshake_done: false,
         }
     }
 
     fn reset(&mut self) {
         self.status = Status::Initial;
+        self.handshake_done = false;
         self.receive_buffer.reset();
         self.send_buffer.reset();
         self.socket_state.reset();
@@ -125,12 +122,6 @@ impl<
 
     fn finish_setup(&mut self) -> Result<bool> {
         if self.connection_status.connected() {
-            let frame_max = self.configuration.frame_max();
-            self.frame_size = std::cmp::max(self.frame_size, frame_max);
-            self.receive_buffer
-                .grow(FRAMES_STORAGE * self.frame_size as usize);
-            self.send_buffer
-                .grow(FRAMES_STORAGE * self.frame_size as usize);
             let heartbeat = self.configuration.heartbeat();
             if heartbeat != 0 {
                 let heartbeat = Duration::from_millis(u64::from(heartbeat) * 500); // * 1000 (ms) / 2 (half the negotiated timeout)
@@ -138,6 +129,7 @@ impl<
             }
             self.internal_rpc.start_secret_update();
             self.status = Status::Connected;
+            self.handshake_done = true;
             self.global_backoff = self.backoff.build();
             self.first_connection = false;
         }
@@ -170,6 +162,16 @@ impl<
 
     fn can_parse(&self) -> bool {
         self.receive_buffer.available_data() > 0
+    }
+
+    fn frame_limit(&self) -> usize {
+        // The negotiated limit applies once this transport completed its
+        // handshake, even once it stops.
+        if !self.handshake_done {
+            self.configuration.pre_tune_frame_max() as usize
+        } else {
+            self.configuration.frame_max() as usize
+        }
     }
 
     fn connecting(&self) -> bool {
@@ -428,8 +430,7 @@ impl<
         connection_killswitch: &KillSwitch,
     ) -> Result<()> {
         while self.can_write() {
-            let res =
-                self.write_to_stream(stream.as_mut(), writable_context, connection_killswitch);
+            let res = self.write_to_stream(stream.as_mut(), writable_context);
             self.handle_io_result(connection_killswitch, res)?;
         }
         Ok(())
@@ -457,10 +458,9 @@ impl<
         &mut self,
         mut stream: Pin<&mut T>,
         writable_context: &mut Context<'_>,
-        connection_killswitch: &KillSwitch,
     ) -> Result<()> {
         self.flush(stream.as_mut(), writable_context)?;
-        self.serialize(connection_killswitch)?;
+        self.serialize()?;
 
         if self.send_buffer.available_data() == 0 {
             return Ok(());
@@ -573,29 +573,59 @@ impl<
         Ok(false)
     }
 
-    fn serialize(&mut self, connection_killswitch: &KillSwitch) -> Result<()> {
+    fn serialize(&mut self) -> Result<()> {
         while let Some(next_msg) = self.frames.pop() {
+            // A body frame that cannot fit behind the data already buffered
+            // waits for that data to be written, without being copied first.
+            if let AMQPFrame::Body(_, payload) = &*next_msg
+                && self.send_buffer.available_data() > 0
+                && self.send_buffer.available_space() < payload.len() + FRAME_OVERHEAD
+            {
+                self.frames.retry(next_msg);
+                break;
+            }
             trace!("will write frame to buffer");
             let checkpoint = self.send_buffer.checkpoint();
             let res = gen_frame(&next_msg)((&mut self.send_buffer).into());
             match res.map(|w| w.into_inner().1) {
+                Ok(sz) if sz > self.frame_limit() as u64 => {
+                    self.send_buffer.rollback(checkpoint);
+                    let error: Error =
+                        ErrorKind::SerialisationError(Arc::new(GenError::BufferTooSmall(
+                            usize::try_from(sz - self.frame_limit() as u64).unwrap_or(usize::MAX),
+                        )))
+                        .into();
+                    next_msg.reject(error.clone());
+                    return Err(error);
+                }
                 Ok(sz) => self
                     .serialized_frames
                     .push_back(next_msg.into_serialized_frame(sz as FrameSize)),
                 Err(e) => {
                     self.send_buffer.rollback(checkpoint);
                     match e {
-                        GenError::BufferTooSmall(_) => {
-                            // Requeue msg
+                        GenError::BufferTooSmall(needed) => {
                             self.frames.retry(next_msg);
-                            break;
+                            if self.send_buffer.available_data() > 0 {
+                                break;
+                            }
+                            let capacity = self.send_buffer.capacity();
+                            let target = capacity
+                                .saturating_add(needed)
+                                .max(capacity.saturating_mul(2))
+                                .min(self.frame_limit());
+                            if target <= capacity || self.send_buffer.grow(target).is_err() {
+                                return Err(ErrorKind::SerialisationError(Arc::new(
+                                    GenError::BufferTooSmall(needed),
+                                ))
+                                .into());
+                            }
                         }
                         e => {
                             error!(error=?e, "error generating frame");
-                            self.critical_error(
-                                connection_killswitch,
-                                ErrorKind::SerialisationError(Arc::new(e)).into(),
-                            )?;
+                            let error: Error = ErrorKind::SerialisationError(Arc::new(e)).into();
+                            next_msg.reject(error.clone());
+                            return Err(error);
                         }
                     }
                 }
@@ -620,6 +650,32 @@ impl<
     }
 
     fn parse(&mut self, connection_killswitch: &KillSwitch) -> Result<Option<AMQPFrame>> {
+        if let Some(wire_len) = self.receive_buffer.frame_wire_len() {
+            if wire_len > self.frame_limit() as u64 {
+                let error = AMQPError::new(
+                    AMQPHardError::FRAMEERROR.into(),
+                    format!("frame too large: {wire_len} bytes").into(),
+                );
+                self.channels
+                    .channel0()
+                    .report_protocol_violation(error, 0, 0)?;
+            }
+            let wire_len = wire_len as usize;
+            if wire_len > self.receive_buffer.capacity()
+                && let Err(err) = self.receive_buffer.grow(wire_len)
+            {
+                // The frame is within the negotiated size: this transport
+                // is fine, but the connection cannot go on without it.
+                error!(bytes = wire_len, %err, "cannot allocate the receive buffer for a frame");
+                let error = AMQPError::new(
+                    AMQPHardError::RESOURCEERROR.into(),
+                    format!("cannot buffer a frame of {wire_len} bytes").into(),
+                );
+                self.channels
+                    .channel0()
+                    .report_protocol_violation(error, 0, 0)?;
+            }
+        }
         match parse_frame(self.receive_buffer.parsing_context()) {
             Ok((i, f)) => {
                 let consumed = self.receive_buffer.offset(i);
@@ -669,4 +725,94 @@ fn io_loop_span(connect_span: tracing::Span) -> tracing::Span {
     // connect operation, so we set it as a follows_from relationship.
     span.follows_from(&connect_span);
     span
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ConnectionProperties, configuration::Configuration, events::Events,
+        internal_rpc::InternalRPC, runtime, secret_update::SecretUpdate,
+    };
+
+    type TestKit = runtime::DefaultRuntimeKit;
+
+    /// An IO loop whose connection is in `state`, with a dispatcher that is
+    /// created but not started.
+    #[allow(clippy::type_complexity)]
+    fn test_io_loop(
+        uri: AMQPUri,
+        properties: ConnectionProperties,
+        state: ConnectionState,
+    ) -> (
+        IoLoop<
+            TestKit,
+            impl AsyncFn(
+                AMQPUri,
+                Runtime<TestKit>,
+            ) -> Result<AsyncTcpStream<<TestKit as Reactor>::TcpStream>>
+            + Send
+            + Sync
+            + 'static,
+        >,
+        InternalRPC<TestKit>,
+        Channels,
+    ) {
+        let runtime = runtime::default_runtime().unwrap();
+        let configuration = Configuration::new(&uri, properties);
+        let status = ConnectionStatus::new(&uri);
+        status.set_state(state);
+        let frames = Frames::default();
+        let socket_state = SocketState::default();
+        let handle = socket_state.handle();
+        let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
+        let secret_update = SecretUpdate::new(
+            status.clone(),
+            runtime.clone(),
+            configuration.auth_provider.clone(),
+        );
+        let rpc = InternalRPC::new(
+            runtime.clone(),
+            heartbeat.clone(),
+            secret_update,
+            frames.clone(),
+            handle.clone(),
+        );
+        let channels = Channels::new(
+            configuration.clone(),
+            status.clone(),
+            handle,
+            rpc.handle(),
+            frames.clone(),
+            Events::new(status.clone()),
+        );
+        let io_loop = IoLoop::new(
+            status,
+            configuration.negotiated_config,
+            channels.clone(),
+            rpc.handle(),
+            frames,
+            socket_state,
+            heartbeat,
+            runtime,
+            async |_, _| Err(Error::other("unexpected connection attempt")),
+            uri,
+            ExponentialBuilder::default(),
+        );
+        (io_loop, rpc, channels)
+    }
+
+    #[test]
+    fn a_transport_stopped_before_tune_keeps_the_pre_tune_frame_limit() {
+        let (mut io_loop, _rpc, _channels) = test_io_loop(
+            AMQPUri::default(),
+            ConnectionProperties::default(),
+            ConnectionState::Connecting,
+        );
+        // The header of a Connection.Start whose payload has not arrived yet.
+        io::Write::write_all(&mut &mut io_loop.receive_buffer, &[1, 0, 0, 0, 0, 1, 0]).unwrap();
+        io_loop.stop();
+        assert!(!io_loop.handle_frames(&KillSwitch::default()).unwrap());
+        assert_eq!(io_loop.receive_buffer.available_data(), 7);
+    }
 }

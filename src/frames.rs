@@ -250,7 +250,7 @@ impl FrameEntry {
         )
     }
 
-    fn reject(&self, error: Error) {
+    pub(crate) fn reject(&self, error: Error) {
         self.sending.reject(error)
     }
 
