@@ -22,7 +22,7 @@ use amq_protocol::frame::{AMQPFrame, ProtocolVersion};
 use async_rs::{Runtime, traits::*};
 use async_trait::async_trait;
 use futures_core::Stream;
-use std::{fmt, sync::Arc};
+use std::{fmt, future::Future, sync::Arc};
 use tracing::trace;
 
 /// A TCP connection to the AMQP server.
@@ -360,13 +360,36 @@ impl Connect for AMQPUri {
             self,
             runtime,
             async move |uri, runtime| {
-                AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
-                    .await
-                    .map_err(|err| Error::io(err, &runtime))
+                let connect = async {
+                    AMQPUriTcpExt::connect_with_config_async(&uri, config.as_ref(), &runtime)
+                        .await
+                        .map_err(|err| Error::io(err, &runtime))
+                };
+                with_connection_timeout(uri.query.connection_timeout(), &runtime, connect).await
             },
             options,
         )
         .await
+    }
+}
+
+async fn with_connection_timeout<RK, T, F>(
+    timeout: Option<std::time::Duration>,
+    runtime: &Runtime<RK>,
+    connect: F,
+) -> Result<T>
+where
+    RK: RuntimeKit,
+    F: Future<Output = Result<T>>,
+{
+    if let Some(timeout) = timeout {
+        let deadline = async {
+            runtime.sleep(timeout).await;
+            Err(std::io::Error::from(std::io::ErrorKind::TimedOut).into())
+        };
+        runtime::race(connect, deadline).await
+    } else {
+        connect.await
     }
 }
 
@@ -401,10 +424,33 @@ mod tests {
         frame::AMQPContentHeader,
         protocol::{AMQPClass, basic},
     };
+    use std::task::Poll;
 
     fn create_connection() -> (Connection, Channels, InternalRPCHandle) {
         let (conn, channels, internal_rpc, _) = create_connection_with_frames();
         (conn, channels, internal_rpc)
+    }
+
+    #[cfg(feature = "tokio")]
+    #[tokio::test]
+    async fn uri_connection_timeout_bounds_async_transport() {
+        let runtime = Runtime::tokio_current();
+        let pending = std::future::pending::<Result<()>>();
+        let error = with_connection_timeout(
+            Some(std::time::Duration::from_millis(10)),
+            &runtime,
+            pending,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::IOError(error)
+            if error.kind() == std::io::ErrorKind::TimedOut));
+
+        assert!(
+            with_connection_timeout(None, &runtime, async { Ok(()) })
+                .await
+                .is_ok()
+        );
     }
 
     fn create_connection_with_frames() -> (Connection, Channels, InternalRPCHandle, Frames) {
@@ -534,7 +580,7 @@ mod tests {
         frames.clear_connection_steps(&ErrorKind::MissingHeartbeatError.into());
         assert!(matches!(
             connecting.as_mut().poll(&mut cx),
-            std::task::Poll::Ready(Err(_))
+            Poll::Ready(Err(_))
         ));
         assert!(!frames.retry_connection_header());
     }
@@ -571,7 +617,7 @@ mod tests {
         assert!(wake.0.load(Ordering::SeqCst));
         assert!(status.reconnecting());
         match connecting.as_mut().poll(&mut cx) {
-            std::task::Poll::Ready(Err(actual)) => {
+            Poll::Ready(Err(actual)) => {
                 assert!(matches!(actual.kind(), ErrorKind::MissingHeartbeatError));
             }
             other => panic!("expected the handshake to fail, got {other:?}"),

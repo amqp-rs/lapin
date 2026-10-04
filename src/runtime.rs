@@ -43,3 +43,17 @@ cfg_if! {
         decl_default_runtime! { Err(crate::ErrorKind::NoDefaultRuntime.into()) }
     }
 }
+
+/// Poll `first`, then `second`, and return the output of whichever completes
+/// first.
+pub(crate) async fn race<T>(first: impl Future<Output = T>, second: impl Future<Output = T>) -> T {
+    let mut first = std::pin::pin!(first);
+    let mut second = std::pin::pin!(second);
+    std::future::poll_fn(|cx| {
+        if let std::task::Poll::Ready(output) = first.as_mut().poll(cx) {
+            return std::task::Poll::Ready(output);
+        }
+        second.as_mut().poll(cx)
+    })
+    .await
+}

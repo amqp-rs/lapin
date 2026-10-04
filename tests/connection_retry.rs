@@ -304,6 +304,40 @@ async fn inbound_handshake_frame_grows_past_initial_buffer() {
         .unwrap();
 }
 
+#[cfg(any(feature = "rustls", feature = "native-tls", feature = "openssl"))]
+#[tokio::test]
+async fn uri_connection_timeout_bounds_the_dial() {
+    let listener = listener();
+    let uri = format!(
+        "amqps://{}/?connection_timeout=200",
+        listener.local_addr().unwrap()
+    );
+    let (done, wait_done) = std::sync::mpsc::channel::<()>();
+    // A peer that accepts the TCP connection but never answers the TLS
+    // handshake keeps the dial pending.
+    let server = thread::spawn(move || {
+        let _stream = accept(&listener);
+        let _ = wait_done.recv_timeout(TIMEOUT);
+    });
+    let started = std::time::Instant::now();
+    let error = tokio::time::timeout(
+        TIMEOUT,
+        Connection::connect_with_runtime(&uri, properties(0), Runtime::tokio_current()),
+    )
+    .await
+    .expect("the dial outlived the URI's connection_timeout")
+    .unwrap_err();
+    assert!(
+        matches!(error.kind(), ErrorKind::IOError(error) if error.kind() == std::io::ErrorKind::TimedOut),
+        "unexpected error: {error}"
+    );
+    assert!(started.elapsed() >= Duration::from_millis(200));
+    done.send(()).unwrap();
+    tokio::task::spawn_blocking(move || server.join().unwrap())
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn oversized_outbound_handshake_frame_fails_instead_of_retrying_forever() {
     let listener = listener();
