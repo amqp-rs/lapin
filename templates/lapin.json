@@ -476,6 +476,30 @@
     }
   },
   "basic": {
+    "qos": {
+      "metadata": {
+        "state": [
+          {
+            "name": "prefetch_count",
+            "type": "ShortUInt"
+          },
+          {
+            "name": "global",
+            "type": "Boolean"
+          }
+        ]
+      }
+    },
+    "qos-ok": {
+      "metadata": {
+        "received_hook": {
+          "params": [
+            "prefetch_count",
+            "global"
+          ]
+        }
+      }
+    },
     "consume": {
       "metadata": {
         "require_wrapper": true,

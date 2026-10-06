@@ -388,9 +388,10 @@ impl Connect for &str {
 mod tests {
     use super::*;
     use crate::{
-        BasicProperties, ChannelState, ConnectionProperties, ConnectionState, ErrorKind,
+        BasicProperties, ChannelQos, ChannelState, ConnectionProperties, ConnectionState,
+        ErrorKind,
         channel_receiver_state::{ChannelReceiverState, DeliveryCause},
-        options::BasicConsumeOptions,
+        options::{BasicConsumeOptions, BasicQosOptions},
         secret_update::SecretUpdate,
         types::{ChannelId, FieldTable, ShortString},
     };
@@ -575,6 +576,52 @@ mod tests {
         assert_eq!(
             channels.create(conn.closer.clone()),
             Err(ErrorKind::ChannelsLimitReached.into())
+        );
+    }
+
+    #[test]
+    fn basic_qos_is_recorded_for_recovery() {
+        use std::{
+            future::Future,
+            task::{Context, Poll},
+        };
+
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let (conn, channels, _) = create_connection();
+        conn.configuration.negotiated_config.set_channel_max(2047);
+        let channel = channels.create(conn.closer.clone()).unwrap();
+        channel.set_state(ChannelState::Connected);
+        let mut cx = Context::from_waker(std::task::Waker::noop());
+
+        // Both the per-consumer and the channel-wide settings get tracked.
+        for (prefetch_count, global) in [(12, false), (42, true)] {
+            let mut qos = Box::pin(channel.basic_qos(prefetch_count, BasicQosOptions { global }));
+            assert!(qos.as_mut().poll(&mut cx).is_pending());
+            let qos_ok = AMQPFrame::Method(
+                channel.id(),
+                AMQPClass::Basic(basic::AMQPMethod::QosOk(basic::QosOk {})),
+            );
+            channels.handle_frame(qos_ok).unwrap();
+            assert!(matches!(qos.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
+        }
+
+        assert_eq!(
+            channel.status().qos(),
+            ChannelQos {
+                prefetch_count: Some(12),
+                global_prefetch_count: Some(42),
+            }
+        );
+
+        // They must outlive the failure so that start_recovery can replay them.
+        channel.init_recovery(ErrorKind::MissingHeartbeatError.into());
+        assert_eq!(
+            channel.status().qos(),
+            ChannelQos {
+                prefetch_count: Some(12),
+                global_prefetch_count: Some(42),
+            }
         );
     }
 

@@ -107,9 +107,10 @@ impl ConnectionProperties {
     /// Enable automatic connection and topology recovery after failures.
     ///
     /// When enabled the IO loop will transparently reconnect on network errors
-    /// and replay the exchange/queue/binding/consumer topology on the new
-    /// connection. Also sets a default TCP reconnect backoff (16 attempts with
-    /// exponential delay) unless you have already called [`with_backoff`] or
+    /// and replay the exchange/queue/binding/consumer topology, along with the
+    /// publisher confirms and QoS settings, on the new connection. Also sets a
+    /// default TCP reconnect backoff (16 attempts with exponential delay)
+    /// unless you have already called [`with_backoff`] or
     /// [`configure_backoff`].
     ///
     /// After catching a recoverable error on a channel, call
