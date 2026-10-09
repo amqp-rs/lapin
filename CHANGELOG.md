@@ -1,3 +1,9 @@
+### 4.12.1 (2026-10-09)
+
+#### Bug Fixes
+
+* Properly reapply basic qos when recovering connection
+
 ### 4.12.0 (2026-09-18)
 
 #### Bug Fixes
