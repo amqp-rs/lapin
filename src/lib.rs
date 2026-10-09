@@ -82,8 +82,8 @@
 //! # Automatic connection recovery
 //!
 //! Enable recovery in [`ConnectionProperties`] to automatically reconnect and
-//! replay topology (exchanges, queues, bindings, consumers) after a network
-//! failure:
+//! replay topology (exchanges, queues, bindings, QoS settings, consumers) after
+//! a network failure:
 //!
 //! ```rust,no_run
 //! use lapin::ConnectionProperties;
@@ -153,7 +153,7 @@ pub use amq_protocol::{
 
 pub use acker::Acker;
 pub use channel::{Channel, options};
-pub use channel_status::{ChannelState, ChannelStatus};
+pub use channel_status::{ChannelQos, ChannelState, ChannelStatus};
 pub use configuration::Configuration;
 pub use connection::{Connect, Connection};
 pub use connection_builder::{ConnectionBuilder, DefaultConnectionBuilder};

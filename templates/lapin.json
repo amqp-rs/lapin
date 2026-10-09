@@ -476,6 +476,23 @@
     }
   },
   "basic": {
+    "ack": {
+      "metadata": {
+        "end_hook": {
+          "params": ["multiple", "delivery_tag"]
+        }
+      }
+    },
+    "cancel": {
+      "metadata": {
+        "start_hook": {
+          "params": ["consumer_tag.as_str()"]
+        },
+        "nowait_hook": {
+          "fields": ["consumer_tag"]
+        }
+      }
+    },
     "consume": {
       "metadata": {
         "require_wrapper": true,
@@ -523,13 +540,25 @@
         }
       }
     },
-    "cancel": {
+    "get": {
       "metadata": {
-        "start_hook": {
-          "params": ["consumer_tag.as_str()"]
-        },
-        "nowait_hook": {
-          "fields": ["consumer_tag"]
+        "require_wrapper": true,
+        "extra_args": [
+          {
+            "name": "original",
+            "type": "Option<PromiseResolver<Option<BasicGetMessage>>>"
+          }
+        ],
+        "resolver_hook": "let resolver = original.unwrap_or(resolver);",
+        "confirmation": {
+          "type": "Option<BasicGetMessage>"
+        }
+      }
+    },
+    "nack": {
+      "metadata": {
+        "end_hook": {
+          "params": ["multiple", "delivery_tag"]
         }
       }
     },
@@ -554,25 +583,24 @@
         }
       }
     },
-    "get": {
+    "qos": {
       "metadata": {
-        "require_wrapper": true,
-        "extra_args": [
+        "state": [
           {
-            "name": "original",
-            "type": "Option<PromiseResolver<Option<BasicGetMessage>>>"
+            "name": "prefetch_count",
+            "type": "ShortUInt"
+          },
+          {
+            "name": "global",
+            "type": "Boolean"
           }
-        ],
-        "resolver_hook": "let resolver = original.unwrap_or(resolver);",
-        "confirmation": {
-          "type": "Option<BasicGetMessage>"
-        }
+        ]
       }
     },
-    "ack": {
+    "qos-ok": {
       "metadata": {
-        "end_hook": {
-          "params": ["multiple", "delivery_tag"]
+        "received_hook": {
+          "params": ["prefetch_count", "global"]
         }
       }
     },
@@ -584,13 +612,6 @@
     "recover-ok": {
       "metadata": {
         "received_hook": true
-      }
-    },
-    "nack": {
-      "metadata": {
-        "end_hook": {
-          "params": ["multiple", "delivery_tag"]
-        }
       }
     }
   },

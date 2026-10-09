@@ -381,12 +381,24 @@ impl Channel {
         // First, reopen the channel
         self.channel_open(self.clone()).await?;
 
-        // Then, reenable confirm_select if needed
+        // Reenable confirm_select if needed
         if self.status.confirm() {
             self.confirm_select(ConfirmSelectOptions::default()).await?;
         }
 
-        // Third, redeclare all exchanges
+        // Reapply the QoS settings if any, before any consumer gets
+        // recreated, so that the broker doesn't flood us with deliveries
+        let qos = self.status.qos();
+        if let Some(prefetch_count) = qos.prefetch_count {
+            self.basic_qos(prefetch_count, BasicQosOptions { global: false })
+                .await?;
+        }
+        if let Some(prefetch_count) = qos.global_prefetch_count {
+            self.basic_qos(prefetch_count, BasicQosOptions { global: true })
+                .await?;
+        }
+
+        // Redeclare all exchanges
         for ex in &topology.exchanges {
             if ex.is_declared {
                 self.exchange_declare(
@@ -399,7 +411,7 @@ impl Channel {
             }
         }
 
-        // Fourth, redeclare all exchange bindings
+        // Redeclare all exchange bindings
         for ex in &topology.exchanges {
             for binding in &ex.bindings {
                 self.exchange_bind(
@@ -413,7 +425,7 @@ impl Channel {
             }
         }
 
-        // Fifth, redeclare all queues
+        // Redeclare all queues
         for queue in &topology.queues {
             if queue.is_declared {
                 self.queue_declare(
@@ -425,7 +437,7 @@ impl Channel {
             }
         }
 
-        // Sixth, redeclare all queues bindings
+        // Redeclare all queues bindings
         for queue in &topology.queues {
             for binding in &queue.bindings {
                 self.queue_bind(
@@ -439,7 +451,7 @@ impl Channel {
             }
         }
 
-        // Finally, redeclare all consumers
+        // Redeclare all consumers
         for consumer in topology.consumers.iter().cloned() {
             consumer.reset();
             self.do_basic_consume(
@@ -1344,6 +1356,11 @@ impl Channel {
                 method.reply_text,
                 killswitch,
             ));
+        Ok(())
+    }
+
+    fn on_basic_qos_ok_received(&self, prefetch_count: ShortUInt, global: Boolean) -> Result<()> {
+        self.status.set_qos(prefetch_count, global);
         Ok(())
     }
 

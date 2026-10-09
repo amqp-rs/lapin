@@ -217,7 +217,7 @@ use options::*;
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum Reply {
     ConnectionStep(ConnectionStep),
-    BasicQosOk(PromiseResolver<()>),
+    BasicQosOk(PromiseResolver<()>, ShortUInt, Boolean),
     BasicConsumeOk(
         PromiseResolver<Consumer>,
         Option<Arc<ChannelCloser>>,
@@ -408,6 +408,13 @@ impl Channel {
     /// (`true`).
     ///
     /// Call this before [`Channel::basic_consume`] to control back-pressure.
+    ///
+    /// The settings confirmed by the broker are recorded in
+    /// [`ChannelStatus::qos`](crate::ChannelStatus::qos) and resent when the
+    /// channel is recovered, before the recovered consumers are recreated, so that
+    /// they keep their prefetch limit. Consumers you register yourself as soon as
+    /// recovery completes may still race ahead of that replay; call `basic_qos`
+    /// again before them if the limit matters.
     pub async fn basic_qos(
         &self,
         prefetch_count: ShortUInt,
@@ -419,7 +426,7 @@ impl Channel {
 
         let BasicQosOptions { global } = options;
         let (promise, resolver) = Promise::new("basic.qos");
-        let reply = Reply::BasicQosOk(resolver.clone());
+        let reply = Reply::BasicQosOk(resolver.clone(), prefetch_count, global);
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Qos(protocol::basic::Qos {
             prefetch_count,
             global,
@@ -442,7 +449,10 @@ impl Channel {
             .frames
             .find_expected_reply(self.id, |reply| matches!(&reply.0, Reply::BasicQosOk(..)))
         {
-            Some(Reply::BasicQosOk(resolver)) => fwd_res(Ok(()), Some(resolver)),
+            Some(Reply::BasicQosOk(resolver, prefetch_count, global)) => fwd_res(
+                self.on_basic_qos_ok_received(prefetch_count, global),
+                Some(resolver),
+            ),
             unexpected => self.handle_invalid_contents(
                 format!(
                     "unexpected basic qos-ok received on channel {}, was awaiting for {:?}",

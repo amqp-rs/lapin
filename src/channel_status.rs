@@ -6,7 +6,7 @@ use crate::{
     killswitch::KillSwitch,
     notifier::Notifier,
     topology::ChannelDefinition,
-    types::{ChannelId, Identifier, PayloadSize},
+    types::{ChannelId, Identifier, PayloadSize, ShortUInt},
 };
 use std::{
     fmt,
@@ -86,6 +86,26 @@ impl ChannelStatus {
         inner.confirm = true;
         trace!("Publisher confirms activated");
         inner.finalize_connection();
+    }
+
+    /// Returns the quality-of-service settings currently applied to this channel.
+    ///
+    /// These are the settings the broker has confirmed through
+    /// [`Channel::basic_qos`](crate::Channel::basic_qos); they are replayed as-is
+    /// when the channel is recovered.
+    #[must_use]
+    pub fn qos(&self) -> ChannelQos {
+        self.read().qos
+    }
+
+    pub(crate) fn set_qos(&self, prefetch_count: ShortUInt, global: bool) {
+        let mut inner = self.write();
+        if global {
+            inner.qos.global_prefetch_count = Some(prefetch_count);
+        } else {
+            inner.qos.prefetch_count = Some(prefetch_count);
+        }
+        trace!(prefetch_count, global, "QoS updated");
     }
 
     pub(crate) fn set_state(&self, state: ChannelState) {
@@ -186,6 +206,19 @@ impl ChannelStatus {
     }
 }
 
+/// The quality-of-service settings applied to a channel.
+///
+/// `prefetch_size` is not part of this struct: lapin always sends `0` (no
+/// limit) for it, as RabbitMQ does not implement it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChannelQos {
+    /// Per-consumer prefetch count (`global: false`), if it has been set.
+    pub prefetch_count: Option<ShortUInt>,
+    /// Channel-wide prefetch count (`global: true`), if it has been set.
+    pub global_prefetch_count: Option<ShortUInt>,
+}
+
 /// The lifecycle state of an AMQP channel.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChannelState {
@@ -212,6 +245,7 @@ impl fmt::Debug for ChannelStatus {
                 .field("state", &inner.state)
                 .field("receiver_state", &inner.receiver_state)
                 .field("confirm", &inner.confirm)
+                .field("qos", &inner.qos)
                 .field("send_flow", &inner.send_flow);
         }
         debug.finish()
@@ -221,6 +255,7 @@ impl fmt::Debug for ChannelStatus {
 struct Inner {
     id: ChannelId,
     confirm: bool,
+    qos: ChannelQos,
     send_flow: bool,
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
@@ -234,6 +269,7 @@ impl Inner {
         let this = Self {
             id,
             confirm: false,
+            qos: ChannelQos::default(),
             send_flow: true,
             state: ChannelState::default(),
             receiver_state: ChannelReceiverStates::default(),
