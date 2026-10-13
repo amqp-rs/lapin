@@ -1,23 +1,52 @@
 #![cfg(feature = "tokio")]
 
-//! Checks that acking a delivery after its connection was closed completes.
+//! Checks that acking a delivery after its channel or connection was closed
+//! completes with `Ok(false)`, as the `Acker` docs promise: the close poisons
+//! the delivery's acker, so the ack is never sent.
 //!
-//! Runs against a real broker. Once the connection is closed, its IO loop no
-//! longer runs commands, so the ack never reaches the broker; its promise must
-//! still complete, with an error, instead of staying pending forever.
+//! A connection closes its channels on the internal RPC loop shortly after
+//! `Connection::close` returns, so the connection case acks once the close has
+//! settled and the IO loop is gone. That is where the ack used to hang.
+//!
+//! Runs against a real broker.
 
 use futures_lite::stream::StreamExt;
 use lapin::{
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties, Channel, Connection, ConnectionProperties,
+    message::Delivery,
     options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
     types::FieldTable,
 };
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a closed connection is given to finish shutting down.
+const SETTLE: Duration = Duration::from_secs(1);
 
 #[tokio::test]
-async fn ack_after_connection_close_completes() {
+async fn ack_after_channel_close_is_not_sent() {
+    let (conn, channel, delivery) = receive_one().await;
+    channel.close(200, "bye".into()).await.unwrap();
+    assert!(delivery.acker.poisoned());
+    assert!(!delivery.acker.usable());
+    let result = ack(&delivery).await;
+    assert!(matches!(result, Ok(false)), "{result:?}");
+    conn.close(200, "bye".into()).await.unwrap();
+}
+
+#[tokio::test]
+async fn ack_after_connection_close_is_not_sent() {
+    let (conn, _channel, delivery) = receive_one().await;
+    conn.close(200, "bye".into()).await.unwrap();
+    tokio::time::sleep(SETTLE).await;
+    assert!(delivery.acker.poisoned());
+    assert!(!delivery.acker.usable());
+    let result = ack(&delivery).await;
+    assert!(matches!(result, Ok(false)), "{result:?}");
+}
+
+/// Publishes one message to a fresh exclusive queue and receives it unacked.
+async fn receive_one() -> (Connection, Channel, Delivery) {
     let addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
     let conn = Connection::connect(&addr, ConnectionProperties::default())
         .await
@@ -60,12 +89,12 @@ async fn ack_after_connection_close_completes() {
         .expect("no delivery")
         .expect("consumer ended")
         .unwrap();
+    (conn, channel, delivery)
+}
 
-    conn.close(200, "bye".into()).await.unwrap();
-
+async fn ack(delivery: &Delivery) -> lapin::Result<bool> {
     let ack = delivery.acker.ack(BasicAckOptions::default());
-    let result = tokio::time::timeout(TIMEOUT, ack)
+    tokio::time::timeout(TIMEOUT, ack)
         .await
-        .expect("the ack never completed");
-    assert!(result.is_err(), "{result:?}");
+        .expect("the ack never completed")
 }

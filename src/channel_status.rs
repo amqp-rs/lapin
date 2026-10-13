@@ -125,6 +125,11 @@ impl ChannelStatus {
         self.write().set_reconnecting(error, topology)
     }
 
+    /// Makes every acker of this channel's deliveries so far unusable.
+    pub(crate) fn poison_ackers(&self) {
+        self.read().ackers.kill();
+    }
+
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
         id != 0 && self.connected()
     }
@@ -143,7 +148,7 @@ impl ChannelStatus {
         inner
             .receiver_state
             .set_will_receive(class_id, delivery_cause);
-        inner.killswitch.clone()
+        inner.ackers.clone()
     }
 
     pub(crate) fn set_content_length<
@@ -260,7 +265,11 @@ struct Inner {
     state: ChannelState,
     receiver_state: ChannelReceiverStates,
     recovery_context: Option<ChannelRecoveryContext>,
+    /// Gates this incarnation's internal RPC commands. Killed when the channel starts recovering.
     killswitch: KillSwitch,
+    /// Poisons the ackers of this incarnation's deliveries. Killed when the channel starts
+    /// recovering, is closed, or fails.
+    ackers: KillSwitch,
     internal_rpc: InternalRPCHandle,
 }
 
@@ -275,6 +284,7 @@ impl Inner {
             receiver_state: ChannelReceiverStates::default(),
             recovery_context: None,
             killswitch: KillSwitch::default(),
+            ackers: KillSwitch::default(),
             internal_rpc,
         };
         this.update_rpc_status();
@@ -289,6 +299,7 @@ impl Inner {
     fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) -> Error {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
+        std::mem::take(&mut self.ackers).kill();
         self.receiver_state.reset();
         match self.recovery_context.as_ref() {
             Some(ctx) => ctx.cause(),

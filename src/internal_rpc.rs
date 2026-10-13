@@ -590,3 +590,25 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         trace!("InternalRPC stopped");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_delivery_command_dropped_unrun_rejects_its_promise() {
+        let (promise, resolver) = Promise::new("basic.ack");
+        drop(DeliveryResolver::new(1, resolver));
+        let error = promise.try_wait().expect("promise completed").unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::InvalidChannel(1)));
+    }
+
+    #[test]
+    fn a_delivery_command_handed_on_leaves_its_promise_to_the_command() {
+        let (promise, resolver) = Promise::new("basic.ack");
+        let resolver = DeliveryResolver::new(1, resolver).into_inner();
+        assert!(promise.try_wait().is_none());
+        resolver.resolve(());
+        assert!(matches!(promise.try_wait(), Some(Ok(()))));
+    }
+}
