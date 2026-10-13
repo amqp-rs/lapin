@@ -20,6 +20,9 @@ fn accept(listener: &TcpListener) -> TcpStream {
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
+                // The fake broker reads and writes with blocking calls and timeouts. On
+                // Windows an accepted socket inherits the listener's non-blocking mode.
+                stream.set_nonblocking(false).unwrap();
                 stream.set_read_timeout(Some(TIMEOUT)).unwrap();
                 stream.set_write_timeout(Some(TIMEOUT)).unwrap();
                 return stream;
