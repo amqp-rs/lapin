@@ -1,3 +1,9 @@
+### 4.12.2 (2026-10-09)
+
+#### Bug Fixes
+
+* Don't accumulate promises over reconnection attempts
+
 ### 4.12.1 (2026-10-09)
 
 #### Bug Fixes
