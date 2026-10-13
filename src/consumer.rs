@@ -190,10 +190,6 @@ impl Consumer {
         consumer
     }
 
-    pub(crate) fn error(&self) -> ErrorHolder {
-        self.error.clone()
-    }
-
     /// Gets the consumer tag.
     ///
     /// If no consumer tag was specified when obtaining the consumer from the channel,

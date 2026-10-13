@@ -15,7 +15,8 @@ use crate::{
 /// subsequent calls return `Ok(false)`.
 ///
 /// If the channel is closed or errored, all outstanding `Acker`s for that
-/// channel are *poisoned* and [`usable`] returns `false`.
+/// channel are *poisoned* and [`usable`] returns `false`. An acknowledgement
+/// already under way at that point fails with the error that ended the channel.
 ///
 /// [`ack`]: Self::ack
 /// [`nack`]: Self::nack
@@ -26,9 +27,8 @@ pub struct Acker {
     channel_id: ChannelId,
     delivery_tag: DeliveryTag,
     internal_rpc: Option<InternalRPCHandle>,
-    error: Option<ErrorHolder>,
     killswitch: KillSwitch,
-    channel_killswitch: KillSwitch,
+    poison: ErrorHolder,
 }
 
 impl Acker {
@@ -36,16 +36,14 @@ impl Acker {
         channel_id: ChannelId,
         delivery_tag: DeliveryTag,
         internal_rpc: Option<InternalRPCHandle>,
-        error: Option<ErrorHolder>,
-        channel_killswitch: KillSwitch,
+        poison: ErrorHolder,
     ) -> Self {
         Self {
             channel_id,
             delivery_tag,
             internal_rpc,
-            error,
             killswitch: KillSwitch::default(),
-            channel_killswitch,
+            poison,
         }
     }
 
@@ -61,7 +59,7 @@ impl Acker {
                 self.delivery_tag,
                 options,
                 resolver,
-                self.error.clone(),
+                self.poison.clone(),
             )
         })
         .await
@@ -80,7 +78,7 @@ impl Acker {
                 self.delivery_tag,
                 options,
                 resolver,
-                self.error.clone(),
+                self.poison.clone(),
             )
         })
         .await
@@ -99,7 +97,7 @@ impl Acker {
                 self.delivery_tag,
                 options,
                 resolver,
-                self.error.clone(),
+                self.poison.clone(),
             )
         })
         .await
@@ -113,9 +111,6 @@ impl Acker {
         if self.poisoned() || !self.killswitch.kill() {
             return Ok(false);
         }
-        if let Some(error) = self.error.as_ref() {
-            error.check()?;
-        }
         if let Some(internal_rpc) = self.internal_rpc.as_ref() {
             let (promise, resolver) = Promise::new(marker);
             f(internal_rpc, resolver);
@@ -127,7 +122,7 @@ impl Acker {
     /// True if our channel got closed or encountered an error
     #[must_use]
     pub fn poisoned(&self) -> bool {
-        self.channel_killswitch.killed()
+        self.poison.is_set()
     }
 
     /// False if poisoned or already used

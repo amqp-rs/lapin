@@ -388,10 +388,11 @@ impl Connect for &str {
 mod tests {
     use super::*;
     use crate::{
-        BasicProperties, ChannelQos, ChannelState, ConnectionProperties, ConnectionState,
+        Acker, BasicProperties, ChannelQos, ChannelState, ConnectionProperties, ConnectionState,
         ErrorKind,
         channel_receiver_state::{ChannelReceiverState, DeliveryCause},
-        options::{BasicConsumeOptions, BasicQosOptions},
+        error_holder::ErrorHolder,
+        options::{BasicAckOptions, BasicConsumeOptions, BasicQosOptions},
         secret_update::SecretUpdate,
         types::{ChannelId, FieldTable, ShortString},
     };
@@ -437,6 +438,23 @@ mod tests {
         let conn = Connection::new(configuration, status, internal_rpc.handle(), events);
         conn.status.set_state(ConnectionState::Connected);
         (conn, channels, internal_rpc.handle(), frames)
+    }
+
+    /// The IO loop behind `create_connection`'s handle is already gone, as it is for an ack that
+    /// passed the `poisoned()` check just before its connection closed: the ack's command is
+    /// never run, and its promise must still complete.
+    #[tokio::test]
+    async fn an_ack_whose_command_never_runs_completes() {
+        let (_conn, _channels, internal_rpc) = create_connection();
+        let acker = Acker::new(1, 1, Some(internal_rpc), ErrorHolder::default());
+        let ack = acker.ack(BasicAckOptions::default());
+        let result = tokio::time::timeout(std::time::Duration::from_secs(1), ack)
+            .await
+            .expect("the ack never completed");
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidChannel(1)
+        ));
     }
 
     #[test]
