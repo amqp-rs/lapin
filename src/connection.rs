@@ -391,7 +391,7 @@ mod tests {
         Acker, BasicProperties, ChannelQos, ChannelState, ConnectionProperties, ConnectionState,
         ErrorKind,
         channel_receiver_state::{ChannelReceiverState, DeliveryCause},
-        killswitch::KillSwitch,
+        error_holder::ErrorHolder,
         options::{BasicAckOptions, BasicConsumeOptions, BasicQosOptions},
         secret_update::SecretUpdate,
         types::{ChannelId, FieldTable, ShortString},
@@ -446,7 +446,7 @@ mod tests {
     #[tokio::test]
     async fn an_ack_whose_command_never_runs_completes() {
         let (_conn, _channels, internal_rpc) = create_connection();
-        let acker = Acker::new(1, 1, Some(internal_rpc), None, KillSwitch::default());
+        let acker = Acker::new(1, 1, Some(internal_rpc), ErrorHolder::default());
         let ack = acker.ack(BasicAckOptions::default());
         let result = tokio::time::timeout(std::time::Duration::from_secs(1), ack)
             .await

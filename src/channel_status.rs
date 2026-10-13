@@ -2,6 +2,7 @@ use crate::{
     Error, ErrorKind, Result,
     channel_receiver_state::{ChannelReceiverStates, DeliveryCause},
     channel_recovery_context::ChannelRecoveryContext,
+    error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
     killswitch::KillSwitch,
     notifier::Notifier,
@@ -125,9 +126,13 @@ impl ChannelStatus {
         self.write().set_reconnecting(error, topology)
     }
 
-    /// Makes every acker of this channel's deliveries so far unusable.
-    pub(crate) fn poison_ackers(&self) {
-        self.read().ackers.kill();
+    /// Makes every acker of this channel's deliveries so far unusable, and records `error` as the
+    /// reason. The first error recorded is kept: it is the one that ended the channel.
+    ///
+    /// Callers poison the ackers before changing the channel's state. An ack that then fails on
+    /// the new state is sure to find the reason recorded.
+    pub(crate) fn poison_ackers(&self, error: Error) {
+        let _ = self.read().ackers.set(error);
     }
 
     pub(crate) fn auto_close(&self, id: ChannelId) -> bool {
@@ -143,7 +148,7 @@ impl ChannelStatus {
         &self,
         class_id: Identifier,
         delivery_cause: DeliveryCause,
-    ) -> KillSwitch {
+    ) -> ErrorHolder {
         let mut inner = self.write();
         inner
             .receiver_state
@@ -267,9 +272,9 @@ struct Inner {
     recovery_context: Option<ChannelRecoveryContext>,
     /// Gates this incarnation's internal RPC commands. Killed when the channel starts recovering.
     killswitch: KillSwitch,
-    /// Poisons the ackers of this incarnation's deliveries. Killed when the channel starts
-    /// recovering, is closed, or fails.
-    ackers: KillSwitch,
+    /// Poisons the ackers of this incarnation's deliveries. Set to the channel's error when the
+    /// channel starts recovering, is closed, or fails.
+    ackers: ErrorHolder,
     internal_rpc: InternalRPCHandle,
 }
 
@@ -284,7 +289,7 @@ impl Inner {
             receiver_state: ChannelReceiverStates::default(),
             recovery_context: None,
             killswitch: KillSwitch::default(),
-            ackers: KillSwitch::default(),
+            ackers: ErrorHolder::default(),
             internal_rpc,
         };
         this.update_rpc_status();
@@ -299,9 +304,8 @@ impl Inner {
     fn set_reconnecting(&mut self, error: Error, topology: ChannelDefinition) -> Error {
         self.state = ChannelState::Reconnecting;
         std::mem::take(&mut self.killswitch).kill();
-        std::mem::take(&mut self.ackers).kill();
         self.receiver_state.reset();
-        match self.recovery_context.as_ref() {
+        let cause = match self.recovery_context.as_ref() {
             Some(ctx) => ctx.cause(),
             None => {
                 let ctx = ChannelRecoveryContext::new(error, topology);
@@ -309,7 +313,9 @@ impl Inner {
                 self.recovery_context = Some(ctx);
                 error
             }
-        }
+        };
+        let _ = std::mem::take(&mut self.ackers).set(cause.clone());
+        cause
     }
 
     pub(crate) fn finalize_connection(&mut self) {

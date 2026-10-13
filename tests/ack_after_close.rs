@@ -8,13 +8,17 @@
 //! `Connection::close` returns, so the connection case acks once the close has
 //! settled and the IO loop is gone. That is where the ack used to hang.
 //!
+//! An ack already under way when the broker closes the channel fails with the
+//! error the broker closed it with.
+//!
 //! Runs against a real broker.
 
 use futures_lite::stream::StreamExt;
 use lapin::{
-    BasicProperties, Channel, Connection, ConnectionProperties,
+    Acker, BasicProperties, Channel, Connection, ConnectionProperties, ErrorKind, Queue,
     message::Delivery,
     options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
+    protocol::{AMQPErrorKind, AMQPSoftError},
     types::FieldTable,
 };
 use std::time::Duration;
@@ -47,8 +51,8 @@ async fn ack_after_connection_close_is_not_sent() {
 
 /// Acks keep going while an invalid operation on the same channel makes the
 /// broker close it: acks land before, around and after the close. Each one
-/// must complete, none may be sent once one was not, and every acker ends up
-/// poisoned.
+/// must complete, none may be sent once one was not, any that fails reports the
+/// broker's error, and every acker ends up poisoned.
 #[tokio::test(flavor = "multi_thread")]
 async fn acks_racing_a_broker_channel_close_all_complete() {
     const DELIVERIES: usize = 1000;
@@ -68,17 +72,7 @@ async fn acks_racing_a_broker_channel_close_all_complete() {
         }
         (racing, results)
     });
-    let declare = channel.queue_declare(
-        "lapin-test-queue-that-does-not-exist".into(),
-        QueueDeclareOptions {
-            passive: true,
-            ..QueueDeclareOptions::default()
-        },
-        FieldTable::default(),
-    );
-    let declared = tokio::time::timeout(TIMEOUT, declare)
-        .await
-        .expect("the declare never completed");
+    let declared = declare_missing_queue(channel).await;
     assert!(declared.is_err(), "{declared:?}");
     let (racing, results) = acks.await.unwrap();
 
@@ -92,7 +86,46 @@ async fn acks_racing_a_broker_channel_close_all_complete() {
             .all(|result| !matches!(result, Ok(true))),
         "an ack was sent after an earlier one was not: {results:?}"
     );
+    assert_failures_report_missing_queue(&results);
     assert!(deliveries.iter().chain(&racing).all(|d| d.acker.poisoned()));
+
+    conn.close(200, "bye".into()).await.unwrap();
+}
+
+/// Acks run in large concurrent bursts while an invalid operation on the same
+/// channel makes the broker close it, so many of them can be under way when the
+/// close lands. Each one must complete, and any that fails reports the broker's
+/// error.
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_acks_cut_short_by_a_broker_channel_close_report_its_error() {
+    const DELIVERIES: usize = 3000;
+    const BATCH: usize = 1000;
+    const BATCHES_BEFORE_CLOSE: usize = 1;
+
+    let (conn, channel, deliveries) = receive(DELIVERIES).await;
+    let mut declare = None;
+    let mut results = Vec::with_capacity(DELIVERIES);
+    for (index, batch) in deliveries.chunks(BATCH).enumerate() {
+        if index == BATCHES_BEFORE_CLOSE {
+            declare = Some(tokio::spawn(declare_missing_queue(channel.clone())));
+        }
+        let acks = batch
+            .iter()
+            .map(|delivery| delivery.acker.clone())
+            .map(|acker| tokio::spawn(async move { ack(&acker).await }))
+            .collect::<Vec<_>>();
+        for ack in acks {
+            results.push(ack.await.unwrap());
+        }
+    }
+    let declared = declare.expect("the declare never started").await.unwrap();
+    assert!(declared.is_err(), "{declared:?}");
+
+    assert!(
+        results.iter().any(|result| !matches!(result, Ok(true))),
+        "the close never cut into the acks"
+    );
+    assert_failures_report_missing_queue(&results);
 
     conn.close(200, "bye".into()).await.unwrap();
 }
@@ -155,8 +188,44 @@ async fn receive(count: usize) -> (Connection, Channel, Vec<Delivery>) {
     (conn, channel, deliveries)
 }
 
-async fn ack(delivery: &Delivery) -> lapin::Result<bool> {
-    let ack = delivery.acker.ack(BasicAckOptions::default());
+/// Passively declares a queue that does not exist, which makes the broker
+/// close the channel with `NOT_FOUND`.
+async fn declare_missing_queue(channel: Channel) -> lapin::Result<Queue> {
+    let declare = channel.queue_declare(
+        "lapin-test-queue-that-does-not-exist".into(),
+        QueueDeclareOptions {
+            passive: true,
+            ..QueueDeclareOptions::default()
+        },
+        FieldTable::default(),
+    );
+    tokio::time::timeout(TIMEOUT, declare)
+        .await
+        .expect("the declare never completed")
+}
+
+/// Asserts that every failed ack reports the `NOT_FOUND` the broker closed the
+/// channel with.
+fn assert_failures_report_missing_queue(results: &[lapin::Result<bool>]) {
+    let other_failures = results
+        .iter()
+        .filter_map(|result| result.as_ref().err())
+        .filter(|error| {
+            !matches!(
+                error.kind(),
+                ErrorKind::ProtocolError(error)
+                    if *error.kind() == AMQPErrorKind::Soft(AMQPSoftError::NOTFOUND)
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        other_failures.is_empty(),
+        "acks failed with another error than the broker's: {other_failures:?}"
+    );
+}
+
+async fn ack(acker: &Acker) -> lapin::Result<bool> {
+    let ack = acker.ack(BasicAckOptions::default());
     tokio::time::timeout(TIMEOUT, ack)
         .await
         .expect("the ack never completed")

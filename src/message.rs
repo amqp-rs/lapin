@@ -3,7 +3,6 @@ use crate::{
     acker::Acker,
     error_holder::ErrorHolder,
     internal_rpc::InternalRPCHandle,
-    killswitch::KillSwitch,
     protocol::AMQPError,
     types::ShortString,
     types::{ChannelId, DeliveryTag, MessageCount, ReplyCode},
@@ -67,8 +66,7 @@ impl Delivery {
             routing_key,
             redelivered,
             None,
-            None,
-            KillSwitch::default(),
+            ErrorHolder::default(),
         );
         this.data = data;
         this
@@ -81,8 +79,7 @@ impl Delivery {
         routing_key: ShortString,
         redelivered: bool,
         internal_rpc: Option<InternalRPCHandle>,
-        error: Option<ErrorHolder>,
-        killswitch: KillSwitch,
+        poison: ErrorHolder,
     ) -> Self {
         Self {
             delivery_tag,
@@ -91,7 +88,7 @@ impl Delivery {
             redelivered,
             properties: BasicProperties::default(),
             data: Vec::default(),
-            acker: Acker::new(channel_id, delivery_tag, internal_rpc, error, killswitch),
+            acker: Acker::new(channel_id, delivery_tag, internal_rpc, poison),
         }
     }
 
@@ -130,7 +127,7 @@ impl BasicGetMessage {
         redelivered: bool,
         message_count: MessageCount,
         internal_rpc: InternalRPCHandle,
-        killswitch: KillSwitch,
+        poison: ErrorHolder,
     ) -> Self {
         Self {
             delivery: Delivery::new(
@@ -140,8 +137,7 @@ impl BasicGetMessage {
                 routing_key,
                 redelivered,
                 Some(internal_rpc),
-                None,
-                killswitch,
+                poison,
             ),
             message_count,
         }
@@ -187,9 +183,9 @@ impl BasicReturnMessage {
         routing_key: ShortString,
         reply_code: ReplyCode,
         reply_text: ShortString,
-        killswitch: KillSwitch,
+        poison: ErrorHolder,
     ) -> Self {
-        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, None, killswitch);
+        let delivery = Delivery::new(0, 0, exchange, routing_key, false, None, poison);
         // We cannot ack a returned message
         delivery.acker.invalidate();
         Self {

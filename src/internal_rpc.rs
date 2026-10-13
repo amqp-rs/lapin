@@ -42,14 +42,13 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicAckOptions,
         resolver: PromiseResolver<()>,
-        error: Option<ErrorHolder>,
+        poison: ErrorHolder,
     ) {
         self.send(InternalCommand::BasicAck(
             channel_id,
             delivery_tag,
             options,
-            DeliveryResolver::new(channel_id, resolver),
-            error,
+            DeliveryResolver::new(channel_id, poison, resolver),
         ));
     }
 
@@ -59,14 +58,13 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicNackOptions,
         resolver: PromiseResolver<()>,
-        error: Option<ErrorHolder>,
+        poison: ErrorHolder,
     ) {
         self.send(InternalCommand::BasicNack(
             channel_id,
             delivery_tag,
             options,
-            DeliveryResolver::new(channel_id, resolver),
-            error,
+            DeliveryResolver::new(channel_id, poison, resolver),
         ));
     }
 
@@ -76,14 +74,13 @@ impl InternalRPCHandle {
         delivery_tag: DeliveryTag,
         options: BasicRejectOptions,
         resolver: PromiseResolver<()>,
-        error: Option<ErrorHolder>,
+        poison: ErrorHolder,
     ) {
         self.send(InternalCommand::BasicReject(
             channel_id,
             delivery_tag,
             options,
-            DeliveryResolver::new(channel_id, resolver),
-            error,
+            DeliveryResolver::new(channel_id, poison, resolver),
         ));
     }
 
@@ -261,27 +258,9 @@ impl fmt::Debug for InternalRPCHandle {
 
 #[derive(Debug)]
 enum InternalCommand {
-    BasicAck(
-        ChannelId,
-        DeliveryTag,
-        BasicAckOptions,
-        DeliveryResolver,
-        Option<ErrorHolder>,
-    ),
-    BasicNack(
-        ChannelId,
-        DeliveryTag,
-        BasicNackOptions,
-        DeliveryResolver,
-        Option<ErrorHolder>,
-    ),
-    BasicReject(
-        ChannelId,
-        DeliveryTag,
-        BasicRejectOptions,
-        DeliveryResolver,
-        Option<ErrorHolder>,
-    ),
+    BasicAck(ChannelId, DeliveryTag, BasicAckOptions, DeliveryResolver),
+    BasicNack(ChannelId, DeliveryTag, BasicNackOptions, DeliveryResolver),
+    BasicReject(ChannelId, DeliveryTag, BasicRejectOptions, DeliveryResolver),
     CancelConsumer(ChannelId, ShortString, ConsumerStatus),
     CloseChannel(ChannelId, ReplyCode, ShortString),
     CloseConnection(
@@ -309,36 +288,60 @@ enum InternalCommand {
     UpdateSecret(LongString, ShortString, PromiseResolver<()>),
 }
 
-/// The resolver of an ack, nack or reject command. Dropping it before its command runs rejects
-/// the promise, so a command that never runs still completes the caller's promise. That
-/// happens when the command's channel is gone, or when the IO loop has already exited.
+/// The resolver of an ack, nack or reject command, along with the poison of the delivery's
+/// acker. Dropping it before its command runs rejects the promise with the error that ended the
+/// channel, or with `InvalidChannel` when the channel recorded none. A command that never runs
+/// thus still completes the caller's promise. That happens when the command's channel is gone, or
+/// when the IO loop has already exited.
 #[derive(Debug)]
 struct DeliveryResolver {
     channel_id: ChannelId,
+    poison: ErrorHolder,
     resolver: Option<PromiseResolver<()>>,
 }
 
 impl DeliveryResolver {
-    fn new(channel_id: ChannelId, resolver: PromiseResolver<()>) -> Self {
+    fn new(channel_id: ChannelId, poison: ErrorHolder, resolver: PromiseResolver<()>) -> Self {
         Self {
             channel_id,
+            poison,
             resolver: Some(resolver),
         }
     }
 
-    fn into_inner(mut self) -> PromiseResolver<()> {
-        self.resolver
+    fn into_parts(mut self) -> (ErrorHolder, PromiseResolver<()>) {
+        let resolver = self
+            .resolver
             .take()
-            .expect("the resolver is only taken by into_inner")
+            .expect("the resolver is only taken by into_parts");
+        (std::mem::take(&mut self.poison), resolver)
     }
 }
 
 impl Drop for DeliveryResolver {
     fn drop(&mut self) {
         if let Some(resolver) = self.resolver.take() {
-            resolver.reject(ErrorKind::InvalidChannel(self.channel_id).into());
+            let error = self
+                .poison
+                .check()
+                .err()
+                .unwrap_or_else(|| ErrorKind::InvalidChannel(self.channel_id).into());
+            resolver.reject(error);
         }
     }
+}
+
+/// Runs the ack, nack or reject in `settle`, unless `poison` already holds the error that ended
+/// the delivery's channel. When `settle` fails after the channel ended, returns that error instead
+/// of the one `settle` hit, since the channel ending is what made `settle` fail.
+async fn settle_delivery(
+    poison: ErrorHolder,
+    settle: impl Future<Output = Result<()>>,
+) -> Result<()> {
+    poison.check()?;
+    settle
+        .await
+        .map_err(|error| poison.check().err().unwrap_or(error))
 }
 
 impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
@@ -413,49 +416,43 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
         while let Ok(Some(command)) = rpc.recv_async().await {
             trace!(?command, "Handling internal RPC command");
             match command {
-                BasicAck(channel_id, delivery_tag, options, resolver, error) => {
+                BasicAck(channel_id, delivery_tag, options, resolver) => {
                     if !self.channel_ok(channel_id) {
                         continue;
                     }
                     let channel = get_channel(channel_id);
+                    let (poison, resolver) = resolver.into_parts();
                     self.register_internal_future_with_resolver(
-                        async move {
-                            if let Some(error) = error {
-                                error.check()?;
-                            }
+                        settle_delivery(poison, async move {
                             channel?.basic_ack(delivery_tag, options).await
-                        },
-                        resolver.into_inner(),
+                        }),
+                        resolver,
                     )
                 }
-                BasicNack(channel_id, delivery_tag, options, resolver, error) => {
+                BasicNack(channel_id, delivery_tag, options, resolver) => {
                     if !self.channel_ok(channel_id) {
                         continue;
                     }
                     let channel = get_channel(channel_id);
+                    let (poison, resolver) = resolver.into_parts();
                     self.register_internal_future_with_resolver(
-                        async move {
-                            if let Some(error) = error {
-                                error.check()?;
-                            }
+                        settle_delivery(poison, async move {
                             channel?.basic_nack(delivery_tag, options).await
-                        },
-                        resolver.into_inner(),
+                        }),
+                        resolver,
                     )
                 }
-                BasicReject(channel_id, delivery_tag, options, resolver, error) => {
+                BasicReject(channel_id, delivery_tag, options, resolver) => {
                     if !self.channel_ok(channel_id) {
                         continue;
                     }
                     let channel = get_channel(channel_id);
+                    let (poison, resolver) = resolver.into_parts();
                     self.register_internal_future_with_resolver(
-                        async move {
-                            if let Some(error) = error {
-                                error.check()?;
-                            }
+                        settle_delivery(poison, async move {
                             channel?.basic_reject(delivery_tag, options).await
-                        },
-                        resolver.into_inner(),
+                        }),
+                        resolver,
                     )
                 }
                 CancelConsumer(channel_id, consumer_tag, consumer_status) => {
@@ -594,21 +591,79 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ChannelState;
+    use futures_lite::future::block_on;
+
+    fn poisoned(kind: ErrorKind) -> ErrorHolder {
+        let poison = ErrorHolder::default();
+        poison.set(kind.into()).unwrap();
+        poison
+    }
 
     #[test]
     fn a_delivery_command_dropped_unrun_rejects_its_promise() {
         let (promise, resolver) = Promise::new("basic.ack");
-        drop(DeliveryResolver::new(1, resolver));
+        drop(DeliveryResolver::new(1, ErrorHolder::default(), resolver));
         let error = promise.try_wait().expect("promise completed").unwrap_err();
         assert!(matches!(error.kind(), ErrorKind::InvalidChannel(1)));
     }
 
     #[test]
+    fn a_delivery_command_dropped_unrun_reports_its_channel_error() {
+        let (promise, resolver) = Promise::new("basic.ack");
+        let poison = poisoned(ErrorKind::MissingHeartbeatError);
+        drop(DeliveryResolver::new(1, poison, resolver));
+        let error = promise.try_wait().expect("promise completed").unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::MissingHeartbeatError));
+    }
+
+    #[test]
     fn a_delivery_command_handed_on_leaves_its_promise_to_the_command() {
         let (promise, resolver) = Promise::new("basic.ack");
-        let resolver = DeliveryResolver::new(1, resolver).into_inner();
+        let (_, resolver) = DeliveryResolver::new(1, ErrorHolder::default(), resolver).into_parts();
         assert!(promise.try_wait().is_none());
         resolver.resolve(());
         assert!(matches!(promise.try_wait(), Some(Ok(()))));
+    }
+
+    #[test]
+    fn a_delivery_whose_channel_ended_is_not_settled() {
+        let mut settled = false;
+        let result = block_on(settle_delivery(
+            poisoned(ErrorKind::MissingHeartbeatError),
+            async {
+                settled = true;
+                Ok(())
+            },
+        ));
+        assert!(!settled);
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            ErrorKind::MissingHeartbeatError
+        ));
+    }
+
+    #[test]
+    fn a_delivery_failing_as_its_channel_ends_reports_the_channel_error() {
+        let poison = ErrorHolder::default();
+        let result = block_on(settle_delivery(poison.clone(), async {
+            poison.set(ErrorKind::MissingHeartbeatError.into()).unwrap();
+            Err(ErrorKind::InvalidChannelState(ChannelState::Closing, "basic.ack").into())
+        }));
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            ErrorKind::MissingHeartbeatError
+        ));
+    }
+
+    #[test]
+    fn a_delivery_failing_on_a_live_channel_reports_its_own_error() {
+        let result = block_on(settle_delivery(ErrorHolder::default(), async {
+            Err(ErrorKind::InvalidChannel(1).into())
+        }));
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            ErrorKind::InvalidChannel(1)
+        ));
     }
 }
