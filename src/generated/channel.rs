@@ -988,9 +988,9 @@ impl Channel {
                     connection,
                     auth_provider,
                 )),
-                Box::new(resolver),
+                Box::new(resolver.clone()),
             )),
-            None,
+            Some(resolver),
         );
         promise.await
     }
@@ -1027,9 +1027,9 @@ impl Channel {
                     connection,
                     auth_provider,
                 )),
-                Box::new(resolver),
+                Box::new(resolver.clone()),
             )),
-            None,
+            Some(resolver),
         );
         promise.await
     }
@@ -1079,8 +1079,8 @@ impl Channel {
         self.send_method_frame(
             method,
             Box::new(resolver.clone()),
-            Some(ExpectedReply(reply, Box::new(resolver))),
-            None,
+            Some(ExpectedReply(reply, Box::new(resolver.clone()))),
+            Some(resolver),
         );
         promise.await
     }
