@@ -48,7 +48,7 @@ impl InternalRPCHandle {
             channel_id,
             delivery_tag,
             options,
-            resolver,
+            DeliveryResolver::new(channel_id, resolver),
             error,
         ));
     }
@@ -65,7 +65,7 @@ impl InternalRPCHandle {
             channel_id,
             delivery_tag,
             options,
-            resolver,
+            DeliveryResolver::new(channel_id, resolver),
             error,
         ));
     }
@@ -82,7 +82,7 @@ impl InternalRPCHandle {
             channel_id,
             delivery_tag,
             options,
-            resolver,
+            DeliveryResolver::new(channel_id, resolver),
             error,
         ));
     }
@@ -265,21 +265,21 @@ enum InternalCommand {
         ChannelId,
         DeliveryTag,
         BasicAckOptions,
-        PromiseResolver<()>,
+        DeliveryResolver,
         Option<ErrorHolder>,
     ),
     BasicNack(
         ChannelId,
         DeliveryTag,
         BasicNackOptions,
-        PromiseResolver<()>,
+        DeliveryResolver,
         Option<ErrorHolder>,
     ),
     BasicReject(
         ChannelId,
         DeliveryTag,
         BasicRejectOptions,
-        PromiseResolver<()>,
+        DeliveryResolver,
         Option<ErrorHolder>,
     ),
     CancelConsumer(ChannelId, ShortString, ConsumerStatus),
@@ -307,6 +307,38 @@ enum InternalCommand {
     StartChannelsRecovery,
     StartHeartbeat(Duration),
     UpdateSecret(LongString, ShortString, PromiseResolver<()>),
+}
+
+/// The resolver of an ack, nack or reject command. Dropping it before its command runs rejects
+/// the promise, so a command that never runs still completes the caller's promise. That
+/// happens when the command's channel is gone, or when the IO loop has already exited.
+#[derive(Debug)]
+struct DeliveryResolver {
+    channel_id: ChannelId,
+    resolver: Option<PromiseResolver<()>>,
+}
+
+impl DeliveryResolver {
+    fn new(channel_id: ChannelId, resolver: PromiseResolver<()>) -> Self {
+        Self {
+            channel_id,
+            resolver: Some(resolver),
+        }
+    }
+
+    fn into_inner(mut self) -> PromiseResolver<()> {
+        self.resolver
+            .take()
+            .expect("the resolver is only taken by into_inner")
+    }
+}
+
+impl Drop for DeliveryResolver {
+    fn drop(&mut self) {
+        if let Some(resolver) = self.resolver.take() {
+            resolver.reject(ErrorKind::InvalidChannel(self.channel_id).into());
+        }
+    }
 }
 
 impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
@@ -393,7 +425,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                             }
                             channel?.basic_ack(delivery_tag, options).await
                         },
-                        resolver,
+                        resolver.into_inner(),
                     )
                 }
                 BasicNack(channel_id, delivery_tag, options, resolver, error) => {
@@ -408,7 +440,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                             }
                             channel?.basic_nack(delivery_tag, options).await
                         },
-                        resolver,
+                        resolver.into_inner(),
                     )
                 }
                 BasicReject(channel_id, delivery_tag, options, resolver, error) => {
@@ -423,7 +455,7 @@ impl<RK: RuntimeKit + Clone + Send + 'static> InternalRPC<RK> {
                             }
                             channel?.basic_reject(delivery_tag, options).await
                         },
-                        resolver,
+                        resolver.into_inner(),
                     )
                 }
                 CancelConsumer(channel_id, consumer_tag, consumer_status) => {
