@@ -20,6 +20,10 @@ impl ErrorHolder {
             None => Ok(()),
         }
     }
+
+    pub(crate) fn is_set(&self) -> bool {
+        self.0.get().is_some()
+    }
 }
 
 // io::Error can contain Box<dyn Error + Send + Sync>, which is not RefUnwindSafe,

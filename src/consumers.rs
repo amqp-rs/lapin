@@ -1,7 +1,6 @@
 use crate::{
     BasicProperties, Error,
     consumer::Consumer,
-    error_holder::ErrorHolder,
     message::Delivery,
     shared::SharedRwLock,
     types::{PayloadSize, ShortString},
@@ -42,7 +41,7 @@ impl Consumers {
         }
     }
 
-    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized, F: FnOnce(ErrorHolder) -> Delivery>(
+    pub(crate) fn start_delivery<S: Hash + Eq + ?Sized, F: FnOnce() -> Delivery>(
         &self,
         consumer_tag: &S,
         message: F,
@@ -50,7 +49,7 @@ impl Consumers {
         ShortString: Borrow<S>,
     {
         if let Some(consumer) = self.read().get(consumer_tag) {
-            consumer.start_new_delivery(message(consumer.error()));
+            consumer.start_new_delivery(message());
         }
     }
 

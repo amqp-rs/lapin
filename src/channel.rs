@@ -162,6 +162,9 @@ impl Channel {
     }
 
     pub(crate) fn set_closing(&self, error: Option<Error>) {
+        if let Some(error) = error.as_ref() {
+            self.status.poison_ackers(error.clone());
+        }
         self.set_state(ChannelState::Closing);
         if let Some(error) = error {
             self.error_publisher_confirms(error.clone());
@@ -172,6 +175,7 @@ impl Channel {
     }
 
     pub(crate) fn set_closed(&self, error: Error) {
+        self.status.poison_ackers(error.clone());
         self.set_state(ChannelState::Closed);
         self.error_publisher_confirms(error.clone());
         self.cancel_consumers();
@@ -180,6 +184,7 @@ impl Channel {
 
     // Only called in case of a protocol failure
     pub(crate) fn set_connection_error(&self, error: Error) {
+        self.status.poison_ackers(error.clone());
         self.set_state(ChannelState::Error);
         self.error_publisher_confirms(error.clone());
         self.error_consumers(error.clone());
@@ -1181,7 +1186,7 @@ impl Channel {
         resolver: PromiseResolver<Option<BasicGetMessage>>,
     ) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        let killswitch = self.status.set_will_receive(class_id, DeliveryCause::Get);
+        let poison = self.status.set_will_receive(class_id, DeliveryCause::Get);
         self.basic_get_delivery.start_new_delivery(
             BasicGetMessage::new(
                 self.id,
@@ -1191,7 +1196,7 @@ impl Channel {
                 method.redelivered,
                 method.message_count,
                 self.internal_rpc.clone(),
-                killswitch,
+                poison,
             ),
             resolver,
         );
@@ -1244,10 +1249,10 @@ impl Channel {
     fn on_basic_deliver_received(&self, method: protocol::basic::Deliver) -> Result<()> {
         let class_id = method.get_amqp_class_id();
         let consumer_tag = method.consumer_tag.clone();
-        let killswitch = self
+        let poison = self
             .status
             .set_will_receive(class_id, DeliveryCause::Consume(consumer_tag.clone()));
-        self.consumers.start_delivery(&consumer_tag, |error| {
+        self.consumers.start_delivery(&consumer_tag, || {
             Delivery::new(
                 self.id,
                 method.delivery_tag,
@@ -1255,8 +1260,7 @@ impl Channel {
                 method.routing_key,
                 method.redelivered,
                 Some(self.internal_rpc.clone()),
-                Some(error),
-                killswitch,
+                poison,
             )
         });
         Ok(())
@@ -1345,7 +1349,7 @@ impl Channel {
 
     fn on_basic_return_received(&self, method: protocol::basic::Return) -> Result<()> {
         let class_id = method.get_amqp_class_id();
-        let killswitch = self
+        let poison = self
             .status
             .set_will_receive(class_id, DeliveryCause::Return);
         self.returned_messages
@@ -1354,7 +1358,7 @@ impl Channel {
                 method.routing_key,
                 method.reply_code,
                 method.reply_text,
-                killswitch,
+                poison,
             ));
         Ok(())
     }
