@@ -1,3 +1,9 @@
+### 4.12.3 (2026-10-18)
+
+#### Bug Fixes
+
+* Properly make ack of an old channel fail after a connection recovery
+
 ### 4.12.2 (2026-10-09)
 
 #### Bug Fixes
