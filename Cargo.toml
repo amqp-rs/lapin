@@ -38,6 +38,9 @@ vendored-openssl          = ["amq-protocol/vendored-openssl"]
 rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but doesn't build everywhere
 rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
 
+# Run the cluster tests against real RabbitMQ nodes started with testcontainers (requires Docker or podman)
+testcontainers-tests      = []
+
 [build-dependencies.amq-protocol-codegen]
 version = "^10.5"
 optional = true
@@ -80,6 +83,10 @@ futures-lite = "^2.0"
 serde_json = "^1.0"
 smol = "^2.0"
 
+[dev-dependencies.testcontainers]
+version = "^0.28"
+default-features = false
+
 [dev-dependencies.tokio]
 version = "^1.39"
 features = ["macros", "rt-multi-thread", "time"]
@@ -87,6 +94,10 @@ features = ["macros", "rt-multi-thread", "time"]
 [dev-dependencies.tracing-subscriber]
 version = "^0.3.20"
 features = ["fmt"]
+
+[[example]]
+name = "cluster"
+required-features = ["tokio"]
 
 [[example]]
 name = "connection"
@@ -111,6 +122,10 @@ required-features = ["smol"]
 [[example]]
 name = "tokio"
 required-features = ["tokio"]
+
+[[test]]
+name = "cluster_integration"
+required-features = ["tokio", "testcontainers-tests"]
 
 [[test]]
 name = "runtime_isolation"

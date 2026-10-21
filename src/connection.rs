@@ -153,6 +153,101 @@ impl Connection {
         uri.connect_with_config(options, config, runtime).await
     }
 
+    /// Connect to a cluster of AMQP 0-9-1 brokers, such as a
+    /// [RabbitMQ cluster](https://www.rabbitmq.com/docs/clustering).
+    ///
+    /// `uris` lists the cluster nodes, in order of preference, using the same format as
+    /// [`connect`]. Each connection attempt tries every node in turn until one of them
+    /// accepts the connection; the backoff configured in [`ConnectionProperties`] is only
+    /// applied once all nodes have failed, before starting a new cycle.
+    ///
+    /// When automatic recovery is enabled (see
+    /// [`ConnectionProperties::enable_auto_recover`]) and the connection is lost, the
+    /// recovery starts with the node following the one we were connected to, so that
+    /// clients fail over to another cluster member.
+    ///
+    /// All the URIs must share the same virtual host and credentials. The connection
+    /// tuning parameters (`frame_max`, `channel_max`, `heartbeat`, `auth_mechanism`) are
+    /// taken from the first URI, while `connection_timeout` is honoured per node: setting
+    /// it (e.g. `?connection_timeout=5000`) is recommended so that an unreachable node
+    /// doesn't delay the failover to the next one.
+    ///
+    /// No load balancing is performed: to spread clients over the cluster, shuffle `uris`
+    /// before calling this.
+    ///
+    /// No node discovery or broker-specific extension is involved: the given URIs are
+    /// simply tried in turn. Recovery redeclares the known topology on the new node, but
+    /// whether queued messages survive the loss of a node depends on the broker
+    /// replicating them (e.g. RabbitMQ quorum queues).
+    ///
+    /// [`connect`]: Self::connect
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use lapin::{Connection, ConnectionProperties, Result};
+    /// # async fn example() -> Result<()> {
+    /// let conn = Connection::connect_cluster(
+    ///     &[
+    ///         "amqp://rabbit1:5672/%2f?connection_timeout=5000",
+    ///         "amqp://rabbit2:5672/%2f?connection_timeout=5000",
+    ///         "amqp://rabbit3:5672/%2f?connection_timeout=5000",
+    ///     ],
+    ///     ConnectionProperties::default().enable_auto_recover(),
+    /// )
+    /// .await?;
+    /// # Ok(()) }
+    /// ```
+    pub async fn connect_cluster<S: AsRef<str>>(
+        uris: &[S],
+        options: ConnectionProperties,
+    ) -> Result<Self> {
+        Connect::connect(parse_uris(uris)?, options).await
+    }
+
+    /// Connect to a cluster with an explicit runtime.
+    ///
+    /// See [`connect_cluster`] for the cluster semantics and [`connect_with_runtime`] for
+    /// the runtime.
+    ///
+    /// [`connect_cluster`]: Self::connect_cluster
+    /// [`connect_with_runtime`]: Self::connect_with_runtime
+    pub async fn connect_cluster_with_runtime<
+        S: AsRef<str>,
+        RK: RuntimeKit + Send + Sync + Clone + 'static,
+    >(
+        uris: &[S],
+        options: ConnectionProperties,
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        parse_uris(uris)?
+            .connect_with_config(options, OwnedTLSConfig::default(), runtime)
+            .await
+    }
+
+    /// Connect to a cluster with an explicit runtime and TLS configuration.
+    ///
+    /// See [`connect_cluster`] for the cluster semantics and [`connect_with_config`] for
+    /// the runtime and TLS configuration. The same TLS configuration is used for every
+    /// node; the server name checked against the node certificate is the host of the URI
+    /// being connected to.
+    ///
+    /// [`connect_cluster`]: Self::connect_cluster
+    /// [`connect_with_config`]: Self::connect_with_config
+    pub async fn connect_cluster_with_config<
+        S: AsRef<str>,
+        RK: RuntimeKit + Send + Sync + Clone + 'static,
+    >(
+        uris: &[S],
+        options: ConnectionProperties,
+        config: OwnedTLSConfig,
+        runtime: Runtime<RK>,
+    ) -> Result<Self> {
+        parse_uris(uris)?
+            .connect_with_config(options, config, runtime)
+            .await
+    }
+
     /// Open a new [`Channel`] on this connection.
     ///
     /// Channels are lightweight; open one per concurrent logical task. Returns
@@ -240,8 +335,32 @@ impl Connection {
         + 'static,
         options: ConnectionProperties,
     ) -> Result<Self> {
-        let configuration = Configuration::new(&uri, options);
-        let status = ConnectionStatus::new(&uri);
+        Self::cluster_connector(vec![uri], runtime, connect, options).await
+    }
+
+    /// Low-level entry point for custom transport implementations, connecting to a
+    /// cluster.
+    ///
+    /// Like [`connector`], but `connect` gets called with each of the cluster node URIs
+    /// in turn until one succeeds. See [`connect_cluster`] for the cluster semantics.
+    ///
+    /// [`connector`]: Self::connector
+    /// [`connect_cluster`]: Self::connect_cluster
+    pub async fn cluster_connector<RK: RuntimeKit + Clone + Send + 'static>(
+        uris: Vec<AMQPUri>,
+        runtime: Runtime<RK>,
+        connect: impl AsyncFn(
+            AMQPUri,
+            Runtime<RK>,
+        ) -> Result<AsyncTcpStream<<RK as Reactor>::TcpStream>>
+        + Send
+        + Sync
+        + 'static,
+        options: ConnectionProperties,
+    ) -> Result<Self> {
+        let uri = check_cluster_uris(&uris)?;
+        let configuration = Configuration::new(uri, options);
+        let status = ConnectionStatus::new(uri);
         let frames = Frames::default();
         let socket_state = SocketState::default();
         let heartbeat = Heartbeat::new(status.clone(), runtime.clone());
@@ -278,7 +397,7 @@ impl Connection {
             heartbeat,
             runtime,
             connect,
-            uri,
+            uris,
             conn.configuration().backoff,
         );
 
@@ -320,7 +439,8 @@ impl fmt::Debug for Connection {
 
 /// Extension trait that lets URI types open a [`Connection`] directly.
 ///
-/// Implemented for [`&str`], [`String`], and [`AMQPUri`].
+/// Implemented for [`&str`], [`String`], and [`AMQPUri`], as well as for
+/// [`Vec<AMQPUri>`] to connect to a cluster (see [`Connection::connect_cluster`]).
 #[async_trait]
 pub trait Connect {
     /// Connect to an AMQP server using the default runtime and TLS configuration.
@@ -355,7 +475,21 @@ impl Connect for AMQPUri {
         config: OwnedTLSConfig,
         runtime: Runtime<RK>,
     ) -> Result<Connection> {
-        Connection::connector(
+        vec![self]
+            .connect_with_config(options, config, runtime)
+            .await
+    }
+}
+
+#[async_trait]
+impl Connect for Vec<AMQPUri> {
+    async fn connect_with_config<RK: RuntimeKit + Send + Sync + Clone + 'static>(
+        self,
+        options: ConnectionProperties,
+        config: OwnedTLSConfig,
+        runtime: Runtime<RK>,
+    ) -> Result<Connection> {
+        Connection::cluster_connector(
             self,
             runtime,
             async move |uri, runtime| {
@@ -367,6 +501,35 @@ impl Connect for AMQPUri {
         )
         .await
     }
+}
+
+fn parse_uris<S: AsRef<str>>(uris: &[S]) -> Result<Vec<AMQPUri>> {
+    uris.iter()
+        .map(|uri| uri.as_ref().parse::<AMQPUri>().map_err(Error::other))
+        .collect()
+}
+
+/// Ensure we got at least one URI and that all cluster URIs are consistent.
+///
+/// Returns the first URI, which is used for everything that isn't node specific.
+fn check_cluster_uris(uris: &[AMQPUri]) -> Result<&AMQPUri> {
+    let Some((first, others)) = uris.split_first() else {
+        return Err(Error::other("No AMQPUri given to connect to"));
+    };
+    for uri in others {
+        if uri.vhost != first.vhost {
+            return Err(Error::other(format!(
+                "All cluster URIs must use the same virtual host (got {:?} and {:?})",
+                first.vhost, uri.vhost
+            )));
+        }
+        if uri.authority.userinfo != first.authority.userinfo {
+            return Err(Error::other(
+                "All cluster URIs must use the same credentials",
+            ));
+        }
+    }
+    Ok(first)
 }
 
 #[async_trait]

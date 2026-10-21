@@ -60,6 +60,10 @@ pub enum ErrorKind {
 
     /// The broker did not send a heartbeat within the negotiated timeout.
     MissingHeartbeatError,
+
+    /// An operation timed out.
+    // Used in io_loop::with_timeout
+    TimeoutError,
 }
 
 impl Error {
@@ -159,6 +163,8 @@ impl Error {
             ErrorKind::NoDefaultRuntime => false,
 
             ErrorKind::MissingHeartbeatError => true,
+
+            ErrorKind::TimeoutError => true,
         }
     }
 }
@@ -200,6 +206,9 @@ impl fmt::Display for Error {
 
             ErrorKind::MissingHeartbeatError => {
                 write!(f, "no heartbeat received from server for too long")
+            }
+            ErrorKind::TimeoutError => {
+                write!(f, "Operation timed out")
             }
         }
     }
@@ -259,7 +268,7 @@ impl PartialEq for Error {
             (SerialisationError(_), SerialisationError(_)) => false,
             (FutureCompleted, FutureCompleted) => true,
             (NoDefaultRuntime, NoDefaultRuntime) => true,
-
+            (TimeoutError, TimeoutError) => true,
             _ => false,
         }
     }

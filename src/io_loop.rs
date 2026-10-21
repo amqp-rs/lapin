@@ -20,7 +20,7 @@ use futures_io::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
     io,
-    pin::Pin,
+    pin::{Pin, pin},
     sync::Arc,
     task::{Context, Poll},
     thread::Builder as ThreadBuilder,
@@ -53,7 +53,12 @@ pub(crate) struct IoLoop<
     heartbeat: Heartbeat<RK>,
     runtime: Runtime<RK>,
     connect: C,
-    uri: AMQPUri,
+    /// Endpoints we can connect to (always non-empty). With a single entry this
+    /// behaves like a regular single-node connection; with several entries
+    /// (RabbitMQ cluster nodes), each connection attempt tries them in turn.
+    uris: Vec<AMQPUri>,
+    /// Index in `uris` of the node each connection attempt starts with.
+    current_uri_index: usize,
     backoff: ExponentialBuilder,
     global_backoff: ExponentialBackoff,
     status: Status,
@@ -84,9 +89,10 @@ impl<
         heartbeat: Heartbeat<RK>,
         runtime: Runtime<RK>,
         connect: C,
-        uri: AMQPUri,
+        uris: Vec<AMQPUri>,
         backoff: ExponentialBuilder,
     ) -> Self {
+        assert!(!uris.is_empty(), "IoLoop needs at least one AMQPUri");
         let frame_size = std::cmp::max(
             protocol::constants::FRAME_MIN_SIZE,
             configuration.frame_max(),
@@ -103,7 +109,8 @@ impl<
             heartbeat,
             runtime,
             connect,
-            uri,
+            uris,
+            current_uri_index: 0,
             backoff,
             global_backoff,
             status: Status::Initial,
@@ -198,6 +205,46 @@ impl<
         }
     }
 
+    /// Try to open a transport to each known node in turn, starting with `start`.
+    ///
+    /// Returns the index of the node we connected to alongside the stream, or the
+    /// last error if no node was reachable.
+    async fn connect_any_node(
+        &self,
+        start: usize,
+    ) -> Result<(usize, AsyncTcpStream<<RK as Reactor>::TcpStream>)> {
+        let mut last_error = None;
+        let len_uris = self.uris.len();
+        // Iterate through the uris starting at start and wrapping around.
+        for (index, uri) in self
+            .uris
+            .iter()
+            .enumerate()
+            .cycle()
+            .skip(start)
+            .take(len_uris)
+        {
+            let (host, port) = (&uri.authority.host, uri.authority.port);
+            trace!(%host, %port, "Connecting to AMQP node");
+            let attempt = (self.connect)(uri.clone(), self.runtime.clone());
+            let res = match uri.query.connection_timeout.filter(|timeout| *timeout > 0) {
+                Some(timeout) => {
+                    with_timeout(&self.runtime, Duration::from_millis(timeout), attempt).await
+                }
+                None => attempt.await,
+            };
+            match res {
+                Ok(stream) => {
+                    return Ok((index, stream));
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| Error::other("No AMQPUri to connect to")))
+    }
+
     pub(crate) fn start(mut self) -> Result<JoinHandle> {
         let runtime = self.runtime.clone();
         let waker = self.socket_state.handle();
@@ -213,14 +260,18 @@ impl<
                 let writable_waker = self.socket_state.writable_waker();
                 let mut writable_context = Context::from_waker(&writable_waker);
                 let (mut stream, res) = loop {
-                    let connect = || (self.connect)(self.uri.clone(), self.runtime.clone());
+                    let start = self.current_uri_index;
+                    let connect = || self.connect_any_node(start);
                     let runtime = self.runtime.clone();
+                    // Each attempt cycles through all the known nodes (starting with the
+                    // current one) and the backoff only applies once all of them failed.
                     let connect = connect.retry(self.backoff).sleep(move |dur| runtime.sleep(dur));
-                    let mut stream = self.runtime.block_on(connect).inspect_err(|err| {
+                    let (current_uri, mut stream) = self.runtime.block_on(connect).inspect_err(|err| {
                         trace!("Poison connection attempt");
                         self.connection_status.poison(err.clone());
                         self.frames.clear_connection_steps(err);
                     })?;
+                    self.current_uri_index = current_uri;
                     self.half_closed = false;
                     let mut res = Ok(());
 
@@ -275,6 +326,9 @@ impl<
                     std::thread::sleep(throttle);
 
                     self.reset();
+                    // The node we were talking to went away (or failed the handshake):
+                    // start the next attempt with the next node of the cluster.
+                    self.current_uri_index = (self.current_uri_index + 1) % self.uris.len();
                     if !self.first_connection {
                         self.internal_rpc.start_channels_recovery();
                     }
@@ -640,6 +694,29 @@ impl<
             }
         }
     }
+}
+
+/// Run `fut`, failing with a `TimedOut` IO error if it doesn't complete within `timeout`.
+///
+/// Used to honour the `connection_timeout` URI parameter so that an unreachable
+/// cluster node doesn't stall failover to the next one.
+async fn with_timeout<RK: RuntimeKit, T>(
+    runtime: &Runtime<RK>,
+    timeout: Duration,
+    fut: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    let mut fut = pin!(fut);
+    let mut sleep = pin!(runtime.sleep(timeout));
+    std::future::poll_fn(|cx| {
+        if let Poll::Ready(res) = fut.as_mut().poll(cx) {
+            return Poll::Ready(res);
+        }
+        if sleep.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(Err(ErrorKind::TimeoutError.into()));
+        }
+        Poll::Pending
+    })
+    .await
 }
 
 /// Create a new span for the io_loop thread that follows from the connect span, and has the same level.
