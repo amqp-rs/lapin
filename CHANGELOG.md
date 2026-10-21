@@ -1,3 +1,12 @@
+### Unreleased
+
+#### Features
+
+* Support connecting to a cluster of AMQP 0-9-1 brokers (e.g. a RabbitMQ cluster): `Connection::connect_cluster*`, `Connection::cluster_connector`,
+  `Connect for Vec<AMQPUri>` and `ConnectionBuilder::with_cluster_uris`/`with_cluster_uri_strs`.
+  Each connection attempt tries all nodes in turn, and recovery fails over to the next node.
+* Honour the `connection_timeout` URI parameter when opening the TCP/TLS connection
+
 ### 4.12.3 (2026-10-18)
 
 #### Bug Fixes

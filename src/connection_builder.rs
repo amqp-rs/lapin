@@ -37,6 +37,8 @@ pub type DefaultConnectionBuilder = ConnectionBuilder<runtime::DefaultRuntimeKit
 enum UriBuilder {
     Str(String),
     Uri(AMQPUri),
+    ClusterStr(Vec<String>),
+    ClusterUri(Vec<AMQPUri>),
     #[default]
     Unset,
 }
@@ -73,6 +75,25 @@ impl<RK: RuntimeKit + Send + Sync + Clone + 'static> ConnectionBuilder<RK> {
         self
     }
 
+    /// Set the URIs of the nodes of a cluster from pre-parsed [`AMQPUri`]s.
+    ///
+    /// See [`Connection::connect_cluster`] for the cluster semantics.
+    pub fn with_cluster_uris(mut self, uris: Vec<AMQPUri>) -> Self {
+        self.uri = UriBuilder::ClusterUri(uris);
+        self
+    }
+
+    /// Set the URIs of the nodes of a cluster from strings (parsed lazily at
+    /// [`connect`] time).
+    ///
+    /// See [`Connection::connect_cluster`] for the cluster semantics.
+    ///
+    /// [`connect`]: Self::connect
+    pub fn with_cluster_uri_strs(mut self, uris: Vec<String>) -> Self {
+        self.uri = UriBuilder::ClusterStr(uris);
+        self
+    }
+
     /// Override the default [`ConnectionProperties`].
     pub fn with_properties(mut self, properties: ConnectionProperties) -> Self {
         self.properties = Some(properties);
@@ -98,6 +119,14 @@ impl<RK: RuntimeKit + Send + Sync + Clone + 'static> ConnectionBuilder<RK> {
             }
             UriBuilder::Uri(uri) => {
                 uri.connect_with_config(properties, tls_config, runtime)
+                    .await
+            }
+            UriBuilder::ClusterStr(uris) => {
+                Connection::connect_cluster_with_config(&uris, properties, tls_config, runtime)
+                    .await
+            }
+            UriBuilder::ClusterUri(uris) => {
+                uris.connect_with_config(properties, tls_config, runtime)
                     .await
             }
             UriBuilder::Unset => Err(Error::other("No AMQPUri given to ConnectionBuilder")),

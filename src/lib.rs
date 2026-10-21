@@ -10,8 +10,8 @@
 //!
 //! # Core concepts
 //!
-//! **[`Connection`]** — a single TCP socket to the broker. One process
-//! typically creates one connection and reuses it throughout its lifetime.
+//! **[`Connection`]** — The TCP connection(s) to the broker(s). One process
+//! typically creates one of these and reuses it throughout its lifetime.
 //!
 //! **[`Channel`]** — a lightweight virtual connection multiplexed over a
 //! [`Connection`]. All AMQP operations (declaring queues, publishing,

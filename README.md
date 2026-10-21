@@ -82,6 +82,40 @@ let props = ConnectionProperties::default().enable_auto_recover();
 After catching a recoverable error on a channel, call
 `channel.wait_for_recovery(error).await` to block until recovery is complete.
 
+## Clustering
+
+To connect to a cluster of AMQP 0-9-1 brokers, such as a
+[RabbitMQ cluster](https://www.rabbitmq.com/docs/clustering), give lapin the
+URIs of the cluster nodes, in order of preference. Each
+connection attempt tries the nodes in turn until one accepts the connection.
+Combined with `.enable_auto_recover()`, losing the current node makes lapin
+fail over to the next one:
+
+```rust,no_run
+use lapin::{Connection, ConnectionProperties};
+
+let conn = Connection::connect_cluster(
+    &[
+        "amqp://rabbit1:5672/%2f?connection_timeout=5000",
+        "amqp://rabbit2:5672/%2f?connection_timeout=5000",
+        "amqp://rabbit3:5672/%2f?connection_timeout=5000",
+    ],
+    ConnectionProperties::default().enable_auto_recover(),
+)
+.await?;
+```
+
+All URIs must share the same virtual host and credentials. Setting
+`connection_timeout` (in milliseconds) on each URI keeps an unreachable node
+from delaying the failover. Shuffle the list yourself to spread clients across
+the cluster.
+
+Lapin doesn't discover the cluster nodes nor rely on any broker-specific
+extension: it simply tries the given URIs. On failover, it redeclares the
+exchanges, queues and bindings it knows about, but whether queued messages
+survive the loss of a node depends on the broker replicating them (e.g.
+RabbitMQ quorum queues).
+
 ## Feature flags
 
 ### Async runtime (pick exactly one)
