@@ -296,33 +296,29 @@ enum InternalCommand {
 #[derive(Debug)]
 struct DeliveryResolver {
     channel_id: ChannelId,
-    poison: ErrorHolder,
-    resolver: Option<PromiseResolver<()>>,
+    /// Kept together so that `into_parts` moves both out, leaving no placeholder poison behind.
+    resolver_parts: Option<(ErrorHolder, PromiseResolver<()>)>,
 }
 
 impl DeliveryResolver {
     fn new(channel_id: ChannelId, poison: ErrorHolder, resolver: PromiseResolver<()>) -> Self {
         Self {
             channel_id,
-            poison,
-            resolver: Some(resolver),
+            resolver_parts: Some((poison, resolver)),
         }
     }
 
     fn into_parts(mut self) -> (ErrorHolder, PromiseResolver<()>) {
-        let resolver = self
-            .resolver
+        self.resolver_parts
             .take()
-            .expect("the resolver is only taken by into_parts");
-        (std::mem::take(&mut self.poison), resolver)
+            .expect("the resolver parts are only taken by into_parts")
     }
 }
 
 impl Drop for DeliveryResolver {
     fn drop(&mut self) {
-        if let Some(resolver) = self.resolver.take() {
-            let error = self
-                .poison
+        if let Some((poison, resolver)) = self.resolver_parts.take() {
+            let error = poison
                 .check()
                 .err()
                 .unwrap_or_else(|| ErrorKind::InvalidChannel(self.channel_id).into());
