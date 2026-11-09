@@ -1,3 +1,28 @@
+### 4.13.0 (2026-11-09)
+
+#### Bug Fixes
+
+* Fix a panic when growing an IO buffer that holds wrapped data, and restore the right length on buffer rollback
+* IO buffers grow on demand up to the negotiated frame size, oversized frames are rejected, and `frame_max` defaults to at most 16 MiB
+* Keep the frames of a channel in order, and only pause the publishes of the channel targeted by `Channel.Flow`
+* Assign publisher confirm tags in send order
+* `Channel::wait_for_confirms` waits for every pending confirm, including with concurrent callers
+* Deliver connection events to every listener; a listener created while connected first receives `Event::Connected`
+* Refresh tokens before they expire, including when heartbeats are disabled
+* Fix hangs on authentication failure, failed handshake steps, interrupted `basic_get`, and channel creation, connection close or secret updates once the connection stopped
+* Honor the `connection_timeout` URI parameter
+* Stop connecting when the connect future is dropped, and stop reconnecting once the connection is closed or dropped
+* Negotiate limits from the requested values on every reconnect
+* A method holding a value that cannot be sent, such as a short string with NUL, fails alone instead of closing the connection
+* Don't log credentials or message content
+* `Error` equality is reflexive
+* With the `codegen` feature and `LAPIN_CODEGEN_DIR`, also write the generated code where the crate includes it
+
+#### Misc
+
+* Update amq-protocol to 10.7, which requires Rust 1.89
+* Raise dependency floors past RustSec advisories
+
 ### 4.12.3 (2026-10-18)
 
 #### Bug Fixes
