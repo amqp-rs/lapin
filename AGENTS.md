@@ -64,6 +64,7 @@ Lapin is an async AMQP 0.9.1 client. The core abstraction is a `Connection` (one
 - Paused publishes and subsequent methods are deferred per channel; `Channel.Flow` and `Channel.FlowOk` bypass that queue so flow-control handshakes can complete.
 - `ExpectedReply` associates an outgoing frame with a promise resolver so callers can `await` the server response.
 - Frame serialization/deserialization is done by the `amq-protocol` crate.
+- Generated methods check their short string, long string and field table arguments (`Sendable` in `channel.rs`) before their start hook runs or anything is queued, and a publish serializes its method and header aside: a value the IO loop could not serialize, such as a short string holding NUL, fails only that call with `SerialisationError`, without local state changes or a publisher confirm. `Connection::close` checks its reply text before the connection starts closing. Handshake steps are not checked: a failure there still fails the connection.
 
 **Promise system (`promise.rs`)**
 - Thin async primitive used instead of `oneshot` channels for RPC-style request/response throughout the library.

@@ -67,6 +67,10 @@ impl Error {
         io::Error::other(error).into()
     }
 
+    pub(crate) fn serialisation(error: GenError) -> Self {
+        ErrorKind::SerialisationError(Arc::new(error)).into()
+    }
+
     pub(crate) fn io<RK: RuntimeKit>(error: io::Error, rt: &Runtime<RK>) -> Self {
         if rt.is_runtime_shutdown_error(&error) {
             ErrorKind::RuntimeShutdownError(Arc::new(error)).into()

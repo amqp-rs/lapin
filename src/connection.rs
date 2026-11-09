@@ -1,6 +1,6 @@
 use crate::{
     AsyncTcpStream, ConnectionProperties, ConnectionStatus, Error, Event, Promise, Result,
-    channel::{Channel, Reply},
+    channel::{Channel, Reply, Sendable},
     channels::Channels,
     configuration::Configuration,
     connection_closer::ConnectionCloser,
@@ -233,6 +233,8 @@ impl Connection {
     /// Returns an error if the connection is not in [`crate::ConnectionState::Connected`].
     pub async fn close(&self, reply_code: ReplyCode, reply_text: ShortString) -> Result<()> {
         self.status.ensure_connected()?;
+        // Fail only this call, before the connection starts closing.
+        reply_text.check_sendable()?;
         self.internal_rpc
             .close_connection_checked(reply_code, reply_text, 0, 0)
             .await
@@ -592,6 +594,79 @@ mod tests {
         // Clearing an empty queue is safe, including repeated cleanup.
         frames.clear_connection_steps(&error);
         frames.clear_connection_steps(&error);
+    }
+
+    #[test]
+    fn unsendable_methods_fail_only_their_caller() {
+        use crate::options::{BasicCancelOptions, QueueDeclareOptions};
+        use std::{
+            future::Future,
+            task::{Context, Poll},
+        };
+
+        fn refused<T>(future: impl Future<Output = Result<T>>) -> bool {
+            let mut cx = Context::from_waker(std::task::Waker::noop());
+            matches!(
+                std::pin::pin!(future).poll(&mut cx),
+                Poll::Ready(Err(error)) if matches!(error.kind(), ErrorKind::SerialisationError(_))
+            )
+        }
+
+        let (conn, channels, _, frames) = create_connection_with_frames();
+        conn.configuration.negotiated_config.set_channel_max(2047);
+        let channel = channels.create(conn.closer.clone()).unwrap();
+        channel.set_state(ChannelState::Connected);
+        channel.status().set_confirm();
+        for nowait in [false, true] {
+            assert!(refused(channel.queue_declare(
+                "a\0b".into(),
+                QueueDeclareOptions {
+                    nowait,
+                    ..QueueDeclareOptions::default()
+                },
+                FieldTable::default(),
+            )));
+        }
+        assert!(refused(
+            channel.basic_cancel("a\0b".into(), BasicCancelOptions::default())
+        ));
+        // The close is refused before the channel starts closing
+        assert!(refused(channel.close(200, "a\0b".into())));
+        assert!(refused(channel.basic_publish(
+            "a\0b".into(),
+            "queue".into(),
+            Default::default(),
+            b"payload",
+            BasicProperties::default(),
+        )));
+        assert!(refused(channel.basic_publish(
+            "".into(),
+            "queue".into(),
+            Default::default(),
+            b"payload",
+            BasicProperties::default().with_content_type("a\0b".into()),
+        )));
+        // Nothing was queued, and the refused publishes took no confirm
+        assert!(!frames.has_pending());
+        let mut cx = Context::from_waker(std::task::Waker::noop());
+        assert!(matches!(
+            std::pin::pin!(channel.wait_for_confirms()).poll(&mut cx),
+            Poll::Ready(Ok(_))
+        ));
+        assert!(channel.status().connected());
+    }
+
+    #[test]
+    fn unsendable_close_text_leaves_the_connection_open() {
+        use std::{future::Future, task::Context};
+
+        let (conn, _, _) = create_connection();
+        let mut cx = Context::from_waker(std::task::Waker::noop());
+        assert!(matches!(
+            std::pin::pin!(conn.close(200, "bye\0now".into())).poll(&mut cx),
+            Poll::Ready(Err(error)) if matches!(error.kind(), ErrorKind::SerialisationError(_))
+        ));
+        assert!(conn.status().connected());
     }
 
     #[test]

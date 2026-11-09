@@ -25,13 +25,74 @@ use crate::{
     topology::ChannelDefinition,
     types::*,
 };
-use amq_protocol::frame::{AMQPContentHeader, AMQPFrame};
+use amq_protocol::{
+    frame::{AMQPContentHeader, AMQPFrame, GenError, gen_frame},
+    types::{
+        generation::{gen_field_table, gen_long_string, gen_short_string},
+        is_sendable_short_string,
+    },
+};
 use std::{
     convert::TryFrom,
     fmt,
     sync::{Arc, Mutex},
 };
 use tracing::{error, info, trace};
+
+/// An argument of a generated method, checked before anything is queued: the IO
+/// loop treats a value it cannot serialize, such as a short string holding NUL,
+/// as fatal to the connection, so only the call holding it fails instead.
+///
+/// A method can only fail to serialize through one of its short strings, long
+/// strings or field tables; the other argument types always serialize.
+pub(crate) trait Sendable {
+    fn check_sendable(&self) -> Result<()>;
+}
+
+fn serialization_result<T>(result: std::result::Result<T, GenError>) -> Result<()> {
+    result.map(|_| ()).map_err(Error::serialisation)
+}
+
+impl Sendable for ShortString {
+    fn check_sendable(&self) -> Result<()> {
+        if is_sendable_short_string(self.as_str()) {
+            return Ok(());
+        }
+        serialization_result(gen_short_string(self.as_str())(Vec::new().into()))
+    }
+}
+
+impl Sendable for LongString {
+    fn check_sendable(&self) -> Result<()> {
+        if LongUInt::try_from(self.len()).is_ok() {
+            return Ok(());
+        }
+        serialization_result(gen_long_string(self.as_bytes())(Vec::new().into()))
+    }
+}
+
+impl Sendable for FieldTable {
+    fn check_sendable(&self) -> Result<()> {
+        if self.inner().is_empty() {
+            return Ok(());
+        }
+        serialization_result(gen_field_table(self)(Vec::new().into()))
+    }
+}
+
+macro_rules! always_sendable {
+    ($($ty:ty),*) => {
+        $(
+            impl Sendable for $ty {
+                fn check_sendable(&self) -> Result<()> {
+                    Ok(())
+                }
+            }
+        )*
+    };
+}
+
+always_sendable!(Boolean, ShortShortUInt, ShortUInt, LongUInt, LongLongUInt);
 
 /// Main entry point for most AMQP operations.
 ///
@@ -515,24 +576,37 @@ impl Channel {
         self.wake();
     }
 
-    async fn send_method_frame_with_body(
+    /// Refuse a method the IO loop could not serialize, such as one with a short
+    /// string holding NUL, before it is queued: only its caller fails then,
+    /// instead of the connection.
+    fn check_serializable(method: &AMQPClass) -> Result<()> {
+        protocol::gen_class(method)(Vec::new().into())
+            .map(|_| ())
+            .map_err(|error| ErrorKind::SerialisationError(Arc::new(error)).into())
+    }
+
+    /// Build the frames of a method with content, refusing them if the IO loop
+    /// could not serialize the method or its header.
+    fn method_frames_with_body(
         &self,
-        ctx: &'static str,
         method: AMQPClass,
         payload: &[u8],
         properties: BasicProperties,
-    ) -> Result<PublisherConfirm> {
+    ) -> Result<Vec<AMQPFrame>> {
+        Self::check_serializable(&method)?;
         let class_id = method.get_amqp_class_id();
-        let header = AMQPContentHeader {
-            class_id,
-            body_size: payload.len() as PayloadSize,
-            properties,
-        };
+        let header = AMQPFrame::Header(
+            self.id,
+            AMQPContentHeader {
+                class_id,
+                body_size: payload.len() as PayloadSize,
+                properties,
+            },
+        );
+        gen_frame(&header)(Vec::new().into())
+            .map_err(|error| Error::from(ErrorKind::SerialisationError(Arc::new(error))))?;
         let frame_max = self.configuration.frame_max();
-        let mut frames = vec![
-            AMQPFrame::Method(self.id, method),
-            AMQPFrame::Header(self.id, header),
-        ];
+        let mut frames = vec![AMQPFrame::Method(self.id, method), header];
 
         let chunk_size = (frame_max as usize).saturating_sub(8 /* An empty body frame weighs 8 bytes of overhead that we cannot use for payload */).max(1);
         frames.extend(
@@ -540,7 +614,14 @@ impl Channel {
                 .chunks(chunk_size)
                 .map(|chunk| AMQPFrame::Body(self.id, chunk.into())),
         );
+        Ok(frames)
+    }
 
+    async fn send_method_frames_with_body(
+        &self,
+        ctx: &'static str,
+        frames: Vec<AMQPFrame>,
+    ) -> Result<PublisherConfirm> {
         trace!(channel=%self.id, "send_frames");
         let (promise, resolver) = Promise::new(ctx);
         // The delivery tag must be assigned in the same order as the publish

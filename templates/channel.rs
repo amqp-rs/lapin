@@ -82,6 +82,19 @@ impl Channel {
     }
 
     {{/unless ~}}
+    {{#unless method.metadata.connection_step ~}}
+    {{#unless method.metadata.carry_headers ~}}
+    {{#unless method.ignore_args ~}}
+    {{#each_argument method.arguments as |argument| ~}}
+    {{#if @argument_is_value ~}}
+    {{#unless argument.force_default ~}}
+    {{snake argument.name}}.check_sendable()?;
+    {{/unless ~}}
+    {{/if ~}}
+    {{/each_argument ~}}
+    {{/unless ~}}
+    {{/unless ~}}
+    {{/unless ~}}
     {{#if method.metadata.start_hook ~}}
     {{#if method.metadata.start_hook.returns ~}}let start_hook_res = {{/if ~}}self.before_{{snake class.name false}}_{{snake method.name false}}({{#if method.metadata.start_hook.params ~}}{{#each method.metadata.start_hook.params as |param| ~}}{{#unless @first ~}}, {{/unless ~}}{{param}}{{/each ~}}{{/if ~}});
     {{/if ~}}
@@ -136,7 +149,8 @@ impl Channel {
     }));
 
     {{#if method.metadata.carry_headers ~}}
-    self.send_method_frame_with_body("{{class.name}}.{{method.name}}", method, payload, properties).await
+    let frames = self.method_frames_with_body(method, payload, properties)?;
+    self.send_method_frames_with_body("{{class.name}}.{{method.name}}", frames).await
     {{else}}
     {{#if method.metadata.resolver_hook ~}}{{method.metadata.resolver_hook}}{{/if ~}}
     self.send_method_frame(method, Box::new(resolver.clone()), {{#if method.metadata.connection_step ~}}Some(ExpectedReply({{#if method.synchronous ~}}reply{{else}}Reply::ConnectionStep(ConnectionStep::{{camel method.name}}({{#each method.metadata.extra_args as |arg| ~}}{{#unless @first ~}}, {{/unless ~}}{{arg.name}}{{/each ~}})){{/if ~}}, Box::new(resolver.clone()))), Some(resolver){{else if method.synchronous ~}}Some(ExpectedReply(reply, Box::new(resolver))), None{{else}}None, Some(resolver){{/if ~}});

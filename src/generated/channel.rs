@@ -424,6 +424,7 @@ impl Channel {
             return Err(self.status.state_error("basic.qos"));
         }
 
+        prefetch_count.check_sendable()?;
         let BasicQosOptions { global } = options;
         let (promise, resolver) = Promise::new("basic.qos");
         let reply = Reply::BasicQosOk(resolver.clone(), prefetch_count, global);
@@ -481,6 +482,9 @@ impl Channel {
             return Err(self.status.state_error("basic.consume"));
         }
 
+        queue.check_sendable()?;
+        consumer_tag.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let BasicConsumeOptions {
             no_local,
@@ -578,6 +582,7 @@ impl Channel {
             return Err(self.status.state_error("basic.cancel"));
         }
 
+        consumer_tag.check_sendable()?;
         self.before_basic_cancel(consumer_tag.as_str());
         let BasicCancelOptions { nowait } = options;
         let (promise, resolver) = Promise::new("basic.cancel");
@@ -615,6 +620,7 @@ impl Channel {
             return Err(self.status.state_error("basic.cancel-ok"));
         }
 
+        consumer_tag.check_sendable()?;
         let (promise, resolver) = Promise::new("basic.cancel-ok");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::CancelOk(
             protocol::basic::CancelOk { consumer_tag },
@@ -686,7 +692,8 @@ impl Channel {
             },
         ));
 
-        self.send_method_frame_with_body("basic.publish", method, payload, properties)
+        let frames = self.method_frames_with_body(method, payload, properties)?;
+        self.send_method_frames_with_body("basic.publish", frames)
             .await
     }
     fn receive_basic_return(&self, method: protocol::basic::Return) -> Result<()> {
@@ -717,6 +724,7 @@ impl Channel {
             return Err(self.status.state_error("basic.get"));
         }
 
+        queue.check_sendable()?;
         let BasicGetOptions { no_ack } = options;
         let (promise, resolver) = Promise::new("basic.get");
         let reply = Reply::BasicGetOk(resolver.clone());
@@ -780,6 +788,7 @@ impl Channel {
             return Err(self.status.state_error("basic.ack"));
         }
 
+        delivery_tag.check_sendable()?;
         let BasicAckOptions { multiple } = options;
         let (promise, resolver) = Promise::new("basic.ack");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Ack(protocol::basic::Ack {
@@ -818,6 +827,7 @@ impl Channel {
             return Err(self.status.state_error("basic.reject"));
         }
 
+        delivery_tag.check_sendable()?;
         let BasicRejectOptions { requeue } = options;
         let (promise, resolver) = Promise::new("basic.reject");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Reject(
@@ -922,6 +932,7 @@ impl Channel {
             return Err(self.status.state_error("basic.nack"));
         }
 
+        delivery_tag.check_sendable()?;
         let BasicNackOptions { multiple, requeue } = options;
         let (promise, resolver) = Promise::new("basic.nack");
         let method = AMQPClass::Basic(protocol::basic::AMQPMethod::Nack(protocol::basic::Nack {
@@ -1044,6 +1055,9 @@ impl Channel {
         frame_max: LongUInt,
         heartbeat: ShortUInt,
     ) -> Result<()> {
+        channel_max.check_sendable()?;
+        frame_max.check_sendable()?;
+        heartbeat.check_sendable()?;
         let (promise, resolver) = Promise::new("connection.tune-ok");
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::TuneOk(
             protocol::connection::TuneOk {
@@ -1109,6 +1123,10 @@ impl Channel {
         class_id: ShortUInt,
         method_id: ShortUInt,
     ) -> Result<()> {
+        reply_code.check_sendable()?;
+        reply_text.check_sendable()?;
+        class_id.check_sendable()?;
+        method_id.check_sendable()?;
         let (promise, resolver) = Promise::new("connection.close");
         let reply = Reply::ConnectionCloseOk(resolver.clone());
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::Close(
@@ -1193,6 +1211,8 @@ impl Channel {
         new_secret: LongString,
         reason: ShortString,
     ) -> Result<()> {
+        new_secret.check_sendable()?;
+        reason.check_sendable()?;
         let (promise, resolver) = Promise::new("connection.update-secret");
         let reply = Reply::ConnectionUpdateSecretOk(resolver.clone());
         let method = AMQPClass::Connection(protocol::connection::AMQPMethod::UpdateSecret(
@@ -1356,6 +1376,10 @@ impl Channel {
             return Err(self.status.state_error("channel.close"));
         }
 
+        reply_code.check_sendable()?;
+        reply_text.check_sendable()?;
+        class_id.check_sendable()?;
+        method_id.check_sendable()?;
         self.before_channel_close();
         let (promise, resolver) = Promise::new("channel.close");
         let reply = Reply::ChannelCloseOk(resolver.clone());
@@ -1430,6 +1454,7 @@ impl Channel {
             return Err(self.status.state_error("access.request"));
         }
 
+        realm.check_sendable()?;
         let AccessRequestOptions {
             exclusive,
             passive,
@@ -1497,6 +1522,9 @@ impl Channel {
             return Err(self.status.state_error("exchange.declare"));
         }
 
+        exchange.check_sendable()?;
+        kind.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let ExchangeDeclareOptions {
             passive,
@@ -1582,6 +1610,7 @@ impl Channel {
             return Err(self.status.state_error("exchange.delete"));
         }
 
+        exchange.check_sendable()?;
         let ExchangeDeleteOptions { if_unused, nowait } = options;
         let (promise, resolver) = Promise::new("exchange.delete");
         let reply = Reply::ExchangeDeleteOk(resolver.clone(), exchange.clone());
@@ -1646,6 +1675,10 @@ impl Channel {
             return Err(self.status.state_error("exchange.bind"));
         }
 
+        destination.check_sendable()?;
+        source.check_sendable()?;
+        routing_key.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let ExchangeBindOptions { nowait } = options;
         let (promise, resolver) = Promise::new("exchange.bind");
@@ -1728,6 +1761,10 @@ impl Channel {
             return Err(self.status.state_error("exchange.unbind"));
         }
 
+        destination.check_sendable()?;
+        source.check_sendable()?;
+        routing_key.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let ExchangeUnbindOptions { nowait } = options;
         let (promise, resolver) = Promise::new("exchange.unbind");
@@ -1815,6 +1852,8 @@ impl Channel {
             return Err(self.status.state_error("queue.declare"));
         }
 
+        queue.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let QueueDeclareOptions {
             passive,
@@ -1893,6 +1932,10 @@ impl Channel {
             return Err(self.status.state_error("queue.bind"));
         }
 
+        queue.check_sendable()?;
+        exchange.check_sendable()?;
+        routing_key.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let QueueBindOptions { nowait } = options;
         let (promise, resolver) = Promise::new("queue.bind");
@@ -1965,6 +2008,7 @@ impl Channel {
             return Err(self.status.state_error("queue.purge"));
         }
 
+        queue.check_sendable()?;
         let QueuePurgeOptions { nowait } = options;
         let (promise, resolver) = Promise::new("queue.purge");
         let reply = Reply::QueuePurgeOk(resolver.clone());
@@ -2019,6 +2063,7 @@ impl Channel {
             return Err(self.status.state_error("queue.delete"));
         }
 
+        queue.check_sendable()?;
         let QueueDeleteOptions {
             if_unused,
             if_empty,
@@ -2087,6 +2132,10 @@ impl Channel {
             return Err(self.status.state_error("queue.unbind"));
         }
 
+        queue.check_sendable()?;
+        exchange.check_sendable()?;
+        routing_key.check_sendable()?;
+        arguments.check_sendable()?;
         let creation_arguments = arguments.clone();
         let (promise, resolver) = Promise::new("queue.unbind");
         let reply = Reply::QueueUnbindOk(
