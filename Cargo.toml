@@ -43,22 +43,22 @@ version = "^10.5"
 optional = true
 
 [build-dependencies.serde_json]
-version = "^1.0"
+version = "^1.0.50"
 optional = true
 
 [dependencies]
-async-trait = "^0.1.42"
+async-trait = "^0.1.89"
 cfg-if = "^1.0"
 event-listener = "^5.0"
-futures-core = "^0.3"
-futures-io = "^0.3"
+futures-core = "^0.3.31"
+futures-io = "^0.3.31"
 
 [dependencies.amq-protocol]
 version = "^10.5"
 default-features = false
 
 [dependencies.async-rs]
-version = "^0.8.2"
+version = "^0.8.13"
 default-features = false
 
 [dependencies.backon]
@@ -72,16 +72,16 @@ default-features = false
 features = ["async"]
 
 [dependencies.tracing]
-version = "^0.1"
+version = "^0.1.30"
 default-features = false
 
 [dev-dependencies]
 futures-lite = "^2.0"
-serde_json = "^1.0"
+serde_json = "^1.0.50"
 smol = "^2.0"
 
 [dev-dependencies.tokio]
-version = "^1.39"
+version = "^1.53.3"
 features = ["macros", "rt-multi-thread", "time"]
 
 [dev-dependencies.tracing-subscriber]
