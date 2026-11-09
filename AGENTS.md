@@ -91,4 +91,4 @@ When the AMQP spec or method signatures need to change, edit `templates/` and re
 | DNS | `hickory-dns` |
 | Codegen | `codegen` (user-facing), `codegen-internal` (build.rs only) |
 
-MSRV is **1.88.0** (Rust 2024 edition).
+MSRV is **1.89.0** (Rust 2024 edition).

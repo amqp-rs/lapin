@@ -11,7 +11,7 @@ keywords = ["amqp", "rabbitmq", "messaging", "async", "client"]
 categories = ["asynchronous", "network-programming"]
 license = "MIT"
 build = "build.rs"
-rust-version = "1.88.0"
+rust-version = "1.89.0"
 
 [features]
 default                   = ["rustls", "default-runtime"]
@@ -39,7 +39,7 @@ rustls--aws_lc_rs         = ["amq-protocol/rustls--aws_lc_rs"] # default, but do
 rustls--ring              = ["amq-protocol/rustls--ring"] # more compatible, (e.g., easily builds on Windows)
 
 [build-dependencies.amq-protocol-codegen]
-version = "^10.5"
+version = "^10.7"
 optional = true
 
 [build-dependencies.serde_json]
@@ -54,7 +54,7 @@ futures-core = "^0.3.31"
 futures-io = "^0.3.31"
 
 [dependencies.amq-protocol]
-version = "^10.5"
+version = "^10.7"
 default-features = false
 
 [dependencies.async-rs]

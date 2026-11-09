@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol"
-version = "10.6.3"
+version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b63f30a81ad95c7a278080be6d993d5b3e971d93e1b00bd894067220fc756804"
+checksum = "ba56915f72aa721b4bca471fa71ff8ec10aecc0d5e2d99497edb44358ccedd7b"
 dependencies = [
  "amq-protocol-codegen",
  "amq-protocol-tcp",
@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-codegen"
-version = "10.6.3"
+version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4a982983cb5206a1ae3eca15dd3687bd4569a3134d7382c024faf2d9636f54c"
+checksum = "1076c87cb7c35113dc542870522d483b291ba9aa5cbcc456547fd79a192862b7"
 dependencies = [
  "amq-protocol-types",
  "handlebars",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-tcp"
-version = "10.6.3"
+version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b1bcecdd743111f05c26294d26b887ba6b2e4789c27515aa48f0fe32066e96c"
+checksum = "84153f37233d155953ccbacb21257b4cb82edb68e57066495ff86495d8783a32"
 dependencies = [
  "amq-protocol-uri",
  "async-rs",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-types"
-version = "10.6.3"
+version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a268a50e97bd5d52292a8b96636f6436215def6f3d128fb8218318f5feb4c33"
+checksum = "1aca84dae6981386bc016fc44434ff9cb6b1f99c25fd0e890ddb048c91261db1"
 dependencies = [
  "cookie-factory",
  "nom 8.0.0",
@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "amq-protocol-uri"
-version = "10.6.3"
+version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a34581b010818ef3da6b5a853e94f6438b3903914baba77a15f7fb2c7ad8958"
+checksum = "9b58add0b63b221e87956f3ec47d6b8f1a0a6f69cc970b668590000c3aa701af"
 dependencies = [
  "amq-protocol-types",
  "percent-encoding",
@@ -234,9 +234,9 @@ dependencies = [
 
 [[package]]
 name = "async-openssl"
-version = "0.2.10"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fea7dd87f748bb2a21a58e846aae8b190955f13186f6afa2dc5190c84d72acfe"
+checksum = "2df8e1408f2f9b712ec12ccedd13debc0d242a20b2385a92e1c028bf51b7b6f4"
 dependencies = [
  "futures-io",
  "openssl",
@@ -482,9 +482,9 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b77c319abfd5219629c45c34c89ba945ed3c5e49fcde9d16b6c3885f118a730"
 dependencies = [
- "const-oid",
- "der",
- "spki",
+ "const-oid 0.9.6",
+ "der 0.7.10",
+ "spki 0.7.3",
  "x509-cert",
 ]
 
@@ -512,6 +512,12 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "cookie-factory"
@@ -650,10 +656,21 @@ version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
 dependencies = [
- "const-oid",
+ "const-oid 0.9.6",
  "der_derive",
  "flagset",
- "pem-rfc7468",
+ "pem-rfc7468 0.7.0",
+ "zeroize",
+]
+
+[[package]]
+name = "der"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a996a108feb8b427a6e12fcf6af4aa83409b79d72c15337d7741368131ee004"
+dependencies = [
+ "const-oid 0.10.2",
+ "pem-rfc7468 1.0.0",
  "zeroize",
 ]
 
@@ -1586,7 +1603,7 @@ dependencies = [
  "base64",
  "cbc",
  "cms",
- "der",
+ "der 0.7.10",
  "des",
  "hex",
  "hmac",
@@ -1644,6 +1661,15 @@ name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
+dependencies = [
+ "base64ct",
+]
+
+[[package]]
+name = "pem-rfc7468"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6305423e0e7738146434843d1694d621cce767262b2a86910beab705e4493d9"
 dependencies = [
  "base64ct",
 ]
@@ -1722,10 +1748,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "695b3df3d3cc1015f12d70235e35b6b79befc5fa7a9b95b951eab1dd07c9efc2"
 dependencies = [
  "cms",
- "const-oid",
- "der",
+ "const-oid 0.9.6",
+ "der 0.7.10",
  "digest",
- "spki",
+ "spki 0.7.3",
  "x509-cert",
  "zeroize",
 ]
@@ -1738,11 +1764,21 @@ checksum = "e847e2c91a18bfa887dd028ec33f2fe6f25db77db3619024764914affe8b69a6"
 dependencies = [
  "aes",
  "cbc",
- "der",
+ "der 0.7.10",
  "pbkdf2",
  "scrypt",
  "sha2",
- "spki",
+ "spki 0.7.3",
+]
+
+[[package]]
+name = "pkcs8"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7"
+dependencies = [
+ "der 0.8.3",
+ "spki 0.8.1",
 ]
 
 [[package]]
@@ -1933,16 +1969,15 @@ dependencies = [
 
 [[package]]
 name = "rustls-connector"
-version = "0.23.9"
+version = "0.23.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524994fd6957827c775abc941f41a146ce351bbd0a9b8cf632ee37f43a13c205"
+checksum = "f799ef81c26fda57609b9456ae1e6750e2ca3dafc2dc5478232c0705f1458fbf"
 dependencies = [
  "futures-io",
  "futures-rustls",
  "log",
  "rustls",
  "rustls-native-certs",
- "rustls-pki-types",
  "rustls-platform-verifier",
  "rustls-webpki",
  "webpki-root-certs",
@@ -2248,7 +2283,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
- "der",
+ "der 0.7.10",
+]
+
+[[package]]
+name = "spki"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9"
+dependencies = [
+ "base64ct",
+ "der 0.8.3",
 ]
 
 [[package]]
@@ -2355,9 +2400,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tcp-stream"
-version = "0.34.14"
+version = "0.34.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "300d0735de48a565461c2ea14cc75b80ee5b6be3b4f5aeabe3553e4c2df8d23d"
+checksum = "2afa87967dbc0fa02957531aab16e5d5fe8a8aa71d8efd9d4173c1f14c59e381"
 dependencies = [
  "async-native-tls",
  "async-openssl",
@@ -2367,6 +2412,8 @@ dependencies = [
  "native-tls",
  "openssl",
  "p12-keystore",
+ "pkcs8",
+ "rustix",
  "rustls-connector",
  "rustls-pki-types",
 ]
@@ -2826,9 +2873,9 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94"
 dependencies = [
- "const-oid",
- "der",
- "spki",
+ "const-oid 0.9.6",
+ "der 0.7.10",
+ "spki 0.7.3",
 ]
 
 [[package]]
